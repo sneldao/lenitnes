@@ -1,0 +1,80 @@
+"use client";
+
+import { useEffect, useState } from "react";
+import Link from "next/link";
+import { api, burnRate, statusColor, type Monitor } from "@/lib/api";
+
+export default function DashboardPage() {
+  const [monitors, setMonitors] = useState<Monitor[]>([]);
+  const [error, setError] = useState<string | null>(null);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    api
+      .listMonitors()
+      .then(setMonitors)
+      .catch((e) => setError(String(e)))
+      .finally(() => setLoading(false));
+  }, []);
+
+  return (
+    <div>
+      <div className="mb-6 flex items-end justify-between">
+        <div>
+          <h1 className="text-2xl font-bold">Monitors</h1>
+          <p className="text-sm text-slate-400">Active watchers and their burn rate.</p>
+        </div>
+        <Link href="/monitors/new" className="btn">+ New Monitor</Link>
+      </div>
+
+      {loading && <p className="text-slate-400">Loading…</p>}
+      {error && (
+        <div className="card border-danger/40 text-danger">
+          Could not reach API. Start the backend, then refresh. <span className="text-slate-500">({error})</span>
+        </div>
+      )}
+
+      {!loading && !error && monitors.length === 0 && (
+        <div className="card text-center">
+          <p className="text-slate-300">No monitors yet.</p>
+          <Link href="/monitors/new" className="btn mt-4">Create your first monitor</Link>
+        </div>
+      )}
+
+      <div className="grid gap-4 sm:grid-cols-2">
+        {monitors.map((m) => {
+          const { perDay, daysLeft } = burnRate(m);
+          return (
+            <div key={m.id} className="card">
+              <div className="mb-2 flex items-start justify-between gap-2">
+                <span className="truncate text-sm font-semibold text-slate-100">{m.url}</span>
+                <span className={`badge ${statusColor(m.status)}`}>{m.status.replace("_", " ")}</span>
+              </div>
+              <p className="mb-4 line-clamp-2 text-sm text-slate-400">{m.condition_text}</p>
+              <dl className="grid grid-cols-3 gap-2 text-xs">
+                <Stat label="Balance" value={`${Number(m.hbar_balance).toFixed(2)} ℏ`} />
+                <Stat label="Burn / day" value={`${perDay.toFixed(2)} ℏ`} />
+                <Stat
+                  label="Days left"
+                  value={Number.isFinite(daysLeft) ? daysLeft.toFixed(1) : "∞"}
+                />
+              </dl>
+              <div className="mt-3 text-xs text-slate-500">
+                Last check: {m.last_check_at ? new Date(m.last_check_at).toLocaleString() : "—"}
+              </div>
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+function Stat({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="rounded-lg border border-edge bg-ink p-2">
+      <dt className="text-[10px] uppercase tracking-wide text-slate-500">{label}</dt>
+      <dd className="font-semibold text-slate-100">{value}</dd>
+    </div>
+  );
+}
