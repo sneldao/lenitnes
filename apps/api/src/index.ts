@@ -1,28 +1,77 @@
-import express from "express";
-import cors from "cors";
-import { config } from "./config.js";
-import { monitorsRouter } from "./routes/monitors.js";
-import { signalsRouter } from "./routes/signals.js";
-import { rulesRouter } from "./routes/rules.js";
-import { webhooksRouter } from "./routes/webhooks.js";
+import express from 'express';
+import cors from 'cors';
+import http from 'node:http';
+import { config } from './config.js';
+import { pool } from './db/pool.js';
+import { authRouter } from './routes/auth.js';
+import { monitorsRouter } from './routes/monitors.js';
+import { signalsRouter } from './routes/signals.js';
+import { rulesRouter } from './routes/rules.js';
+import { webhooksRouter } from './routes/webhooks.js';
+import { requireAuth } from './middleware/auth.js';
 
-const app = express();
+export const app = express();
 app.use(cors({ origin: config.webOrigin }));
-app.use(express.json({ limit: "10mb" }));
+app.use(express.json({ limit: '10mb' }));
 
-app.get("/health", (_req, res) => res.json({ ok: true, service: "lenitnes-api" }));
+// ── Health check (no auth required) ────────────────────────────
+app.get('/health', async (_req, res) => {
+  let dbStatus: 'ok' | 'fail' = 'ok';
+  try {
+    await pool.query('SELECT 1');
+  } catch {
+    dbStatus = 'fail';
+  }
+  res.json({
+    ok: dbStatus === 'ok',
+    service: 'lenitnes-api',
+    version: '0.1.0',
+    checks: { database: dbStatus },
+  });
+});
 
-app.use("/monitors", monitorsRouter);
-app.use("/signals", signalsRouter);
-app.use("/rules", rulesRouter);
-app.use("/webhooks", webhooksRouter);
+app.use('/auth', authRouter);
+app.use('/monitors', requireAuth, monitorsRouter);
+app.use('/signals', requireAuth, signalsRouter);
+app.use('/rules', requireAuth, rulesRouter);
+app.use('/webhooks', webhooksRouter); // Kraken callbacks — use separate HMAC auth
 
 // Centralized error handler.
-app.use((err: unknown, _req: express.Request, res: express.Response, _next: express.NextFunction) => {
-  console.error("[api] unhandled error:", err);
-  res.status(500).json({ error: "internal_error" });
-});
+app.use(
+  (err: unknown, _req: express.Request, res: express.Response, _next: express.NextFunction) => {
+    console.error('[api] unhandled error:', err);
+    res.status(500).json({ error: 'internal_error' });
+  },
+);
 
-app.listen(config.port, () => {
-  console.log(`LENITNES API listening on :${config.port} (${config.env})`);
-});
+// ── Start server (only when run directly, not imported) ────────
+const server = http.createServer(app);
+
+function shutdown(signal: string) {
+  console.log(`\n[api] received ${signal} — shutting down gracefully`);
+  server.close(async () => {
+    try {
+      await pool.end();
+      console.log('[api] DB pool closed');
+    } finally {
+      process.exit(0);
+    }
+  });
+  setTimeout(() => {
+    console.error('[api] forced exit after timeout');
+    process.exit(1);
+  }, 10_000);
+}
+
+process.on('SIGTERM', () => shutdown('SIGTERM'));
+process.on('SIGINT', () => shutdown('SIGINT'));
+
+// Only start listening when this file is run directly.
+const isMain = import.meta.url.endsWith(process.argv[1]?.replace(/^file:\/\//, ''));
+if (isMain) {
+  server.listen(config.port, () => {
+    console.log(`LENITNES API listening on :${config.port} (${config.env})`);
+  });
+}
+
+export { server };

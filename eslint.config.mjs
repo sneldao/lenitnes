@@ -25,6 +25,12 @@ export default tseslint.config(
         "warn",
         { argsIgnorePattern: "^_", varsIgnorePattern: "^_" },
       ],
+      // Disable rules handled by Prettier
+      "@typescript-eslint/comma-dangle": "off",
+      "@typescript-eslint/no-extra-semi": "off",
+      "@typescript-eslint/object-curly-spacing": "off",
+      "@typescript-eslint/quotes": "off",
+      "@typescript-eslint/semi": "off",
     },
   }
 );

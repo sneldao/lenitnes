@@ -1,9 +1,12 @@
-# 1. Lint (and auto-fix) staged TS/TSX files.
+# 1. Type-check staged TS/TSX files.
+npx tsc --noEmit --skipLibCheck
+
+# 2. Format and lint (and auto-fix) staged files.
 npx lint-staged
 
-# 2. Scan staged changes for secrets.
+# 3. Scan staged changes for secrets.
 if command -v gitleaks >/dev/null 2>&1; then
-  gitleaks git --pre-commit --staged --redact --verbose
+  gitleaks git --staged --redact --verbose --source-dir=.
 else
   echo "⚠️  gitleaks not installed — skipping secret scan."
   echo "    Install: https://github.com/gitleaks/gitleaks  (e.g. 'brew install gitleaks')"

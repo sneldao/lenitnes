@@ -1,14 +1,14 @@
-import { Router } from "express";
-import { z } from "zod";
-import { query } from "../db/pool.js";
-import { config } from "../config.js";
-import * as hedera from "../services/hedera.js";
-import type { Monitor } from "../types.js";
+import { Router } from 'express';
+import { z } from 'zod';
+import { query } from '../db/pool.js';
+import { config } from '../config.js';
+import * as hedera from '../services/hedera.js';
+import type { AuthenticatedRequest } from '../middleware/auth.js';
+import type { Monitor } from '../types.js';
 
 export const monitorsRouter = Router();
 
 const createSchema = z.object({
-  userId: z.string().uuid(),
   url: z.string().url(),
   conditionText: z.string().min(1),
   frequencySeconds: z.number().int().positive().default(3600),
@@ -17,7 +17,8 @@ const createSchema = z.object({
 });
 
 // POST /monitors — create monitor + provision escrow.
-monitorsRouter.post("/", async (req, res) => {
+monitorsRouter.post('/', async (req, res) => {
+  const authReq = req as unknown as AuthenticatedRequest;
   const parsed = createSchema.safeParse(req.body);
   if (!parsed.success) return res.status(400).json({ error: parsed.error.flatten() });
   const b = parsed.data;
@@ -26,13 +27,13 @@ monitorsRouter.post("/", async (req, res) => {
     `INSERT INTO monitors (user_id, url, condition_text, frequency_seconds, hbar_balance, cost_per_check)
      VALUES ($1, $2, $3, $4, $5, $6) RETURNING *`,
     [
-      b.userId,
+      authReq.user.id,
       b.url,
       b.conditionText,
       b.frequencySeconds,
       b.stakeHbar,
       b.costPerCheck ?? config.hedera.defaultCostPerCheck,
-    ]
+    ],
   );
   const monitor = rows[0];
 
@@ -45,22 +46,27 @@ monitorsRouter.post("/", async (req, res) => {
   res.status(201).json({ ...monitor, escrow_account_id: escrowAccountId });
 });
 
-// GET /monitors?userId=...
-monitorsRouter.get("/", async (req, res) => {
-  const userId = String(req.query.userId ?? "");
-  const { rows } = userId
-    ? await query<Monitor>(`SELECT * FROM monitors WHERE user_id = $1 ORDER BY created_at DESC`, [userId])
-    : await query<Monitor>(`SELECT * FROM monitors ORDER BY created_at DESC`);
+// GET /monitors — list only the authenticated user's monitors.
+monitorsRouter.get('/', async (req, res) => {
+  const authReq = req as unknown as AuthenticatedRequest;
+  const { rows } = await query<Monitor>(
+    `SELECT * FROM monitors WHERE user_id = $1 ORDER BY created_at DESC`,
+    [authReq.user.id],
+  );
   res.json(rows);
 });
 
-// GET /monitors/:id — detail with signal history.
-monitorsRouter.get("/:id", async (req, res) => {
-  const { rows } = await query<Monitor>(`SELECT * FROM monitors WHERE id = $1`, [req.params.id]);
-  if (!rows.length) return res.status(404).json({ error: "not found" });
+// GET /monitors/:id — detail with signal history (own monitors only).
+monitorsRouter.get('/:id', async (req, res) => {
+  const authReq = req as unknown as AuthenticatedRequest;
+  const { rows } = await query<Monitor>(`SELECT * FROM monitors WHERE id = $1 AND user_id = $2`, [
+    req.params.id,
+    authReq.user.id,
+  ]);
+  if (!rows.length) return res.status(404).json({ error: 'not found' });
   const signals = await query(
     `SELECT * FROM signals WHERE monitor_id = $1 ORDER BY detected_at DESC`,
-    [req.params.id]
+    [req.params.id],
   );
   res.json({ ...rows[0], signals: signals.rows });
 });
@@ -69,11 +75,12 @@ const patchSchema = z.object({
   frequencySeconds: z.number().int().positive().optional(),
   conditionText: z.string().min(1).optional(),
   topUpHbar: z.number().positive().optional(),
-  status: z.enum(["active", "paused"]).optional(),
+  status: z.enum(['active', 'paused']).optional(),
 });
 
-// PATCH /monitors/:id — update frequency/condition/top up/status.
-monitorsRouter.patch("/:id", async (req, res) => {
+// PATCH /monitors/:id — update frequency/condition/top up/status (own monitors only).
+monitorsRouter.patch('/:id', async (req, res) => {
+  const authReq = req as unknown as AuthenticatedRequest;
   const parsed = patchSchema.safeParse(req.body);
   if (!parsed.success) return res.status(400).json({ error: parsed.error.flatten() });
   const b = parsed.data;
@@ -81,40 +88,52 @@ monitorsRouter.patch("/:id", async (req, res) => {
   const sets: string[] = [];
   const vals: unknown[] = [];
   let i = 1;
-  if (b.frequencySeconds !== undefined) { sets.push(`frequency_seconds = $${i++}`); vals.push(b.frequencySeconds); }
-  if (b.conditionText !== undefined) { sets.push(`condition_text = $${i++}`); vals.push(b.conditionText); }
-  if (b.topUpHbar !== undefined) { sets.push(`hbar_balance = hbar_balance + $${i++}`); vals.push(b.topUpHbar); }
-  if (b.status !== undefined) { sets.push(`status = $${i++}`); vals.push(b.status); }
-  if (!sets.length) return res.status(400).json({ error: "no fields to update" });
+  if (b.frequencySeconds !== undefined) {
+    sets.push(`frequency_seconds = $${i++}`);
+    vals.push(b.frequencySeconds);
+  }
+  if (b.conditionText !== undefined) {
+    sets.push(`condition_text = $${i++}`);
+    vals.push(b.conditionText);
+  }
+  if (b.topUpHbar !== undefined) {
+    sets.push(`hbar_balance = hbar_balance + $${i++}`);
+    vals.push(b.topUpHbar);
+  }
+  if (b.status !== undefined) {
+    sets.push(`status = $${i++}`);
+    vals.push(b.status);
+  }
+  if (!sets.length) return res.status(400).json({ error: 'no fields to update' });
 
-  vals.push(req.params.id);
+  vals.push(req.params.id, authReq.user.id);
   const { rows } = await query<Monitor>(
-    `UPDATE monitors SET ${sets.join(", ")} WHERE id = $${i} RETURNING *`,
-    vals
+    `UPDATE monitors SET ${sets.join(', ')} WHERE id = $${i++} AND user_id = $${i} RETURNING *`,
+    vals,
   );
-  if (!rows.length) return res.status(404).json({ error: "not found" });
+  if (!rows.length) return res.status(404).json({ error: 'not found' });
   res.json(rows[0]);
 });
 
-// DELETE /monitors/:id — pause + release remaining escrow.
-monitorsRouter.delete("/:id", async (req, res) => {
-  const { rows } = await query<Monitor>(`SELECT * FROM monitors WHERE id = $1`, [req.params.id]);
-  if (!rows.length) return res.status(404).json({ error: "not found" });
+// DELETE /monitors/:id — pause + release remaining escrow (own monitors only).
+monitorsRouter.delete('/:id', async (req, res) => {
+  const authReq = req as unknown as AuthenticatedRequest;
+  const { rows } = await query<Monitor>(`SELECT * FROM monitors WHERE id = $1 AND user_id = $2`, [
+    req.params.id,
+    authReq.user.id,
+  ]);
+  if (!rows.length) return res.status(404).json({ error: 'not found' });
   const monitor = rows[0];
 
   const remaining = Number(monitor.hbar_balance);
   if (remaining > 0) {
-    const { rows: u } = await query<{ wallet_address: string }>(
-      `SELECT wallet_address FROM users WHERE id = $1`,
-      [monitor.user_id]
-    );
-    if (u[0]?.wallet_address) {
-      await hedera.releaseEscrow({ toWalletAddress: u[0].wallet_address, amountHbar: remaining }).catch((e) =>
-        console.error("[monitors] releaseEscrow failed:", e)
-      );
-    }
+    await hedera
+      .releaseEscrow({ toWalletAddress: authReq.user.wallet_address, amountHbar: remaining })
+      .catch((e: unknown) => console.error('[monitors] releaseEscrow failed:', e));
   }
 
-  await query(`UPDATE monitors SET status = 'paused', hbar_balance = 0 WHERE id = $1`, [monitor.id]);
+  await query(`UPDATE monitors SET status = 'paused', hbar_balance = 0 WHERE id = $1`, [
+    monitor.id,
+  ]);
   res.json({ ok: true });
 });

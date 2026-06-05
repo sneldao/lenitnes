@@ -14,21 +14,41 @@
     "build": "npm run build --workspaces --if-present",
     "lint": "eslint \"apps/**/*.{ts,tsx}\"",
     "typecheck": "npm run typecheck --workspaces --if-present",
+    "test": "npm run test --workspace=@lenitnes/api",
+    "test:watch": "vitest",
     "secrets": "gitleaks git --pre-commit --staged --redact --verbose",
     "prepare": "husky"
   },
   "lint-staged": {
-    "*.{ts,tsx}": "eslint --fix"
+    "*.{ts,tsx}": [
+      "eslint --fix",
+      "prettier --write"
+    ],
+    "*.{json,md,yml,yaml,css}": "prettier --write"
   },
   "engines": {
     "node": ">=20"
   },
   "license": "MIT",
   "devDependencies": {
+    "@types/supertest": "7.2.0",
     "eslint": "^9.39.4",
     "globals": "^17.6.0",
     "husky": "^9.1.7",
     "lint-staged": "^17.0.7",
-    "typescript-eslint": "^8.60.1"
+    "prettier": "3.8.3",
+    "supertest": "7.2.2",
+    "typescript-eslint": "^8.60.1",
+    "vitest": "4.1.8"
+  },
+  "dependencies": {
+    "@hashgraph/sdk": "^2.81.0",
+    "cors": "^2.8.6",
+    "dotenv": "^17.4.2",
+    "express": "^5.2.1",
+    "jose": "^6.2.3",
+    "node-cron": "^4.2.1",
+    "pg": "^8.21.0",
+    "zod": "^4.4.3"
   }
 }
