@@ -18,6 +18,23 @@ The defensibility is the receipt: a Hedera consensus timestamp + TinyFish run ID
 IPFS-pinned screenshot proves you detected a _public_ signal at a specific moment and
 acted on it — valuable for compliance.
 
+## Why this exists
+
+In 2024, a critical vulnerability sat undiscovered in Zcash's `halo2` cryptographic
+circuit code for **four years**. The bug — an unanchored base point in the
+incomplete-addition loop — meant anyone could forge proofs and mint unlimited ZEC.
+It was found by an AI (Claude 4.8), not by human auditors. When patched, the fix
+landed quietly as
+[`halo2_gadgets: Anchor variable-base scalar-mul incomplete-addition base`](https://github.com/zcash/halo2/commit/d8e48efddbe4746d76eb2c8a843a6ddc2b9a727a):
+technical, understated, easy to scroll past.
+
+The signals were public — an unusually large, urgent commit to core consensus code
+with no preceding bug report or discussion — but no one was watching. LENITNES is
+what watches. Not for this specific bug (that's formal verification's job), but for
+the _pattern_: the sudden patch, the out-of-band urgency, the quiet change to
+critical infrastructure that traders, researchers, and protocols need to know about
+_before_ the news breaks.
+
 ## Core concepts
 
 - **Monitor** — a target URL + a plain-English condition + a check frequency + staked HBAR.
