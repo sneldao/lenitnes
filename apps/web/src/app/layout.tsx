@@ -29,6 +29,9 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
                 <Link href="/rules" className="text-slate-300 hover:text-accent">
                   Rules
                 </Link>
+                <Link href="/orders" className="text-slate-300 hover:text-accent">
+                  Orders
+                </Link>
                 <Link href="/monitors/new" className="btn">
                   New Monitor
                 </Link>

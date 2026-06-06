@@ -64,6 +64,33 @@ export const api = {
   listRules: (monitorId?: string) =>
     req<Rule[]>(`/rules${monitorId ? `?monitorId=${monitorId}` : ''}`),
 
+  listOrders: () =>
+    req<
+      {
+        id: string;
+        kraken_order_id: string | null;
+        order_params: Record<string, unknown>;
+        status: string;
+        placed_at: string | null;
+        kraken_response: Record<string, unknown> | null;
+        signal_id: string;
+        detected_at: string;
+        monitor_id: string;
+        monitor_url: string;
+      }[]
+    >('/orders'),
+
+  krakenStatus: () =>
+    req<{ configured: boolean; cliAvailable: boolean; fallback: string }>('/kraken/status'),
+  krakenBalance: () => req<{ balance: Record<string, string> }>('/kraken/balance'),
+  krakenTestTrade: (params?: { pair?: string; type?: 'buy' | 'sell'; volume?: string }) =>
+    req<{
+      ok: boolean;
+      krakenOrderId: string | null;
+      raw: unknown;
+      note: string;
+    }>('/kraken/test-trade', { method: 'POST', body: JSON.stringify(params ?? {}) }),
+
   /** Execute a monitor on-demand via the x402-gated endpoint. */
   executeMonitor: async (
     monitorId: string,

@@ -9,6 +9,8 @@ import { signalsRouter } from './routes/signals.js';
 import { rulesRouter } from './routes/rules.js';
 import { webhooksRouter } from './routes/webhooks.js';
 import { executeRouter } from './routes/execute.js';
+import { ordersRouter } from './routes/orders.js';
+import { krakenRouter } from './routes/kraken.js';
 import { requireAuth } from './middleware/auth.js';
 import { x402Middleware } from './middleware/x402.js';
 
@@ -37,6 +39,8 @@ app.use('/monitors', requireAuth, monitorsRouter);
 app.use('/signals', requireAuth, signalsRouter);
 app.use('/rules', requireAuth, rulesRouter);
 app.use('/webhooks', webhooksRouter); // Kraken callbacks — use separate HMAC auth
+app.use('/orders', requireAuth, ordersRouter);
+app.use('/kraken', requireAuth, krakenRouter);
 
 // ── x402-gated execution (payment → execution tightly coupled) ─
 app.use('/execute', requireAuth, x402Middleware, executeRouter);

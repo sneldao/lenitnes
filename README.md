@@ -20,7 +20,7 @@ acted on it — valuable for compliance.
 
 ## Why this exists
 
-In 2024, a critical vulnerability sat undiscovered in Zcash's `halo2` cryptographic
+In 2026, a critical vulnerability sat undiscovered in Zcash's `halo2` cryptographic
 circuit code for **four years**. The bug — an unanchored base point in the
 incomplete-addition loop — meant anyone could forge proofs and mint unlimited ZEC.
 It was found by an AI (Claude 4.8), not by human auditors. When patched, the fix
@@ -61,13 +61,19 @@ lenitnes/
 │   │       └── execution/      loop.ts (8-step check→proof→trade pipeline)
 │   └── web/                    Next.js + Tailwind frontend
 │       └── src/
-│           ├── app/            Dashboard · Create Monitor · Signal Proof · Rules
+│           ├── app/            Dashboard · Create Monitor · Signal Proof · Rules · Orders
 │           ├── components/     WalletConnect.tsx (HashConnect + x402 signer)
 │           └── lib/api.ts      Typed API client (JWT + x402 payment fetch)
 ├── packages/
 │   └── types/                  Shared domain types (consumed by both apps)
 ├── db/
 │   └── schema.sql              PostgreSQL schema
+├── infra/
+│   └── azure/
+│       └── main.bicep          Azure infrastructure (Container Apps + PostgreSQL + Static Web Apps)
+├── .github/
+│   └── workflows/
+│       └── azure-deploy.yml    CI/CD: build images + deploy Bicep + publish frontend
 ├── .husky/
 │   └── pre-commit              lint-staged + tsc + gitleaks
 ├── eslint.config.mjs
@@ -150,26 +156,48 @@ This tightly couples payment and execution — no credit, no execution — and a
 
 ## Deployment
 
-### Railway (API + Worker)
+### Azure (Recommended — Microsoft for Startups)
 
-1. Create a new Railway project.
-2. Add a PostgreSQL database (Railway → Add Plugin → PostgreSQL).
-3. Add a new **Railway Service** for the API:
-   - Build command: `npm run build --workspace=@lenitnes/api`
-   - Start command: `npm run start --workspace=@lenitnes/api`
-   - Environment variables: copy all vars from `.env.example`
-4. Add a second Railway Service for the worker:
-   - Build command: `npm run build --workspace=@lenitnes/api`
-   - Start command: `npm run worker --workspace=@lenitnes/api`
-   - Environment variables: same as above
-5. Run migrations: `npm run migrate --workspace=@lenitnes/api`
+LENITNES is optimized for **Azure** and leverages the [$100K Microsoft for Startups credits](https://startups.microsoft.com):
 
-### Vercel (Frontend)
+| Component | Azure Service                                                                 | Why                                                   |
+| --------- | ----------------------------------------------------------------------------- | ----------------------------------------------------- |
+| Frontend  | [Static Web Apps](https://azure.microsoft.com/services/app-service/static)    | Free tier, built-in CI/CD from GitHub, global CDN     |
+| API       | [Container Apps](https://azure.microsoft.com/services/container-apps)         | Serverless containers, scales to zero, cost-efficient |
+| Worker    | [Container Apps](https://azure.microsoft.com/services/container-apps)         | Same environment, dedicated cron replica              |
+| Database  | [PostgreSQL Flexible Server](https://azure.microsoft.com/services/postgresql) | Managed, Burstable tier for dev/test                  |
+| Registry  | [Container Registry](https://azure.microsoft.com/services/container-registry) | Stores API + Worker images                            |
 
-1. Connect the repo to Vercel.
-2. Set root directory to `apps/web`.
-3. Add environment variables: `NEXT_PUBLIC_API_URL` (your Railway API URL), `NEXT_PUBLIC_HASHCONNECT_PROJECT_ID`, `NEXT_PUBLIC_HEDERA_NETWORK`.
-4. Deploy.
+**One-command deploy:**
+
+```bash
+# 1. Login and create resource group
+az login
+az group create --name lenitnes-prod --location eastus
+
+# 2. Deploy everything (Bicep)
+az deployment group create \
+  --resource-group lenitnes-prod \
+  --template-file infra/azure/main.bicep \
+  --parameters projectName=lenitnes env=prod
+
+# 3. Build and push images
+az acr build --registry lenitnescrprod --image lenitnes-api:latest -f apps/api/Dockerfile .
+az acr build --registry lenitnescrprod --image lenitnes-worker:latest -f apps/api/Dockerfile.worker .
+
+# 4. Run database migrations
+az containerapp exec --name lenitnes-api-prod --command "npm run migrate --workspace=@lenitnes/api"
+```
+
+**GitHub Actions CI/CD** (`.github/workflows/azure-deploy.yml`) is included — pushes to `main` automatically build images, deploy Bicep infrastructure, and publish the frontend to Static Web Apps.
+
+### Railway / Vercel (Alternative)
+
+If you prefer Railway + Vercel:
+
+1. Railway: create project → add PostgreSQL → deploy API (`npm run start`) + Worker (`npm run worker`).
+2. Vercel: connect repo → root directory `apps/web` → add `NEXT_PUBLIC_API_URL`.
+3. Run migrations: `npm run migrate --workspace=@lenitnes/api`.
 
 ### Environment variables
 
