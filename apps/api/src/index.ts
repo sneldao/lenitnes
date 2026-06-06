@@ -15,7 +15,10 @@ import { executeRouter } from './routes/execute.js';
 import { ordersRouter } from './routes/orders.js';
 import { krakenRouter } from './routes/kraken.js';
 import { requireAuth } from './middleware/auth.js';
+import { auditMiddleware } from './middleware/audit.js';
+import { renderMetrics, metricsMiddleware } from './middleware/metrics.js';
 import { x402Middleware } from './middleware/x402.js';
+import { validateSchema } from './db/validate.js';
 
 export const app = express();
 app.use(helmet());
@@ -51,6 +54,18 @@ app.use((req, res, next) => {
   res.setHeader('x-request-id', id);
   (req as express.Request & { requestId: string }).requestId = id as string;
   next();
+});
+
+// ── Metrics collection for all requests ─────────────────────
+app.use(metricsMiddleware);
+
+// ── Audit logging for all write operations ────────────────────
+app.use(auditMiddleware);
+
+// ── Prometheus metrics endpoint (no auth) ─────────────────────
+app.get('/metrics', (_req, res) => {
+  res.setHeader('Content-Type', 'text/plain; version=0.0.4; charset=utf-8');
+  res.send(renderMetrics());
 });
 
 // ── Health check (no auth required) ────────────────────────────
@@ -116,9 +131,22 @@ process.on('SIGINT', () => shutdown('SIGINT'));
 // Only start listening when this file is run directly.
 const isMain = import.meta.url.endsWith(process.argv[1]?.replace(/^file:\/\//, ''));
 if (isMain) {
-  server.listen(config.port, () => {
-    console.log(`LENITNES API listening on :${config.port} (${config.env})`);
-  });
+  validateSchema()
+    .then(({ ok, missing }) => {
+      if (!ok) {
+        console.error(`[api] schema validation failed — missing tables: ${missing.join(', ')}`);
+        console.error('[api] run `npm run migrate` to apply the schema');
+        process.exit(1);
+      }
+      console.log('[api] schema validation passed');
+      server.listen(config.port, () => {
+        console.log(`LENITNES API listening on :${config.port} (${config.env})`);
+      });
+    })
+    .catch((err) => {
+      console.error('[api] schema validation error:', err);
+      process.exit(1);
+    });
 }
 
 export { server };

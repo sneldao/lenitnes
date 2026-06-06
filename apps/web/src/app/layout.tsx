@@ -2,6 +2,7 @@ import './globals.css';
 import type { Metadata } from 'next';
 import Link from 'next/link';
 import { Providers } from '@/components/Providers';
+import { ErrorBoundary } from '@/components/ErrorBoundary';
 import { WalletProvider, WalletConnectButton } from '@/components/WalletConnect';
 
 export const metadata: Metadata = {
@@ -40,7 +41,9 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
                   <WalletConnectButton />
                 </nav>
               </header>
-              <main className="flex-1 py-8">{children}</main>
+              <main className="flex-1 py-8">
+                <ErrorBoundary>{children}</ErrorBoundary>
+              </main>
               <footer className="border-t border-edge py-6 text-xs text-slate-500">
                 Hedera · TinyFish · Kraken — every signal carries a cryptographic proof chain.
               </footer>
