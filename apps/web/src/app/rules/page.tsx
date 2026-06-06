@@ -1,12 +1,12 @@
 'use client';
 
-import { useEffect, useState } from 'react';
-import { api, type Monitor } from '@/lib/api';
+import { useState } from 'react';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { api, type Monitor, type Rule } from '@/lib/api';
 
 // Simple dropdown-based Rules builder (V1).
 export default function RulesPage() {
-  const [monitors, setMonitors] = useState<Monitor[]>([]);
-  const [rules, setRules] = useState<any[]>([]);
+  const queryClient = useQueryClient();
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
 
@@ -17,30 +17,32 @@ export default function RulesPage() {
     fromHour: '',
     toHour: '',
   });
-  const [krakenStatus, setKrakenStatus] = useState<{
-    configured: boolean;
-    cliAvailable: boolean;
-  } | null>(null);
   const [testingTrade, setTestingTrade] = useState(false);
   const [paperTradeResult, setPaperTradeResult] = useState<{ ok: boolean; message: string } | null>(
     null,
   );
 
-  function load() {
-    api
-      .listMonitors()
-      .then(setMonitors)
-      .catch((e) => setError(String(e)));
-    api
-      .listRules()
-      .then(setRules)
-      .catch(() => {});
-    api
-      .krakenStatus()
-      .then(setKrakenStatus)
-      .catch(() => setKrakenStatus(null));
-  }
-  useEffect(load, []);
+  const { data: monitors = [], isLoading: monitorsLoading } = useQuery({
+    queryKey: ['monitors'],
+    queryFn: () => api.listMonitors(),
+  });
+  const { data: rules = [], isLoading: rulesLoading } = useQuery({
+    queryKey: ['rules'],
+    queryFn: () => api.listRules(),
+  });
+  const { data: krakenStatus } = useQuery({
+    queryKey: ['krakenStatus'],
+    queryFn: () => api.krakenStatus(),
+    retry: 1,
+  });
+
+  const createRule = useMutation({
+    mutationFn: api.createRule,
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['rules'] });
+      setForm((f) => ({ ...f, config: '' }));
+    },
+  });
 
   async function runPaperTrade() {
     setTestingTrade(true);
@@ -66,14 +68,12 @@ export default function RulesPage() {
         form.fromHour && form.toHour
           ? { utcHours: { from: Number(form.fromHour), to: Number(form.toHour) } }
           : {};
-      await api.createRule({
+      await createRule.mutateAsync({
         monitorId: form.monitorId,
         actionType: form.actionType,
         actionConfig: form.config ? JSON.parse(form.config) : {},
         conditions,
       });
-      setForm((f) => ({ ...f, config: '' }));
-      load();
     } catch (e) {
       setError(String(e));
     } finally {

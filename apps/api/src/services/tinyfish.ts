@@ -1,5 +1,6 @@
 import { config } from '../config.js';
 import type { TinyFishResult } from '../types.js';
+import { withRetry } from './retry.js';
 
 // ─────────────────────────────────────────────────────────────
 // TinyFish integration — natural-language web intelligence.
@@ -44,20 +45,24 @@ export async function runMonitorCheck(p: RunMonitorCheckParams): Promise<TinyFis
   const goal = buildGoalPrompt(p);
 
   const baseUrl = process.env.TINYFISH_API_URL ?? 'https://api.tinyfish.ai/v1';
-  const res = await fetch(`${baseUrl}/run`, {
-    method: 'POST',
-    headers: {
-      Authorization: `Bearer ${config.tinyfish.apiKey}`,
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify({
-      url: p.url,
-      goal,
-      format: 'json',
-      screenshots: true,
-    }),
-    signal: AbortSignal.timeout(30_000), // 30s timeout to prevent worker hangs
-  });
+  const res = await withRetry(
+    () =>
+      fetch(`${baseUrl}/run`, {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${config.tinyfish.apiKey}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          url: p.url,
+          goal,
+          format: 'json',
+          screenshots: true,
+        }),
+        signal: AbortSignal.timeout(30_000), // 30s timeout to prevent worker hangs
+      }),
+    { retries: 2, baseDelayMs: 1_000 },
+  );
 
   if (!res.ok) {
     const text = await res.text();

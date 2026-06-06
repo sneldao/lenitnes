@@ -5,6 +5,7 @@ import { config } from '../config.js';
 import * as hedera from '../services/hedera.js';
 import type { AuthenticatedRequest } from '../middleware/auth.js';
 import type { Monitor } from '../types.js';
+import { cacheGet, cacheSet, cacheInvalidate } from '../middleware/cache.js';
 
 export const monitorsRouter = Router();
 
@@ -43,6 +44,7 @@ monitorsRouter.post('/', async (req, res) => {
     monitor.id,
   ]);
 
+  cacheInvalidate(`monitors:${authReq.user.id}:`);
   res.status(201).json({ ...monitor, escrow_account_id: escrowAccountId });
 });
 
@@ -51,10 +53,19 @@ monitorsRouter.get('/', async (req, res) => {
   const authReq = req as unknown as AuthenticatedRequest;
   const limit = Math.min(Number(req.query.limit ?? 50), 100);
   const offset = Math.max(Number(req.query.offset ?? 0), 0);
+  const cacheKey = `monitors:${authReq.user.id}:${limit}:${offset}`;
+  const cached = cacheGet<Monitor[]>(cacheKey);
+  if (cached) {
+    res.setHeader('X-Cache', 'HIT');
+    res.json(cached);
+    return;
+  }
   const { rows } = await query<Monitor>(
     `SELECT * FROM monitors WHERE user_id = $1 ORDER BY created_at DESC LIMIT $2 OFFSET $3`,
     [authReq.user.id, limit, offset],
   );
+  cacheSet(cacheKey, rows, 30_000); // 30s TTL
+  res.setHeader('X-Cache', 'MISS');
   res.json(rows);
 });
 
@@ -114,6 +125,7 @@ monitorsRouter.patch('/:id', async (req, res) => {
     vals,
   );
   if (!rows.length) return res.status(404).json({ error: 'not found' });
+  cacheInvalidate(`monitors:${authReq.user.id}:`);
   res.json(rows[0]);
 });
 
@@ -137,5 +149,6 @@ monitorsRouter.delete('/:id', async (req, res) => {
   await query(`UPDATE monitors SET status = 'paused', hbar_balance = 0 WHERE id = $1`, [
     monitor.id,
   ]);
+  cacheInvalidate(`monitors:${authReq.user.id}:`);
   res.json({ ok: true });
 });

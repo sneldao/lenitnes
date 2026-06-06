@@ -1,6 +1,7 @@
 import crypto from 'node:crypto';
 import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
+import { withRetry } from './retry.js';
 
 const execFileAsync = promisify(execFile);
 
@@ -126,9 +127,10 @@ export async function addOrder(
   if (order.price) params.price = order.price;
   if (order.validate) params.validate = 'true';
 
-  const result = (await privateRequest('AddOrder', params, creds)) as {
-    txid?: string[];
-  };
+  const result = (await withRetry(() => privateRequest('AddOrder', params, creds), {
+    retries: 2,
+    baseDelayMs: 500,
+  })) as { txid?: string[] };
   return { krakenOrderId: result?.txid?.[0] ?? null, raw: result };
 }
 

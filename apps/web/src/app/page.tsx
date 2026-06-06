@@ -1,24 +1,25 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import Link from 'next/link';
+import { useQuery } from '@tanstack/react-query';
 import { api, burnRate, statusColor, type Monitor } from '@/lib/api';
 import { useWallet } from '@/components/WalletConnect';
 
 export default function DashboardPage() {
-  const [monitors, setMonitors] = useState<Monitor[]>([]);
-  const [error, setError] = useState<string | null>(null);
-  const [loading, setLoading] = useState(true);
   const [executing, setExecuting] = useState<Record<string, boolean>>({});
   const { isConnected, executeWithPayment } = useWallet();
 
-  useEffect(() => {
-    api
-      .listMonitors()
-      .then(setMonitors)
-      .catch((e) => setError(String(e)))
-      .finally(() => setLoading(false));
-  }, []);
+  const {
+    data: monitors = [],
+    isLoading,
+    error,
+    isRefetching,
+  } = useQuery({
+    queryKey: ['monitors'],
+    queryFn: () => api.listMonitors(),
+    staleTime: 10_000,
+  });
 
   async function handleExecute(monitorId: string) {
     if (!isConnected) {
@@ -49,15 +50,32 @@ export default function DashboardPage() {
         </Link>
       </div>
 
-      {loading && <p className="text-slate-400">Loading…</p>}
+      {isLoading && (
+        <div className="grid gap-4 sm:grid-cols-2">
+          {Array.from({ length: 4 }).map((_, i) => (
+            <div key={i} className="card animate-pulse">
+              <div className="mb-2 h-4 w-3/4 rounded bg-slate-700" />
+              <div className="mb-4 h-8 rounded bg-slate-700" />
+              <div className="grid grid-cols-3 gap-2">
+                <div className="h-12 rounded-lg bg-slate-700" />
+                <div className="h-12 rounded-lg bg-slate-700" />
+                <div className="h-12 rounded-lg bg-slate-700" />
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
       {error && (
         <div className="card border-danger/40 text-danger">
           Could not reach API. Start the backend, then refresh.{' '}
-          <span className="text-slate-500">({error})</span>
+          <span className="text-slate-500">({error.message})</span>
         </div>
       )}
+      {isRefetching && !isLoading && (
+        <p className="mb-2 text-xs text-slate-500">Refreshing data…</p>
+      )}
 
-      {!loading && !error && monitors.length === 0 && (
+      {!isLoading && !error && monitors.length === 0 && (
         <div className="card text-center">
           <p className="text-slate-300">No monitors yet.</p>
           <Link href="/monitors/new" className="btn mt-4">

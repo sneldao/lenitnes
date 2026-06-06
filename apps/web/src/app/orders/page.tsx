@@ -1,6 +1,7 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
+import { useQuery } from '@tanstack/react-query';
 import { api } from '@/lib/api';
 
 interface Order {
@@ -17,14 +18,6 @@ interface Order {
 }
 
 export default function OrdersPage() {
-  const [orders, setOrders] = useState<Order[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-  const [krakenStatus, setKrakenStatus] = useState<{
-    configured: boolean;
-    cliAvailable: boolean;
-    fallback: string;
-  } | null>(null);
   const [testing, setTesting] = useState(false);
   const [testResult, setTestResult] = useState<{
     ok: boolean;
@@ -32,17 +25,19 @@ export default function OrdersPage() {
     note: string;
   } | null>(null);
 
-  useEffect(() => {
-    api
-      .listOrders()
-      .then(setOrders)
-      .catch((e) => setError(String(e)))
-      .finally(() => setLoading(false));
-    api
-      .krakenStatus()
-      .then(setKrakenStatus)
-      .catch(() => setKrakenStatus(null));
-  }, []);
+  const {
+    data: orders = [],
+    isLoading,
+    error,
+  } = useQuery({
+    queryKey: ['orders'],
+    queryFn: () => api.listOrders(),
+  });
+  const { data: krakenStatus } = useQuery({
+    queryKey: ['krakenStatus'],
+    queryFn: () => api.krakenStatus(),
+    retry: 1,
+  });
 
   async function runPaperTrade() {
     setTesting(true);
@@ -115,10 +110,17 @@ export default function OrdersPage() {
         </div>
       )}
 
-      {loading && <p className="text-slate-400">Loading…</p>}
-      {error && <p className="text-danger">{error}</p>}
+      {isLoading && (
+        <div className="overflow-hidden rounded-lg border border-edge">
+          <div className="h-10 animate-pulse bg-slate-700" />
+          {Array.from({ length: 5 }).map((_, i) => (
+            <div key={i} className="h-12 animate-pulse border-t border-edge bg-slate-800" />
+          ))}
+        </div>
+      )}
+      {error && <p className="text-danger">{error.message}</p>}
 
-      {!loading && !error && orders.length === 0 && (
+      {!isLoading && !error && orders.length === 0 && (
         <div className="card text-center">
           <p className="text-slate-300">No orders yet.</p>
           <p className="mt-2 text-xs text-slate-500">

@@ -60,7 +60,7 @@ export async function generateToken(userId: string, walletAddress: string, email
   return new SignJWT(payload)
     .setProtectedHeader({ alg })
     .setIssuedAt()
-    .setExpirationTime('30d')
+    .setExpirationTime('24h')
     .sign(secret);
 }
 

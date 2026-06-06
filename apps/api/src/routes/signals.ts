@@ -3,6 +3,7 @@ import { query } from '../db/pool.js';
 import { ipfsGatewayUrl } from '../services/ipfs.js';
 import type { AuthenticatedRequest } from '../middleware/auth.js';
 import type { Signal } from '../types.js';
+import { cacheGet, cacheSet } from '../middleware/cache.js';
 
 export const signalsRouter = Router();
 
@@ -22,6 +23,14 @@ signalsRouter.get('/', async (req: Request, res: Response) => {
     if (!m.length) return res.status(404).json({ error: 'not found' });
   }
 
+  const cacheKey = `signals:${monitorId ?? authReq.user.id}:${includeHeartbeats}:${limit}:${offset}`;
+  const cached = cacheGet<Signal[]>(cacheKey);
+  if (cached) {
+    res.setHeader('X-Cache', 'HIT');
+    res.json(cached);
+    return;
+  }
+
   const where: string[] = [];
   if (monitorId) where.push(`m.id = $1`);
   else where.push(`m.user_id = $1`);
@@ -38,6 +47,8 @@ signalsRouter.get('/', async (req: Request, res: Response) => {
     vals,
   );
 
+  cacheSet(cacheKey, rows, 30_000);
+  res.setHeader('X-Cache', 'MISS');
   res.json(rows as unknown as Signal[]);
 });
 

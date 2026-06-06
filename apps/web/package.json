@@ -12,6 +12,7 @@
   "dependencies": {
     "@hashgraph/sdk": "^2.41.0",
     "@lenitnes/types": "*",
+    "@tanstack/react-query": "^5.101.0",
     "@x402/core": "^2.14.0",
     "@x402/fetch": "^2.14.0",
     "@x402/hedera": "^2.13.2",

@@ -1,6 +1,7 @@
 import { Router, type Request, type Response } from 'express';
 import { query } from '../db/pool.js';
 import type { AuthenticatedRequest } from '../middleware/auth.js';
+import { cacheGet, cacheSet } from '../middleware/cache.js';
 
 export const ordersRouter = Router();
 
@@ -9,6 +10,13 @@ ordersRouter.get('/', async (req: Request, res: Response) => {
   const authReq = req as unknown as AuthenticatedRequest;
   const limit = Math.min(Number(req.query.limit ?? 50), 100);
   const offset = Math.max(Number(req.query.offset ?? 0), 0);
+  const cacheKey = `orders:${authReq.user.id}:${limit}:${offset}`;
+  const cached = cacheGet<unknown[]>(cacheKey);
+  if (cached) {
+    res.setHeader('X-Cache', 'HIT');
+    res.json(cached);
+    return;
+  }
   const { rows } = await query(
     `SELECT
        o.id,
@@ -29,5 +37,7 @@ ordersRouter.get('/', async (req: Request, res: Response) => {
      LIMIT $2 OFFSET $3`,
     [authReq.user.id, limit, offset],
   );
+  cacheSet(cacheKey, rows, 30_000);
+  res.setHeader('X-Cache', 'MISS');
   res.json(rows);
 });
