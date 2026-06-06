@@ -1,5 +1,5 @@
-import { config } from "../config.js";
-import type { TinyFishResult } from "../types.js";
+import { config } from '../config.js';
+import type { TinyFishResult } from '../types.js';
 
 // ─────────────────────────────────────────────────────────────
 // TinyFish integration — natural-language web intelligence.
@@ -19,14 +19,14 @@ export interface RunMonitorCheckParams {
 function buildGoalPrompt(p: RunMonitorCheckParams): string {
   const sinceClause = p.lastSeenCommitHash
     ? `Only consider commits added since commit hash ${p.lastSeenCommitHash}. `
-    : "";
+    : '';
   return [
     `Visit ${p.url} and determine if the following condition is true: "${p.condition}".`,
     sinceClause,
     `Extract any relevant text, code, or content that is evidence of this condition.`,
     `Return STRICT JSON with keys: condition_met (boolean), evidence (string),`,
     `summary (string), latest_commit_hash (string, if the page is a commit list).`,
-  ].join(" ");
+  ].join(' ');
 }
 
 /**
@@ -38,15 +38,43 @@ function buildGoalPrompt(p: RunMonitorCheckParams): string {
  */
 export async function runMonitorCheck(p: RunMonitorCheckParams): Promise<TinyFishResult> {
   if (!config.tinyfish.apiKey) {
-    throw new Error("TINYFISH_API_KEY not configured");
+    throw new Error('TINYFISH_API_KEY not configured');
   }
 
   const goal = buildGoalPrompt(p);
 
-  // TODO: replace with the real TinyFish SDK call, e.g.:
-  //   const run = await tinyfish.agents.run({ goal, screenshots: true });
-  //   const parsed = JSON.parse(run.output);
-  //   return { runId: run.id, conditionMet: parsed.condition_met, ... };
+  const baseUrl = process.env.TINYFISH_API_URL ?? 'https://api.tinyfish.ai/v1';
+  const res = await fetch(`${baseUrl}/run`, {
+    method: 'POST',
+    headers: {
+      Authorization: `Bearer ${config.tinyfish.apiKey}`,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({
+      url: p.url,
+      goal,
+      format: 'json',
+      screenshots: true,
+    }),
+  });
 
-  throw new Error(`TinyFish SDK not yet wired. Goal prompt was: ${goal}`);
+  if (!res.ok) {
+    const text = await res.text();
+    throw new Error(`TinyFish API error ${res.status}: ${text}`);
+  }
+
+  const json = (await res.json()) as Record<string, unknown>;
+  const runId = (json.id ?? json.run_id ?? 'unknown') as string;
+  const parsed = (json.output ?? json.result ?? json) as Record<string, unknown>;
+
+  return {
+    runId,
+    conditionMet: Boolean(parsed.condition_met ?? parsed.conditionMet),
+    evidence: String(parsed.evidence ?? ''),
+    summary: String(parsed.summary ?? ''),
+    screenshots: Array.isArray(parsed.screenshots) ? parsed.screenshots : [],
+    latestCommitHash: (parsed.latest_commit_hash ?? parsed.latestCommitHash ?? undefined) as
+      | string
+      | undefined,
+  };
 }

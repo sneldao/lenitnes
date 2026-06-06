@@ -1,16 +1,10 @@
-import {
-  Client,
-  PrivateKey,
-  AccountId,
-  Hbar,
-  TransferTransaction,
-  TopicMessageSubmitTransaction,
-  TopicCreateTransaction,
-} from "@hashgraph/sdk";
-import { config } from "../config.js";
+import { Client, PrivateKey, AccountId } from '@hashgraph/sdk';
+import { coreAccountPlugin, coreConsensusPlugin } from 'hedera-agent-kit';
+import type { Tool } from 'hedera-agent-kit';
+import { config } from '../config.js';
 
 // ─────────────────────────────────────────────────────────────
-// Hedera integration (Hedera Agent Kit / @hashgraph/sdk).
+// Hedera integration via Hedera Agent Kit (JS).
 //
 // The backend holds NO user funds. Staked HBAR lives in a per-monitor
 // escrow account; the platform only debits the per-check fee and writes
@@ -18,19 +12,27 @@ import { config } from "../config.js";
 // ─────────────────────────────────────────────────────────────
 
 let _client: Client | null = null;
+const _tools: Tool[] = [...coreAccountPlugin.tools({}), ...coreConsensusPlugin.tools({})];
 
 export function getClient(): Client {
   if (_client) return _client;
-  const client =
-    config.hedera.network === "mainnet" ? Client.forMainnet() : Client.forTestnet();
+  const client = config.hedera.network === 'mainnet' ? Client.forMainnet() : Client.forTestnet();
   if (config.hedera.operatorId && config.hedera.operatorKey) {
     client.setOperator(
       AccountId.fromString(config.hedera.operatorId),
-      PrivateKey.fromString(config.hedera.operatorKey)
+      PrivateKey.fromString(config.hedera.operatorKey),
     );
   }
   _client = client;
   return client;
+}
+
+async function runTool(method: string, arg: unknown): Promise<string> {
+  const client = getClient();
+  const tool = _tools.find((t) => t.method === method);
+  if (!tool) throw new Error('Invalid method ' + method);
+  const output = await tool.execute(client as any, {}, arg);
+  return JSON.stringify(output);
 }
 
 /**
@@ -45,6 +47,15 @@ export async function createEscrow(_monitorId: string): Promise<{ escrowAccountI
   return { escrowAccountId: config.hedera.treasuryId };
 }
 
+function extractTxId(result: string): string {
+  try {
+    const parsed = JSON.parse(result);
+    return parsed.txHash || parsed.transactionId || String(result);
+  } catch {
+    return String(result);
+  }
+}
+
 /**
  * Debit the per-check fee from a monitor's escrow to the platform treasury.
  * Returns the Hedera transaction id, used as part of the proof package.
@@ -53,13 +64,20 @@ export async function debitPerCheckFee(params: {
   fromAccountId: string;
   amountHbar: number;
 }): Promise<{ hederaTxId: string }> {
-  const client = getClient();
-  const tx = await new TransferTransaction()
-    .addHbarTransfer(AccountId.fromString(params.fromAccountId), Hbar.fromTinybars(-toTinybars(params.amountHbar)))
-    .addHbarTransfer(AccountId.fromString(config.hedera.treasuryId), Hbar.fromTinybars(toTinybars(params.amountHbar)))
-    .execute(client);
-  const receipt = await tx.getReceipt(client);
-  return { hederaTxId: `${tx.transactionId.toString()}` + ` (${receipt.status.toString()})` };
+  const result = await runTool(
+    'transfer_hbar_tool',
+    JSON.stringify({
+      transfers: [
+        {
+          accountId: config.hedera.treasuryId,
+          amount: params.amountHbar,
+        },
+      ],
+      sourceAccountId: params.fromAccountId,
+      transactionMemo: 'LENITNES check fee',
+    }),
+  );
+  return { hederaTxId: extractTxId(result) };
 }
 
 /**
@@ -70,22 +88,30 @@ export async function writeHcsMessage(message: Record<string, unknown>): Promise
   hederaTxId: string;
   topicId: string;
 }> {
-  const client = getClient();
-  const topicId = config.hedera.hcsTopicId;
-  const tx = await new TopicMessageSubmitTransaction()
-    .setTopicId(topicId)
-    .setMessage(JSON.stringify(message))
-    .execute(client);
-  await tx.getReceipt(client);
-  return { hederaTxId: tx.transactionId.toString(), topicId };
+  const result = await runTool(
+    'submit_topic_message_tool',
+    JSON.stringify({
+      topicId: config.hedera.hcsTopicId,
+      message: JSON.stringify(message),
+      transactionMemo: 'LENITNES signal',
+    }),
+  );
+  return {
+    hederaTxId: extractTxId(result),
+    topicId: config.hedera.hcsTopicId,
+  };
 }
 
 /** Create a new HCS topic (used during one-time platform setup). */
-export async function createTopic(memo = "LENITNES proof topic"): Promise<{ topicId: string }> {
-  const client = getClient();
-  const tx = await new TopicCreateTransaction().setTopicMemo(memo).execute(client);
-  const receipt = await tx.getReceipt(client);
-  return { topicId: receipt.topicId!.toString() };
+export async function createTopic(memo = 'LENITNES proof topic'): Promise<{ topicId: string }> {
+  const result = await runTool(
+    'create_topic_tool',
+    JSON.stringify({
+      topicMemo: memo,
+    }),
+  );
+  const parsed = JSON.parse(result);
+  return { topicId: parsed.topicId || String(result) };
 }
 
 /**
@@ -95,15 +121,18 @@ export async function releaseEscrow(params: {
   toWalletAddress: string;
   amountHbar: number;
 }): Promise<{ hederaTxId: string }> {
-  const client = getClient();
-  const tx = await new TransferTransaction()
-    .addHbarTransfer(AccountId.fromString(config.hedera.treasuryId), Hbar.fromTinybars(-toTinybars(params.amountHbar)))
-    .addHbarTransfer(AccountId.fromString(params.toWalletAddress), Hbar.fromTinybars(toTinybars(params.amountHbar)))
-    .execute(client);
-  await tx.getReceipt(client);
-  return { hederaTxId: tx.transactionId.toString() };
-}
-
-function toTinybars(hbar: number): number {
-  return Math.round(hbar * 100_000_000);
+  const result = await runTool(
+    'transfer_hbar_tool',
+    JSON.stringify({
+      transfers: [
+        {
+          accountId: params.toWalletAddress,
+          amount: params.amountHbar,
+        },
+      ],
+      sourceAccountId: config.hedera.treasuryId,
+      transactionMemo: 'LENITNES escrow release',
+    }),
+  );
+  return { hederaTxId: extractTxId(result) };
 }

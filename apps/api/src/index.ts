@@ -8,7 +8,9 @@ import { monitorsRouter } from './routes/monitors.js';
 import { signalsRouter } from './routes/signals.js';
 import { rulesRouter } from './routes/rules.js';
 import { webhooksRouter } from './routes/webhooks.js';
+import { executeRouter } from './routes/execute.js';
 import { requireAuth } from './middleware/auth.js';
+import { x402Middleware } from './middleware/x402.js';
 
 export const app = express();
 app.use(cors({ origin: config.webOrigin }));
@@ -35,6 +37,9 @@ app.use('/monitors', requireAuth, monitorsRouter);
 app.use('/signals', requireAuth, signalsRouter);
 app.use('/rules', requireAuth, rulesRouter);
 app.use('/webhooks', webhooksRouter); // Kraken callbacks — use separate HMAC auth
+
+// ── x402-gated execution (payment → execution tightly coupled) ─
+app.use('/execute', requireAuth, x402Middleware, executeRouter);
 
 // Centralized error handler.
 app.use(

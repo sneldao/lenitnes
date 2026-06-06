@@ -1,34 +1,52 @@
-"use client";
+'use client';
 
-import { useState } from "react";
-import { useRouter } from "next/navigation";
-import { api } from "@/lib/api";
+import { useEffect, useState } from 'react';
+import { useRouter } from 'next/navigation';
+import { api } from '@/lib/api';
+import { useWallet } from '@/components/WalletConnect';
 
 // Multi-step Create Monitor flow.
 export default function NewMonitorPage() {
   const router = useRouter();
+  const { accountId, isConnected } = useWallet();
   const [step, setStep] = useState(1);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [userId, setUserId] = useState<string>('');
 
   const [form, setForm] = useState({
-    userId: "",
-    url: "",
-    conditionText: "",
+    url: '',
+    conditionText: '',
     frequencySeconds: 3600,
-    actionType: "alert" as "alert" | "trade",
+    actionType: 'alert' as 'alert' | 'trade',
     stakeHbar: 10,
   });
 
   const set = <K extends keyof typeof form>(k: K, v: (typeof form)[K]) =>
     setForm((f) => ({ ...f, [k]: v }));
 
+  useEffect(() => {
+    if (isConnected && accountId && !userId) {
+      api
+        .login(accountId)
+        .then((data) => setUserId(data.user.id))
+        .catch((e) => {
+          console.error('Auth failed:', e);
+          setError('Wallet auth failed. Please try again.');
+        });
+    }
+  }, [isConnected, accountId, userId]);
+
   async function submit() {
+    if (!userId) {
+      setError('Connect your wallet first.');
+      return;
+    }
     setSubmitting(true);
     setError(null);
     try {
       const monitor = await api.createMonitor({
-        userId: form.userId,
+        userId,
         url: form.url,
         conditionText: form.conditionText,
         frequencySeconds: form.frequencySeconds,
@@ -57,7 +75,7 @@ export default function NewMonitorPage() {
                 className="input"
                 placeholder="https://github.com/owner/repo/commits/main"
                 value={form.url}
-                onChange={(e) => set("url", e.target.value)}
+                onChange={(e) => set('url', e.target.value)}
               />
             </div>
             <div>
@@ -66,7 +84,7 @@ export default function NewMonitorPage() {
                 className="input min-h-[100px]"
                 placeholder="A new commit mentions security, vulnerability, fix, CVE, or verifying key change."
                 value={form.conditionText}
-                onChange={(e) => set("conditionText", e.target.value)}
+                onChange={(e) => set('conditionText', e.target.value)}
               />
             </div>
           </div>
@@ -79,7 +97,7 @@ export default function NewMonitorPage() {
               <select
                 className="input"
                 value={form.frequencySeconds}
-                onChange={(e) => set("frequencySeconds", Number(e.target.value))}
+                onChange={(e) => set('frequencySeconds', Number(e.target.value))}
               >
                 <option value={300}>Every 5 minutes</option>
                 <option value={900}>Every 15 minutes</option>
@@ -91,14 +109,14 @@ export default function NewMonitorPage() {
             <div>
               <label className="label">Action type</label>
               <div className="flex gap-3">
-                {(["alert", "trade"] as const).map((t) => (
+                {(['alert', 'trade'] as const).map((t) => (
                   <button
                     key={t}
                     type="button"
-                    onClick={() => set("actionType", t)}
-                    className={form.actionType === t ? "btn" : "btn-ghost"}
+                    onClick={() => set('actionType', t)}
+                    className={form.actionType === t ? 'btn' : 'btn-ghost'}
                   >
-                    {t === "alert" ? "Alert only" : "Trade execution"}
+                    {t === 'alert' ? 'Alert only' : 'Trade execution'}
                   </button>
                 ))}
               </div>
@@ -108,10 +126,10 @@ export default function NewMonitorPage() {
 
         {step === 3 && (
           <div className="space-y-4">
-            {form.actionType === "trade" ? (
+            {form.actionType === 'trade' ? (
               <p className="text-sm text-slate-400">
-                Connect your Kraken API key in the Rules builder after creating the monitor.
-                Keys are stored encrypted (AES-256-GCM).
+                Connect your Kraken API key in the Rules builder after creating the monitor. Keys
+                are stored encrypted (AES-256-GCM).
               </p>
             ) : (
               <p className="text-sm text-slate-400">
@@ -119,13 +137,16 @@ export default function NewMonitorPage() {
               </p>
             )}
             <div>
-              <label className="label">Owner user ID (uuid)</label>
-              <input
-                className="input"
-                placeholder="user uuid"
-                value={form.userId}
-                onChange={(e) => set("userId", e.target.value)}
-              />
+              <label className="label">Wallet</label>
+              {isConnected && accountId ? (
+                <p className="text-sm text-slate-200">
+                  Connected: {accountId.slice(0, 8)}…{accountId.slice(-4)}
+                </p>
+              ) : (
+                <p className="text-sm text-danger">
+                  Connect your wallet via the header button to proceed.
+                </p>
+              )}
             </div>
           </div>
         )}
@@ -138,10 +159,10 @@ export default function NewMonitorPage() {
                 type="number"
                 className="input"
                 value={form.stakeHbar}
-                onChange={(e) => set("stakeHbar", Number(e.target.value))}
+                onChange={(e) => set('stakeHbar', Number(e.target.value))}
               />
               <p className="mt-1 text-xs text-slate-500">
-                In production this is signed in-browser via HashConnect and held in escrow.
+                Funds the escrow for background checks. On-demand execution uses x402 micropayments.
               </p>
             </div>
             {error && <p className="text-sm text-danger">{error}</p>}
@@ -163,7 +184,7 @@ export default function NewMonitorPage() {
             </button>
           ) : (
             <button type="button" className="btn" disabled={submitting} onClick={submit}>
-              {submitting ? "Creating…" : "Stake & Create"}
+              {submitting ? 'Creating…' : 'Stake & Create'}
             </button>
           )}
         </div>

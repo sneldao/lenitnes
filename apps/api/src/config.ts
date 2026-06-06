@@ -45,4 +45,11 @@ export const config = {
 
   telegram: { botToken: process.env.TELEGRAM_BOT_TOKEN ?? '' },
   smtpUrl: process.env.SMTP_URL ?? '',
+
+  x402: {
+    facilitatorUrl: process.env.X402_FACILITATOR_URL ?? 'https://blocky402.com',
+    network: (process.env.X402_HEDERA_NETWORK ?? 'hedera:testnet') as `${string}:${string}`,
+    payTo: process.env.X402_PAY_TO ?? process.env.HEDERA_TREASURY_ID ?? '',
+    priceHbar: Number(process.env.X402_PRICE_HBAR ?? 0.5),
+  },
 } as const;

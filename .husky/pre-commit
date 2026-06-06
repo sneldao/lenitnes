@@ -1,12 +1,16 @@
-# 1. Type-check staged TS/TSX files.
-npx tsc --noEmit --skipLibCheck
+#!/bin/sh
+
+# 1. Type-check all workspaces.
+npx tsc --noEmit --skipLibCheck --project apps/api/tsconfig.json
+npx tsc --noEmit --skipLibCheck --project apps/web/tsconfig.json
+npx tsc --noEmit --skipLibCheck --project packages/types/tsconfig.json
 
 # 2. Format and lint (and auto-fix) staged files.
 npx lint-staged
 
 # 3. Scan staged changes for secrets.
 if command -v gitleaks >/dev/null 2>&1; then
-  gitleaks git --staged --redact --verbose --source-dir=.
+  gitleaks git --staged --redact --verbose
 else
   echo "⚠️  gitleaks not installed — skipping secret scan."
   echo "    Install: https://github.com/gitleaks/gitleaks  (e.g. 'brew install gitleaks')"

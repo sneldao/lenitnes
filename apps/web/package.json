@@ -10,7 +10,12 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
+    "@hashgraph/sdk": "^2.41.0",
     "@lenitnes/types": "*",
+    "@x402/core": "^2.14.0",
+    "@x402/fetch": "^2.14.0",
+    "@x402/hedera": "^2.13.2",
+    "hashconnect": "^3.0.14",
     "next": "^16.2.7",
     "react": "^19.2.7",
     "react-dom": "^19.2.7"

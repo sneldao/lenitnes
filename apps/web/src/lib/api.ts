@@ -12,10 +12,26 @@ import type {
 
 const BASE = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:4000';
 
+function getToken(): string | null {
+  if (typeof window === 'undefined') return null;
+  return localStorage.getItem('lenitnes_token');
+}
+
+function setToken(t: string | null) {
+  if (typeof window === 'undefined') return;
+  if (t) localStorage.setItem('lenitnes_token', t);
+  else localStorage.removeItem('lenitnes_token');
+}
+
 async function req<T>(path: string, init?: RequestInit): Promise<T> {
+  const token = getToken();
   const res = await fetch(`${BASE}${path}`, {
     ...init,
-    headers: { 'Content-Type': 'application/json', ...(init?.headers ?? {}) },
+    headers: {
+      'Content-Type': 'application/json',
+      ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      ...(init?.headers ?? {}),
+    },
     cache: 'no-store',
   });
   if (!res.ok) throw new Error(`API ${res.status}: ${await res.text()}`);
@@ -25,6 +41,16 @@ async function req<T>(path: string, init?: RequestInit): Promise<T> {
 export { type Monitor, type MonitorStatus, type Signal, type SignalDetail, type Rule };
 
 export const api = {
+  login: async (walletAddress: string, email?: string) => {
+    const data = await req<{ token: string; user: { id: string; wallet_address: string } }>(
+      '/auth/login',
+      { method: 'POST', body: JSON.stringify({ walletAddress, email }) },
+    );
+    setToken(data.token);
+    return data;
+  },
+  logout: () => setToken(null),
+
   listMonitors: (userId?: string) =>
     req<Monitor[]>(`/monitors${userId ? `?userId=${userId}` : ''}`),
   getMonitor: (id: string) => req<Monitor & { signals: Signal[] }>(`/monitors/${id}`),
@@ -37,6 +63,21 @@ export const api = {
     req<Rule>(`/rules`, { method: 'POST', body: JSON.stringify(body) }),
   listRules: (monitorId?: string) =>
     req<Rule[]>(`/rules${monitorId ? `?monitorId=${monitorId}` : ''}`),
+
+  /** Execute a monitor on-demand via the x402-gated endpoint. */
+  executeMonitor: async (
+    monitorId: string,
+    executeWithPayment: (url: string, init?: RequestInit) => Promise<Response>,
+  ) => {
+    const token = getToken();
+    return executeWithPayment(`${BASE}/execute/${monitorId}`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      },
+    });
+  },
 };
 
 // Helpers ------------------------------------------------------

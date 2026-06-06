@@ -15,16 +15,12 @@
     "test": "vitest run"
   },
   "dependencies": {
-    "@hashgraph/sdk": "^2.62.0",
-    "cors": "^2.8.5",
-    "dotenv": "^16.4.5",
-    "express": "^4.19.2",
-    "node-cron": "^3.0.3",
-    "pg": "^8.12.0",
-    "zod": "^3.23.8"
-  },
-  "dependencies": {
-    "@lenitnes/types": "*"
+    "@lenitnes/types": "*",
+    "@x402/core": "^2.14.0",
+    "@x402/express": "^2.14.0",
+    "@x402/fetch": "^2.14.0",
+    "@x402/hedera": "^2.13.2",
+    "hedera-agent-kit": "^3.8.2"
   },
   "devDependencies": {
     "@types/cors": "^2.8.17",

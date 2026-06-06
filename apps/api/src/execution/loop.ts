@@ -1,12 +1,12 @@
-import { query } from "../db/pool.js";
-import { config } from "../config.js";
-import type { Monitor, Rule } from "../types.js";
-import * as hedera from "../services/hedera.js";
-import * as tinyfish from "../services/tinyfish.js";
-import * as ipfs from "../services/ipfs.js";
-import * as kraken from "../services/kraken.js";
-import * as notify from "../services/notify.js";
-import { decrypt } from "../services/crypto.js";
+import { query } from '../db/pool.js';
+import { config } from '../config.js';
+import type { Monitor, Rule } from '../types.js';
+import * as hedera from '../services/hedera.js';
+import * as tinyfish from '../services/tinyfish.js';
+import * as ipfs from '../services/ipfs.js';
+import * as kraken from '../services/kraken.js';
+import * as notify from '../services/notify.js';
+import { decrypt } from '../services/crypto.js';
 
 // ─────────────────────────────────────────────────────────────
 // Monitor execution loop — the heart of LENITNES.
@@ -21,7 +21,7 @@ async function dueMonitors(): Promise<Monitor[]> {
        AND (
          last_check_at IS NULL
          OR last_check_at + (frequency_seconds || ' seconds')::interval <= now()
-       )`
+       )`,
   );
   return rows;
 }
@@ -37,33 +37,46 @@ export async function runDueChecks(): Promise<void> {
   }
 }
 
-export async function executeCheck(monitor: Monitor): Promise<void> {
+export async function executeCheck(
+  monitor: Monitor,
+  opts: { skipDebit?: boolean } = {},
+): Promise<void> {
   const cost = Number(monitor.cost_per_check) || config.hedera.defaultCostPerCheck;
   const balance = Number(monitor.hbar_balance);
 
-  // 1) Balance check.
-  if (balance < cost) {
-    await query(`UPDATE monitors SET status = 'insufficient_balance' WHERE id = $1`, [monitor.id]);
-    console.warn(`[loop] monitor ${monitor.id} paused: insufficient balance`);
-    return;
-  }
+  let debitTxId = 'x402-on-demand';
 
-  // 2) Debit per-check fee + write heartbeat to HCS (immutable "check ran" record).
-  const debit = await hedera.debitPerCheckFee({
-    fromAccountId: monitor.escrow_account_id ?? config.hedera.treasuryId,
-    amountHbar: cost,
-  });
-  await hedera.writeHcsMessage({
-    kind: "heartbeat",
-    monitorId: monitor.id,
-    ts: new Date().toISOString(),
-    txRef: debit.hederaTxId,
-  });
-  const newBalance = balance - cost;
-  await query(
-    `UPDATE monitors SET hbar_balance = $1, last_check_at = now() WHERE id = $2`,
-    [newBalance, monitor.id]
-  );
+  if (!opts.skipDebit) {
+    // 1) Balance check.
+    if (balance < cost) {
+      await query(`UPDATE monitors SET status = 'insufficient_balance' WHERE id = $1`, [
+        monitor.id,
+      ]);
+      console.warn(`[loop] monitor ${monitor.id} paused: insufficient balance`);
+      return;
+    }
+
+    // 2) Debit per-check fee + write heartbeat to HCS (immutable "check ran" record).
+    const debit = await hedera.debitPerCheckFee({
+      fromAccountId: monitor.escrow_account_id ?? config.hedera.treasuryId,
+      amountHbar: cost,
+    });
+    debitTxId = debit.hederaTxId;
+    await hedera.writeHcsMessage({
+      kind: 'heartbeat',
+      monitorId: monitor.id,
+      ts: new Date().toISOString(),
+      txRef: debitTxId,
+    });
+    const newBalance = balance - cost;
+    await query(`UPDATE monitors SET hbar_balance = $1, last_check_at = now() WHERE id = $2`, [
+      newBalance,
+      monitor.id,
+    ]);
+  } else {
+    // On-demand execution via x402 — payment was settled by the middleware.
+    await query(`UPDATE monitors SET last_check_at = now() WHERE id = $1`, [monitor.id]);
+  }
 
   // 3) Run TinyFish.
   const result = await tinyfish.runMonitorCheck({
@@ -85,7 +98,7 @@ export async function executeCheck(monitor: Monitor): Promise<void> {
     await query(
       `INSERT INTO signals (monitor_id, tinyfish_run_id, is_heartbeat, condition_summary)
        VALUES ($1, $2, true, $3)`,
-      [monitor.id, result.runId, result.summary]
+      [monitor.id, result.runId, result.summary],
     );
     return;
   }
@@ -101,12 +114,12 @@ export async function executeCheck(monitor: Monitor): Promise<void> {
     [
       monitor.id,
       detectedAt,
-      debit.hederaTxId,
+      debitTxId,
       result.runId,
       result.evidence,
       JSON.stringify(result.screenshots),
       result.summary,
-    ]
+    ],
   );
   const signalId = sigRows[0].id;
 
@@ -120,22 +133,23 @@ export async function executeCheck(monitor: Monitor): Promise<void> {
     evidence: result.evidence,
     summary: result.summary,
     screenshots: result.screenshots,
-    hederaTxId: debit.hederaTxId,
+    hederaTxId: debitTxId,
   });
 
   // 6) Write the signal record to HCS (immutable on-chain proof).
   const hcs = await hedera.writeHcsMessage({
-    kind: "signal",
+    kind: 'signal',
     signalId,
     monitorId: monitor.id,
     ipfsCid: cid,
     ts: detectedAt,
   });
 
-  await query(
-    `UPDATE signals SET ipfs_cid = $1, hedera_hcs_message_id = $2 WHERE id = $3`,
-    [cid, hcs.hederaTxId, signalId]
-  );
+  await query(`UPDATE signals SET ipfs_cid = $1, hedera_hcs_message_id = $2 WHERE id = $3`, [
+    cid,
+    hcs.hederaTxId,
+    signalId,
+  ]);
   await query(`UPDATE monitors SET status = 'triggered' WHERE id = $1`, [monitor.id]);
 
   // 7) Execute attached rules.
@@ -145,7 +159,7 @@ export async function executeCheck(monitor: Monitor): Promise<void> {
 async function executeRules(monitor: Monitor, signalId: string, summary: string): Promise<void> {
   const { rows: rules } = await query<Rule>(
     `SELECT * FROM rules WHERE monitor_id = $1 AND is_active = true`,
-    [monitor.id]
+    [monitor.id],
   );
 
   for (const rule of rules) {
@@ -153,21 +167,24 @@ async function executeRules(monitor: Monitor, signalId: string, summary: string)
 
     try {
       switch (rule.action_type) {
-        case "trade":
+        case 'trade':
           await executeTrade(monitor, rule, signalId);
           break;
-        case "webhook":
+        case 'webhook':
           await notify.sendWebhook(String(rule.action_config.url), {
             signalId,
             monitorId: monitor.id,
             summary,
           });
           break;
-        case "telegram":
-          await notify.sendTelegram(String(rule.action_config.chatId), `LENITNES signal: ${summary}`);
+        case 'telegram':
+          await notify.sendTelegram(
+            String(rule.action_config.chatId),
+            `LENITNES signal: ${summary}`,
+          );
           break;
-        case "email":
-          await notify.sendEmail(String(rule.action_config.to), "LENITNES signal", summary);
+        case 'email':
+          await notify.sendEmail(String(rule.action_config.to), 'LENITNES signal', summary);
           break;
       }
     } catch (err) {
@@ -191,16 +208,16 @@ async function executeTrade(monitor: Monitor, rule: Rule, signalId: string): Pro
   const { rows } = await query<{ k: string | null; s: string | null }>(
     `SELECT kraken_api_key_encrypted AS k, kraken_api_secret_encrypted AS s
      FROM users WHERE id = $1`,
-    [monitor.user_id]
+    [monitor.user_id],
   );
   const enc = rows[0];
-  if (!enc?.k || !enc?.s) throw new Error("user has no Kraken credentials");
+  if (!enc?.k || !enc?.s) throw new Error('user has no Kraken credentials');
 
   const order = rule.action_config as unknown as kraken.AddOrderParams;
   const { rows: orderRows } = await query<{ id: string }>(
     `INSERT INTO orders (signal_id, rule_id, order_params, status)
      VALUES ($1, $2, $3, 'pending') RETURNING id`,
-    [signalId, rule.id, JSON.stringify(order)]
+    [signalId, rule.id, JSON.stringify(order)],
   );
   const orderId = orderRows[0].id;
 
@@ -211,13 +228,13 @@ async function executeTrade(monitor: Monitor, rule: Rule, signalId: string): Pro
     });
     await query(
       `UPDATE orders SET kraken_order_id = $1, status = 'placed', placed_at = now(), kraken_response = $2 WHERE id = $3`,
-      [res.krakenOrderId, JSON.stringify(res.raw), orderId]
+      [res.krakenOrderId, JSON.stringify(res.raw), orderId],
     );
   } catch (err) {
-    await query(
-      `UPDATE orders SET status = 'failed', kraken_response = $1 WHERE id = $2`,
-      [JSON.stringify({ error: String(err) }), orderId]
-    );
+    await query(`UPDATE orders SET status = 'failed', kraken_response = $1 WHERE id = $2`, [
+      JSON.stringify({ error: String(err) }),
+      orderId,
+    ]);
     throw err;
   }
 }
