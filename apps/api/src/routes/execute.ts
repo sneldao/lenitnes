@@ -1,6 +1,7 @@
 import { Router } from 'express';
 import { query } from '../db/pool.js';
 import type { Monitor } from '../types.js';
+import type { AuthenticatedRequest } from '../middleware/auth.js';
 import { executeCheck } from '../execution/loop.js';
 
 export const executeRouter = Router();
@@ -15,7 +16,7 @@ export const executeRouter = Router();
  */
 executeRouter.post('/:monitorId', async (req, res) => {
   const monitorId = req.params.monitorId;
-  const userId = (req as any).user?.id;
+  const userId = (req as unknown as AuthenticatedRequest).user?.id;
 
   if (!userId) {
     res.status(401).json({ error: 'unauthorized' });

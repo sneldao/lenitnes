@@ -142,7 +142,12 @@ export default function RulesPage() {
           <select
             className="input"
             value={form.actionType}
-            onChange={(e) => setForm((f) => ({ ...f, actionType: e.target.value as any }))}
+            onChange={(e) =>
+              setForm((f) => ({
+                ...f,
+                actionType: e.target.value as 'trade' | 'webhook' | 'email' | 'telegram',
+              }))
+            }
           >
             <option value="trade">Kraken trade</option>
             <option value="webhook">Webhook</option>

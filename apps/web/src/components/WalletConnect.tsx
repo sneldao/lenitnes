@@ -5,6 +5,7 @@ import { HashConnect } from 'hashconnect';
 import { LedgerId, AccountId, TransferTransaction, Hbar } from '@hashgraph/sdk';
 import { wrapFetchWithPayment, x402Client } from '@x402/fetch';
 import { ExactHederaScheme } from '@x402/hedera/exact/client';
+import { api } from '@/lib/api';
 
 interface WalletContextType {
   accountId: string | null;
@@ -50,18 +51,56 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
 
       const ids = hc.connectedAccountIds;
       if (ids.length > 0) {
-        setAccountId(ids[0].toString());
+        const addr = ids[0].toString();
+        setAccountId(addr);
+        // Auto-login on initial load if wallet is already paired.
+        try {
+          const message = `lenitnes:auth:${Date.now()}`;
+          const sigs = await hc.signMessages(AccountId.fromString(addr), message);
+          if (sigs && sigs.length > 0) {
+            const pk = sigs[0].publicKey.toStringRaw();
+            const sig = Buffer.from(sigs[0].signature).toString('hex');
+            await api.login({
+              walletAddress: addr,
+              publicKey: pk,
+              message,
+              signature: sig,
+            });
+          }
+        } catch (e) {
+          console.warn('[WalletConnect] initial auto-login failed:', e);
+        }
       }
 
-      hc.pairingEvent.on(() => {
+      hc.pairingEvent.on(async () => {
         const connected = hc.connectedAccountIds;
         if (connected.length > 0) {
-          setAccountId(connected[0].toString());
+          const addr = connected[0].toString();
+          setAccountId(addr);
+
+          // Sign an auth nonce and exchange it for a JWT.
+          try {
+            const message = `lenitnes:auth:${Date.now()}`;
+            const sigs = await hc.signMessages(AccountId.fromString(addr), message);
+            if (sigs && sigs.length > 0) {
+              const pk = sigs[0].publicKey.toStringRaw();
+              const sig = Buffer.from(sigs[0].signature).toString('hex');
+              await api.login({
+                walletAddress: addr,
+                publicKey: pk,
+                message,
+                signature: sig,
+              });
+            }
+          } catch (e) {
+            console.warn('[WalletConnect] auto-login failed:', e);
+          }
         }
       });
 
       hc.disconnectionEvent.on(() => {
         setAccountId(null);
+        api.logout();
       });
     };
     init();
@@ -89,6 +128,7 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
     if (hashconnect) {
       await hashconnect.disconnect();
       setAccountId(null);
+      api.logout();
     }
   };
 

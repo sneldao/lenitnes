@@ -1,5 +1,8 @@
 import crypto from 'node:crypto';
-import { execSync } from 'node:child_process';
+import { execFile } from 'node:child_process';
+import { promisify } from 'node:util';
+
+const execFileAsync = promisify(execFile);
 
 // ─────────────────────────────────────────────────────────────
 // Kraken integration — prefers the Kraken CLI (AI-native trading
@@ -64,28 +67,33 @@ async function privateRequest(
   return json.result;
 }
 
-function cliAddOrder(
+async function cliAddOrder(
   order: AddOrderParams,
   creds: KrakenCredentials,
-): { krakenOrderId: string | null; raw: unknown } {
+): Promise<{ krakenOrderId: string | null; raw: unknown }> {
   const env = {
     ...process.env,
     KRAKEN_API_KEY: creds.apiKey,
     KRAKEN_API_SECRET: creds.apiSecret,
   };
 
-  const flags = [
-    `--pair ${order.pair}`,
-    `--type ${order.type}`,
-    `--ordertype ${order.ordertype}`,
-    `--volume ${order.volume}`,
-    order.price ? `--price ${order.price}` : '',
-    order.validate ? '--validate' : '',
+  const args = [
+    'trade',
+    'add',
+    '--pair',
+    order.pair,
+    '--type',
+    order.type,
+    '--ordertype',
+    order.ordertype,
+    '--volume',
+    order.volume,
+    ...(order.price ? ['--price', order.price] : []),
+    ...(order.validate ? ['--validate'] : []),
     '--json',
   ];
 
-  const cmd = `kraken trade add ${flags.filter(Boolean).join(' ')}`;
-  const stdout = execSync(cmd, { env, encoding: 'utf-8', timeout: 30000 });
+  const { stdout } = await execFileAsync('kraken', args, { env, timeout: 30000 });
   const parsed = JSON.parse(stdout) as { txid?: string[]; error?: string[] };
   if (parsed.error && parsed.error.length) {
     throw new Error(`Kraken CLI error: ${parsed.error.join(', ')}`);
@@ -99,7 +107,7 @@ export async function addOrder(
 ): Promise<{ krakenOrderId: string | null; raw: unknown }> {
   // Prefer Kraken CLI when available.
   try {
-    return cliAddOrder(order, creds);
+    return await cliAddOrder(order, creds);
   } catch (cliErr) {
     const msg = cliErr instanceof Error ? cliErr.message : String(cliErr);
     if (msg.includes('not found') || msg.includes(' ENOENT ')) {

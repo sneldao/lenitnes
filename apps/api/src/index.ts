@@ -1,6 +1,7 @@
 import express from 'express';
 import cors from 'cors';
 import http from 'node:http';
+import rateLimit from 'express-rate-limit';
 import { config } from './config.js';
 import { pool } from './db/pool.js';
 import { authRouter } from './routes/auth.js';
@@ -18,6 +19,29 @@ export const app = express();
 app.use(cors({ origin: config.webOrigin }));
 app.use(express.json({ limit: '10mb' }));
 
+// ── Rate limiting ──────────────────────────────────────────────
+const generalLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000, // 15 minutes
+  max: 200,
+  standardHeaders: true,
+  legacyHeaders: false,
+});
+const authLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 10,
+  message: { error: 'too_many_requests' },
+  standardHeaders: true,
+  legacyHeaders: false,
+});
+const executeLimiter = rateLimit({
+  windowMs: 60 * 1000, // 1 minute
+  max: 5,
+  message: { error: 'too_many_requests' },
+  standardHeaders: true,
+  legacyHeaders: false,
+});
+app.use(generalLimiter);
+
 // ── Health check (no auth required) ────────────────────────────
 app.get('/health', async (_req, res) => {
   let dbStatus: 'ok' | 'fail' = 'ok';
@@ -34,7 +58,7 @@ app.get('/health', async (_req, res) => {
   });
 });
 
-app.use('/auth', authRouter);
+app.use('/auth', authLimiter, authRouter);
 app.use('/monitors', requireAuth, monitorsRouter);
 app.use('/signals', requireAuth, signalsRouter);
 app.use('/rules', requireAuth, rulesRouter);
@@ -43,7 +67,7 @@ app.use('/orders', requireAuth, ordersRouter);
 app.use('/kraken', requireAuth, krakenRouter);
 
 // ── x402-gated execution (payment → execution tightly coupled) ─
-app.use('/execute', requireAuth, x402Middleware, executeRouter);
+app.use('/execute', requireAuth, executeLimiter, x402Middleware, executeRouter);
 
 // Centralized error handler.
 app.use(

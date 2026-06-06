@@ -25,15 +25,20 @@ export default function NewMonitorPage() {
   const set = <K extends keyof typeof form>(k: K, v: (typeof form)[K]) =>
     setForm((f) => ({ ...f, [k]: v }));
 
+  // WalletConnect auto-logins with Ed25519 signature proof on connect.
+  // We just watch for the JWT token to infer user state.
   useEffect(() => {
     if (isConnected && accountId && !userId) {
-      api
-        .login(accountId)
-        .then((data) => setUserId(data.user.id))
-        .catch((e) => {
-          console.error('Auth failed:', e);
-          setError('Wallet auth failed. Please try again.');
-        });
+      // Token is already set by WalletConnect; extract user ID from JWT payload
+      const token = localStorage.getItem('lenitnes_token');
+      if (token) {
+        try {
+          const payload = JSON.parse(atob(token.split('.')[1]));
+          setUserId(payload.sub as string);
+        } catch {
+          setError('Invalid session. Please reconnect your wallet.');
+        }
+      }
     }
   }, [isConnected, accountId, userId]);
 

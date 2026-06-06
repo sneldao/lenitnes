@@ -39,7 +39,7 @@ export const config = {
     pinataJwt: process.env.PINATA_JWT ?? '',
   },
 
-  encryptionKey: process.env.ENCRYPTION_KEY ?? 'dev-only-insecure-key-change-me-please',
+  encryptionKey: required('ENCRYPTION_KEY'),
 
   jwtSecret: required('JWT_SECRET', 'dev-only-insecure-jwt-secret-change-me'),
 

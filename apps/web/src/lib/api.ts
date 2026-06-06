@@ -41,10 +41,25 @@ async function req<T>(path: string, init?: RequestInit): Promise<T> {
 export { type Monitor, type MonitorStatus, type Signal, type SignalDetail, type Rule };
 
 export const api = {
-  login: async (walletAddress: string, email?: string) => {
+  login: async (params: {
+    walletAddress: string;
+    publicKey: string;
+    message: string;
+    signature: string;
+    email?: string;
+  }) => {
     const data = await req<{ token: string; user: { id: string; wallet_address: string } }>(
       '/auth/login',
-      { method: 'POST', body: JSON.stringify({ walletAddress, email }) },
+      {
+        method: 'POST',
+        body: JSON.stringify({
+          walletAddress: params.walletAddress,
+          publicKey: params.publicKey,
+          message: params.message,
+          signature: params.signature,
+          email: params.email,
+        }),
+      },
     );
     setToken(data.token);
     return data;
