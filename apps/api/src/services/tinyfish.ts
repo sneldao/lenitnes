@@ -56,6 +56,7 @@ export async function runMonitorCheck(p: RunMonitorCheckParams): Promise<TinyFis
       format: 'json',
       screenshots: true,
     }),
+    signal: AbortSignal.timeout(30_000), // 30s timeout to prevent worker hangs
   });
 
   if (!res.ok) {

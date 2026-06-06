@@ -49,9 +49,11 @@ monitorsRouter.post('/', async (req, res) => {
 // GET /monitors — list only the authenticated user's monitors.
 monitorsRouter.get('/', async (req, res) => {
   const authReq = req as unknown as AuthenticatedRequest;
+  const limit = Math.min(Number(req.query.limit ?? 50), 100);
+  const offset = Math.max(Number(req.query.offset ?? 0), 0);
   const { rows } = await query<Monitor>(
-    `SELECT * FROM monitors WHERE user_id = $1 ORDER BY created_at DESC`,
-    [authReq.user.id],
+    `SELECT * FROM monitors WHERE user_id = $1 ORDER BY created_at DESC LIMIT $2 OFFSET $3`,
+    [authReq.user.id, limit, offset],
   );
   res.json(rows);
 });

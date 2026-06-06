@@ -34,6 +34,8 @@ CREATE TABLE IF NOT EXISTS monitors (
 
 CREATE INDEX IF NOT EXISTS idx_monitors_user_id ON monitors(user_id);
 CREATE INDEX IF NOT EXISTS idx_monitors_status  ON monitors(status);
+-- Partial index for the worker's due-check query (only active monitors).
+CREATE INDEX IF NOT EXISTS idx_monitors_due ON monitors(last_check_at) WHERE status = 'active';
 
 -- Signals -----------------------------------------------------
 CREATE TABLE IF NOT EXISTS signals (

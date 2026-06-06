@@ -11,6 +11,8 @@ signalsRouter.get('/', async (req: Request, res: Response) => {
   const authReq = req as unknown as AuthenticatedRequest;
   const monitorId = req.query.monitorId ? String(req.query.monitorId) : null;
   const includeHeartbeats = req.query.includeHeartbeats === 'true';
+  const limit = Math.min(Number(req.query.limit ?? 50), 100);
+  const offset = Math.max(Number(req.query.offset ?? 0), 0);
 
   if (monitorId) {
     const { rows: m } = await query<{ id: string }>(
@@ -25,12 +27,14 @@ signalsRouter.get('/', async (req: Request, res: Response) => {
   else where.push(`m.user_id = $1`);
   const vals: unknown[] = [monitorId ?? authReq.user.id];
   if (!includeHeartbeats) where.push(`s.is_heartbeat = false`);
+  vals.push(limit, offset);
 
   const { rows } = await query(
     `SELECT s.* FROM signals s
      JOIN monitors m ON m.id = s.monitor_id
      WHERE ${where.join(' AND ')}
-     ORDER BY s.detected_at DESC`,
+     ORDER BY s.detected_at DESC
+     LIMIT $${vals.length - 1} OFFSET $${vals.length}`,
     vals,
   );
 

@@ -1,3 +1,4 @@
+import pLimit from 'p-limit';
 import { query } from '../db/pool.js';
 import { config } from '../config.js';
 import type { Monitor, Rule } from '../types.js';
@@ -26,15 +27,20 @@ async function dueMonitors(): Promise<Monitor[]> {
   return rows;
 }
 
+const CONCURRENCY = 5;
+const limit = pLimit(CONCURRENCY);
+
 export async function runDueChecks(): Promise<void> {
   const monitors = await dueMonitors();
-  for (const monitor of monitors) {
-    try {
-      await executeCheck(monitor);
-    } catch (err) {
-      console.error(`[loop] monitor ${monitor.id} failed:`, err);
-    }
-  }
+  await Promise.all(
+    monitors.map((monitor) =>
+      limit(() =>
+        executeCheck(monitor).catch((err) => {
+          console.error(`[loop] monitor ${monitor.id} failed:`, err);
+        }),
+      ),
+    ),
+  );
 }
 
 export async function executeCheck(

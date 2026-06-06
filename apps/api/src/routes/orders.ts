@@ -7,6 +7,8 @@ export const ordersRouter = Router();
 // GET /orders — list all orders for the authenticated user's monitors
 ordersRouter.get('/', async (req: Request, res: Response) => {
   const authReq = req as unknown as AuthenticatedRequest;
+  const limit = Math.min(Number(req.query.limit ?? 50), 100);
+  const offset = Math.max(Number(req.query.offset ?? 0), 0);
   const { rows } = await query(
     `SELECT
        o.id,
@@ -23,8 +25,9 @@ ordersRouter.get('/', async (req: Request, res: Response) => {
      JOIN signals s ON s.id = o.signal_id
      JOIN monitors m ON m.id = s.monitor_id
      WHERE m.user_id = $1
-     ORDER BY o.placed_at DESC NULLS LAST, o.created_at DESC`,
-    [authReq.user.id],
+     ORDER BY o.placed_at DESC NULLS LAST, o.created_at DESC
+     LIMIT $2 OFFSET $3`,
+    [authReq.user.id, limit, offset],
   );
   res.json(rows);
 });

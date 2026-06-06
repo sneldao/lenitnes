@@ -5,6 +5,9 @@ export const pool = new pg.Pool({
   connectionString: config.databaseUrl,
   // Supabase / Railway typically require SSL in production.
   ssl: config.env === 'production' ? { rejectUnauthorized: false } : undefined,
+  max: 20,
+  idleTimeoutMillis: 30_000,
+  connectionTimeoutMillis: 5_000,
   // Parse JSONB columns so screenshot_urls, action_config, etc. come back as objects.
   types: {
     getTypeParser: (oid: number) => {
