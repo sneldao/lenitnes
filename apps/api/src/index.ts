@@ -1,6 +1,8 @@
 import express from 'express';
 import cors from 'cors';
+import helmet from 'helmet';
 import http from 'node:http';
+import crypto from 'node:crypto';
 import rateLimit from 'express-rate-limit';
 import { config } from './config.js';
 import { pool } from './db/pool.js';
@@ -16,6 +18,7 @@ import { requireAuth } from './middleware/auth.js';
 import { x402Middleware } from './middleware/x402.js';
 
 export const app = express();
+app.use(helmet());
 app.use(cors({ origin: config.webOrigin }));
 app.use(express.json({ limit: '10mb' }));
 
@@ -42,6 +45,14 @@ const executeLimiter = rateLimit({
 });
 app.use(generalLimiter);
 
+// ── Request correlation IDs for tracing ──────────────────────
+app.use((req, res, next) => {
+  const id = req.headers['x-request-id'] || crypto.randomUUID();
+  res.setHeader('x-request-id', id);
+  (req as express.Request & { requestId: string }).requestId = id as string;
+  next();
+});
+
 // ── Health check (no auth required) ────────────────────────────
 app.get('/health', async (_req, res) => {
   let dbStatus: 'ok' | 'fail' = 'ok';
@@ -50,11 +61,14 @@ app.get('/health', async (_req, res) => {
   } catch {
     dbStatus = 'fail';
   }
+  const mem = process.memoryUsage();
   res.json({
     ok: dbStatus === 'ok',
     service: 'lenitnes-api',
     version: '0.1.0',
+    uptime: process.uptime(),
     checks: { database: dbStatus },
+    memory: { rss: mem.rss, heapUsed: mem.heapUsed, external: mem.external },
   });
 });
 

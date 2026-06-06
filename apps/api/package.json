@@ -18,11 +18,12 @@
     "@lenitnes/types": "*",
     "@x402/core": "^2.14.0",
     "@x402/express": "^2.14.0",
-    "express-rate-limit": "^7.4.1",
-    "p-limit": "^6.2.0",
     "@x402/fetch": "^2.14.0",
     "@x402/hedera": "^2.13.2",
-    "hedera-agent-kit": "^3.8.2"
+    "express-rate-limit": "^7.4.1",
+    "hedera-agent-kit": "^3.8.2",
+    "helmet": "^8.2.0",
+    "p-limit": "^6.2.0"
   },
   "devDependencies": {
     "@types/cors": "^2.8.17",

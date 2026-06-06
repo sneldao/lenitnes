@@ -1,7 +1,9 @@
 import { Router } from 'express';
 import { z } from 'zod';
+import { jwtVerify } from 'jose';
 import { upsertUserByWallet, generateToken } from '../middleware/auth.js';
 import { verifyEd25519, isRecentAuthMessage } from '../services/signature.js';
+import { config } from '../config.js';
 
 export const authRouter = Router();
 
@@ -37,4 +39,24 @@ authRouter.post('/login', async (req, res) => {
     token,
     user: { id: user.id, wallet_address: user.wallet_address, email: user.email },
   });
+});
+
+// POST /auth/refresh — validate existing (non-expired) token and issue a fresh 24h JWT.
+authRouter.post('/refresh', async (req, res) => {
+  const header = req.headers.authorization ?? '';
+  if (!header.startsWith('Bearer ')) {
+    return res.status(401).json({ error: 'missing_token' });
+  }
+  const token = header.slice(7);
+  try {
+    const secret = new TextEncoder().encode(config.jwtSecret);
+    const { payload } = await jwtVerify(token, secret, { clockTolerance: 60 });
+    const userId = payload.sub as string;
+    const walletAddress = payload.wallet_address as string;
+    const email = (payload.email as string) ?? undefined;
+    const newToken = await generateToken(userId, walletAddress, email);
+    res.json({ token: newToken });
+  } catch {
+    res.status(401).json({ error: 'invalid_token' });
+  }
 });
