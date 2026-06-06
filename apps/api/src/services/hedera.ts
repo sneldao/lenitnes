@@ -31,7 +31,15 @@ async function runTool(method: string, arg: unknown): Promise<string> {
   const client = getClient();
   const tool = _tools.find((t) => t.method === method);
   if (!tool) throw new Error('Invalid method ' + method);
-  const output = await tool.execute(client as any, {}, arg);
+  // hedera-agent-kit bundles its own @hashgraph/sdk copy. Both are v2.80.0
+  // and structurally identical, but TypeScript sees them as different types
+  // because they resolve from different node_modules paths.
+  const execute = tool.execute as unknown as (
+    client: Client,
+    config: object,
+    args: unknown,
+  ) => Promise<unknown>;
+  const output = await execute(client, {}, arg);
   return JSON.stringify(output);
 }
 

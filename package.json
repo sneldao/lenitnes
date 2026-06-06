@@ -42,7 +42,6 @@
     "vitest": "4.1.8"
   },
   "dependencies": {
-    "@hashgraph/sdk": "^2.81.0",
     "cors": "^2.8.6",
     "dotenv": "^17.4.2",
     "express": "^5.2.1",
@@ -50,5 +49,8 @@
     "node-cron": "^4.2.1",
     "pg": "^8.21.0",
     "zod": "^4.4.3"
+  },
+  "overrides": {
+    "@hashgraph/sdk": "2.80.0"
   }
 }

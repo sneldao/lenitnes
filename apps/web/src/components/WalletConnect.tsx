@@ -106,9 +106,11 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
           .addHbarTransfer(AccountId.fromString(accountId), Hbar.fromTinybars(-tinybars))
           .addHbarTransfer(AccountId.fromString(payTo), Hbar.fromTinybars(tinybars));
 
+        // hashconnect bundles its own @hashgraph/sdk copy. Both are
+        // structurally identical but resolve from different node_modules paths.
         const signed = await hashconnect.signAndReturnTransaction(
           AccountId.fromString(accountId),
-          tx as any,
+          tx as unknown as import('@hashgraph/sdk').Transaction,
         );
         const bytes = signed.toBytes();
         return Buffer.from(bytes).toString('base64');
