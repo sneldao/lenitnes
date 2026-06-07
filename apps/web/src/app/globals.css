@@ -2,37 +2,89 @@
 @tailwind components;
 @tailwind utilities;
 
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&family=JetBrains+Mono:wght@400;500;600&display=swap');
+
 :root {
   color-scheme: dark;
 }
 
 body {
-  @apply bg-ink text-slate-200 antialiased;
+  @apply bg-ink font-sans text-slate-200 antialiased;
+  background-image:
+    radial-gradient(ellipse at 50% 0%, rgba(6, 182, 212, 0.04) 0%, transparent 50%),
+    linear-gradient(to right, rgba(26, 35, 50, 0.15) 1px, transparent 1px),
+    linear-gradient(to bottom, rgba(26, 35, 50, 0.15) 1px, transparent 1px);
+  background-size:
+    100% 100%,
+    60px 60px,
+    60px 60px;
 }
 
 .card {
-  @apply rounded-xl border border-edge bg-panel p-5;
+  @apply rounded-2xl border border-edge/60 bg-panel/80 p-6 shadow-card backdrop-blur-sm;
+  @apply transition-all duration-200;
+}
+.card:hover {
+  @apply border-edge-light/60 shadow-card-hover;
 }
 
 .badge {
-  @apply inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium;
+  @apply inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-[11px] font-semibold tracking-wide;
 }
 
 .btn {
-  @apply inline-flex items-center justify-center rounded-lg bg-accent px-4 py-2 text-sm font-semibold text-ink transition hover:opacity-90 disabled:opacity-50;
+  @apply inline-flex items-center justify-center gap-2 rounded-xl bg-accent px-5 py-2.5 text-sm font-semibold text-ink shadow-glow-sm transition-all duration-200;
+  @apply hover:bg-accent-glow hover:shadow-glow disabled:opacity-40 disabled:shadow-none;
   @apply focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-ink;
 }
 
 .btn-ghost {
-  @apply inline-flex items-center justify-center rounded-lg border border-edge px-4 py-2 text-sm font-semibold text-slate-200 transition hover:border-accent;
+  @apply inline-flex items-center justify-center gap-2 rounded-xl border border-edge bg-transparent px-5 py-2.5 text-sm font-semibold text-slate-300 transition-all duration-200;
+  @apply hover:border-accent/40 hover:text-accent hover:bg-accent/5;
   @apply focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-ink;
 }
 
+.btn-danger {
+  @apply inline-flex items-center justify-center gap-2 rounded-xl bg-danger/10 border border-danger/20 px-5 py-2.5 text-sm font-semibold text-danger transition-all duration-200;
+  @apply hover:bg-danger/20 hover:border-danger/40;
+}
+
 .input {
-  @apply w-full rounded-lg border border-edge bg-ink px-3 py-2 text-sm text-slate-100 outline-none focus:border-accent;
-  @apply focus-visible:ring-2 focus-visible:ring-accent/50 focus-visible:ring-offset-0;
+  @apply w-full rounded-xl border border-edge bg-ink-light/80 px-4 py-3 text-sm text-slate-100 outline-none transition-all duration-200;
+  @apply placeholder:text-slate-600;
+  @apply focus:border-accent/60 focus:bg-ink focus:shadow-glow-sm;
+  @apply focus-visible:ring-2 focus-visible:ring-accent/30 focus-visible:ring-offset-0;
 }
 
 .label {
-  @apply mb-1 block text-xs font-medium uppercase tracking-wide text-slate-400;
+  @apply mb-1.5 block text-[11px] font-semibold uppercase tracking-wider text-slate-500;
+}
+
+.stat-card {
+  @apply rounded-xl border border-edge/40 bg-ink-light/50 p-4 backdrop-blur-sm;
+}
+
+.section-title {
+  @apply text-[11px] font-semibold uppercase tracking-wider text-slate-500;
+}
+
+.glass {
+  @apply bg-panel/60 backdrop-blur-md border border-edge/40;
+}
+
+::selection {
+  @apply bg-accent/30 text-white;
+}
+
+::-webkit-scrollbar {
+  width: 6px;
+}
+::-webkit-scrollbar-track {
+  @apply bg-transparent;
+}
+::-webkit-scrollbar-thumb {
+  @apply bg-edge rounded-full;
+}
+::-webkit-scrollbar-thumb:hover {
+  @apply bg-edge-light;
 }

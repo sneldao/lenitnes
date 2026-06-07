@@ -3,6 +3,27 @@
 import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { api, type Monitor, type Rule } from '@/lib/api';
+import {
+  Workflow,
+  Eye,
+  Zap,
+  Webhook,
+  Mail,
+  MessageCircle,
+  Clock,
+  Play,
+  Check,
+  X,
+  Plus,
+  AlertTriangle,
+} from 'lucide-react';
+
+const ACTION_META: Record<string, { icon: typeof Zap; label: string; color: string }> = {
+  trade: { icon: Zap, label: 'Kraken Trade', color: 'text-warn' },
+  webhook: { icon: Webhook, label: 'Webhook', color: 'text-accent' },
+  telegram: { icon: MessageCircle, label: 'Telegram', color: 'text-cyan-400' },
+  email: { icon: Mail, label: 'Email', color: 'text-signal' },
+};
 
 // Simple dropdown-based Rules builder (V1).
 export default function RulesPage() {
@@ -89,40 +110,79 @@ export default function RulesPage() {
   };
 
   return (
-    <div className="mx-auto max-w-3xl space-y-6">
+    <div className="mx-auto max-w-3xl space-y-8 animate-fade-in">
       <div className="flex items-end justify-between">
         <div>
-          <h1 className="text-2xl font-bold">Rules</h1>
-          <p className="text-sm text-slate-400">Connect a monitor's signal to an action.</p>
+          <h1 className="text-2xl font-bold tracking-tight text-white">Rules</h1>
+          <p className="mt-1 text-sm text-slate-500">
+            Connect a signal detection to an automated action
+          </p>
         </div>
         <div className="flex items-center gap-3">
           {krakenStatus && (
             <span
-              className={`badge text-[10px] ${
+              className={`badge ${
                 krakenStatus.configured ? 'bg-signal/15 text-signal' : 'bg-danger/15 text-danger'
               }`}
             >
-              {krakenStatus.configured ? 'Kraken ready' : 'Kraken keys missing'}
+              {krakenStatus.configured ? (
+                <>
+                  <Check className="h-3 w-3" /> Kraken ready
+                </>
+              ) : (
+                <>
+                  <X className="h-3 w-3" /> Keys missing
+                </>
+              )}
             </span>
           )}
           <button onClick={runPaperTrade} disabled={testingTrade} className="btn text-xs">
-            {testingTrade ? 'Testing…' : 'Paper Trade'}
+            {testingTrade ? (
+              <span className="animate-pulse">Testing…</span>
+            ) : (
+              <>
+                <Play className="h-3.5 w-3.5" /> Paper Trade
+              </>
+            )}
           </button>
         </div>
       </div>
 
       {paperTradeResult && (
-        <div className={`card ${paperTradeResult.ok ? 'border-signal/40' : 'border-danger/40'}`}>
-          <p className="text-sm font-semibold">
-            {paperTradeResult.ok ? 'Paper trade succeeded' : 'Paper trade failed'}
-          </p>
-          <p className="text-xs text-slate-500">{paperTradeResult.message}</p>
+        <div
+          className={`card ${paperTradeResult.ok ? 'border-signal/30 bg-signal/5' : 'border-danger/30 bg-danger/5'}`}
+        >
+          <div className="flex items-center gap-3">
+            <div
+              className={`flex h-8 w-8 items-center justify-center rounded-lg ${paperTradeResult.ok ? 'bg-signal/20' : 'bg-danger/20'}`}
+            >
+              {paperTradeResult.ok ? (
+                <Check className="h-4 w-4 text-signal" />
+              ) : (
+                <X className="h-4 w-4 text-danger" />
+              )}
+            </div>
+            <div>
+              <p className="text-sm font-semibold text-slate-200">
+                {paperTradeResult.ok ? 'Paper trade succeeded' : 'Paper trade failed'}
+              </p>
+              <p className="text-xs text-slate-500">{paperTradeResult.message}</p>
+            </div>
+          </div>
         </div>
       )}
 
-      <div className="card space-y-4">
+      <div className="card space-y-5">
+        <div className="flex items-center gap-2 border-b border-edge/40 pb-4">
+          <Plus className="h-4 w-4 text-accent" />
+          <h2 className="text-sm font-semibold text-slate-200">Create Rule</h2>
+        </div>
+
         <div>
-          <label className="label">Monitor</label>
+          <label className="label">
+            <Eye className="mr-1 inline h-3 w-3" />
+            Monitor
+          </label>
           <select
             className="input"
             value={form.monitorId}
@@ -138,26 +198,42 @@ export default function RulesPage() {
         </div>
 
         <div>
-          <label className="label">Action</label>
-          <select
-            className="input"
-            value={form.actionType}
-            onChange={(e) =>
-              setForm((f) => ({
-                ...f,
-                actionType: e.target.value as 'trade' | 'webhook' | 'email' | 'telegram',
-              }))
-            }
-          >
-            <option value="trade">Kraken trade</option>
-            <option value="webhook">Webhook</option>
-            <option value="telegram">Telegram</option>
-            <option value="email">Email</option>
-          </select>
+          <label className="label">
+            <Zap className="mr-1 inline h-3 w-3" />
+            Action
+          </label>
+          <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+            {(['webhook', 'telegram', 'trade', 'email'] as const).map((t) => {
+              const meta = ACTION_META[t];
+              const isActive = form.actionType === t;
+              return (
+                <button
+                  key={t}
+                  type="button"
+                  onClick={() => setForm((f) => ({ ...f, actionType: t }))}
+                  className={`flex flex-col items-center gap-1.5 rounded-xl border p-3 transition-all ${
+                    isActive
+                      ? 'border-accent/40 bg-accent/5 shadow-glow-sm'
+                      : 'border-edge/40 hover:border-edge-light'
+                  }`}
+                >
+                  <meta.icon className={`h-4 w-4 ${isActive ? meta.color : 'text-slate-500'}`} />
+                  <span
+                    className={`text-[10px] font-semibold ${isActive ? 'text-slate-200' : 'text-slate-500'}`}
+                  >
+                    {meta.label}
+                  </span>
+                </button>
+              );
+            })}
+          </div>
         </div>
 
         <div>
-          <label className="label">Action config (JSON)</label>
+          <label className="label">
+            <Workflow className="mr-1 inline h-3 w-3" />
+            Config (JSON)
+          </label>
           <textarea
             className="input min-h-[80px] font-mono text-xs"
             placeholder={placeholder[form.actionType]}
@@ -166,50 +242,95 @@ export default function RulesPage() {
           />
         </div>
 
-        <div className="grid grid-cols-2 gap-3">
-          <div>
-            <label className="label">Only after (UTC hour)</label>
-            <input
-              className="input"
-              type="number"
-              min={0}
-              max={23}
-              value={form.fromHour}
-              onChange={(e) => setForm((f) => ({ ...f, fromHour: e.target.value }))}
-            />
-          </div>
-          <div>
-            <label className="label">Only before (UTC hour)</label>
-            <input
-              className="input"
-              type="number"
-              min={0}
-              max={24}
-              value={form.toHour}
-              onChange={(e) => setForm((f) => ({ ...f, toHour: e.target.value }))}
-            />
+        <div>
+          <label className="label">
+            <Clock className="mr-1 inline h-3 w-3" />
+            Time window (optional)
+          </label>
+          <div className="grid grid-cols-2 gap-3">
+            <div className="relative">
+              <input
+                className="input pr-16"
+                type="number"
+                min={0}
+                max={23}
+                placeholder="0"
+                value={form.fromHour}
+                onChange={(e) => setForm((f) => ({ ...f, fromHour: e.target.value }))}
+              />
+              <span className="absolute right-4 top-1/2 -translate-y-1/2 text-[10px] text-slate-600">
+                UTC from
+              </span>
+            </div>
+            <div className="relative">
+              <input
+                className="input pr-16"
+                type="number"
+                min={0}
+                max={24}
+                placeholder="24"
+                value={form.toHour}
+                onChange={(e) => setForm((f) => ({ ...f, toHour: e.target.value }))}
+              />
+              <span className="absolute right-4 top-1/2 -translate-y-1/2 text-[10px] text-slate-600">
+                UTC to
+              </span>
+            </div>
           </div>
         </div>
 
-        {error && <p className="text-sm text-danger">{error}</p>}
-        <button className="btn" disabled={!form.monitorId || saving} onClick={save}>
-          {saving ? 'Saving…' : 'Create rule'}
+        {error && (
+          <div className="flex items-center gap-2 text-sm text-danger">
+            <AlertTriangle className="h-4 w-4" />
+            {error}
+          </div>
+        )}
+        <button className="btn w-full" disabled={!form.monitorId || saving} onClick={save}>
+          {saving ? 'Saving…' : 'Create Rule'}
         </button>
       </div>
 
-      <div className="space-y-2">
-        <h2 className="text-sm font-semibold uppercase tracking-wide text-slate-400">
-          Existing rules
+      <div className="space-y-3">
+        <h2 className="section-title flex items-center gap-2">
+          <Workflow className="h-3.5 w-3.5" />
+          Active Rules ({rules.length})
         </h2>
-        {rules.length === 0 && <p className="text-sm text-slate-500">No rules yet.</p>}
-        {rules.map((r) => (
-          <div key={r.id} className="card flex items-center justify-between">
-            <span className="text-sm">{r.action_type}</span>
-            <span className="badge bg-slate-500/15 text-slate-400">
-              {r.is_active ? 'active' : 'off'}
-            </span>
+        {rules.length === 0 && (
+          <div className="stat-card p-6 text-center">
+            <p className="text-sm text-slate-500">No rules configured yet</p>
           </div>
-        ))}
+        )}
+        {rules.map((r) => {
+          const meta = ACTION_META[r.action_type] ?? ACTION_META.webhook;
+          return (
+            <div key={r.id} className="card flex items-center justify-between py-4">
+              <div className="flex items-center gap-3">
+                <div className={`flex h-8 w-8 items-center justify-center rounded-lg bg-edge/40`}>
+                  <meta.icon className={`h-4 w-4 ${meta.color}`} />
+                </div>
+                <div>
+                  <p className="text-sm font-medium text-slate-200">{meta.label}</p>
+                  <p className="text-[10px] text-slate-500">
+                    {r.created_at ? new Date(r.created_at).toLocaleDateString() : '—'}
+                  </p>
+                </div>
+              </div>
+              <span
+                className={`badge ${
+                  r.is_active ? 'bg-signal/15 text-signal' : 'bg-slate-500/15 text-slate-500'
+                }`}
+              >
+                {r.is_active ? (
+                  <>
+                    <span className="h-1.5 w-1.5 rounded-full bg-signal animate-pulse" /> Active
+                  </>
+                ) : (
+                  'Disabled'
+                )}
+              </span>
+            </div>
+          );
+        })}
       </div>
     </div>
   );

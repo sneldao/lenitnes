@@ -207,9 +207,12 @@ export function WalletConnectButton() {
       <button
         onClick={disconnect}
         aria-label={`Disconnect wallet ${accountId ?? ''}`}
-        className="rounded bg-slate-700 px-3 py-1.5 text-xs font-medium text-white hover:bg-slate-600 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-ink"
+        className="flex items-center gap-2 rounded-xl border border-signal/20 bg-signal/5 px-3 py-2 text-xs font-medium text-signal transition-all hover:border-signal/40 hover:bg-signal/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-signal focus-visible:ring-offset-2 focus-visible:ring-offset-ink"
       >
-        {accountId?.slice(0, 8)}...{accountId?.slice(-4)}
+        <span className="h-1.5 w-1.5 rounded-full bg-signal animate-pulse" />
+        <span className="font-mono">
+          {accountId?.slice(0, 8)}…{accountId?.slice(-4)}
+        </span>
       </button>
     );
   }
@@ -217,10 +220,11 @@ export function WalletConnectButton() {
   if (projectIdMissing) {
     return (
       <span
-        className="rounded bg-slate-700/50 px-3 py-1.5 text-xs font-medium text-slate-400 cursor-help"
+        className="flex items-center gap-2 rounded-xl border border-edge bg-ink-light/50 px-3 py-2 text-xs font-medium text-slate-500 cursor-help"
         title="HashConnect project ID not configured. Set NEXT_PUBLIC_HASHCONNECT_PROJECT_ID in .env and rebuild."
       >
-        Wallet Unavailable
+        <span className="h-1.5 w-1.5 rounded-full bg-slate-600" />
+        Unavailable
       </span>
     );
   }
@@ -229,7 +233,7 @@ export function WalletConnectButton() {
     <button
       onClick={connect}
       aria-label="Connect Hedera wallet via HashConnect"
-      className="rounded bg-accent px-3 py-1.5 text-xs font-bold text-white hover:bg-accent/80 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-ink"
+      className="flex items-center gap-2 rounded-xl bg-gradient-to-r from-accent to-signal px-4 py-2 text-xs font-bold text-ink shadow-glow-sm transition-all hover:shadow-glow focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-ink"
     >
       Connect Wallet
     </button>

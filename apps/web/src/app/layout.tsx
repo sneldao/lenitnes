@@ -10,9 +10,20 @@ export const metadata: Metadata = {
   description:
     'Monitor GitHub & the web for crypto market signals. Hedera-timestamped proof, TinyFish detection, Kraken execution.',
   icons: {
-    icon: "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ctext y='.9em' font-size='90'%3E🔗%3C/text%3E%3C/svg%3E",
+    icon: "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Cdefs%3E%3ClinearGradient id='g' x1='0%25' y1='0%25' x2='100%25' y2='100%25'%3E%3Cstop offset='0%25' stop-color='%2306b6d4'/%3E%3Cstop offset='100%25' stop-color='%2310b981'/%3E%3C/linearGradient%3E%3C/defs%3E%3Ccircle cx='50' cy='50' r='45' fill='url(%23g)'/%3E%3Ctext x='50' y='58' text-anchor='middle' font-size='40' font-weight='900' fill='%2306090f' font-family='system-ui'%3EL%3C/text%3E%3C/svg%3E",
   },
 };
+
+function NavLink({ href, children }: { href: string; children: React.ReactNode }) {
+  return (
+    <Link
+      href={href}
+      className="relative px-3 py-2 text-sm font-medium text-slate-400 transition-colors hover:text-slate-100 after:absolute after:inset-x-3 after:bottom-0 after:h-px after:bg-accent after:opacity-0 after:transition-opacity hover:after:opacity-100"
+    >
+      {children}
+    </Link>
+  );
+}
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
@@ -26,35 +37,57 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         </a>
         <Providers>
           <WalletProvider>
-            <div className="mx-auto flex min-h-screen max-w-6xl flex-col px-6">
-              <header className="flex items-center justify-between border-b border-edge py-5">
-                <Link href="/" className="flex items-center gap-2">
-                  <span className="text-lg font-black tracking-tight text-accent">LENITNES</span>
-                  <span className="hidden text-xs text-slate-500 sm:inline">
-                    proof-chained monitoring
-                  </span>
+            <div className="mx-auto flex min-h-screen max-w-7xl flex-col px-6 lg:px-8">
+              <header className="glass sticky top-0 z-40 -mx-6 flex items-center justify-between rounded-b-2xl px-6 py-4 lg:-mx-8 lg:px-8">
+                <Link href="/" className="group flex items-center gap-3">
+                  <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-gradient-to-br from-accent to-signal text-sm font-black text-ink shadow-glow-sm transition-shadow group-hover:shadow-glow">
+                    L
+                  </div>
+                  <div className="flex flex-col">
+                    <span className="text-sm font-bold tracking-tight text-slate-100">
+                      LENITNES
+                    </span>
+                    <span className="hidden text-[10px] font-medium text-slate-500 sm:block">
+                      proof-chained monitoring
+                    </span>
+                  </div>
                 </Link>
-                <nav className="flex items-center gap-4 text-sm">
-                  <Link href="/" className="text-slate-300 hover:text-accent">
-                    Dashboard
+                <nav className="flex items-center gap-1">
+                  <NavLink href="/">Dashboard</NavLink>
+                  <NavLink href="/rules">Rules</NavLink>
+                  <NavLink href="/orders">Orders</NavLink>
+                  <div className="ml-3 h-5 w-px bg-edge" />
+                  <Link href="/monitors/new" className="btn ml-3 py-2 text-xs">
+                    + Monitor
                   </Link>
-                  <Link href="/rules" className="text-slate-300 hover:text-accent">
-                    Rules
-                  </Link>
-                  <Link href="/orders" className="text-slate-300 hover:text-accent">
-                    Orders
-                  </Link>
-                  <Link href="/monitors/new" className="btn">
-                    New Monitor
-                  </Link>
-                  <WalletConnectButton />
+                  <div className="ml-2">
+                    <WalletConnectButton />
+                  </div>
                 </nav>
               </header>
-              <main id="main-content" className="flex-1 py-8" tabIndex={-1}>
+              <main id="main-content" className="animate-fade-in flex-1 py-10" tabIndex={-1}>
                 <ErrorBoundary>{children}</ErrorBoundary>
               </main>
-              <footer className="border-t border-edge py-6 text-xs text-slate-500">
-                Hedera · TinyFish · Kraken — every signal carries a cryptographic proof chain.
+              <footer className="border-t border-edge/40 py-8">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-3">
+                    <div className="flex h-6 w-6 items-center justify-center rounded-md bg-gradient-to-br from-accent/20 to-signal/20 text-[10px] font-bold text-accent">
+                      L
+                    </div>
+                    <span className="text-xs text-slate-500">
+                      Every signal carries a cryptographic proof chain
+                    </span>
+                  </div>
+                  <div className="flex items-center gap-4 text-[10px] font-medium uppercase tracking-wider text-slate-600">
+                    <span>Hedera</span>
+                    <span className="h-1 w-1 rounded-full bg-edge-light" />
+                    <span>TinyFish</span>
+                    <span className="h-1 w-1 rounded-full bg-edge-light" />
+                    <span>Grove</span>
+                    <span className="h-1 w-1 rounded-full bg-edge-light" />
+                    <span>Kraken</span>
+                  </div>
+                </div>
               </footer>
             </div>
           </WalletProvider>
