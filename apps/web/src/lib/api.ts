@@ -34,6 +34,10 @@ async function req<T>(path: string, init?: RequestInit): Promise<T> {
     },
     cache: 'no-store',
   });
+  if (res.status === 401) {
+    setToken(null);
+    throw new Error('session_expired');
+  }
   if (!res.ok) throw new Error(`API ${res.status}: ${await res.text()}`);
   return res.json() as Promise<T>;
 }

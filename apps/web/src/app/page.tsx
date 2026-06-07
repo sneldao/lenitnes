@@ -1,16 +1,26 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useSyncExternalStore } from 'react';
 import Link from 'next/link';
 import { useQuery } from '@tanstack/react-query';
 import { api, burnRate, statusColor, type Monitor } from '@/lib/api';
 import { useWallet } from '@/components/WalletConnect';
 
+function useHasToken() {
+  return useSyncExternalStore(
+    (cb) => {
+      window.addEventListener('storage', cb);
+      return () => window.removeEventListener('storage', cb);
+    },
+    () => !!localStorage.getItem('lenitnes_token'),
+    () => false,
+  );
+}
+
 export default function DashboardPage() {
   const [executing, setExecuting] = useState<Record<string, boolean>>({});
   const { isConnected, executeWithPayment } = useWallet();
-
-  const hasToken = typeof window !== 'undefined' && !!localStorage.getItem('lenitnes_token');
+  const hasToken = useHasToken();
 
   const {
     data: monitors = [],
@@ -18,7 +28,7 @@ export default function DashboardPage() {
     error,
     isRefetching,
   } = useQuery({
-    queryKey: ['monitors'],
+    queryKey: ['monitors', hasToken],
     queryFn: () => api.listMonitors(),
     staleTime: 10_000,
     enabled: hasToken,
@@ -78,7 +88,7 @@ export default function DashboardPage() {
           ))}
         </div>
       )}
-      {hasToken && error && (
+      {hasToken && error && error.message !== 'session_expired' && (
         <div className="card border-danger/40 text-danger">
           Could not reach API. Start the backend, then refresh.{' '}
           <span className="text-slate-500">({error.message})</span>
