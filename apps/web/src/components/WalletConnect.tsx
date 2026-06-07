@@ -14,6 +14,7 @@ interface WalletContextType {
   isConnected: boolean;
   pairingString: string | null;
   isLoading: boolean;
+  projectIdMissing: boolean;
   connect: () => void;
   disconnect: () => Promise<void>;
   executeWithPayment: (url: string, init?: RequestInit) => Promise<Response>;
@@ -27,12 +28,14 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
   const [pairingString, setPairingString] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
 
+  const [projectIdMissing, setProjectIdMissing] = useState(false);
+
   useEffect(() => {
     let mounted = true;
     const init = async () => {
       const projectId = process.env.NEXT_PUBLIC_HASHCONNECT_PROJECT_ID;
       if (!projectId) {
-        console.warn('NEXT_PUBLIC_HASHCONNECT_PROJECT_ID not set');
+        setProjectIdMissing(true);
         return;
       }
       const { HashConnect } = await import('hashconnect');
@@ -179,6 +182,7 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
         isConnected: !!accountId,
         pairingString,
         isLoading,
+        projectIdMissing,
         connect,
         disconnect,
         executeWithPayment,
@@ -196,7 +200,7 @@ export function useWallet() {
 }
 
 export function WalletConnectButton() {
-  const { isConnected, accountId, connect, disconnect } = useWallet();
+  const { isConnected, accountId, connect, disconnect, projectIdMissing } = useWallet();
 
   if (isConnected) {
     return (
@@ -207,6 +211,17 @@ export function WalletConnectButton() {
       >
         {accountId?.slice(0, 8)}...{accountId?.slice(-4)}
       </button>
+    );
+  }
+
+  if (projectIdMissing) {
+    return (
+      <span
+        className="rounded bg-slate-700/50 px-3 py-1.5 text-xs font-medium text-slate-400 cursor-help"
+        title="HashConnect project ID not configured. Set NEXT_PUBLIC_HASHCONNECT_PROJECT_ID in .env and rebuild."
+      >
+        Wallet Unavailable
+      </span>
     );
   }
 

@@ -10,6 +10,8 @@ export default function DashboardPage() {
   const [executing, setExecuting] = useState<Record<string, boolean>>({});
   const { isConnected, executeWithPayment } = useWallet();
 
+  const hasToken = typeof window !== 'undefined' && !!localStorage.getItem('lenitnes_token');
+
   const {
     data: monitors = [],
     isLoading,
@@ -19,6 +21,8 @@ export default function DashboardPage() {
     queryKey: ['monitors'],
     queryFn: () => api.listMonitors(),
     staleTime: 10_000,
+    enabled: hasToken,
+    retry: false,
   });
 
   async function handleExecute(monitorId: string) {
@@ -50,7 +54,16 @@ export default function DashboardPage() {
         </Link>
       </div>
 
-      {isLoading && (
+      {!hasToken && (
+        <div className="card text-center">
+          <p className="text-slate-300">Connect your Hedera wallet to view monitors.</p>
+          <p className="mt-2 text-xs text-slate-500">
+            Use the <strong>Connect Wallet</strong> button in the header.
+          </p>
+        </div>
+      )}
+
+      {hasToken && isLoading && (
         <div className="grid gap-4 sm:grid-cols-2">
           {Array.from({ length: 4 }).map((_, i) => (
             <div key={i} className="card animate-pulse">
@@ -65,17 +78,17 @@ export default function DashboardPage() {
           ))}
         </div>
       )}
-      {error && (
+      {hasToken && error && (
         <div className="card border-danger/40 text-danger">
           Could not reach API. Start the backend, then refresh.{' '}
           <span className="text-slate-500">({error.message})</span>
         </div>
       )}
-      {isRefetching && !isLoading && (
+      {hasToken && isRefetching && !isLoading && (
         <p className="mb-2 text-xs text-slate-500">Refreshing data…</p>
       )}
 
-      {!isLoading && !error && monitors.length === 0 && (
+      {hasToken && !isLoading && !error && monitors.length === 0 && (
         <div className="card text-center">
           <p className="text-slate-300">No monitors yet.</p>
           <Link href="/monitors/new" className="btn mt-4">

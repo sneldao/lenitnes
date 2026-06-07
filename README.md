@@ -8,14 +8,14 @@ Every signal carries a tamper-evident **proof chain**:
 
 ```
 ╭───────────────╮   ╭──────────────╮   ╭────────────────╮   ╭──────────────╮
-│   TinyFish    │──▶│    Hedera     │──▶│      IPFS       │──▶│    Kraken     │
-│ detect signal │   │ HCS timestamp │   │ pin proof pkg  │   │ alert / trade │
-│  + screenshot │   │ + micropay    │   │     (CID)      │   │   (receipt)   │
+│   TinyFish    │──▶│    Hedera     │──▶│     Grove       │──▶│    Kraken     │
+│ detect signal │   │ HCS timestamp │   │  proof storage │   │ alert / trade │
+│  + screenshot │   │ + micropay    │   │  (Lens Proto)  │   │   (receipt)   │
 ╰───────────────╯   ╰──────────────╯   ╰────────────────╯   ╰──────────────╯
 ```
 
 The defensibility is the receipt: a Hedera consensus timestamp + TinyFish run ID +
-IPFS-pinned screenshot proves you detected a _public_ signal at a specific moment and
+Grove-stored proof package proves you detected a _public_ signal at a specific moment and
 acted on it — valuable for compliance.
 
 ## Why this exists
@@ -239,7 +239,7 @@ See the [Azure Bicep template](./infra/azure/main.bicep) and CI/CD workflow (`.g
 | `HEDERA_HCS_TOPIC_ID`                | HCS topic for signal/heartbeat records          |
 | `DEFAULT_COST_PER_CHECK_HBAR`        | Per-check fee (default: 0.5)                    |
 | `TINYFISH_API_KEY`                   | TinyFish SDK API key                            |
-| `PINATA_JWT`                         | Pinata JWT for IPFS pinning                     |
+| `GROVE_CHAIN_ID`                     | Lens Protocol Grove chain ID (37111 = testnet)  |
 | `ENCRYPTION_KEY`                     | 32-byte AES-256 key for Kraken key encryption   |
 | `JWT_SECRET`                         | 32+ char random string for JWT signing          |
 | `TELEGRAM_BOT_TOKEN`                 | Telegram bot token (optional)                   |
@@ -249,6 +249,28 @@ See the [Azure Bicep template](./infra/azure/main.bicep) and CI/CD workflow (`.g
 | `X402_PRICE_HBAR`                    | Price per on-demand check (default: 0.5)        |
 | `NEXT_PUBLIC_API_URL`                | Public API base URL (frontend)                  |
 | `NEXT_PUBLIC_HASHCONNECT_PROJECT_ID` | HashConnect project ID (frontend)               |
+
+## Deployment status
+
+| Service       | URL                                         | Status     |
+| ------------- | ------------------------------------------- | ---------- |
+| Web frontend  | `https://lenitnes.persidian.com`            | Live (SSL) |
+| API health    | `https://lenitnes.persidian.com/api/health` | Live (SSL) |
+| Server        | Vultr VPS — `144.202.117.160`               | Running    |
+| Orchestration | Coolify + Traefik + Let's Encrypt           | Active     |
+
+**Current stack:**
+
+- **Hedera:** testnet — operator `0.0.9137770`, HCS topic `0.0.9159618`
+- **Proof storage:** Grove (Lens Protocol) — immutable JSON uploads
+- **Notifications:** Telegram bot configured
+- **Auth:** Ed25519 signature verification + JWT
+- **x402:** pay-per-check via HBAR micropayments (testnet)
+
+**Frontend notes:**
+
+- HashConnect project ID required for wallet connection. Get one at [hashpack.app/developers](https://hashpack.app/developers), then set `NEXT_PUBLIC_HASHCONNECT_PROJECT_ID` and rebuild the web image.
+- Without wallet connection, the dashboard shows a "Connect your Hedera wallet" prompt instead of 401 errors.
 
 ## Testing
 
