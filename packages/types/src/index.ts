@@ -29,6 +29,7 @@ export interface CreateMonitorInput {
   frequencySeconds?: number; // default 3600
   stakeHbar?: number; // default 0
   costPerCheck?: number;
+  screenshotsEnabled?: boolean; // default true
 }
 
 export interface UpdateMonitorInput {

@@ -26,6 +26,7 @@ CREATE TABLE IF NOT EXISTS monitors (
   escrow_account_id      TEXT,
   hbar_balance           NUMERIC(20, 8) NOT NULL DEFAULT 0,
   cost_per_check         NUMERIC(20, 8) NOT NULL DEFAULT 0.5,
+  screenshots_enabled    BOOLEAN NOT NULL DEFAULT true,
   status                 TEXT NOT NULL DEFAULT 'active',
   last_check_at          TIMESTAMPTZ,
   last_seen_commit_hash  TEXT,

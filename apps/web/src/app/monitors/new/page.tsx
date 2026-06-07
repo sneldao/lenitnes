@@ -20,6 +20,7 @@ export default function NewMonitorPage() {
     frequencySeconds: 3600,
     actionType: 'alert' as 'alert' | 'trade',
     stakeHbar: 10,
+    screenshotsEnabled: true,
   });
 
   const set = <K extends keyof typeof form>(k: K, v: (typeof form)[K]) =>
@@ -56,6 +57,7 @@ export default function NewMonitorPage() {
         conditionText: form.conditionText,
         frequencySeconds: form.frequencySeconds,
         stakeHbar: form.stakeHbar,
+        screenshotsEnabled: form.screenshotsEnabled,
       });
       router.push(`/`);
       void monitor;
@@ -125,6 +127,18 @@ export default function NewMonitorPage() {
                   </button>
                 ))}
               </div>
+            </div>
+            <div className="flex items-center gap-2">
+              <input
+                id="screenshots"
+                type="checkbox"
+                className="h-4 w-4 rounded border-edge bg-ink accent-accent"
+                checked={form.screenshotsEnabled}
+                onChange={(e) => set('screenshotsEnabled', e.target.checked)}
+              />
+              <label htmlFor="screenshots" className="text-sm text-slate-300">
+                Request screenshots (uses more tokens; disable for text-only checks)
+              </label>
             </div>
           </div>
         )}

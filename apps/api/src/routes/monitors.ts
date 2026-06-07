@@ -15,6 +15,7 @@ const createSchema = z.object({
   frequencySeconds: z.number().int().positive().default(3600),
   stakeHbar: z.number().nonnegative().default(0),
   costPerCheck: z.number().positive().optional(),
+  screenshotsEnabled: z.boolean().optional().default(true),
 });
 
 // POST /monitors — create monitor + provision escrow.
@@ -25,8 +26,8 @@ monitorsRouter.post('/', async (req, res) => {
   const b = parsed.data;
 
   const { rows } = await query<Monitor>(
-    `INSERT INTO monitors (user_id, url, condition_text, frequency_seconds, hbar_balance, cost_per_check)
-     VALUES ($1, $2, $3, $4, $5, $6) RETURNING *`,
+    `INSERT INTO monitors (user_id, url, condition_text, frequency_seconds, hbar_balance, cost_per_check, screenshots_enabled)
+     VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING *`,
     [
       authReq.user.id,
       b.url,
@@ -34,6 +35,7 @@ monitorsRouter.post('/', async (req, res) => {
       b.frequencySeconds,
       b.stakeHbar,
       b.costPerCheck ?? config.hedera.defaultCostPerCheck,
+      b.screenshotsEnabled,
     ],
   );
   const monitor = rows[0];

@@ -2,6 +2,7 @@ import { Client, PrivateKey, AccountId } from '@hashgraph/sdk';
 import { coreAccountPlugin, coreConsensusPlugin } from 'hedera-agent-kit';
 import type { Tool } from 'hedera-agent-kit';
 import { config } from '../config.js';
+import { withRetry } from './retry.js';
 
 // ─────────────────────────────────────────────────────────────
 // Hedera integration via Hedera Agent Kit (JS).
@@ -39,7 +40,20 @@ async function runTool(method: string, arg: unknown): Promise<string> {
     config: object,
     args: unknown,
   ) => Promise<unknown>;
-  const output = await execute(client, {}, arg);
+
+  // Hedera network can be slow; wrap in retry + timeout to prevent worker hangs.
+  const output = await withRetry(
+    async () => {
+      const ctrl = new AbortController();
+      const timeout = setTimeout(() => ctrl.abort(), 20_000);
+      try {
+        return await execute(client, {}, arg);
+      } finally {
+        clearTimeout(timeout);
+      }
+    },
+    { retries: 2, baseDelayMs: 1_000 },
+  );
   return JSON.stringify(output);
 }
 

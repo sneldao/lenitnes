@@ -115,6 +115,24 @@ export function renderMetrics(): string {
     );
   }
 
+  const tinyfishDurations = histograms.get('tinyfish_inference_duration_ms') ?? [];
+  if (tinyfishDurations.length) {
+    parts.push(
+      renderHistogram(
+        'tinyfish_inference_duration_ms',
+        'TinyFish inference latency in ms',
+        tinyfishDurations,
+      ),
+    );
+  }
+
+  const tinyfishErrors = counters.get('tinyfish_errors_total') ?? [];
+  if (tinyfishErrors.length) {
+    parts.push(
+      renderCounter('tinyfish_errors_total', 'TinyFish inference failures', tinyfishErrors),
+    );
+  }
+
   return parts.join('\n\n');
 }
 

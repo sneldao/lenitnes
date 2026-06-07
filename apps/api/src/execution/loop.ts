@@ -4,10 +4,13 @@ import { config } from '../config.js';
 import type { Monitor, Rule } from '../types.js';
 import * as hedera from '../services/hedera.js';
 import * as tinyfish from '../services/tinyfish.js';
+import * as scraper from '../services/scraper.js';
 import * as ipfs from '../services/ipfs.js';
 import * as kraken from '../services/kraken.js';
 import * as notify from '../services/notify.js';
 import { decrypt } from '../services/crypto.js';
+import { isCircuitOpen, recordSuccess, recordFailure } from '../services/circuit.js';
+import { incCounter } from '../middleware/metrics.js';
 
 // ─────────────────────────────────────────────────────────────
 // Monitor execution loop — the heart of LENITNES.
@@ -84,12 +87,33 @@ export async function executeCheck(
     await query(`UPDATE monitors SET last_check_at = now() WHERE id = $1`, [monitor.id]);
   }
 
-  // 3) Run TinyFish.
-  const result = await tinyfish.runMonitorCheck({
-    url: monitor.url,
-    condition: monitor.condition_text,
-    lastSeenCommitHash: monitor.last_seen_commit_hash,
-  });
+  // 3) Run TinyFish (with circuit breaker + scraper fallback).
+  let result: import('../types.js').TinyFishResult;
+  const circuitOpts = { name: 'tinyfish', threshold: 5, windowMs: 60_000, cooldownMs: 300_000 };
+
+  if (isCircuitOpen(circuitOpts)) {
+    console.warn(`[loop] TinyFish circuit open — using scraper fallback for monitor ${monitor.id}`);
+    result = await scraper.runScraperFallback(monitor.url, monitor.condition_text);
+    incCounter('tinyfish_errors_total', { fallback: 'scraper' });
+  } else {
+    try {
+      result = await tinyfish.runMonitorCheck({
+        url: monitor.url,
+        condition: monitor.condition_text,
+        lastSeenCommitHash: monitor.last_seen_commit_hash,
+        screenshots: (monitor as unknown as Record<string, unknown>).screenshots_enabled !== false,
+      });
+      recordSuccess(circuitOpts);
+    } catch (err) {
+      recordFailure(circuitOpts);
+      incCounter('tinyfish_errors_total', { fallback: 'none' });
+      console.warn(
+        `[loop] TinyFish failed for monitor ${monitor.id}, trying scraper fallback:`,
+        err,
+      );
+      result = await scraper.runScraperFallback(monitor.url, monitor.condition_text);
+    }
+  }
 
   // Track the newest commit hash so we only evaluate new commits next cycle.
   if (result.latestCommitHash) {
