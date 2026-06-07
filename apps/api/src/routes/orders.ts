@@ -33,7 +33,7 @@ ordersRouter.get('/', async (req: Request, res: Response) => {
      JOIN signals s ON s.id = o.signal_id
      JOIN monitors m ON m.id = s.monitor_id
      WHERE m.user_id = $1
-     ORDER BY o.placed_at DESC NULLS LAST, o.created_at DESC
+      ORDER BY o.placed_at DESC NULLS LAST
      LIMIT $2 OFFSET $3`,
     [authReq.user.id, limit, offset],
   );

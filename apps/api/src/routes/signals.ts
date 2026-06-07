@@ -64,7 +64,7 @@ signalsRouter.get('/:id', async (req: Request, res: Response) => {
   if (!rows.length) return res.status(404).json({ error: 'not found' });
   const signal = rows[0] as unknown as Signal;
 
-  const orders = await query(`SELECT * FROM orders WHERE signal_id = $1`, [signal.monitor_id]);
+  const orders = await query(`SELECT * FROM orders WHERE signal_id = $1`, [signal.id]);
   const monitor = await query(`SELECT id, url, condition_text FROM monitors WHERE id = $1`, [
     signal.monitor_id,
   ]);

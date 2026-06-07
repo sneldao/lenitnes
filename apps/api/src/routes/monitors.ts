@@ -96,7 +96,7 @@ monitorsRouter.get('/:id', async (req, res) => {
 
 const patchSchema = z.object({
   frequencySeconds: z.number().int().positive().optional(),
-  conditionText: z.string().min(1).optional(),
+  conditionText: z.string().min(1).max(500).optional(),
   topUpHbar: z.number().positive().optional(),
   status: z.enum(['active', 'paused']).optional(),
 });

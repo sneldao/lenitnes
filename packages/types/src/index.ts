@@ -17,6 +17,7 @@ export interface Monitor {
   hbar_balance: string; // NUMERIC comes back as string from pg
   cost_per_check: string;
   status: MonitorStatus;
+  screenshots_enabled: boolean;
   last_check_at: string | null;
   last_seen_commit_hash: string | null;
   created_at: string;

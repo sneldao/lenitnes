@@ -10,6 +10,7 @@ export async function sendWebhook(url: string, payload: unknown): Promise<void> 
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(payload),
+    signal: AbortSignal.timeout(10_000),
   });
   if (!res.ok) throw new Error(`Webhook failed: ${res.status}`);
 }
@@ -25,6 +26,15 @@ export async function sendTelegram(chatId: string, text: string): Promise<void> 
 }
 
 export async function sendEmail(to: string, subject: string, body: string): Promise<void> {
-  // TODO: wire an SMTP transport (nodemailer) using config.smtpUrl.
-  logger.info({ to, subject }, 'email:stub');
+  if (!config.smtpUrl) {
+    logger.warn({ to, subject }, 'email not sent: SMTP_URL not configured');
+    return;
+  }
+  const res = await fetch(config.smtpUrl, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ to, subject, body }),
+    signal: AbortSignal.timeout(10_000),
+  });
+  if (!res.ok) throw new Error(`Email API failed: ${res.status}`);
 }

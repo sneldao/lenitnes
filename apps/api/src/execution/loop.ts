@@ -1,4 +1,5 @@
 import pLimit from 'p-limit';
+import { z } from 'zod';
 import { query } from '../db/pool.js';
 import { config } from '../config.js';
 import type { Monitor, Rule } from '../types.js';
@@ -52,13 +53,16 @@ export async function executeCheck(
   opts: { skipDebit?: boolean } = {},
 ): Promise<void> {
   const cost = Number(monitor.cost_per_check) || config.hedera.defaultCostPerCheck;
-  const balance = Number(monitor.hbar_balance);
 
   let debitTxId = 'x402-on-demand';
 
   if (!opts.skipDebit) {
-    // 1) Balance check.
-    if (balance < cost) {
+    // 1) Atomic balance check + debit (prevents race conditions).
+    const { rowCount } = await query(
+      `UPDATE monitors SET hbar_balance = hbar_balance - $1, status = CASE WHEN hbar_balance - $1 < 0 THEN 'insufficient_balance' ELSE status END WHERE id = $2 AND hbar_balance >= $1`,
+      [cost, monitor.id],
+    );
+    if (!rowCount) {
       await query(`UPDATE monitors SET status = 'insufficient_balance' WHERE id = $1`, [
         monitor.id,
       ]);
@@ -78,11 +82,7 @@ export async function executeCheck(
       ts: new Date().toISOString(),
       txRef: debitTxId,
     });
-    const newBalance = balance - cost;
-    await query(`UPDATE monitors SET hbar_balance = $1, last_check_at = now() WHERE id = $2`, [
-      newBalance,
-      monitor.id,
-    ]);
+    await query(`UPDATE monitors SET last_check_at = now() WHERE id = $1`, [monitor.id]);
   } else {
     // On-demand execution via x402 — payment was settled by the middleware.
     await query(`UPDATE monitors SET last_check_at = now() WHERE id = $1`, [monitor.id]);
@@ -102,7 +102,7 @@ export async function executeCheck(
         url: monitor.url,
         condition: monitor.condition_text,
         lastSeenCommitHash: monitor.last_seen_commit_hash,
-        screenshots: (monitor as unknown as Record<string, unknown>).screenshots_enabled !== false,
+        screenshots: monitor.screenshots_enabled,
       });
       recordSuccess(circuitOpts);
     } catch (err) {
@@ -231,6 +231,23 @@ function passesConditions(conditions: Record<string, unknown>): boolean {
   return true;
 }
 
+const tradeConfigSchema = z.object({
+  pair: z.string().min(1),
+  type: z.enum(['buy', 'sell']),
+  ordertype: z.enum(['market', 'limit']),
+  volume: z.string().min(1),
+  price: z.string().optional(),
+  validate: z.boolean().optional(),
+});
+
+function validateTradeConfig(raw: Record<string, unknown>): kraken.AddOrderParams {
+  const parsed = tradeConfigSchema.safeParse(raw);
+  if (!parsed.success) {
+    throw new Error(`Invalid trade config: ${parsed.error.message}`);
+  }
+  return parsed.data;
+}
+
 async function executeTrade(monitor: Monitor, rule: Rule, signalId: string): Promise<void> {
   // Load + decrypt the owning user's Kraken credentials.
   const { rows } = await query<{ k: string | null; s: string | null }>(
@@ -241,7 +258,7 @@ async function executeTrade(monitor: Monitor, rule: Rule, signalId: string): Pro
   const enc = rows[0];
   if (!enc?.k || !enc?.s) throw new Error('user has no Kraken credentials');
 
-  const order = rule.action_config as unknown as kraken.AddOrderParams;
+  const order = validateTradeConfig(rule.action_config);
   const { rows: orderRows } = await query<{ id: string }>(
     `INSERT INTO orders (signal_id, rule_id, order_params, status)
      VALUES ($1, $2, $3, 'pending') RETURNING id`,

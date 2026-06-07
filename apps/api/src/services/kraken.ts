@@ -61,6 +61,7 @@ async function privateRequest(
       'Content-Type': 'application/x-www-form-urlencoded',
     },
     body,
+    signal: AbortSignal.timeout(15_000),
   });
   const json = (await res.json()) as { error: string[]; result: unknown };
   if (json.error && json.error.length) {

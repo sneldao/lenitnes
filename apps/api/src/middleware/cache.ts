@@ -1,5 +1,7 @@
-// Simple in-memory response cache with TTL.
+// Simple in-memory response cache with TTL + max size.
 // For production, swap to Redis.
+
+const MAX_SIZE = 500;
 
 interface CacheEntry {
   data: unknown;
@@ -7,6 +9,13 @@ interface CacheEntry {
 }
 
 const store = new Map<string, CacheEntry>();
+
+function evictStale(): void {
+  const now = Date.now();
+  for (const [key, entry] of store) {
+    if (now > entry.expiresAt) store.delete(key);
+  }
+}
 
 export function cacheGet<T>(key: string): T | undefined {
   const entry = store.get(key);
@@ -19,6 +28,13 @@ export function cacheGet<T>(key: string): T | undefined {
 }
 
 export function cacheSet(key: string, data: unknown, ttlMs = 60_000): void {
+  if (store.size >= MAX_SIZE) {
+    evictStale();
+    if (store.size >= MAX_SIZE) {
+      const oldest = store.keys().next().value;
+      if (oldest) store.delete(oldest);
+    }
+  }
   store.set(key, { data, expiresAt: Date.now() + ttlMs });
 }
 

@@ -39,7 +39,9 @@ export const config = {
 
   encryptionKey: required('ENCRYPTION_KEY'),
 
-  jwtSecret: required('JWT_SECRET', 'dev-only-insecure-jwt-secret-change-me'),
+  jwtSecret: required('JWT_SECRET'),
+
+  webhookSecret: process.env.WEBHOOK_SECRET ?? '',
 
   telegram: { botToken: process.env.TELEGRAM_BOT_TOKEN ?? '' },
   smtpUrl: process.env.SMTP_URL ?? '',

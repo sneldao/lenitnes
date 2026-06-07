@@ -3,7 +3,12 @@
 import React, { createContext, useContext, useEffect, useState } from 'react';
 import type { HashConnect } from 'hashconnect';
 import { api } from '@/lib/api';
-import { useToast } from '@/components/Toast';
+function bytesToHex(bytes: Uint8Array): string {
+  return Array.from(bytes)
+    .map((b) => b.toString(16).padStart(2, '0'))
+    .join('');
+}
+
 // Heavy wallet/crypto libraries (@hashgraph/sdk, hashconnect, @x402/*) are
 // imported dynamically inside browser-only code paths. Importing them at module
 // scope pulls Node's `crypto` into the server bundle and breaks Next's
@@ -15,7 +20,7 @@ interface WalletContextType {
   pairingString: string | null;
   isLoading: boolean;
   projectIdMissing: boolean;
-  connect: () => void;
+  connect: () => Promise<void>;
   disconnect: () => Promise<void>;
   executeWithPayment: (url: string, init?: RequestInit) => Promise<Response>;
 }
@@ -38,10 +43,12 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
         setProjectIdMissing(true);
         return;
       }
-      const { HashConnect } = await import('hashconnect');
       const { LedgerId, AccountId } = await import('@hashgraph/sdk');
+      const { HashConnect } = await import('hashconnect');
+      const network = (process.env.NEXT_PUBLIC_HEDERA_NETWORK ?? 'testnet').toLowerCase();
+      const ledger = LedgerId.fromString(network);
       const hc = new HashConnect(
-        LedgerId.TESTNET,
+        ledger,
         projectId,
         {
           name: 'LENITNES',
@@ -65,7 +72,7 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
           const sigs = await hc.signMessages(AccountId.fromString(addr), message);
           if (sigs && sigs.length > 0) {
             const pk = sigs[0].publicKey.toStringRaw();
-            const sig = Buffer.from(sigs[0].signature).toString('hex');
+            const sig = bytesToHex(sigs[0].signature);
             await api.login({
               walletAddress: addr,
               publicKey: pk,
@@ -90,7 +97,7 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
             const sigs = await hc.signMessages(AccountId.fromString(addr), message);
             if (sigs && sigs.length > 0) {
               const pk = sigs[0].publicKey.toStringRaw();
-              const sig = Buffer.from(sigs[0].signature).toString('hex');
+              const sig = bytesToHex(sigs[0].signature);
               await api.login({
                 walletAddress: addr,
                 publicKey: pk,
@@ -117,14 +124,18 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
     };
   }, []);
 
-  const connect = () => {
+  const connect = async () => {
+    if (!hashconnect) return;
     setIsLoading(true);
-    if (hashconnect?.pairingString) {
-      navigator.clipboard
-        ?.writeText(hashconnect.pairingString)
-        .catch(() => {});
+    try {
+      await hashconnect.openPairingModal();
+    } catch {
+      if (hashconnect.pairingString) {
+        await navigator.clipboard?.writeText(hashconnect.pairingString);
+      }
+    } finally {
+      setIsLoading(false);
     }
-    setIsLoading(false);
   };
 
   const disconnect = async () => {
@@ -198,11 +209,9 @@ export function useWallet() {
 
 export function WalletConnectButton() {
   const { isConnected, accountId, connect, disconnect, projectIdMissing } = useWallet();
-  const toast = useToast();
 
-  function handleConnect() {
-    connect();
-    toast.info('Pairing string copied — paste it into HashPack to connect.');
+  async function handleConnect() {
+    await connect();
   }
 
   if (isConnected) {
