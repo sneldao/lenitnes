@@ -9,10 +9,16 @@ export const authRouter = Router();
 
 // POST /auth/login — verify an Ed25519 signature from HashConnect, then issue JWT.
 const loginSchema = z.object({
-  walletAddress: z.string().min(1),
-  publicKey: z.string().min(1), // hex-encoded Ed25519 public key
-  message: z.string().min(1), // e.g. "lenitnes:auth:1717700000000"
-  signature: z.string().min(1), // hex-encoded Ed25519 signature
+  walletAddress: z.string().min(1).max(100),
+  publicKey: z.string().min(1).max(200), // hex-encoded Ed25519 public key
+  message: z
+    .string()
+    .min(1)
+    .max(200)
+    .refine((m) => m.startsWith('lenitnes:auth:'), {
+      message: 'Message must be a lenitnes auth nonce',
+    }),
+  signature: z.string().min(1).max(500), // hex-encoded Ed25519 signature
   email: z.string().email().optional(),
 });
 

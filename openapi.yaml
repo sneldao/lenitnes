@@ -1,0 +1,651 @@
+openapi: 3.1.0
+info:
+  title: LENITNES API
+  description: |
+    Proof-chained web monitoring that detects market signals and executes trades.
+    Every signal carries a cryptographic proof chain: TinyFish detection → Hedera HCS timestamp → IPFS proof package → Kraken execution receipt.
+  version: 0.1.0
+  contact:
+    name: LENITNES
+servers:
+  - url: https://api.lenitnes.io
+    description: Production
+  - url: http://localhost:4000
+    description: Local development
+
+security:
+  - bearerAuth: []
+
+paths:
+  /health:
+    get:
+      summary: Health check
+      description: Returns service status, uptime, and DB connectivity. No auth required.
+      security: []
+      responses:
+        '200':
+          description: Service is healthy
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HealthStatus'
+
+  /metrics:
+    get:
+      summary: Prometheus metrics
+      description: Returns HTTP request counters and latency histograms in Prometheus text format. No auth required.
+      security: []
+      responses:
+        '200':
+          description: Prometheus metrics
+          content:
+            text/plain:
+              schema:
+                type: string
+
+  /auth/login:
+    post:
+      summary: Login with HashConnect signature
+      description: |
+        Verifies an Ed25519 signature on a `lenitnes:auth:<timestamp>` nonce,
+        upserts the user, and returns a 24h JWT.
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/LoginRequest'
+      responses:
+        '200':
+          description: JWT token and user info
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/LoginResponse'
+        '400':
+          description: Invalid request body
+        '401':
+          description: Invalid or expired signature
+
+  /auth/refresh:
+    post:
+      summary: Refresh JWT token
+      description: Validates an existing (non-expired) token and issues a fresh 24h JWT.
+      security: []
+      requestBody:
+        required: false
+        content: {}
+      responses:
+        '200':
+          description: New JWT token
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  token:
+                    type: string
+        '401':
+          description: Missing or invalid token
+
+  /monitors:
+    get:
+      summary: List monitors
+      description: Returns the authenticated user's monitors with pagination.
+      parameters:
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            default: 50
+            maximum: 100
+        - name: offset
+          in: query
+          schema:
+            type: integer
+            default: 0
+      responses:
+        '200':
+          description: Array of monitors
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Monitor'
+    post:
+      summary: Create monitor
+      description: Creates a monitor and provisions a Hedera escrow account.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateMonitorInput'
+      responses:
+        '201':
+          description: Created monitor
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Monitor'
+        '400':
+          description: Validation error
+
+  /monitors/{id}:
+    get:
+      summary: Get monitor detail
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Monitor with signal history
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Monitor'
+        '404':
+          description: Monitor not found
+    patch:
+      summary: Update monitor
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateMonitorInput'
+      responses:
+        '200':
+          description: Updated monitor
+        '404':
+          description: Monitor not found
+    delete:
+      summary: Delete monitor
+      description: Pauses monitor and releases remaining escrow HBAR.
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Monitor paused
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  ok:
+                    type: boolean
+        '404':
+          description: Monitor not found
+
+  /signals:
+    get:
+      summary: List signals
+      description: Returns signals for the authenticated user's monitors. Heartbeats excluded by default.
+      parameters:
+        - name: monitorId
+          in: query
+          schema:
+            type: string
+            format: uuid
+        - name: includeHeartbeats
+          in: query
+          schema:
+            type: boolean
+            default: false
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            default: 50
+            maximum: 100
+        - name: offset
+          in: query
+          schema:
+            type: integer
+            default: 0
+      responses:
+        '200':
+          description: Array of signals
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Signal'
+
+  /signals/{id}:
+    get:
+      summary: Get signal detail
+      description: Returns full proof package including IPFS CID and Hedera tx links.
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Signal with proof package
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SignalDetail'
+        '404':
+          description: Signal not found
+
+  /rules:
+    get:
+      summary: List rules
+      parameters:
+        - name: monitorId
+          in: query
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Array of rules
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Rule'
+    post:
+      summary: Create rule
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateRuleInput'
+      responses:
+        '201':
+          description: Created rule
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Rule'
+        '400':
+          description: Validation error
+        '404':
+          description: Monitor not found
+
+  /execute/{monitorId}:
+    post:
+      summary: On-demand execution
+      description: |
+        x402-gated on-demand execution. The client must pay via Hedera HBAR
+        micropayment before the check runs. Returns the check result immediately.
+      parameters:
+        - name: monitorId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Execution result
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  ok:
+                    type: boolean
+                  monitorId:
+                    type: string
+        '402':
+          description: Payment Required (x402)
+
+  /orders:
+    get:
+      summary: List orders
+      parameters:
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            default: 50
+            maximum: 100
+        - name: offset
+          in: query
+          schema:
+            type: integer
+            default: 0
+      responses:
+        '200':
+          description: Array of orders
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Order'
+
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      description: JWT token from /auth/login
+
+  schemas:
+    HealthStatus:
+      type: object
+      required: [ok, service, version]
+      properties:
+        ok:
+          type: boolean
+        service:
+          type: string
+        version:
+          type: string
+        uptime:
+          type: number
+        checks:
+          type: object
+          properties:
+            database:
+              type: string
+              enum: [ok, fail]
+        memory:
+          type: object
+          properties:
+            rss:
+              type: integer
+            heapUsed:
+              type: integer
+            external:
+              type: integer
+
+    LoginRequest:
+      type: object
+      required: [walletAddress, publicKey, message, signature]
+      properties:
+        walletAddress:
+          type: string
+          description: Hedera account ID
+          maxLength: 100
+        publicKey:
+          type: string
+          description: Hex-encoded Ed25519 public key
+          maxLength: 200
+        message:
+          type: string
+          description: 'Auth nonce: lenitnes:auth:<timestamp>'
+          maxLength: 200
+        signature:
+          type: string
+          description: Hex-encoded Ed25519 signature
+          maxLength: 500
+        email:
+          type: string
+          format: email
+
+    LoginResponse:
+      type: object
+      required: [token, user]
+      properties:
+        token:
+          type: string
+        user:
+          type: object
+          required: [id, wallet_address]
+          properties:
+            id:
+              type: string
+              format: uuid
+            wallet_address:
+              type: string
+            email:
+              type: string
+              nullable: true
+
+    CreateMonitorInput:
+      type: object
+      required: [url, conditionText]
+      properties:
+        url:
+          type: string
+          format: uri
+          description: Must be http or https
+        conditionText:
+          type: string
+          minLength: 1
+          maxLength: 500
+          description: Plain English condition. Max 500 chars to prevent token bombing.
+        frequencySeconds:
+          type: integer
+          default: 3600
+        stakeHbar:
+          type: number
+          default: 0
+        costPerCheck:
+          type: number
+        screenshotsEnabled:
+          type: boolean
+          default: true
+
+    UpdateMonitorInput:
+      type: object
+      properties:
+        conditionText:
+          type: string
+          minLength: 1
+          maxLength: 500
+        frequencySeconds:
+          type: integer
+        status:
+          type: string
+          enum: [active, paused, triggered, insufficient_balance]
+        stakeHbar:
+          type: number
+
+    Monitor:
+      type: object
+      required:
+        [
+          id,
+          user_id,
+          url,
+          condition_text,
+          frequency_seconds,
+          hbar_balance,
+          cost_per_check,
+          status,
+          created_at,
+        ]
+      properties:
+        id:
+          type: string
+          format: uuid
+        user_id:
+          type: string
+          format: uuid
+        url:
+          type: string
+        condition_text:
+          type: string
+        frequency_seconds:
+          type: integer
+        escrow_account_id:
+          type: string
+          nullable: true
+        hbar_balance:
+          type: number
+        cost_per_check:
+          type: number
+        screenshots_enabled:
+          type: boolean
+        status:
+          type: string
+          enum: [active, paused, triggered, insufficient_balance]
+        last_check_at:
+          type: string
+          format: date-time
+          nullable: true
+        last_seen_commit_hash:
+          type: string
+          nullable: true
+        created_at:
+          type: string
+          format: date-time
+
+    Signal:
+      type: object
+      required: [id, monitor_id, detected_at, is_heartbeat]
+      properties:
+        id:
+          type: string
+          format: uuid
+        monitor_id:
+          type: string
+          format: uuid
+        detected_at:
+          type: string
+          format: date-time
+        hedera_tx_id:
+          type: string
+          nullable: true
+        hedera_hcs_message_id:
+          type: string
+          nullable: true
+        tinyfish_run_id:
+          type: string
+          nullable: true
+        ipfs_cid:
+          type: string
+          nullable: true
+        evidence_text:
+          type: string
+          nullable: true
+        screenshot_urls:
+          type: array
+          items:
+            type: string
+        condition_summary:
+          type: string
+          nullable: true
+        is_heartbeat:
+          type: boolean
+
+    SignalDetail:
+      allOf:
+        - $ref: '#/components/schemas/Signal'
+        - type: object
+          properties:
+            monitor:
+              type: object
+              properties:
+                id:
+                  type: string
+                url:
+                  type: string
+                condition_text:
+                  type: string
+            orders:
+              type: array
+              items:
+                $ref: '#/components/schemas/Order'
+            proof:
+              type: object
+              properties:
+                ipfsUrl:
+                  type: string
+                  nullable: true
+                hashscanUrl:
+                  type: string
+                  nullable: true
+
+    CreateRuleInput:
+      type: object
+      required: [monitorId, actionType]
+      properties:
+        monitorId:
+          type: string
+          format: uuid
+        actionType:
+          type: string
+          enum: [trade, webhook, email, telegram]
+        actionConfig:
+          type: object
+        conditions:
+          type: object
+        isActive:
+          type: boolean
+          default: true
+
+    Rule:
+      type: object
+      required: [id, monitor_id, action_type, action_config, conditions, is_active, created_at]
+      properties:
+        id:
+          type: string
+          format: uuid
+        monitor_id:
+          type: string
+          format: uuid
+        action_type:
+          type: string
+        action_config:
+          type: object
+        conditions:
+          type: object
+        is_active:
+          type: boolean
+        created_at:
+          type: string
+          format: date-time
+
+    Order:
+      type: object
+      required: [id, signal_id, order_params, status]
+      properties:
+        id:
+          type: string
+          format: uuid
+        kraken_order_id:
+          type: string
+          nullable: true
+        order_params:
+          type: object
+        status:
+          type: string
+          enum: [pending, placed, failed]
+        placed_at:
+          type: string
+          format: date-time
+          nullable: true
+        kraken_response:
+          type: object
+          nullable: true
+        signal_id:
+          type: string
+        detected_at:
+          type: string
+        monitor_id:
+          type: string
+        monitor_url:
+          type: string

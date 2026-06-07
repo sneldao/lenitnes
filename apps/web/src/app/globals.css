@@ -20,14 +20,17 @@ body {
 
 .btn {
   @apply inline-flex items-center justify-center rounded-lg bg-accent px-4 py-2 text-sm font-semibold text-ink transition hover:opacity-90 disabled:opacity-50;
+  @apply focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-ink;
 }
 
 .btn-ghost {
   @apply inline-flex items-center justify-center rounded-lg border border-edge px-4 py-2 text-sm font-semibold text-slate-200 transition hover:border-accent;
+  @apply focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-ink;
 }
 
 .input {
   @apply w-full rounded-lg border border-edge bg-ink px-3 py-2 text-sm text-slate-100 outline-none focus:border-accent;
+  @apply focus-visible:ring-2 focus-visible:ring-accent/50 focus-visible:ring-offset-0;
 }
 
 .label {

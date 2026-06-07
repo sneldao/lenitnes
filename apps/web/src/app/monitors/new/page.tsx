@@ -77,22 +77,35 @@ export default function NewMonitorPage() {
         {step === 1 && (
           <div className="space-y-4">
             <div>
-              <label className="label">Target URL</label>
+              <label htmlFor="url" className="label">
+                Target URL
+              </label>
               <input
+                id="url"
                 className="input"
                 placeholder="https://github.com/owner/repo/commits/main"
                 value={form.url}
                 onChange={(e) => set('url', e.target.value)}
+                aria-required="true"
               />
             </div>
             <div>
-              <label className="label">Condition (plain English)</label>
+              <label htmlFor="condition" className="label">
+                Condition (plain English)
+              </label>
               <textarea
+                id="condition"
                 className="input min-h-[100px]"
                 placeholder="A new commit mentions security, vulnerability, fix, CVE, or verifying key change."
                 value={form.conditionText}
                 onChange={(e) => set('conditionText', e.target.value)}
+                aria-required="true"
+                maxLength={500}
+                aria-describedby="condition-hint"
               />
+              <p id="condition-hint" className="mt-1 text-xs text-slate-500">
+                {form.conditionText.length}/500 characters
+              </p>
             </div>
           </div>
         )}
@@ -100,8 +113,11 @@ export default function NewMonitorPage() {
         {step === 2 && (
           <div className="space-y-4">
             <div>
-              <label className="label">Check frequency</label>
+              <label htmlFor="frequency" className="label">
+                Check frequency
+              </label>
               <select
+                id="frequency"
                 className="input"
                 value={form.frequencySeconds}
                 onChange={(e) => set('frequencySeconds', Number(e.target.value))}
@@ -115,11 +131,13 @@ export default function NewMonitorPage() {
             </div>
             <div>
               <label className="label">Action type</label>
-              <div className="flex gap-3">
+              <div className="flex gap-3" role="radiogroup" aria-label="Action type">
                 {(['alert', 'trade'] as const).map((t) => (
                   <button
                     key={t}
                     type="button"
+                    role="radio"
+                    aria-checked={form.actionType === t}
                     onClick={() => set('actionType', t)}
                     className={form.actionType === t ? 'btn' : 'btn-ghost'}
                   >
@@ -173,18 +191,26 @@ export default function NewMonitorPage() {
         {step === 4 && (
           <div className="space-y-4">
             <div>
-              <label className="label">Stake HBAR</label>
+              <label htmlFor="stake" className="label">
+                Stake HBAR
+              </label>
               <input
+                id="stake"
                 type="number"
                 className="input"
                 value={form.stakeHbar}
                 onChange={(e) => set('stakeHbar', Number(e.target.value))}
+                aria-describedby="stake-hint"
               />
-              <p className="mt-1 text-xs text-slate-500">
+              <p id="stake-hint" className="mt-1 text-xs text-slate-500">
                 Funds the escrow for background checks. On-demand execution uses x402 micropayments.
               </p>
             </div>
-            {error && <p className="text-sm text-danger">{error}</p>}
+            {error && (
+              <p className="text-sm text-danger" role="alert">
+                {error}
+              </p>
+            )}
           </div>
         )}
 

@@ -194,7 +194,8 @@ export function WalletConnectButton() {
     return (
       <button
         onClick={disconnect}
-        className="rounded bg-slate-700 px-3 py-1.5 text-xs font-medium text-white hover:bg-slate-600"
+        aria-label={`Disconnect wallet ${accountId ?? ''}`}
+        className="rounded bg-slate-700 px-3 py-1.5 text-xs font-medium text-white hover:bg-slate-600 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-ink"
       >
         {accountId?.slice(0, 8)}...{accountId?.slice(-4)}
       </button>
@@ -204,7 +205,8 @@ export function WalletConnectButton() {
   return (
     <button
       onClick={connect}
-      className="rounded bg-accent px-3 py-1.5 text-xs font-bold text-white hover:bg-accent/80"
+      aria-label="Connect Hedera wallet via HashConnect"
+      className="rounded bg-accent px-3 py-1.5 text-xs font-bold text-white hover:bg-accent/80 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-ink"
     >
       Connect Wallet
     </button>

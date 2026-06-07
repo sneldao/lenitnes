@@ -1,7 +1,12 @@
 import { describe, it, expect, beforeAll, afterAll, vi, beforeEach } from 'vitest';
 import request from 'supertest';
 import http from 'node:http';
-import { app } from '../src/index.js';
+
+process.env.ENCRYPTION_KEY = 'a'.repeat(64);
+process.env.JWT_SECRET = 'dev-only-insecure-jwt-secret-change-me';
+process.env.DATABASE_URL = 'postgresql://postgres:postgres@localhost:5432/lenitnes';
+
+const { app } = await import('../src/index.js');
 
 // ─────────────────────────────────────────────────────────────
 // Smoke tests — no DB required for /health and /auth.
@@ -10,6 +15,11 @@ import { app } from '../src/index.js';
 
 // Mock users table: in-memory store for the upsertUserByWallet call.
 const mockUsers: Record<string, { id: string; wallet_address: string; email: string | null }> = {};
+
+vi.mock('../src/services/signature.js', () => ({
+  verifyEd25519: () => true,
+  isRecentAuthMessage: () => true,
+}));
 
 vi.mock('../src/db/pool.js', () => ({
   pool: {
@@ -86,13 +96,19 @@ describe('API smoke tests', () => {
     expect(res.body).toMatchObject({ error: 'missing_token' });
   });
 
+  const validLogin = {
+    walletAddress: '0.0.12345',
+    publicKey: 'deadbeef'.repeat(8),
+    message: 'lenitnes:auth:1717700000000',
+    signature: 'cafebabe'.repeat(16),
+    email: 'test@example.com',
+  };
+
   it('POST /auth/login with valid body returns 200 and a token', async () => {
-    const res = await request(server)
-      .post('/auth/login')
-      .send({ walletAddress: '0.0.12345', email: 'test@example.com' });
+    const res = await request(server).post('/auth/login').send(validLogin);
     expect(res.status).toBe(200);
     expect(typeof res.body.token).toBe('string');
-    expect(res.body.user).toMatchObject({ wallet_address: '0.0.12345' });
+    expect(res.body.user).toMatchObject({ wallet_address: validLogin.walletAddress });
   });
 
   it('POST /auth/login without walletAddress returns 400', async () => {
@@ -102,7 +118,12 @@ describe('API smoke tests', () => {
   });
 
   it('GET /monitors with valid token returns 200 and empty array', async () => {
-    const loginRes = await request(server).post('/auth/login').send({ walletAddress: '0.0.99999' });
+    const loginRes = await request(server)
+      .post('/auth/login')
+      .send({
+        ...validLogin,
+        walletAddress: '0.0.99999',
+      });
     const token = loginRes.body.token;
 
     const res = await request(server).get('/monitors').set('Authorization', `Bearer ${token}`);

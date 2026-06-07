@@ -10,8 +10,15 @@ import { cacheGet, cacheSet, cacheInvalidate } from '../middleware/cache.js';
 export const monitorsRouter = Router();
 
 const createSchema = z.object({
-  url: z.string().url(),
-  conditionText: z.string().min(1),
+  url: z
+    .string()
+    .url()
+    .refine((u) => /^https?:\/\//i.test(u), {
+      message: 'URL must use http or https scheme',
+    }),
+  conditionText: z.string().min(1).max(500, {
+    message: 'Condition must be 500 characters or fewer to prevent token bombing',
+  }),
   frequencySeconds: z.number().int().positive().default(3600),
   stakeHbar: z.number().nonnegative().default(0),
   costPerCheck: z.number().positive().optional(),

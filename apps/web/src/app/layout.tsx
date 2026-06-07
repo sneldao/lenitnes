@@ -15,6 +15,12 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
   return (
     <html lang="en">
       <body>
+        <a
+          href="#main-content"
+          className="sr-only focus:not-sr-only focus:absolute focus:left-4 focus:top-4 focus:z-50 focus:rounded focus:bg-accent focus:px-3 focus:py-2 focus:text-ink"
+        >
+          Skip to main content
+        </a>
         <Providers>
           <WalletProvider>
             <div className="mx-auto flex min-h-screen max-w-6xl flex-col px-6">
@@ -41,7 +47,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
                   <WalletConnectButton />
                 </nav>
               </header>
-              <main className="flex-1 py-8">
+              <main id="main-content" className="flex-1 py-8" tabIndex={-1}>
                 <ErrorBoundary>{children}</ErrorBoundary>
               </main>
               <footer className="border-t border-edge py-6 text-xs text-slate-500">
