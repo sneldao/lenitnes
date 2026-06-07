@@ -1,4 +1,4 @@
-import { Router } from 'express';
+import { Router, type Request, type Response } from 'express';
 import { z } from 'zod';
 import { jwtVerify } from 'jose';
 import { upsertUserByWallet, generateToken } from '../middleware/auth.js';
@@ -7,10 +7,22 @@ import { config } from '../config.js';
 
 export const authRouter = Router();
 
+const COOKIE_NAME = 'lenitnes_token';
+
+function cookieOptions() {
+  return {
+    httpOnly: true,
+    secure: config.env === 'production',
+    sameSite: 'lax' as const,
+    path: '/',
+    maxAge: 24 * 60 * 60 * 1000,
+  };
+}
+
 // POST /auth/login — verify an Ed25519 signature from HashConnect, then issue JWT.
 const loginSchema = z.object({
   walletAddress: z.string().min(1).max(100),
-  publicKey: z.string().min(1).max(200), // hex-encoded Ed25519 public key
+  publicKey: z.string().min(1).max(200),
   message: z
     .string()
     .min(1)
@@ -18,7 +30,7 @@ const loginSchema = z.object({
     .refine((m) => m.startsWith('lenitnes:auth:'), {
       message: 'Message must be a lenitnes auth nonce',
     }),
-  signature: z.string().min(1).max(500), // hex-encoded Ed25519 signature
+  signature: z.string().min(1).max(500),
   email: z.string().email().optional(),
 });
 
@@ -28,12 +40,10 @@ authRouter.post('/login', async (req, res) => {
 
   const { walletAddress, publicKey, message, signature, email } = parsed.data;
 
-  // 1) Message must be a recent LENITNES auth nonce.
   if (!isRecentAuthMessage(message)) {
     return res.status(401).json({ error: 'invalid_or_expired_message' });
   }
 
-  // 2) Verify Ed25519 signature.
   if (!verifyEd25519(message, signature, publicKey)) {
     return res.status(401).json({ error: 'invalid_signature' });
   }
@@ -41,27 +51,51 @@ authRouter.post('/login', async (req, res) => {
   const user = await upsertUserByWallet(walletAddress, email);
   const token = await generateToken(user.id, user.wallet_address, user.email ?? undefined);
 
+  res.cookie(COOKIE_NAME, token, cookieOptions());
   res.json({
-    token,
     user: { id: user.id, wallet_address: user.wallet_address, email: user.email },
   });
 });
 
-// POST /auth/refresh — validate existing (non-expired) token and issue a fresh 24h JWT.
-authRouter.post('/refresh', async (req, res) => {
-  const header = req.headers.authorization ?? '';
-  if (!header.startsWith('Bearer ')) {
-    return res.status(401).json({ error: 'missing_token' });
-  }
-  const token = header.slice(7);
+// GET /auth/me — lightweight check if the user has a valid cookie.
+authRouter.get('/me', async (req: Request, res: Response) => {
+  const cookieToken = (req as Request & { cookies?: Record<string, string> }).cookies?.[COOKIE_NAME];
+  if (!cookieToken) return res.status(401).json({ error: 'not_authenticated' });
+
   try {
     const secret = new TextEncoder().encode(config.jwtSecret);
-    const { payload } = await jwtVerify(token, secret, { clockTolerance: 60 });
+    const { payload } = await jwtVerify(cookieToken, secret, { clockTolerance: 60 });
+    res.json({
+      id: payload.sub as string,
+      wallet_address: payload.wallet_address as string,
+      email: (payload.email as string) ?? null,
+    });
+  } catch {
+    res.status(401).json({ error: 'invalid_token' });
+  }
+});
+
+// POST /auth/logout — clear the auth cookie.
+authRouter.post('/logout', (_req: Request, res: Response) => {
+  res.clearCookie(COOKIE_NAME, { path: '/' });
+  res.json({ ok: true });
+});
+
+// POST /auth/refresh — validate existing cookie and issue a fresh 24h JWT.
+authRouter.post('/refresh', async (req: Request, res: Response) => {
+  const cookieToken = (req as Request & { cookies?: Record<string, string> }).cookies?.[COOKIE_NAME];
+  if (!cookieToken) {
+    return res.status(401).json({ error: 'missing_token' });
+  }
+  try {
+    const secret = new TextEncoder().encode(config.jwtSecret);
+    const { payload } = await jwtVerify(cookieToken, secret, { clockTolerance: 60 });
     const userId = payload.sub as string;
     const walletAddress = payload.wallet_address as string;
     const email = (payload.email as string) ?? undefined;
     const newToken = await generateToken(userId, walletAddress, email);
-    res.json({ token: newToken });
+    res.cookie(COOKIE_NAME, newToken, cookieOptions());
+    res.json({ ok: true });
   } catch {
     res.status(401).json({ error: 'invalid_token' });
   }

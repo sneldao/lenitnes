@@ -12,30 +12,17 @@ import type {
 
 const BASE = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:4000';
 
-function getToken(): string | null {
-  if (typeof window === 'undefined') return null;
-  return localStorage.getItem('lenitnes_token');
-}
-
-function setToken(t: string | null) {
-  if (typeof window === 'undefined') return;
-  if (t) localStorage.setItem('lenitnes_token', t);
-  else localStorage.removeItem('lenitnes_token');
-}
-
 async function req<T>(path: string, init?: RequestInit): Promise<T> {
-  const token = getToken();
   const res = await fetch(`${BASE}${path}`, {
     ...init,
+    credentials: 'include',
     headers: {
       'Content-Type': 'application/json',
-      ...(token ? { Authorization: `Bearer ${token}` } : {}),
       ...(init?.headers ?? {}),
     },
     cache: 'no-store',
   });
   if (res.status === 401) {
-    setToken(null);
     throw new Error('session_expired');
   }
   if (!res.ok) throw new Error(`API ${res.status}: ${await res.text()}`);
@@ -43,6 +30,12 @@ async function req<T>(path: string, init?: RequestInit): Promise<T> {
 }
 
 export { type Monitor, type MonitorStatus, type Signal, type SignalDetail, type Rule };
+
+export interface AuthUser {
+  id: string;
+  wallet_address: string;
+  email: string | null;
+}
 
 export const api = {
   login: async (params: {
@@ -52,23 +45,19 @@ export const api = {
     signature: string;
     email?: string;
   }) => {
-    const data = await req<{ token: string; user: { id: string; wallet_address: string } }>(
-      '/auth/login',
-      {
-        method: 'POST',
-        body: JSON.stringify({
-          walletAddress: params.walletAddress,
-          publicKey: params.publicKey,
-          message: params.message,
-          signature: params.signature,
-          email: params.email,
-        }),
-      },
-    );
-    setToken(data.token);
-    return data;
+    return req<{ user: AuthUser }>('/auth/login', {
+      method: 'POST',
+      body: JSON.stringify({
+        walletAddress: params.walletAddress,
+        publicKey: params.publicKey,
+        message: params.message,
+        signature: params.signature,
+        email: params.email,
+      }),
+    });
   },
-  logout: () => setToken(null),
+  logout: () => req<{ ok: boolean }>('/auth/logout', { method: 'POST' }),
+  me: () => req<AuthUser>('/auth/me'),
 
   listMonitors: (userId?: string) =>
     req<Monitor[]>(`/monitors${userId ? `?userId=${userId}` : ''}`),
@@ -115,13 +104,9 @@ export const api = {
     monitorId: string,
     executeWithPayment: (url: string, init?: RequestInit) => Promise<Response>,
   ) => {
-    const token = getToken();
     return executeWithPayment(`${BASE}/execute/${monitorId}`, {
       method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        ...(token ? { Authorization: `Bearer ${token}` } : {}),
-      },
+      headers: { 'Content-Type': 'application/json' },
     });
   },
 };

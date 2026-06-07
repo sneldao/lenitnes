@@ -23,6 +23,15 @@ services:
       timeout: 5s
       retries: 10
 
+  redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+    healthcheck:
+      test: ['CMD', 'redis-cli', 'ping']
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
   api:
     build:
       context: .
@@ -34,6 +43,7 @@ services:
       - API_PORT=4000
       - DATABASE_URL=postgresql://${POSTGRES_USER:-lenitnes}:${POSTGRES_PASSWORD:-lenitnes}@db:5432/${POSTGRES_DB:-lenitnes}
       - PGSSLMODE=disable
+      - REDIS_URL=redis://redis:6379
       - WEB_ORIGIN=${WEB_ORIGIN}
       - JWT_SECRET=${JWT_SECRET}
       - ENCRYPTION_KEY=${ENCRYPTION_KEY}
@@ -69,6 +79,8 @@ services:
     depends_on:
       db:
         condition: service_healthy
+      redis:
+        condition: service_healthy
     healthcheck:
       test: ['CMD-SHELL', 'wget -qO- http://localhost:4000/health || exit 1']
       interval: 30s
@@ -85,6 +97,7 @@ services:
       - NODE_ENV=production
       - DATABASE_URL=postgresql://${POSTGRES_USER:-lenitnes}:${POSTGRES_PASSWORD:-lenitnes}@db:5432/${POSTGRES_DB:-lenitnes}
       - PGSSLMODE=disable
+      - REDIS_URL=redis://redis:6379
       - JWT_SECRET=${JWT_SECRET}
       - ENCRYPTION_KEY=${ENCRYPTION_KEY}
       - HEDERA_NETWORK=${HEDERA_NETWORK:-testnet}
@@ -103,6 +116,8 @@ services:
       - X402_PRICE_HBAR=${X402_PRICE_HBAR:-0.5}
     depends_on:
       db:
+        condition: service_healthy
+      redis:
         condition: service_healthy
 
   web:

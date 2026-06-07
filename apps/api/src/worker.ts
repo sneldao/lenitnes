@@ -1,29 +1,25 @@
-import cron from 'node-cron';
-import { runDueChecks } from './execution/loop.js';
 import { pool } from './db/pool.js';
 import { logger } from './logger.js';
+import { startScheduler, stopScheduler } from './queue/scheduler.js';
+import { startWorker, stopWorker } from './queue/worker.js';
+import { closeQueue } from './queue/producer.js';
 
-logger.info('worker started — scanning for due monitors every minute');
+logger.info('worker started — BullMQ queue + scheduler');
 
-let running = false;
+startWorker();
+startScheduler();
+
 let stopping = false;
 
-const job = cron.schedule('* * * * *', async () => {
-  if (running || stopping) return;
-  running = true;
-  try {
-    await runDueChecks();
-  } catch (err) {
-    logger.error({ err }, 'runDueChecks failed');
-  } finally {
-    running = false;
-  }
-});
-
-function shutdown(signal: string) {
-  logger.info({ signal }, 'worker stopping gracefully');
+async function shutdown(signal: string) {
+  if (stopping) return;
   stopping = true;
-  job.stop();
+  logger.info({ signal }, 'worker stopping gracefully');
+
+  stopScheduler();
+  await stopWorker();
+  await closeQueue();
+
   pool
     .end()
     .then(() => {
@@ -34,10 +30,11 @@ function shutdown(signal: string) {
       logger.error({ err: e }, 'pool.close error');
       process.exit(1);
     });
+
   setTimeout(() => {
     logger.error('forced exit after timeout');
     process.exit(1);
-  }, 10_000);
+  }, 15_000);
 }
 
 process.on('SIGTERM', () => shutdown('SIGTERM'));

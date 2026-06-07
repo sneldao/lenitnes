@@ -50,4 +50,8 @@ export const config = {
     payTo: process.env.X402_PAY_TO ?? process.env.HEDERA_TREASURY_ID ?? '',
     priceHbar: Number(process.env.X402_PRICE_HBAR ?? 0.5),
   },
+
+  redis: {
+    url: process.env.REDIS_URL ?? 'redis://localhost:6379',
+  },
 } as const;

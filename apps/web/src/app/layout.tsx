@@ -4,6 +4,7 @@ import Link from 'next/link';
 import { Providers } from '@/components/Providers';
 import { ErrorBoundary } from '@/components/ErrorBoundary';
 import { WalletProvider, WalletConnectButton } from '@/components/WalletConnect';
+import { ToastProvider } from '@/components/Toast';
 
 export const metadata: Metadata = {
   title: 'LENITNES — proof-chained signal monitoring',
@@ -37,7 +38,8 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         </a>
         <Providers>
           <WalletProvider>
-            <div className="mx-auto flex min-h-screen max-w-7xl flex-col px-6 lg:px-8">
+            <ToastProvider>
+              <div className="mx-auto flex min-h-screen max-w-7xl flex-col px-6 lg:px-8">
               <header className="glass sticky top-0 z-40 -mx-6 flex items-center justify-between rounded-b-2xl px-6 py-4 lg:-mx-8 lg:px-8">
                 <Link href="/" className="group flex items-center gap-3">
                   <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-gradient-to-br from-accent to-signal text-sm font-black text-ink shadow-glow-sm transition-shadow group-hover:shadow-glow">
@@ -54,6 +56,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
                 </Link>
                 <nav className="flex items-center gap-1">
                   <NavLink href="/">Dashboard</NavLink>
+                  <NavLink href="/signals">Signals</NavLink>
                   <NavLink href="/rules">Rules</NavLink>
                   <NavLink href="/orders">Orders</NavLink>
                   <div className="ml-3 h-5 w-px bg-edge" />
@@ -89,7 +92,8 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
                   </div>
                 </div>
               </footer>
-            </div>
+              </div>
+            </ToastProvider>
           </WalletProvider>
         </Providers>
       </body>

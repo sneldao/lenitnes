@@ -4,6 +4,7 @@ import { Suspense, useEffect, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { api } from '@/lib/api';
 import { useWallet } from '@/components/WalletConnect';
+import { useAuth } from '@/lib/useAuth';
 import {
   Globe,
   MessageSquare,
@@ -43,10 +44,10 @@ function NewMonitorForm() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const { accountId, isConnected } = useWallet();
+  const { user } = useAuth();
   const [step, setStep] = useState(1);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [userId, setUserId] = useState<string>('');
   const [prefilled, setPrefilled] = useState(false);
 
   const [form, setForm] = useState({
@@ -78,25 +79,8 @@ function NewMonitorForm() {
   const set = <K extends keyof typeof form>(k: K, v: (typeof form)[K]) =>
     setForm((f) => ({ ...f, [k]: v }));
 
-  // WalletConnect auto-logins with Ed25519 signature proof on connect.
-  // We just watch for the JWT token to infer user state.
-  useEffect(() => {
-    if (isConnected && accountId && !userId) {
-      // Token is already set by WalletConnect; extract user ID from JWT payload
-      const token = localStorage.getItem('lenitnes_token');
-      if (token) {
-        try {
-          const payload = JSON.parse(atob(token.split('.')[1]));
-          setUserId(payload.sub as string);
-        } catch {
-          setError('Invalid session. Please reconnect your wallet.');
-        }
-      }
-    }
-  }, [isConnected, accountId, userId]);
-
   async function submit() {
-    if (!userId) {
+    if (!user?.id) {
       setError('Connect your wallet first.');
       return;
     }
@@ -104,7 +88,7 @@ function NewMonitorForm() {
     setError(null);
     try {
       const monitor = await api.createMonitor({
-        userId,
+        userId: user.id,
         url: form.url,
         conditionText: form.conditionText,
         frequencySeconds: form.frequencySeconds,

@@ -1,11 +1,13 @@
 'use client';
 
-import { useRef, useState, useSyncExternalStore } from 'react';
+import { useRef, useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useQuery } from '@tanstack/react-query';
 import { api, burnRate, statusColor, type Monitor } from '@/lib/api';
 import { useWallet } from '@/components/WalletConnect';
+import { useToast } from '@/components/Toast';
+import { useAuth } from '@/lib/useAuth';
 import {
   Activity,
   Shield,
@@ -14,7 +16,6 @@ import {
   ArrowRight,
   ArrowDown,
   Clock,
-  TrendingDown,
   Wallet,
   Play,
   Link as LinkIcon,
@@ -24,20 +25,8 @@ import {
   ChevronRight,
   CheckCircle2,
   AlertTriangle,
-  Globe,
   Sparkles,
 } from 'lucide-react';
-
-function useHasToken() {
-  return useSyncExternalStore(
-    (cb) => {
-      window.addEventListener('storage', cb);
-      return () => window.removeEventListener('storage', cb);
-    },
-    () => !!localStorage.getItem('lenitnes_token'),
-    () => false,
-  );
-}
 
 function ProofChainDiagram() {
   const steps = [
@@ -121,7 +110,8 @@ function BurnBar({ balance, daysLeft }: { balance: number; daysLeft: number }) {
 export default function DashboardPage() {
   const [executing, setExecuting] = useState<Record<string, boolean>>({});
   const { isConnected, executeWithPayment } = useWallet();
-  const hasToken = useHasToken();
+  const toast = useToast();
+  const { isAuthenticated } = useAuth();
   const howItWorksRef = useRef<HTMLDivElement>(null);
   const router = useRouter();
 
@@ -131,25 +121,29 @@ export default function DashboardPage() {
     error,
     isRefetching,
   } = useQuery({
-    queryKey: ['monitors', hasToken],
+    queryKey: ['monitors', isAuthenticated],
     queryFn: () => api.listMonitors(),
     staleTime: 10_000,
-    enabled: hasToken,
+    enabled: isAuthenticated,
     retry: false,
   });
 
   async function handleExecute(monitorId: string) {
     if (!isConnected) {
-      alert('Connect your Hedera wallet first to pay via x402.');
+      toast.warn('Connect your Hedera wallet first to pay via x402.');
       return;
     }
     setExecuting((prev) => ({ ...prev, [monitorId]: true }));
     try {
       const res = await api.executeMonitor(monitorId, executeWithPayment);
       const data = await res.json();
-      alert(data.ok ? 'Execution successful! Check signals for results.' : 'Execution failed.');
+      if (data.ok) {
+        toast.success('Execution successful! Check signals for results.');
+      } else {
+        toast.error('Execution failed.');
+      }
     } catch (e) {
-      alert('Execution failed: ' + String(e));
+      toast.error('Execution failed: ' + String(e));
     } finally {
       setExecuting((prev) => ({ ...prev, [monitorId]: false }));
     }
@@ -168,7 +162,7 @@ export default function DashboardPage() {
   const triggeredCount = monitors.filter((m) => m.status === 'triggered').length;
   const totalBalance = monitors.reduce((s, m) => s + Number(m.hbar_balance), 0);
 
-  if (!hasToken) {
+  if (!isAuthenticated) {
     return (
       <div className="space-y-20">
         {/* ─── Hero ─── */}

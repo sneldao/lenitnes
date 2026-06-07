@@ -3,6 +3,7 @@
 import { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { api } from '@/lib/api';
+import { useAuth } from '@/lib/useAuth';
 import { TrendingUp, Check, X, Play, Settings, Hash, ArrowUpRight, Clock, Zap } from 'lucide-react';
 
 interface Order {
@@ -19,6 +20,7 @@ interface Order {
 }
 
 export default function OrdersPage() {
+  const { isAuthenticated } = useAuth();
   const [testing, setTesting] = useState(false);
   const [testResult, setTestResult] = useState<{
     ok: boolean;
@@ -33,11 +35,13 @@ export default function OrdersPage() {
   } = useQuery({
     queryKey: ['orders'],
     queryFn: () => api.listOrders(),
+    enabled: isAuthenticated,
   });
   const { data: krakenStatus } = useQuery({
     queryKey: ['krakenStatus'],
     queryFn: () => api.krakenStatus(),
     retry: 1,
+    enabled: isAuthenticated,
   });
 
   async function runPaperTrade() {

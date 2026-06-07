@@ -3,7 +3,7 @@
 import React, { createContext, useContext, useEffect, useState } from 'react';
 import type { HashConnect } from 'hashconnect';
 import { api } from '@/lib/api';
-
+import { useToast } from '@/components/Toast';
 // Heavy wallet/crypto libraries (@hashgraph/sdk, hashconnect, @x402/*) are
 // imported dynamically inside browser-only code paths. Importing them at module
 // scope pulls Node's `crypto` into the server bundle and breaks Next's
@@ -60,7 +60,6 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
       if (ids.length > 0) {
         const addr = ids[0].toString();
         setAccountId(addr);
-        // Auto-login on initial load if wallet is already paired.
         try {
           const message = `lenitnes:auth:${Date.now()}`;
           const sigs = await hc.signMessages(AccountId.fromString(addr), message);
@@ -73,9 +72,10 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
               message,
               signature: sig,
             });
+            window.dispatchEvent(new Event('auth-changed'));
           }
-        } catch (e) {
-          console.warn('[WalletConnect] initial auto-login failed:', e);
+        } catch {
+          // auto-login failed — user can still use the app unauthenticated
         }
       }
 
@@ -85,7 +85,6 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
           const addr = connected[0].toString();
           setAccountId(addr);
 
-          // Sign an auth nonce and exchange it for a JWT.
           try {
             const message = `lenitnes:auth:${Date.now()}`;
             const sigs = await hc.signMessages(AccountId.fromString(addr), message);
@@ -98,16 +97,18 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
                 message,
                 signature: sig,
               });
+              window.dispatchEvent(new Event('auth-changed'));
             }
-          } catch (e) {
-            console.warn('[WalletConnect] auto-login failed:', e);
+          } catch {
+            // auto-login failed
           }
         }
       });
 
       hc.disconnectionEvent.on(() => {
         setAccountId(null);
-        api.logout();
+        api.logout().catch(() => {});
+        window.dispatchEvent(new Event('auth-changed'));
       });
     };
     init();
@@ -121,12 +122,7 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
     if (hashconnect?.pairingString) {
       navigator.clipboard
         ?.writeText(hashconnect.pairingString)
-        .then(() => {
-          alert('Pairing string copied! Paste it into HashPack to connect.');
-        })
-        .catch(() => {
-          alert(`Copy this pairing string into HashPack:\n${hashconnect.pairingString}`);
-        });
+        .catch(() => {});
     }
     setIsLoading(false);
   };
@@ -135,7 +131,8 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
     if (hashconnect) {
       await hashconnect.disconnect();
       setAccountId(null);
-      api.logout();
+      api.logout().catch(() => {});
+      window.dispatchEvent(new Event('auth-changed'));
     }
   };
 
@@ -201,6 +198,12 @@ export function useWallet() {
 
 export function WalletConnectButton() {
   const { isConnected, accountId, connect, disconnect, projectIdMissing } = useWallet();
+  const toast = useToast();
+
+  function handleConnect() {
+    connect();
+    toast.info('Pairing string copied — paste it into HashPack to connect.');
+  }
 
   if (isConnected) {
     return (
@@ -231,7 +234,7 @@ export function WalletConnectButton() {
 
   return (
     <button
-      onClick={connect}
+      onClick={handleConnect}
       aria-label="Connect Hedera wallet via HashConnect"
       className="flex items-center gap-2 rounded-xl bg-gradient-to-r from-accent to-signal px-4 py-2 text-xs font-bold text-ink shadow-glow-sm transition-all hover:shadow-glow focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-ink"
     >

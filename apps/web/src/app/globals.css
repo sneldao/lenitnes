@@ -91,3 +91,18 @@ body {
 ::-webkit-scrollbar-thumb:hover {
   @apply bg-edge-light;
 }
+
+@keyframes toastIn {
+  from {
+    opacity: 0;
+    transform: translateX(1rem);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+.animate-toast-in {
+  animation: toastIn 0.25s ease-out;
+}

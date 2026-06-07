@@ -17,13 +17,16 @@ export interface AuthenticatedRequest extends Request {
 }
 
 export function requireAuth(req: Request, res: Response, next: NextFunction) {
+  const cookieToken = (req as Request & { cookies?: Record<string, string> }).cookies?.lenitnes_token;
   const header = req.headers.authorization ?? '';
-  if (!header.startsWith('Bearer ')) {
+  const headerToken = header.startsWith('Bearer ') ? header.slice(7) : null;
+  const token = cookieToken ?? headerToken;
+
+  if (!token) {
     res.status(401).json({ error: 'missing_token' });
     return;
   }
 
-  const token = header.slice(7);
   verifyToken(token)
     .then((payload) => {
       (req as AuthenticatedRequest).user = {

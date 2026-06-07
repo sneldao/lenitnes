@@ -3,6 +3,7 @@
 import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { api, type Monitor, type Rule } from '@/lib/api';
+import { useAuth } from '@/lib/useAuth';
 import {
   Workflow,
   Eye,
@@ -27,6 +28,7 @@ const ACTION_META: Record<string, { icon: typeof Zap; label: string; color: stri
 
 // Simple dropdown-based Rules builder (V1).
 export default function RulesPage() {
+  const { isAuthenticated } = useAuth();
   const queryClient = useQueryClient();
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
@@ -46,15 +48,18 @@ export default function RulesPage() {
   const { data: monitors = [], isLoading: monitorsLoading } = useQuery({
     queryKey: ['monitors'],
     queryFn: () => api.listMonitors(),
+    enabled: isAuthenticated,
   });
   const { data: rules = [], isLoading: rulesLoading } = useQuery({
     queryKey: ['rules'],
     queryFn: () => api.listRules(),
+    enabled: isAuthenticated,
   });
   const { data: krakenStatus } = useQuery({
     queryKey: ['krakenStatus'],
     queryFn: () => api.krakenStatus(),
     retry: 1,
+    enabled: isAuthenticated,
   });
 
   const createRule = useMutation({

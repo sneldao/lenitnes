@@ -1,6 +1,7 @@
 import express from 'express';
 import cors from 'cors';
 import helmet from 'helmet';
+import cookieParser from 'cookie-parser';
 import http from 'node:http';
 import crypto from 'node:crypto';
 import rateLimit from 'express-rate-limit';
@@ -23,8 +24,9 @@ import { logger } from './logger.js';
 
 export const app = express();
 app.use(helmet());
-app.use(cors({ origin: config.webOrigin }));
+app.use(cors({ origin: config.webOrigin, credentials: true }));
 app.use(express.json({ limit: '10mb' }));
+app.use(cookieParser());
 
 // ── Rate limiting ──────────────────────────────────────────────
 const generalLimiter = rateLimit({
