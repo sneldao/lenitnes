@@ -1,21 +1,22 @@
 import pg from 'pg';
 import { config } from '../config.js';
 
+// Parse JSONB columns so screenshot_urls, action_config, etc. come back as objects.
+pg.types.setTypeParser(114, (val: string) => (val ? JSON.parse(val) : val));
+
 export const pool = new pg.Pool({
   connectionString: config.databaseUrl,
   // Supabase / Railway typically require SSL in production.
-  ssl: config.env === 'production' ? { rejectUnauthorized: false } : undefined,
+  // PGSSLMODE=disable skips SSL (used for Docker-internal postgres).
+  ssl:
+    process.env.PGSSLMODE === 'disable'
+      ? false
+      : config.env === 'production'
+        ? { rejectUnauthorized: false }
+        : undefined,
   max: 20,
   idleTimeoutMillis: 30_000,
   connectionTimeoutMillis: 5_000,
-  // Parse JSONB columns so screenshot_urls, action_config, etc. come back as objects.
-  types: {
-    getTypeParser: (oid: number) => {
-      // 114 is JSONB's OID in PostgreSQL.
-      if (oid === 114) return (val: string) => (val ? JSON.parse(val) : val);
-      return null;
-    },
-  },
 });
 
 export async function query<T extends pg.QueryResultRow = pg.QueryResultRow>(

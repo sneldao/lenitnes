@@ -33,6 +33,7 @@ services:
       - NODE_ENV=production
       - API_PORT=4000
       - DATABASE_URL=postgresql://${POSTGRES_USER:-lenitnes}:${POSTGRES_PASSWORD:-lenitnes}@db:5432/${POSTGRES_DB:-lenitnes}
+      - PGSSLMODE=disable
       - WEB_ORIGIN=${WEB_ORIGIN}
       - JWT_SECRET=${JWT_SECRET}
       - ENCRYPTION_KEY=${ENCRYPTION_KEY}
@@ -52,6 +53,8 @@ services:
       - X402_HEDERA_NETWORK=${X402_HEDERA_NETWORK:-hedera:testnet}
       - X402_PAY_TO=${X402_PAY_TO}
       - X402_PRICE_HBAR=${X402_PRICE_HBAR:-0.5}
+    ports:
+      - '127.0.0.1:4000:4000'
     depends_on:
       db:
         condition: service_healthy
@@ -70,6 +73,7 @@ services:
     environment:
       - NODE_ENV=production
       - DATABASE_URL=postgresql://${POSTGRES_USER:-lenitnes}:${POSTGRES_PASSWORD:-lenitnes}@db:5432/${POSTGRES_DB:-lenitnes}
+      - PGSSLMODE=disable
       - JWT_SECRET=${JWT_SECRET}
       - ENCRYPTION_KEY=${ENCRYPTION_KEY}
       - HEDERA_NETWORK=${HEDERA_NETWORK:-testnet}
@@ -101,6 +105,8 @@ services:
         - NEXT_PUBLIC_HASHCONNECT_PROJECT_ID=${NEXT_PUBLIC_HASHCONNECT_PROJECT_ID}
         - NEXT_PUBLIC_HEDERA_NETWORK=${NEXT_PUBLIC_HEDERA_NETWORK:-testnet}
     restart: unless-stopped
+    ports:
+      - '127.0.0.1:3000:3000'
     environment:
       - SERVICE_FQDN_WEB_3000
       - NODE_ENV=production
