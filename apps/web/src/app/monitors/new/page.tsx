@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { useRouter } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { api } from '@/lib/api';
 import { useWallet } from '@/components/WalletConnect';
 import {
@@ -27,11 +27,13 @@ const STEP_META = [
 // Multi-step Create Monitor flow.
 export default function NewMonitorPage() {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const { accountId, isConnected } = useWallet();
   const [step, setStep] = useState(1);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [userId, setUserId] = useState<string>('');
+  const [prefilled, setPrefilled] = useState(false);
 
   const [form, setForm] = useState({
     url: '',
@@ -41,6 +43,23 @@ export default function NewMonitorPage() {
     stakeHbar: 10,
     screenshotsEnabled: true,
   });
+
+  // Pre-fill from URL params (template links from landing page)
+  useEffect(() => {
+    if (prefilled) return;
+    const url = searchParams.get('url');
+    const condition = searchParams.get('condition');
+    const frequency = searchParams.get('frequency');
+    if (url || condition) {
+      setForm((f) => ({
+        ...f,
+        ...(url ? { url } : {}),
+        ...(condition ? { conditionText: condition } : {}),
+        ...(frequency ? { frequencySeconds: Number(frequency) } : {}),
+      }));
+      setPrefilled(true);
+    }
+  }, [searchParams, prefilled]);
 
   const set = <K extends keyof typeof form>(k: K, v: (typeof form)[K]) =>
     setForm((f) => ({ ...f, [k]: v }));

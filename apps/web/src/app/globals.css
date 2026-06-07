@@ -33,20 +33,23 @@ body {
 }
 
 .btn {
-  @apply inline-flex items-center justify-center gap-2 rounded-xl bg-accent px-5 py-2.5 text-sm font-semibold text-ink shadow-glow-sm transition-all duration-200;
-  @apply hover:bg-accent-glow hover:shadow-glow disabled:opacity-40 disabled:shadow-none;
+  @apply inline-flex items-center justify-center gap-2 rounded-xl bg-accent px-5 py-2.5 text-sm font-semibold text-ink shadow-glow-sm transition-all duration-150 cursor-pointer select-none;
+  @apply hover:bg-accent-glow hover:shadow-glow disabled:opacity-40 disabled:shadow-none disabled:cursor-not-allowed;
+  @apply active:scale-[0.97] active:shadow-none;
   @apply focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-ink;
 }
 
 .btn-ghost {
-  @apply inline-flex items-center justify-center gap-2 rounded-xl border border-edge bg-transparent px-5 py-2.5 text-sm font-semibold text-slate-300 transition-all duration-200;
+  @apply inline-flex items-center justify-center gap-2 rounded-xl border border-edge bg-transparent px-5 py-2.5 text-sm font-semibold text-slate-300 transition-all duration-150 cursor-pointer select-none;
   @apply hover:border-accent/40 hover:text-accent hover:bg-accent/5;
+  @apply active:scale-[0.97] active:bg-accent/10;
   @apply focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-ink;
 }
 
 .btn-danger {
-  @apply inline-flex items-center justify-center gap-2 rounded-xl bg-danger/10 border border-danger/20 px-5 py-2.5 text-sm font-semibold text-danger transition-all duration-200;
+  @apply inline-flex items-center justify-center gap-2 rounded-xl bg-danger/10 border border-danger/20 px-5 py-2.5 text-sm font-semibold text-danger transition-all duration-150 cursor-pointer select-none;
   @apply hover:bg-danger/20 hover:border-danger/40;
+  @apply active:scale-[0.97];
 }
 
 .input {
