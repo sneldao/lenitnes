@@ -1,8 +1,8 @@
-import { config } from "../config.js";
+import { config } from '../config.js';
 
 // ─────────────────────────────────────────────────────────────
-// IPFS proof storage (Web3.Storage or Pinata).
-// The proof package bundles everything needed to independently verify a signal.
+// Grove proof storage (Lens Protocol).
+// Immutable on-chain-controlled storage for signal proof packages.
 // ─────────────────────────────────────────────────────────────
 
 export interface ProofPackage {
@@ -18,35 +18,25 @@ export interface ProofPackage {
   hederaTxId: string;
 }
 
-/** Upload the proof package JSON to IPFS and return its CID. */
+interface GroveUploadResponse {
+  storage_key: string;
+  gateway_url: string;
+  uri: string;
+  status_url: string;
+}
+
+/** Upload the proof package JSON to Grove and return its storage key. */
 export async function uploadProofPackage(pkg: ProofPackage): Promise<{ cid: string }> {
-  if (config.ipfs.provider === "pinata") {
-    return uploadToPinata(pkg);
-  }
-  return uploadToWeb3Storage(pkg);
-}
-
-async function uploadToPinata(pkg: ProofPackage): Promise<{ cid: string }> {
-  if (!config.ipfs.pinataJwt) throw new Error("PINATA_JWT not configured");
-  const res = await fetch("https://api.pinata.cloud/pinning/pinJSONToIPFS", {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      Authorization: `Bearer ${config.ipfs.pinataJwt}`,
-    },
-    body: JSON.stringify({ pinataContent: pkg }),
+  const res = await fetch(`https://api.grove.storage/?chain_id=${config.grove.chainId}`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(pkg),
   });
-  if (!res.ok) throw new Error(`Pinata upload failed: ${res.status} ${await res.text()}`);
-  const json = (await res.json()) as { IpfsHash: string };
-  return { cid: json.IpfsHash };
+  if (!res.ok) throw new Error(`Grove upload failed: ${res.status} ${await res.text()}`);
+  const json = (await res.json()) as GroveUploadResponse;
+  return { cid: json.storage_key };
 }
 
-async function uploadToWeb3Storage(_pkg: ProofPackage): Promise<{ cid: string }> {
-  if (!config.ipfs.web3StorageToken) throw new Error("WEB3_STORAGE_TOKEN not configured");
-  // TODO: wire the @web3-storage/w3up-client upload flow.
-  throw new Error("Web3.Storage upload not yet wired");
-}
-
-export function ipfsGatewayUrl(cid: string): string {
-  return `https://ipfs.io/ipfs/${cid}`;
+export function groveGatewayUrl(storageKey: string): string {
+  return `https://api.grove.storage/${storageKey}`;
 }

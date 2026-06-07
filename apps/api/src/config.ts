@@ -33,10 +33,8 @@ export const config = {
     apiKey: process.env.TINYFISH_API_KEY ?? '',
   },
 
-  ipfs: {
-    provider: process.env.IPFS_PROVIDER ?? 'web3storage',
-    web3StorageToken: process.env.WEB3_STORAGE_TOKEN ?? '',
-    pinataJwt: process.env.PINATA_JWT ?? '',
+  grove: {
+    chainId: Number(process.env.GROVE_CHAIN_ID ?? 37111),
   },
 
   encryptionKey: required('ENCRYPTION_KEY'),

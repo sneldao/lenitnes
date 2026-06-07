@@ -1,6 +1,6 @@
 import { Router, type Request, type Response } from 'express';
 import { query } from '../db/pool.js';
-import { ipfsGatewayUrl } from '../services/ipfs.js';
+import { groveGatewayUrl } from '../services/ipfs.js';
 import type { AuthenticatedRequest } from '../middleware/auth.js';
 import type { Signal } from '../types.js';
 import { cacheGet, cacheSet } from '../middleware/cache.js';
@@ -74,7 +74,7 @@ signalsRouter.get('/:id', async (req: Request, res: Response) => {
     monitor: monitor.rows[0] ?? null,
     orders: orders.rows,
     proof: {
-      ipfsUrl: signal.ipfs_cid ? ipfsGatewayUrl(signal.ipfs_cid) : null,
+      ipfsUrl: signal.ipfs_cid ? groveGatewayUrl(signal.ipfs_cid) : null,
       hashscanUrl: signal.hedera_tx_id
         ? `https://hashscan.io/testnet/transaction/${encodeURIComponent(signal.hedera_tx_id)}`
         : null,
