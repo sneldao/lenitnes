@@ -156,44 +156,72 @@ This tightly couples payment and execution — no credit, no execution — and a
 
 ## Deployment
 
-### Azure (Recommended — Microsoft for Startups)
+### Coolify + Vultr (Self-Hosted — Production-Ready)
 
-LENITNES is optimized for **Azure** and leverages the [$100K Microsoft for Startups credits](https://startups.microsoft.com):
+The fastest path to a live, SSL-terminated stack on your own server:
 
-| Component | Azure Service                                                                 | Why                                                   |
-| --------- | ----------------------------------------------------------------------------- | ----------------------------------------------------- |
-| Frontend  | [Static Web Apps](https://azure.microsoft.com/services/app-service/static)    | Free tier, built-in CI/CD from GitHub, global CDN     |
-| API       | [Container Apps](https://azure.microsoft.com/services/container-apps)         | Serverless containers, scales to zero, cost-efficient |
-| Worker    | [Container Apps](https://azure.microsoft.com/services/container-apps)         | Same environment, dedicated cron replica              |
-| Database  | [PostgreSQL Flexible Server](https://azure.microsoft.com/services/postgresql) | Managed, Burstable tier for dev/test                  |
-| Registry  | [Container Registry](https://azure.microsoft.com/services/container-registry) | Stores API + Worker images                            |
+| Component | Setup                                    | Why                                     |
+| --------- | ---------------------------------------- | --------------------------------------- |
+| Server    | Vultr (or any VPS) with Docker + Coolify | $20–$40/mo, full control                |
+| Frontend  | Next.js container behind Traefik (SSL)   | Auto Let's Encrypt via Coolify          |
+| API       | Express container behind Traefik (SSL)   | Same domain `/api` path prefix          |
+| Worker    | Standalone cron container                | No inbound ports needed                 |
+| Database  | PostgreSQL 15 (Docker volume)            | Managed via docker-compose, auto-backup |
 
-**One-command deploy:**
+**Prerequisites:**
+
+- VPS with Docker & Docker Compose
+- [Coolify](https://coolify.io) installed (handles Traefik + Let's Encrypt)
+- DNS A record: `lenitnes.yourdomain.com` → server IP
+
+**Deploy:**
 
 ```bash
-# 1. Login and create resource group
-az login
-az group create --name lenitnes-prod --location eastus
+# 1. Clone / sync repo to server
+git clone https://github.com/sneldao/lenitnes.git ~/lenitnes
+cd ~/lenitnes
 
-# 2. Deploy everything (Bicep)
-az deployment group create \
-  --resource-group lenitnes-prod \
-  --template-file infra/azure/main.bicep \
-  --parameters projectName=lenitnes env=prod
+# 2. Create .env (see table below for required vars)
+cp .env.example .env
+nano .env
 
-# 3. Build and push images
-az acr build --registry lenitnescrprod --image lenitnes-api:latest -f apps/api/Dockerfile .
-az acr build --registry lenitnescrprod --image lenitnes-worker:latest -f apps/api/Dockerfile.worker .
+# 3. Build all images
+sudo docker compose build
 
-# 4. Run database migrations
-az containerapp exec --name lenitnes-api-prod --command "npm run migrate --workspace=@lenitnes/api"
+# 4. Start stack
+sudo docker compose up -d
+
+# 5. Verify
+# API health:  curl https://lenitnes.yourdomain.com/api/health
+# Web frontend: curl https://lenitnes.yourdomain.com
 ```
 
-**GitHub Actions CI/CD** (`.github/workflows/azure-deploy.yml`) is included — pushes to `main` automatically build images, deploy Bicep infrastructure, and publish the frontend to Static Web Apps.
+**How routing works:**
+
+- Traefik (managed by Coolify) reads Docker labels on the `coolify` network.
+- `lenitnes.persidian.com/` → web container (:3000)
+- `lenitnes.persidian.com/api/*` → api container (:4000), `/api` stripped
+- `NEXT_PUBLIC_API_URL=https://lenitnes.persidian.com/api` is baked into the web build.
+
+**Auto-start on boot:**
+
+```bash
+sudo systemctl enable lenitnes.service
+```
+
+### Azure (Microsoft for Startups)
+
+See the [Azure Bicep template](./infra/azure/main.bicep) and CI/CD workflow (`.github/workflows/azure-deploy.yml`).
+
+| Component | Azure Service                                                                 |
+| --------- | ----------------------------------------------------------------------------- |
+| Frontend  | [Static Web Apps](https://azure.microsoft.com/services/app-service/static)    |
+| API       | [Container Apps](https://azure.microsoft.com/services/container-apps)         |
+| Worker    | [Container Apps](https://azure.microsoft.com/services/container-apps)         |
+| Database  | [PostgreSQL Flexible Server](https://azure.microsoft.com/services/postgresql) |
+| Registry  | [Container Registry](https://azure.microsoft.com/services/container-registry) |
 
 ### Railway / Vercel (Alternative)
-
-If you prefer Railway + Vercel:
 
 1. Railway: create project → add PostgreSQL → deploy API (`npm run start`) + Worker (`npm run worker`).
 2. Vercel: connect repo → root directory `apps/web` → add `NEXT_PUBLIC_API_URL`.

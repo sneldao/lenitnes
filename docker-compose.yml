@@ -53,6 +53,18 @@ services:
       - X402_HEDERA_NETWORK=${X402_HEDERA_NETWORK:-hedera:testnet}
       - X402_PAY_TO=${X402_PAY_TO}
       - X402_PRICE_HBAR=${X402_PRICE_HBAR:-0.5}
+    networks:
+      - default
+      - coolify
+    labels:
+      - 'traefik.enable=true'
+      - 'traefik.http.routers.lenitnes-api.rule=Host(`lenitnes.persidian.com`) && PathPrefix(`/api`)'
+      - 'traefik.http.routers.lenitnes-api.priority=100'
+      - 'traefik.http.routers.lenitnes-api.entrypoints=https'
+      - 'traefik.http.routers.lenitnes-api.tls.certresolver=letsencrypt'
+      - 'traefik.http.routers.lenitnes-api.middlewares=lenitnes-api-stripprefix'
+      - 'traefik.http.middlewares.lenitnes-api-stripprefix.stripprefix.prefixes=/api'
+      - 'traefik.http.services.lenitnes-api.loadbalancer.server.port=4000'
     ports:
       - '4000:4000'
     depends_on:
@@ -105,6 +117,16 @@ services:
         - NEXT_PUBLIC_HASHCONNECT_PROJECT_ID=${NEXT_PUBLIC_HASHCONNECT_PROJECT_ID}
         - NEXT_PUBLIC_HEDERA_NETWORK=${NEXT_PUBLIC_HEDERA_NETWORK:-testnet}
     restart: unless-stopped
+    networks:
+      - default
+      - coolify
+    labels:
+      - 'traefik.enable=true'
+      - 'traefik.http.routers.lenitnes-web.rule=Host(`lenitnes.persidian.com`)'
+      - 'traefik.http.routers.lenitnes-web.priority=50'
+      - 'traefik.http.routers.lenitnes-web.entrypoints=https'
+      - 'traefik.http.routers.lenitnes-web.tls.certresolver=letsencrypt'
+      - 'traefik.http.services.lenitnes-web.loadbalancer.server.port=3000'
     ports:
       - '3000:3000'
     environment:
@@ -113,6 +135,10 @@ services:
       - PORT=3000
     depends_on:
       - api
+
+networks:
+  coolify:
+    external: true
 
 volumes:
   lenitnes-db-data:
