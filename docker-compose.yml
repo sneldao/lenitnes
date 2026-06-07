@@ -58,6 +58,7 @@ services:
       - coolify
     labels:
       - 'traefik.enable=true'
+      - 'traefik.docker.network=coolify'
       - 'traefik.http.routers.lenitnes-api.rule=Host(`lenitnes.persidian.com`) && PathPrefix(`/api`)'
       - 'traefik.http.routers.lenitnes-api.priority=100'
       - 'traefik.http.routers.lenitnes-api.entrypoints=https'
@@ -122,6 +123,7 @@ services:
       - coolify
     labels:
       - 'traefik.enable=true'
+      - 'traefik.docker.network=coolify'
       - 'traefik.http.routers.lenitnes-web.rule=Host(`lenitnes.persidian.com`)'
       - 'traefik.http.routers.lenitnes-web.priority=50'
       - 'traefik.http.routers.lenitnes-web.entrypoints=https'
