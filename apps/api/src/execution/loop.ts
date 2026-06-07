@@ -11,6 +11,7 @@ import * as notify from '../services/notify.js';
 import { decrypt } from '../services/crypto.js';
 import { isCircuitOpen, recordSuccess, recordFailure } from '../services/circuit.js';
 import { incCounter } from '../middleware/metrics.js';
+import { logger } from '../logger.js';
 
 // ─────────────────────────────────────────────────────────────
 // Monitor execution loop — the heart of LENITNES.
@@ -39,7 +40,7 @@ export async function runDueChecks(): Promise<void> {
     monitors.map((monitor) =>
       limit(() =>
         executeCheck(monitor).catch((err) => {
-          console.error(`[loop] monitor ${monitor.id} failed:`, err);
+          logger.error({ err, monitorId: monitor.id }, 'monitor check failed');
         }),
       ),
     ),
@@ -61,7 +62,7 @@ export async function executeCheck(
       await query(`UPDATE monitors SET status = 'insufficient_balance' WHERE id = $1`, [
         monitor.id,
       ]);
-      console.warn(`[loop] monitor ${monitor.id} paused: insufficient balance`);
+      logger.warn({ monitorId: monitor.id }, 'monitor paused: insufficient balance');
       return;
     }
 
@@ -92,7 +93,7 @@ export async function executeCheck(
   const circuitOpts = { name: 'tinyfish', threshold: 5, windowMs: 60_000, cooldownMs: 300_000 };
 
   if (isCircuitOpen(circuitOpts)) {
-    console.warn(`[loop] TinyFish circuit open — using scraper fallback for monitor ${monitor.id}`);
+    logger.warn({ monitorId: monitor.id }, 'TinyFish circuit open — using scraper fallback');
     result = await scraper.runScraperFallback(monitor.url, monitor.condition_text);
     incCounter('tinyfish_errors_total', { fallback: 'scraper' });
   } else {
@@ -107,10 +108,7 @@ export async function executeCheck(
     } catch (err) {
       recordFailure(circuitOpts);
       incCounter('tinyfish_errors_total', { fallback: 'none' });
-      console.warn(
-        `[loop] TinyFish failed for monitor ${monitor.id}, trying scraper fallback:`,
-        err,
-      );
+      logger.warn({ err, monitorId: monitor.id }, 'TinyFish failed, trying scraper fallback');
       result = await scraper.runScraperFallback(monitor.url, monitor.condition_text);
     }
   }
@@ -218,7 +216,7 @@ async function executeRules(monitor: Monitor, signalId: string, summary: string)
           break;
       }
     } catch (err) {
-      console.error(`[loop] rule ${rule.id} action failed:`, err);
+      logger.error({ err, ruleId: rule.id, actionType: rule.action_type }, 'rule action failed');
     }
   }
 }

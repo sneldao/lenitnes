@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { Suspense, useEffect, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { api } from '@/lib/api';
 import { useWallet } from '@/components/WalletConnect';
@@ -24,8 +24,22 @@ const STEP_META = [
   { icon: Wallet, label: 'Stake' },
 ];
 
-// Multi-step Create Monitor flow.
+// Suspense wrapper needed for useSearchParams during static export.
 export default function NewMonitorPage() {
+  return (
+    <Suspense
+      fallback={
+        <div className="flex justify-center py-20">
+          <div className="h-8 w-8 animate-pulse rounded-xl bg-accent/20" />
+        </div>
+      }
+    >
+      <NewMonitorForm />
+    </Suspense>
+  );
+}
+
+function NewMonitorForm() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const { accountId, isConnected } = useWallet();

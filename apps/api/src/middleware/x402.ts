@@ -3,6 +3,7 @@ import { HTTPFacilitatorClient } from '@x402/core/server';
 import { ExactHederaScheme as ExactHederaServerScheme } from '@x402/hedera/exact/server';
 import type { Request, Response, NextFunction } from 'express';
 import { config } from '../config.js';
+import { logger } from '../logger.js';
 
 let _middleware: ReturnType<typeof paymentMiddlewareFromConfig> | null = null;
 
@@ -36,7 +37,7 @@ export const x402Middleware = async (req: Request, res: Response, next: NextFunc
     const mw = getMiddleware();
     return mw(req, res, next);
   } catch (err) {
-    console.error('[x402] initialization failed:', err);
+    logger.error({ err }, 'x402 initialization failed');
     return res.status(503).json({ error: 'payment_service_unavailable' });
   }
 };

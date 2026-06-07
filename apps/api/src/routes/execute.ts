@@ -3,6 +3,7 @@ import { query } from '../db/pool.js';
 import type { Monitor } from '../types.js';
 import type { AuthenticatedRequest } from '../middleware/auth.js';
 import { executeCheck } from '../execution/loop.js';
+import { logger } from '../logger.js';
 
 export const executeRouter = Router();
 
@@ -43,7 +44,7 @@ executeRouter.post('/:monitorId', async (req, res) => {
     await executeCheck(monitor, { skipDebit: true });
     res.json({ ok: true, monitorId });
   } catch (err) {
-    console.error(`[execute] monitor ${monitorId} failed:`, err);
+    logger.error({ err, monitorId }, 'on-demand execution failed');
     res.status(500).json({ error: 'execution_failed', detail: String(err) });
   }
 });

@@ -2,6 +2,7 @@ import crypto from 'node:crypto';
 import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
 import { withRetry } from './retry.js';
+import { logger } from '../logger.js';
 
 const execFileAsync = promisify(execFile);
 
@@ -112,9 +113,9 @@ export async function addOrder(
   } catch (cliErr) {
     const msg = cliErr instanceof Error ? cliErr.message : String(cliErr);
     if (msg.includes('not found') || msg.includes(' ENOENT ')) {
-      console.warn('[kraken] CLI not found, falling back to REST API');
+      logger.warn('Kraken CLI not found, falling back to REST API');
     } else {
-      console.warn('[kraken] CLI failed, falling back to REST API:', msg);
+      logger.warn({ msg }, 'Kraken CLI failed, falling back to REST API');
     }
   }
 

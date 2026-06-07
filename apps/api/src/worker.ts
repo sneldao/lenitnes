@@ -1,46 +1,41 @@
 import cron from 'node-cron';
 import { runDueChecks } from './execution/loop.js';
 import { pool } from './db/pool.js';
+import { logger } from './logger.js';
 
-// ─────────────────────────────────────────────────────────────
-// Scheduled monitor execution. Runs every minute; each monitor's own
-// frequency_seconds + last_check_at decides whether it is actually due.
-// For higher throughput, swap node-cron for a BullMQ queue.
-// ─────────────────────────────────────────────────────────────
-
-console.log('LENITNES worker started — scanning for due monitors every minute.');
+logger.info('worker started — scanning for due monitors every minute');
 
 let running = false;
 let stopping = false;
 
 const job = cron.schedule('* * * * *', async () => {
-  if (running || stopping) return; // avoid overlapping passes
+  if (running || stopping) return;
   running = true;
   try {
     await runDueChecks();
   } catch (err) {
-    console.error('[worker] runDueChecks failed:', err);
+    logger.error({ err }, 'runDueChecks failed');
   } finally {
     running = false;
   }
 });
 
 function shutdown(signal: string) {
-  console.log(`\n[worker] received ${signal} — stopping gracefully`);
+  logger.info({ signal }, 'worker stopping gracefully');
   stopping = true;
   job.stop();
   pool
     .end()
     .then(() => {
-      console.log('[worker] DB pool closed');
+      logger.info('DB pool closed');
       process.exit(0);
     })
     .catch((e) => {
-      console.error('[worker] pool.close error:', e);
+      logger.error({ err: e }, 'pool.close error');
       process.exit(1);
     });
   setTimeout(() => {
-    console.error('[worker] forced exit after timeout');
+    logger.error('forced exit after timeout');
     process.exit(1);
   }, 10_000);
 }

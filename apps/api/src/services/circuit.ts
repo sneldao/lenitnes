@@ -1,6 +1,8 @@
 // Circuit breaker for external AI / inference services.
 // After THRESHOLD consecutive failures within WINDOW_MS, skip calls for COOLDOWN_MS.
 
+import { logger } from '../logger.js';
+
 interface CircuitState {
   failures: number;
   lastFailure: number;
@@ -36,7 +38,7 @@ export function isCircuitOpen(opts: CircuitOptions): boolean {
   if (state.failures >= threshold && now - state.lastFailure <= windowMs) {
     state.open = true;
     state.openedAt = now;
-    console.warn(`[circuit] ${name} OPENED after ${threshold} failures`);
+    logger.warn({ circuit: name, threshold }, 'circuit OPENED');
     return true;
   }
 

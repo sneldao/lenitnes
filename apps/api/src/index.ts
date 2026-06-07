@@ -19,6 +19,7 @@ import { auditMiddleware } from './middleware/audit.js';
 import { renderMetrics, metricsMiddleware } from './middleware/metrics.js';
 import { x402Middleware } from './middleware/x402.js';
 import { validateSchema } from './db/validate.js';
+import { logger } from './logger.js';
 
 export const app = express();
 app.use(helmet());
@@ -101,7 +102,7 @@ app.use('/execute', requireAuth, executeLimiter, x402Middleware, executeRouter);
 // Centralized error handler.
 app.use(
   (err: unknown, _req: express.Request, res: express.Response, _next: express.NextFunction) => {
-    console.error('[api] unhandled error:', err);
+    logger.error({ err }, 'unhandled error');
     res.status(500).json({ error: 'internal_error' });
   },
 );
@@ -110,17 +111,17 @@ app.use(
 const server = http.createServer(app);
 
 function shutdown(signal: string) {
-  console.log(`\n[api] received ${signal} — shutting down gracefully`);
+  logger.info({ signal }, 'shutting down gracefully');
   server.close(async () => {
     try {
       await pool.end();
-      console.log('[api] DB pool closed');
+      logger.info('DB pool closed');
     } finally {
       process.exit(0);
     }
   });
   setTimeout(() => {
-    console.error('[api] forced exit after timeout');
+    logger.error('forced exit after timeout');
     process.exit(1);
   }, 10_000);
 }
@@ -134,17 +135,16 @@ if (isMain) {
   validateSchema()
     .then(({ ok, missing }) => {
       if (!ok) {
-        console.error(`[api] schema validation failed — missing tables: ${missing.join(', ')}`);
-        console.error('[api] run `npm run migrate` to apply the schema');
+        logger.error({ missing }, 'schema validation failed — run `npm run migrate`');
         process.exit(1);
       }
-      console.log('[api] schema validation passed');
+      logger.info('schema validation passed');
       server.listen(config.port, () => {
-        console.log(`LENITNES API listening on :${config.port} (${config.env})`);
+        logger.info({ port: config.port, env: config.env }, 'API listening');
       });
     })
     .catch((err) => {
-      console.error('[api] schema validation error:', err);
+      logger.error({ err }, 'schema validation error');
       process.exit(1);
     });
 }

@@ -1,5 +1,6 @@
 import type { Request, Response, NextFunction } from 'express';
 import { query } from '../db/pool.js';
+import { logger } from '../logger.js';
 
 interface AuditLogEntry {
   id: string;
@@ -50,7 +51,7 @@ export async function logAudit(entry: Omit<AuditLogEntry, 'id' | 'created_at'>):
     );
   } catch (e) {
     // Never fail the request because of audit logging.
-    console.error('[audit] failed to persist audit log:', e);
+    logger.error({ err: e }, 'failed to persist audit log');
   }
 }
 
@@ -84,7 +85,7 @@ export function auditMiddleware(req: Request, res: Response, next: NextFunction)
     };
 
     // Structured JSON log for container log aggregation (Azure Log Analytics, Datadog, etc.)
-    console.log(JSON.stringify({ level: 'AUDIT', ...entry }));
+    logger.info({ ...entry }, 'audit');
 
     // Async DB persist — fire and forget.
     logAudit(entry).catch(() => {});

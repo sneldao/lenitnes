@@ -6,6 +6,7 @@ import * as hedera from '../services/hedera.js';
 import type { AuthenticatedRequest } from '../middleware/auth.js';
 import type { Monitor } from '../types.js';
 import { cacheGet, cacheSet, cacheInvalidate } from '../middleware/cache.js';
+import { logger } from '../logger.js';
 
 export const monitorsRouter = Router();
 
@@ -152,7 +153,7 @@ monitorsRouter.delete('/:id', async (req, res) => {
   if (remaining > 0) {
     await hedera
       .releaseEscrow({ toWalletAddress: authReq.user.wallet_address, amountHbar: remaining })
-      .catch((e: unknown) => console.error('[monitors] releaseEscrow failed:', e));
+      .catch((e: unknown) => logger.error({ err: e }, 'releaseEscrow failed'));
   }
 
   await query(`UPDATE monitors SET status = 'paused', hbar_balance = 0 WHERE id = $1`, [
