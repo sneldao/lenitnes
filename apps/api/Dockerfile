@@ -1,26 +1,30 @@
-# LENITNES API — multi-stage build for Azure Container Apps
+# LENITNES API — multi-stage workspace build.
 FROM node:20-alpine AS base
 WORKDIR /app
 
-# Copy root package files for workspace setup
+# Copy every workspace manifest so `npm ci` matches the lockfile exactly.
 COPY package.json package-lock.json ./
 COPY apps/api/package.json ./apps/api/
+COPY apps/web/package.json ./apps/web/
 COPY packages/types/package.json ./packages/types/
+COPY packages/types/tsconfig.json ./packages/types/
 COPY packages/types/src ./packages/types/src/
 
-# Install dependencies (respects workspaces)
-RUN npm ci --workspaces --if-present
+# Husky git hooks are irrelevant in Docker; drop the prepare hook before install.
+# Plain `npm ci` (no --workspaces) installs the FULL tree, including the root
+# package's own dependencies (pg, node-cron) which --workspaces would skip.
+RUN npm pkg delete scripts.prepare
+RUN npm ci
 
 # Copy source
 COPY apps/api/src ./apps/api/src
 COPY apps/api/tsconfig.json ./apps/api/
-COPY packages/types/tsconfig.json ./packages/types/
 
 # Build
 RUN npm run build --workspace=@lenitnes/types
 RUN npm run build --workspace=@lenitnes/api
 
-# Production image
+# ── Production image ──────────────────────────────────────────
 FROM node:20-alpine AS prod
 WORKDIR /app
 ENV NODE_ENV=production

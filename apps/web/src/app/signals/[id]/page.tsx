@@ -1,17 +1,21 @@
-"use client";
+'use client';
 
-import { useEffect, useState } from "react";
-import { api } from "@/lib/api";
+import { use, useEffect, useState } from 'react';
+import { api } from '@/lib/api';
 
 // Public-facing proof explorer for a single signal.
-export default function SignalDetailPage({ params }: { params: { id: string } }) {
+export default function SignalDetailPage({ params }: { params: Promise<{ id: string }> }) {
+  const { id } = use(params);
   const [signal, setSignal] = useState<any>(null);
   const [error, setError] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
 
   useEffect(() => {
-    api.getSignal(params.id).then(setSignal).catch((e) => setError(String(e)));
-  }, [params.id]);
+    api
+      .getSignal(id)
+      .then(setSignal)
+      .catch((e) => setError(String(e)));
+  }, [id]);
 
   function shareProof() {
     navigator.clipboard.writeText(window.location.href);
@@ -27,15 +31,15 @@ export default function SignalDetailPage({ params }: { params: { id: string } })
       <div className="flex items-center justify-between">
         <h1 className="text-2xl font-bold">Signal Proof</h1>
         <button className="btn-ghost" onClick={shareProof}>
-          {copied ? "Copied!" : "Share proof"}
+          {copied ? 'Copied!' : 'Share proof'}
         </button>
       </div>
 
       <div className="card space-y-3">
         <Row label="Detected at" value={new Date(signal.detected_at).toLocaleString()} />
-        <Row label="Condition" value={signal.monitor?.condition_text ?? "—"} />
-        <Row label="Summary" value={signal.condition_summary ?? "—"} />
-        <Row label="TinyFish run" value={signal.tinyfish_run_id ?? "—"} mono />
+        <Row label="Condition" value={signal.monitor?.condition_text ?? '—'} />
+        <Row label="Summary" value={signal.condition_summary ?? '—'} />
+        <Row label="TinyFish run" value={signal.tinyfish_run_id ?? '—'} mono />
       </div>
 
       <div className="card">
@@ -66,7 +70,12 @@ export default function SignalDetailPage({ params }: { params: { id: string } })
           </h2>
           <div className="grid gap-3 sm:grid-cols-2">
             {signal.screenshot_urls.map((src: string, i: number) => (
-              <img key={i} src={src} alt={`screenshot ${i + 1}`} className="rounded-lg border border-edge" />
+              <img
+                key={i}
+                src={src}
+                alt={`screenshot ${i + 1}`}
+                className="rounded-lg border border-edge"
+              />
             ))}
           </div>
         </div>
@@ -79,7 +88,7 @@ export default function SignalDetailPage({ params }: { params: { id: string } })
           </h2>
           {signal.orders.map((o: any) => (
             <div key={o.id} className="mb-2 rounded-lg bg-ink p-3 text-xs">
-              <div>Order: {o.kraken_order_id ?? "—"}</div>
+              <div>Order: {o.kraken_order_id ?? '—'}</div>
               <div>Status: {o.status}</div>
             </div>
           ))}
@@ -93,7 +102,9 @@ function Row({ label, value, mono }: { label: string; value: string; mono?: bool
   return (
     <div className="flex flex-col gap-0.5">
       <span className="text-[10px] uppercase tracking-wide text-slate-500">{label}</span>
-      <span className={mono ? "font-mono text-sm text-slate-200" : "text-sm text-slate-200"}>{value}</span>
+      <span className={mono ? 'font-mono text-sm text-slate-200' : 'text-sm text-slate-200'}>
+        {value}
+      </span>
     </div>
   );
 }

@@ -1,11 +1,13 @@
 'use client';
 
 import React, { createContext, useContext, useEffect, useState } from 'react';
-import { HashConnect } from 'hashconnect';
-import { LedgerId, AccountId, TransferTransaction, Hbar } from '@hashgraph/sdk';
-import { wrapFetchWithPayment, x402Client } from '@x402/fetch';
-import { ExactHederaScheme } from '@x402/hedera/exact/client';
+import type { HashConnect } from 'hashconnect';
 import { api } from '@/lib/api';
+
+// Heavy wallet/crypto libraries (@hashgraph/sdk, hashconnect, @x402/*) are
+// imported dynamically inside browser-only code paths. Importing them at module
+// scope pulls Node's `crypto` into the server bundle and breaks Next's
+// SSR/prerender pass. Dynamic import() keeps them out of the server graph.
 
 interface WalletContextType {
   accountId: string | null;
@@ -33,6 +35,8 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
         console.warn('NEXT_PUBLIC_HASHCONNECT_PROJECT_ID not set');
         return;
       }
+      const { HashConnect } = await import('hashconnect');
+      const { LedgerId, AccountId } = await import('@hashgraph/sdk');
       const hc = new HashConnect(
         LedgerId.TESTNET,
         projectId,
@@ -136,6 +140,10 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
     if (!hashconnect || !accountId) {
       throw new Error('Wallet not connected');
     }
+
+    const { AccountId, TransferTransaction, Hbar } = await import('@hashgraph/sdk');
+    const { wrapFetchWithPayment, x402Client } = await import('@x402/fetch');
+    const { ExactHederaScheme } = await import('@x402/hedera/exact/client');
 
     const signer = {
       accountId,

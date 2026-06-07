@@ -1,0 +1,112 @@
+# LENITNES — full stack for Coolify (Docker Compose deployment).
+#
+# Services: postgres (db), api, worker, web.
+# Secrets and public URLs are supplied via Coolify environment variables.
+# SERVICE_FQDN_* are Coolify "magic" vars that auto-generate domains + Traefik
+# routing for the exposed services (api on :4000, web on :3000).
+
+services:
+  db:
+    image: postgres:15-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-lenitnes}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-lenitnes}
+      POSTGRES_DB: ${POSTGRES_DB:-lenitnes}
+    volumes:
+      - lenitnes-db-data:/var/lib/postgresql/data
+      # Applies db/schema.sql on first init (schema is idempotent / IF NOT EXISTS).
+      - ./db/schema.sql:/docker-entrypoint-initdb.d/10-schema.sql:ro
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U ${POSTGRES_USER:-lenitnes} -d ${POSTGRES_DB:-lenitnes}']
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+  api:
+    build:
+      context: .
+      dockerfile: apps/api/Dockerfile
+    restart: unless-stopped
+    environment:
+      - SERVICE_FQDN_API_4000
+      - NODE_ENV=production
+      - API_PORT=4000
+      - DATABASE_URL=postgresql://${POSTGRES_USER:-lenitnes}:${POSTGRES_PASSWORD:-lenitnes}@db:5432/${POSTGRES_DB:-lenitnes}
+      - WEB_ORIGIN=${WEB_ORIGIN}
+      - JWT_SECRET=${JWT_SECRET}
+      - ENCRYPTION_KEY=${ENCRYPTION_KEY}
+      - HEDERA_NETWORK=${HEDERA_NETWORK:-testnet}
+      - HEDERA_OPERATOR_ID=${HEDERA_OPERATOR_ID}
+      - HEDERA_OPERATOR_KEY=${HEDERA_OPERATOR_KEY}
+      - HEDERA_TREASURY_ID=${HEDERA_TREASURY_ID}
+      - HEDERA_HCS_TOPIC_ID=${HEDERA_HCS_TOPIC_ID}
+      - DEFAULT_COST_PER_CHECK_HBAR=${DEFAULT_COST_PER_CHECK_HBAR:-0.5}
+      - TINYFISH_API_KEY=${TINYFISH_API_KEY}
+      - IPFS_PROVIDER=${IPFS_PROVIDER:-web3storage}
+      - WEB3_STORAGE_TOKEN=${WEB3_STORAGE_TOKEN}
+      - PINATA_JWT=${PINATA_JWT}
+      - TELEGRAM_BOT_TOKEN=${TELEGRAM_BOT_TOKEN}
+      - SMTP_URL=${SMTP_URL}
+      - X402_FACILITATOR_URL=${X402_FACILITATOR_URL:-https://blocky402.com}
+      - X402_HEDERA_NETWORK=${X402_HEDERA_NETWORK:-hedera:testnet}
+      - X402_PAY_TO=${X402_PAY_TO}
+      - X402_PRICE_HBAR=${X402_PRICE_HBAR:-0.5}
+    depends_on:
+      db:
+        condition: service_healthy
+    healthcheck:
+      test: ['CMD-SHELL', 'wget -qO- http://localhost:4000/health || exit 1']
+      interval: 30s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
+
+  worker:
+    build:
+      context: .
+      dockerfile: apps/api/Dockerfile.worker
+    restart: unless-stopped
+    environment:
+      - NODE_ENV=production
+      - DATABASE_URL=postgresql://${POSTGRES_USER:-lenitnes}:${POSTGRES_PASSWORD:-lenitnes}@db:5432/${POSTGRES_DB:-lenitnes}
+      - JWT_SECRET=${JWT_SECRET}
+      - ENCRYPTION_KEY=${ENCRYPTION_KEY}
+      - HEDERA_NETWORK=${HEDERA_NETWORK:-testnet}
+      - HEDERA_OPERATOR_ID=${HEDERA_OPERATOR_ID}
+      - HEDERA_OPERATOR_KEY=${HEDERA_OPERATOR_KEY}
+      - HEDERA_TREASURY_ID=${HEDERA_TREASURY_ID}
+      - HEDERA_HCS_TOPIC_ID=${HEDERA_HCS_TOPIC_ID}
+      - DEFAULT_COST_PER_CHECK_HBAR=${DEFAULT_COST_PER_CHECK_HBAR:-0.5}
+      - TINYFISH_API_KEY=${TINYFISH_API_KEY}
+      - IPFS_PROVIDER=${IPFS_PROVIDER:-web3storage}
+      - WEB3_STORAGE_TOKEN=${WEB3_STORAGE_TOKEN}
+      - PINATA_JWT=${PINATA_JWT}
+      - TELEGRAM_BOT_TOKEN=${TELEGRAM_BOT_TOKEN}
+      - SMTP_URL=${SMTP_URL}
+      - X402_FACILITATOR_URL=${X402_FACILITATOR_URL:-https://blocky402.com}
+      - X402_HEDERA_NETWORK=${X402_HEDERA_NETWORK:-hedera:testnet}
+      - X402_PAY_TO=${X402_PAY_TO}
+      - X402_PRICE_HBAR=${X402_PRICE_HBAR:-0.5}
+    depends_on:
+      db:
+        condition: service_healthy
+
+  web:
+    build:
+      context: .
+      dockerfile: apps/web/Dockerfile
+      args:
+        - NEXT_PUBLIC_API_URL=${NEXT_PUBLIC_API_URL}
+        - NEXT_PUBLIC_HASHCONNECT_PROJECT_ID=${NEXT_PUBLIC_HASHCONNECT_PROJECT_ID}
+        - NEXT_PUBLIC_HEDERA_NETWORK=${NEXT_PUBLIC_HEDERA_NETWORK:-testnet}
+    restart: unless-stopped
+    environment:
+      - SERVICE_FQDN_WEB_3000
+      - NODE_ENV=production
+      - PORT=3000
+    depends_on:
+      - api
+
+volumes:
+  lenitnes-db-data:
