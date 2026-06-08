@@ -16,27 +16,11 @@ import {
   Check,
   Camera,
   AlertTriangle,
-  Shield,
-  GitCommit,
-  FileText,
-  Bell,
   ChevronRight as ChevronRightIcon,
   Sparkles,
 } from 'lucide-react';
 
-import templatesData from '@/data/templates.json';
-
-const ICON_MAP: Record<string, typeof Globe> = {
-  GitCommit,
-  FileText,
-  Bell,
-  Shield,
-};
-
-const TEMPLATES = templatesData.map((t) => ({
-  ...t,
-  icon: ICON_MAP[t.icon as string] ?? Bell,
-}));
+import { TEMPLATES } from '@/data/templates';
 
 const STEP_META = [
   { icon: Globe, label: 'Target' },
@@ -216,7 +200,9 @@ function NewMonitorForm() {
             <div className="space-y-3 pt-2">
               <div className="flex items-center gap-2">
                 <Sparkles className="h-3.5 w-3.5 text-accent" />
-                <span className="text-xs font-semibold text-slate-300">Need inspiration? Pick a template</span>
+                <span className="text-xs font-semibold text-slate-300">
+                  Need inspiration? Pick a template
+                </span>
               </div>
               <div className="grid gap-2 sm:grid-cols-2">
                 {TEMPLATES.map((t) => {
@@ -241,7 +227,9 @@ function NewMonitorForm() {
                       }`}
                     >
                       <div className="flex items-start gap-2.5">
-                        <div className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-lg ${t.bg}`}>
+                        <div
+                          className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-lg ${t.bg}`}
+                        >
                           <t.icon className={`h-3.5 w-3.5 ${t.color}`} />
                         </div>
                         <div className="min-w-0 flex-1">

@@ -1,5 +1,7 @@
 import type { Config } from 'tailwindcss';
 
+import plugin from 'tailwindcss/plugin';
+
 const config: Config = {
   content: ['./src/**/*.{ts,tsx}'],
   theme: {
@@ -15,6 +17,8 @@ const config: Config = {
         'accent-glow': '#22d3ee',
         signal: '#10b981',
         'signal-glow': '#34d399',
+        violet: '#8b5cf6',
+        'violet-glow': '#a78bfa',
         warn: '#f59e0b',
         danger: '#ef4444',
         'danger-glow': '#f87171',
@@ -40,6 +44,7 @@ const config: Config = {
         'glow-signal': '0 0 20px rgba(16,185,129,0.15)',
         'glow-danger': '0 0 20px rgba(239,68,68,0.15)',
         card: '0 1px 3px rgba(0,0,0,0.4), 0 0 0 1px rgba(26,35,50,0.5)',
+        'glow-violet': '0 0 20px rgba(139,92,246,0.15)',
         'card-hover': '0 4px 16px rgba(0,0,0,0.5), 0 0 0 1px rgba(6,182,212,0.2)',
       },
       animation: {
@@ -47,6 +52,8 @@ const config: Config = {
         'fade-in': 'fadeIn 0.3s ease-out',
         'slide-up': 'slideUp 0.4s ease-out',
         'glow-pulse': 'glowPulse 2s ease-in-out infinite alternate',
+        'fade-slide-up': 'fadeSlideUp 0.5s ease-out both',
+        'proof-reveal': 'proofReveal 0.4s ease-out both',
       },
       keyframes: {
         fadeIn: {
@@ -61,10 +68,29 @@ const config: Config = {
           '0%': { boxShadow: '0 0 5px rgba(6,182,212,0.1)' },
           '100%': { boxShadow: '0 0 20px rgba(6,182,212,0.2)' },
         },
+        fadeSlideUp: {
+          '0%': { opacity: '0', transform: 'translateY(16px)' },
+          '100%': { opacity: '1', transform: 'translateY(0)' },
+        },
+        proofReveal: {
+          '0%': { opacity: '0', transform: 'scale(0.85)' },
+          '100%': { opacity: '1', transform: 'scale(1)' },
+        },
       },
     },
   },
-  plugins: [],
+  plugins: [
+    plugin(function ({ addUtilities }) {
+      addUtilities({
+        '.delay-1': { 'animation-delay': '150ms' },
+        '.delay-2': { 'animation-delay': '300ms' },
+        '.delay-3': { 'animation-delay': '450ms' },
+        '.delay-4': { 'animation-delay': '600ms' },
+        '.delay-5': { 'animation-delay': '750ms' },
+        '.delay-6': { 'animation-delay': '900ms' },
+      });
+    }),
+  ],
 };
 
 export default config;

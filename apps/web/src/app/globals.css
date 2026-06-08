@@ -22,10 +22,11 @@ body {
 
 .card {
   @apply rounded-2xl border border-edge/60 bg-panel/80 p-6 shadow-card backdrop-blur-sm;
-  @apply transition-all duration-200;
+  @apply transition-all duration-300 ease-out;
 }
 .card:hover {
   @apply border-edge-light/60 shadow-card-hover;
+  transform: translateY(-2px);
 }
 
 .badge {
@@ -63,16 +64,62 @@ body {
   @apply mb-1.5 block text-[11px] font-semibold uppercase tracking-wider text-slate-500;
 }
 
-.stat-card {
-  @apply rounded-xl border border-edge/40 bg-ink-light/50 p-4 backdrop-blur-sm;
-}
-
 .section-title {
   @apply text-[11px] font-semibold uppercase tracking-wider text-slate-500;
 }
 
 .glass {
   @apply bg-panel/60 backdrop-blur-md border border-edge/40;
+}
+
+.stat-card {
+  @apply rounded-xl border border-edge/40 bg-ink-light/50 p-4 backdrop-blur-sm;
+  @apply transition-all duration-300 ease-out;
+}
+.stat-card:hover {
+  @apply border-edge-light/40;
+}
+
+.reveal {
+  opacity: 0;
+  transform: translateY(16px);
+  transition:
+    opacity 0.5s ease-out,
+    transform 0.5s ease-out;
+}
+.reveal.in-view {
+  opacity: 1;
+  transform: translateY(0);
+}
+.reveal-delay-1 {
+  transition-delay: 150ms;
+}
+.reveal-delay-2 {
+  transition-delay: 300ms;
+}
+.reveal-delay-3 {
+  transition-delay: 450ms;
+}
+.reveal-delay-4 {
+  transition-delay: 600ms;
+}
+.reveal-delay-5 {
+  transition-delay: 750ms;
+}
+.reveal-delay-6 {
+  transition-delay: 900ms;
+}
+
+.proof-step {
+  opacity: 0;
+  transform: scale(0.85);
+  transition:
+    opacity 0.4s ease-out,
+    transform 0.4s ease-out;
+}
+.proof-step.in-view {
+  opacity: 1;
+  transform: scale(1);
 }
 
 ::selection {
@@ -116,10 +163,16 @@ body {
   .animate-fade-in,
   .animate-slide-up,
   .animate-toast-in,
-  .animate-pulse {
+  .animate-pulse,
+  .reveal,
+  .proof-step,
+  .stat-card {
     animation-duration: 0.01ms !important;
     animation-iteration-count: 1 !important;
     transition-duration: 0.01ms !important;
+    transition-delay: 0ms !important;
+    opacity: 1 !important;
+    transform: none !important;
   }
 }
 
