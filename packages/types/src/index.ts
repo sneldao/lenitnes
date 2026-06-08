@@ -117,3 +117,36 @@ export interface User {
   email: string | null;
   created_at: string;
 }
+
+// ── API response helpers ──────────────────────────────────────
+
+export interface ApiError {
+  error: string;
+  details?: unknown;
+}
+
+export interface ApiOk {
+  ok: true;
+}
+
+// ── Health check ────────────────────────────────────────────
+
+export interface HealthStatus {
+  ok: boolean;
+  service: string;
+  version: string;
+  checks?: {
+    database: 'ok' | 'fail';
+  };
+}
+
+// ── TinyFish result ─────────────────────────────────────────
+
+export interface TinyFishResult {
+  runId: string;
+  conditionMet: boolean;
+  evidence: string;
+  summary: string;
+  screenshots: string[];
+  latestCommitHash?: string;
+}
