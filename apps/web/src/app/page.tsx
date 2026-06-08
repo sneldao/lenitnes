@@ -676,9 +676,9 @@ function DashboardView({
           <p>
             <strong className="text-slate-300">x402 micropayments</strong> let you pay per check via
             HBAR directly from your wallet — no subscription, no credit card, no platform holding
-            your funds. When you click &quot;Execute,&quot; your HashPack wallet signs a
-            micro-transaction that&apos;s settled on Hedera before the check runs. Payment and
-            execution are inseparable.
+            your funds. When you click &quot;Execute,&quot; your wallet signs a micro-transaction
+            that&apos;s settled on Hedera before the check runs. Payment and execution are
+            inseparable.
           </p>
           <p>
             <strong className="text-slate-300">HBAR staking</strong> for scheduled checks sits in
@@ -883,7 +883,7 @@ export default function DashboardPage() {
     setExecuting((prev) => ({ ...prev, [monitorId]: true }));
     toast.info('Step 1/3: Sending 0.5 HBAR x402 payment request…');
     try {
-      toast.info('Step 2/3: Waiting for wallet approval in HashPack…');
+      toast.info('Step 2/3: Waiting for wallet approval…');
       const res = await api.executeMonitor(monitorId, executeWithPayment);
       const data = await res.json();
       if (data.ok) {

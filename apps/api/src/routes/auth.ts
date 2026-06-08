@@ -19,7 +19,7 @@ function cookieOptions() {
   };
 }
 
-// POST /auth/login — verify an Ed25519 signature from HashConnect, then issue JWT.
+// POST /auth/login — verify an Ed25519 wallet signature, then issue JWT.
 const loginSchema = z.object({
   walletAddress: z.string().min(1).max(100),
   publicKey: z.string().min(1).max(200),
@@ -59,7 +59,9 @@ authRouter.post('/login', async (req, res) => {
 
 // GET /auth/me — lightweight check if the user has a valid cookie.
 authRouter.get('/me', async (req: Request, res: Response) => {
-  const cookieToken = (req as Request & { cookies?: Record<string, string> }).cookies?.[COOKIE_NAME];
+  const cookieToken = (req as Request & { cookies?: Record<string, string> }).cookies?.[
+    COOKIE_NAME
+  ];
   if (!cookieToken) return res.status(401).json({ error: 'not_authenticated' });
 
   try {
@@ -83,7 +85,9 @@ authRouter.post('/logout', (_req: Request, res: Response) => {
 
 // POST /auth/refresh — validate existing cookie and issue a fresh 24h JWT.
 authRouter.post('/refresh', async (req: Request, res: Response) => {
-  const cookieToken = (req as Request & { cookies?: Record<string, string> }).cookies?.[COOKIE_NAME];
+  const cookieToken = (req as Request & { cookies?: Record<string, string> }).cookies?.[
+    COOKIE_NAME
+  ];
   if (!cookieToken) {
     return res.status(401).json({ error: 'missing_token' });
   }

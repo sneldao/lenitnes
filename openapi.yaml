@@ -45,7 +45,7 @@ paths:
 
   /auth/login:
     post:
-      summary: Login with HashConnect signature
+      summary: Login with wallet signature
       description: |
         Verifies an Ed25519 signature on a `lenitnes:auth:<timestamp>` nonce,
         upserts the user, and returns a 24h JWT.

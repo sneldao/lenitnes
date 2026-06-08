@@ -136,7 +136,7 @@ services:
       dockerfile: apps/web/Dockerfile
       args:
         - NEXT_PUBLIC_API_URL=${NEXT_PUBLIC_API_URL}
-        - NEXT_PUBLIC_HASHCONNECT_PROJECT_ID=${NEXT_PUBLIC_HASHCONNECT_PROJECT_ID}
+        - NEXT_PUBLIC_WALLETCONNECT_PROJECT_ID=${NEXT_PUBLIC_WALLETCONNECT_PROJECT_ID}
         - NEXT_PUBLIC_HEDERA_NETWORK=${NEXT_PUBLIC_HEDERA_NETWORK:-testnet}
     restart: unless-stopped
     networks:
