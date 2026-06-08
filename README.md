@@ -51,14 +51,15 @@ lenitnes/
 │   ├── api/                    Express + TypeScript REST API
 │   │   └── src/
 │   │       ├── index.ts        Server entry + graceful shutdown
-│   │       ├── worker.ts       Cron execution loop
-│   │       ├── config.ts       Env var loader (includes x402 config)
+│   │       ├── worker.ts       BullMQ worker entry
+│   │       ├── config.ts       Env var loader (includes x402 + trade config)
 │   │       ├── types.ts        Domain types (re-exports @lenitnes/types)
-│   │       ├── db/             pool.ts · migrate.ts
-│   │       ├── middleware/     auth.ts (JWT) · x402.ts (payment verification)
-│   │       ├── routes/         auth · monitors · signals · rules · webhooks · execute
-│   │       ├── services/       hedera (agent-kit) · tinyfish · kraken (CLI+REST) · ipfs · notify · crypto
-│   │       └── execution/      loop.ts (8-step check→proof→trade pipeline)
+│   │       ├── db/             pool.ts · migrate.ts · schema.sql
+│   │       ├── middleware/     auth.ts (JWT + cookie) · x402.ts · cache.ts · metrics.ts
+│   │       ├── routes/         auth · monitors · signals · rules · orders · kraken · webhooks · execute
+│   │       ├── services/       proof (hedera/null) · tinyfish · kraken (CLI+REST) · grove · notify · crypto
+│   │       ├── queue/          connection.ts · producer.ts · scheduler.ts · worker.ts (BullMQ)
+│   │       └── execution/      loop.ts (check→proof→trade pipeline + safety guards)
 │   └── web/                    Next.js + Tailwind frontend
 │       └── src/
 │           ├── app/            Dashboard · Create Monitor · Signal Proof · Rules · Orders
@@ -106,40 +107,56 @@ npm run worker --workspace=@lenitnes/api   # execution loop (separate terminal)
 ## API
 
 ```
-POST   /auth/login              upsert user (wallet-based) + return JWT
-GET    /health                 health check (no auth)
+POST   /auth/login              Ed25519 sig verify + set httpOnly JWT cookie
+GET    /auth/me                 current user (reads cookie)
+POST   /auth/logout             clear cookie
+GET    /health                  health check (no auth)
 
-POST   /monitors               create monitor, provision escrow
-GET    /monitors               list own monitors
-GET    /monitors/:id           monitor detail + signal history
-PATCH  /monitors/:id           update frequency / condition / top-up / status
-DELETE /monitors/:id           pause + release remaining escrow
+POST   /monitors                create monitor (no escrow/stake required)
+GET    /monitors                list own monitors
+GET    /monitors/:id            monitor detail + signal history
+PATCH  /monitors/:id            update frequency / condition / top-up / status
+DELETE /monitors/:id            pause + zero balance
 
-POST   /execute/:monitorId    on-demand execution via x402 micropayment
+GET    /orders                  list orders with Kraken status
+GET    /orders/sync             sync placed order statuses from Kraken
+POST   /orders/:id/cancel       cancel a placed order via Kraken API
 
-GET    /signals                list signals (heartbeats excluded by default)
-GET    /signals/:id            signal detail + full proof package
+GET    /signals                 list signals
+GET    /signals/:id             signal detail + proof chain
 
-POST   /rules                  create a rule
-GET    /rules                  list rules
+POST   /rules                   create a rule
+GET    /rules                   list rules
+DELETE /rules/:id               delete a rule
 
-POST   /webhooks/kraken        receive Kraken order confirmations
+POST   /kraken/configure        validate + store encrypted Kraken keys
+DELETE /kraken/configure        remove stored keys
+GET    /kraken/status           key configured? CLI available?
+POST   /kraken/test-trade       paper trade (validate mode)
+GET    /kraken/balance          current Kraken balance
+
+POST   /webhooks/kraken         receive Kraken confirmations (HMAC verified)
+POST   /execute/:monitorId      on-demand execution via x402 micropayment
 ```
 
-All routes under `/monitors`, `/signals`, `/rules`, `/execute` require a `Authorization: Bearer <token>` header.
+Auth is via **httpOnly cookie** (`lenitnes_token`). The frontend uses `credentials: 'include'` on all requests. The x402 `/execute` endpoint reads the cookie first, then falls back to `Authorization: Bearer` for backward compatibility.
 
 ## Execution loop
 
 For each due monitor (`apps/api/src/execution/loop.ts`):
 
-1. **Balance check** — pause if below one check cost.
-2. **Debit micropayment** via `hedera-agent-kit` (`transfer_hbar_tool`) + write an HCS heartbeat (immutable "check ran" record).
-3. **Run TinyFish** against the URL with the NL condition.
-4. **No signal** → store a heartbeat and stop.
-5. **Signal** → package proof, pin to IPFS.
-6. **Write signal to HCS** via `submit_topic_message_tool` (on-chain proof).
-7. **Execute rules** (Kraken order via CLI/REST · webhook · Telegram · email).
-8. **Store Kraken receipt** against the signal.
+1. **Atomic balance debit** — `UPDATE monitors SET hbar_balance = hbar_balance - cost WHERE id = $1 AND hbar_balance >= $1` prevents race conditions.
+2. **Write heartbeat** via pluggable proof service (Hedera HCS by default, or `none` mode).
+3. **Run TinyFish** against the URL with the NL condition (circuit breaker + scraper fallback).
+4. **No signal** → store heartbeat and stop.
+5. **Signal** → package proof, upload to Grove (Lens Protocol).
+6. **Timestamp signal** via proof service (HCS message with signal ID, monitor ID, evidence).
+7. **Execute rules** with safety guards:
+   - **Pair cooldown** — skip if same user+pair traded within cooldown window (default 15 min).
+   - **Max open orders** — prevent unbounded live orders (default 10).
+   - **Zod validation** — trade config schema validates before any Kraken call.
+   - **Order types** — market, limit, stop-loss, take-profit, stop-loss-limit, take-profit-limit.
+8. **Store receipt** — Kraken order ID + response against the signal.
 
 ### x402 On-Demand Execution
 
@@ -229,26 +246,34 @@ See the [Azure Bicep template](./infra/azure/main.bicep) and CI/CD workflow (`.g
 
 ### Environment variables
 
-| Variable                             | Description                                     |
-| ------------------------------------ | ----------------------------------------------- |
-| `DATABASE_URL`                       | PostgreSQL connection string                    |
-| `HEDERA_NETWORK`                     | `testnet` or `mainnet`                          |
-| `HEDERA_OPERATOR_ID`                 | Hedera operator account ID                      |
-| `HEDERA_OPERATOR_KEY`                | Hedera operator private key                     |
-| `HEDERA_TREASURY_ID`                 | Platform treasury account ID                    |
-| `HEDERA_HCS_TOPIC_ID`                | HCS topic for signal/heartbeat records          |
-| `DEFAULT_COST_PER_CHECK_HBAR`        | Per-check fee (default: 0.5)                    |
-| `TINYFISH_API_KEY`                   | TinyFish SDK API key                            |
-| `GROVE_CHAIN_ID`                     | Lens Protocol Grove chain ID (37111 = testnet)  |
-| `ENCRYPTION_KEY`                     | 32-byte AES-256 key for Kraken key encryption   |
-| `JWT_SECRET`                         | 32+ char random string for JWT signing          |
-| `TELEGRAM_BOT_TOKEN`                 | Telegram bot token (optional)                   |
-| `X402_FACILITATOR_URL`               | x402 facilitator (e.g. `https://blocky402.com`) |
-| `X402_HEDERA_NETWORK`                | `testnet` or `mainnet` for x402 verification    |
-| `X402_PAY_TO`                        | Treasury account receiving x402 payments        |
-| `X402_PRICE_HBAR`                    | Price per on-demand check (default: 0.5)        |
-| `NEXT_PUBLIC_API_URL`                | Public API base URL (frontend)                  |
-| `NEXT_PUBLIC_HASHCONNECT_PROJECT_ID` | HashConnect project ID (frontend)               |
+| Variable                               | Description                                         |
+| -------------------------------------- | --------------------------------------------------- |
+| `DATABASE_URL`                         | PostgreSQL connection string                        |
+| `REDIS_URL`                            | Redis connection string (e.g. `redis://localhost:6379`) |
+| `HEDERA_NETWORK`                       | `testnet` or `mainnet`                              |
+| `HEDERA_OPERATOR_ID`                   | Hedera operator account ID                        |
+| `HEDERA_OPERATOR_KEY`                  | Hedera operator private key                         |
+| `HEDERA_TREASURY_ID`                   | Platform treasury account ID                        |
+| `HEDERA_HCS_TOPIC_ID`                  | HCS topic for signal/heartbeat records              |
+| `DEFAULT_COST_PER_CHECK_HBAR`          | Per-check fee (default: 0.5)                        |
+| `TINYFISH_API_KEY`                     | TinyFish SDK API key                                |
+| `GROVE_CHAIN_ID`                       | Lens Protocol Grove chain ID (37111 = testnet)      |
+| `ENCRYPTION_KEY`                       | 32-byte AES-256 key for Kraken key encryption       |
+| `JWT_SECRET`                           | 32+ char random string for JWT signing              |
+| `WEBHOOK_SECRET`                       | HMAC secret for `/webhooks/kraken` verification    |
+| `PROOF_MODE`                           | `hedera` (default) or `none` — proof service backend |
+| `TRADE_COOLDOWN_MINUTES`               | Minimum gap between same-pair trades (default: 15)  |
+| `KRAKEN_CANCEL_AFTER_SECONDS`          | Auto-cancel un-filled orders (default: 300)         |
+| `MAX_OPEN_ORDERS`                      | Max live orders per user (default: 10)            |
+| `TELEGRAM_BOT_TOKEN`                   | Telegram bot token (optional)                       |
+| `SMTP_URL`                             | Email relay URL (optional)                          |
+| `X402_FACILITATOR_URL`                 | x402 facilitator (e.g. `https://blocky402.com`)     |
+| `X402_HEDERA_NETWORK`                  | `testnet` or `mainnet` for x402 verification        |
+| `X402_PAY_TO`                          | Treasury account receiving x402 payments            |
+| `X402_PRICE_HBAR`                      | Price per on-demand check (default: 0.5)            |
+| `NEXT_PUBLIC_API_URL`                  | Public API base URL (frontend)                      |
+| `NEXT_PUBLIC_HASHCONNECT_PROJECT_ID`   | HashConnect project ID (frontend)                   |
+| `NEXT_PUBLIC_HEDERA_NETWORK`           | `testnet` or `mainnet` (frontend wallet network)    |
 
 ## Deployment status
 
@@ -263,14 +288,19 @@ See the [Azure Bicep template](./infra/azure/main.bicep) and CI/CD workflow (`.g
 
 - **Hedera:** testnet — operator `0.0.9137770`, HCS topic `0.0.9159618`
 - **Proof storage:** Grove (Lens Protocol) — immutable JSON uploads
-- **Notifications:** Telegram bot configured
-- **Auth:** Ed25519 signature verification + JWT
+- **Queue:** BullMQ + Redis 7 — scheduled checks with concurrency=5, 2 retries, exponential backoff
+- **Notifications:** Telegram bot + SMTP relay + webhooks
+- **Auth:** Ed25519 signature verification + JWT in httpOnly cookie
 - **x402:** pay-per-check via HBAR micropayments (testnet)
+- **Logging:** Pino (structured JSON) + pino-pretty in dev
+- **Cache:** In-memory TTL cache with MAX_SIZE=500 eviction
 
 **Frontend notes:**
 
 - HashConnect project ID required for wallet connection. Get one at [hashpack.app/developers](https://hashpack.app/developers), then set `NEXT_PUBLIC_HASHCONNECT_PROJECT_ID` and rebuild the web image.
-- Without wallet connection, the dashboard shows a "Connect your Hedera wallet" prompt instead of 401 errors.
+- `NEXT_PUBLIC_HEDERA_NETWORK` controls LedgerId (testnet/mainnet) for wallet connection.
+- Template picker on the New Monitor page shows 10 pre-configured monitors — click any to pre-fill URL, condition, and frequency.
+- Unauthenticated users see the landing page with the real Zcash halo2 case study, proof chain diagram, and template cards.
 
 ## Testing
 
@@ -292,12 +322,16 @@ Install gitleaks: `brew install gitleaks` (macOS) or see https://github.com/gitl
 
 ## Hackathon notes
 
-- Built using **Hedera Agent Kit** (`hedera-agent-kit`) for all on-chain operations via plugin tools.
+- **Proof chain:** TinyFish detection → Hedera HCS timestamp → Grove proof storage → Kraken trade/receipt. Every link is verifiable.
 - **x402** micropayment protocol for pay-per-request on-demand execution (Blocky402 facilitator).
-- **HashConnect** wallet connection for in-browser Hedera signing and x402 payment authorization.
-- **Kraken CLI** preferred for AI-native trade execution, with REST API fallback.
+- **HashConnect** wallet connection with `NEXT_PUBLIC_HEDERA_NETWORK` env var for testnet/mainnet switching.
+- **Kraken integration:** CLI preferred, REST fallback. Supports 6 order types (market, limit, stop-loss, take-profit, stop-loss-limit, take-profit-limit) with auto-cancel dead-man's switch.
+- **Trade safety:** pair cooldown (15 min), max open orders (10), Zod schema validation before any Kraken call.
+- **Kraken key validation:** `/kraken/configure` pre-validates keys with a balance check + validate-mode trade before saving encrypted credentials.
 - **TinyFish** natural-language web intelligence for signal detection with screenshot evidence.
-- Public repo + live demo (Vercel frontend, Railway backend), kept live for 90 days.
-- Demo flow: connect wallet → create a monitor on a real repo → push a commit with "security fix" →
-  TinyFish detection → Hedera timestamp → IPFS proof → Kraken alert/paper-trade, in < 60s.
+- **Queue architecture:** BullMQ + Redis 7 for reliable, concurrent monitor execution (5 workers, 2 retries, exponential backoff).
+- **Auth:** Ed25519 signature verification → httpOnly JWT cookie → all API calls use `credentials: 'include'`.
+- **Frontend:** Toast system (success/error/warn/info), auth-gated queries (no 401 spam), print-to-PDF proof pages, template picker, P&L on orders page, signal activity chart.
+- **Public repo + live demo:** [lenitnes.persidian.com](https://lenitnes.persidian.com)
+- Demo flow: connect wallet → pick a template (e.g. Zcash halo2 watch) → create monitor → background checks every 30 min → on signal: Hedera timestamp + Grove proof + Kraken alert, in < 60s.
 - On-demand flow: click **Execute** on any monitor → x402 HBAR micropayment → real-time check → results.
