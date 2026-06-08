@@ -620,7 +620,9 @@ export default function DashboardPage() {
           </div>
 
           {/* Story Timeline (ZEC narrative) */}
-          <StoryTimeline />
+          <div id="zec-story">
+            <StoryTimeline />
+          </div>
 
           {/* Interactive Sandbox Demo */}
           <InteractiveDemo onUseTemplate={handleUseTemplate} />

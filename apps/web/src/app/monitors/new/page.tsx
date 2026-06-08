@@ -48,7 +48,7 @@ function NewMonitorForm() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const { accountId, isConnected, connect } = useWallet();
-  const { user } = useAuth();
+  const { user, isLoading: authLoading } = useAuth();
   const [step, setStep] = useState(1);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -84,7 +84,7 @@ function NewMonitorForm() {
 
   async function submit() {
     if (!user?.id) {
-      setError('Connect your wallet first.');
+      setError('Connect your wallet and approve sign-in before creating a monitor.');
       return;
     }
     setSubmitting(true);
@@ -111,7 +111,7 @@ function NewMonitorForm() {
       <div className="mb-8">
         <h1 className="text-2xl font-bold tracking-tight text-white">New Monitor</h1>
         <p className="mt-1 text-sm text-slate-500">
-          Set up AI-powered detection for market signals
+          Configure the signal first, then connect your wallet to sign in and create it.
         </p>
       </div>
 
@@ -361,17 +361,34 @@ function NewMonitorForm() {
                 <Wallet className="mr-1 inline h-3 w-3" />
                 Wallet connection
               </label>
-              {isConnected && accountId ? (
+              {isConnected && accountId && user?.id ? (
                 <div className="stat-card flex items-center gap-3 p-4">
                   <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-signal/20">
                     <Check className="h-4 w-4 text-signal" />
                   </div>
                   <div>
-                    <p className="text-sm font-medium text-slate-200">Connected</p>
+                    <p className="text-sm font-medium text-slate-200">Connected and signed in</p>
                     <p className="font-mono text-xs text-slate-500">
                       {accountId.slice(0, 8)}…{accountId.slice(-4)}
                     </p>
                   </div>
+                </div>
+              ) : isConnected && accountId ? (
+                <div className="stat-card flex items-center gap-3 border-warn/20 p-4">
+                  <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-warn/20">
+                    <AlertTriangle className="h-4 w-4 text-warn" />
+                  </div>
+                  <div className="flex-1">
+                    <p className="text-sm font-medium text-warn">
+                      Wallet connected, sign-in needed
+                    </p>
+                    <p className="font-mono text-xs text-slate-500">
+                      {accountId.slice(0, 8)}…{accountId.slice(-4)}
+                    </p>
+                  </div>
+                  <button type="button" onClick={connect} className="btn shrink-0 py-2 text-xs">
+                    Approve Sign-In
+                  </button>
                 </div>
               ) : (
                 <div className="stat-card flex items-center gap-3 border-danger/20 p-4">
@@ -417,21 +434,19 @@ function NewMonitorForm() {
               </div>
             </div>
 
-            {!isConnected && (
+            {!user?.id && (
               <div className="stat-card flex items-center gap-3 border-accent/20 p-4">
                 <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-accent/20">
                   <Wallet className="h-4 w-4 text-accent" />
                 </div>
                 <div className="flex-1">
-                  <p className="text-sm font-medium text-slate-200">
-                    Connect wallet to fund escrow
-                  </p>
+                  <p className="text-sm font-medium text-slate-200">Wallet sign-in required</p>
                   <p className="text-xs text-slate-500">
-                    Optional — you can fund your monitor later for background checks
+                    Connect your Hedera wallet and approve the sign-in request before creation.
                   </p>
                 </div>
                 <button type="button" onClick={connect} className="btn-ghost shrink-0 py-2 text-xs">
-                  Connect
+                  {isConnected ? 'Approve' : 'Connect'}
                 </button>
               </div>
             )}
@@ -461,8 +476,14 @@ function NewMonitorForm() {
               <ChevronRight className="h-4 w-4" />
             </button>
           ) : (
-            <button type="button" className="btn" disabled={submitting} onClick={submit}>
-              {submitting ? 'Creating…' : 'Create Monitor'}
+            <button
+              type="button"
+              className="btn"
+              disabled={submitting || authLoading || !user?.id}
+              onClick={submit}
+              title={!user?.id ? 'Connect your wallet and approve sign-in first' : undefined}
+            >
+              {submitting ? 'Creating…' : authLoading ? 'Checking sign-in…' : 'Create Monitor'}
             </button>
           )}
         </div>
