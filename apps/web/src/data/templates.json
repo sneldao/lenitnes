@@ -78,5 +78,25 @@
     "frequency": 21600,
     "color": "text-accent",
     "bg": "bg-accent/10"
+  },
+  {
+    "icon": "Shield",
+    "title": "Zcash halo2 Crypto Watch",
+    "desc": "Track commits to zcash/halo2 for cryptography vulnerabilities and verifying key changes.",
+    "url": "https://github.com/zcash/halo2/commits/main",
+    "condition": "A new commit mentions verifying key change, anchor, security, vulnerability, fix, or circuit bug.",
+    "frequency": 1800,
+    "color": "text-danger",
+    "bg": "bg-danger/10"
+  },
+  {
+    "icon": "FileText",
+    "title": "Chainalysis Sanctions Feed",
+    "desc": "Monitor Chainalysis sanctions lists for newly flagged wallets, exchanges, or DeFi protocols.",
+    "url": "https://www.chainalysis.com/blog/",
+    "condition": "A new blog post or sanctions update mentions OFAC, sanctioned wallet, exchange ban, or DeFi protocol restriction.",
+    "frequency": 21600,
+    "color": "text-warn",
+    "bg": "bg-warn/10"
   }
 ]

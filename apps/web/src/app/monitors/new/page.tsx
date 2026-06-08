@@ -16,13 +16,33 @@ import {
   Check,
   Camera,
   AlertTriangle,
+  Shield,
+  GitCommit,
+  FileText,
+  Bell,
+  ChevronRight as ChevronRightIcon,
+  Sparkles,
 } from 'lucide-react';
+
+import templatesData from '@/data/templates.json';
+
+const ICON_MAP: Record<string, typeof Globe> = {
+  GitCommit,
+  FileText,
+  Bell,
+  Shield,
+};
+
+const TEMPLATES = templatesData.map((t) => ({
+  ...t,
+  icon: ICON_MAP[t.icon as string] ?? Bell,
+}));
 
 const STEP_META = [
   { icon: Globe, label: 'Target' },
   { icon: Clock, label: 'Schedule' },
   { icon: Zap, label: 'Connect' },
-  { icon: Wallet, label: 'Stake' },
+  { icon: Wallet, label: 'Review' },
 ];
 
 // Suspense wrapper needed for useSearchParams during static export.
@@ -190,6 +210,56 @@ function NewMonitorForm() {
                   Describe in plain English what you want TinyFish to look for
                 </p>
                 <span className="text-[10px] text-slate-600">{form.conditionText.length}/500</span>
+              </div>
+            </div>
+
+            <div className="space-y-3 pt-2">
+              <div className="flex items-center gap-2">
+                <Sparkles className="h-3.5 w-3.5 text-accent" />
+                <span className="text-xs font-semibold text-slate-300">Need inspiration? Pick a template</span>
+              </div>
+              <div className="grid gap-2 sm:grid-cols-2">
+                {TEMPLATES.map((t) => {
+                  const isActive = form.url === t.url && form.conditionText === t.condition;
+                  return (
+                    <button
+                      key={t.title}
+                      type="button"
+                      onClick={() => {
+                        setForm((f) => ({
+                          ...f,
+                          url: t.url,
+                          conditionText: t.condition,
+                          frequencySeconds: t.frequency,
+                        }));
+                        setPrefilled(true);
+                      }}
+                      className={`group cursor-pointer rounded-xl border p-3 text-left transition-all ${
+                        isActive
+                          ? 'border-accent/40 bg-accent/5 shadow-glow-sm'
+                          : 'border-edge/40 hover:border-accent/30'
+                      }`}
+                    >
+                      <div className="flex items-start gap-2.5">
+                        <div className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-lg ${t.bg}`}>
+                          <t.icon className={`h-3.5 w-3.5 ${t.color}`} />
+                        </div>
+                        <div className="min-w-0 flex-1">
+                          <p className="text-xs font-semibold text-slate-200 group-hover:text-white">
+                            {t.title}
+                          </p>
+                          <p className="mt-0.5 text-[10px] leading-relaxed text-slate-500">
+                            {t.desc}
+                          </p>
+                          <p className="mt-1.5 text-[10px] italic text-slate-600 line-clamp-2">
+                            &ldquo;{t.condition}&rdquo;
+                          </p>
+                        </div>
+                        <ChevronRightIcon className="mt-0.5 h-3.5 w-3.5 shrink-0 text-slate-600 transition-transform group-hover:translate-x-0.5 group-hover:text-accent" />
+                      </div>
+                    </button>
+                  );
+                })}
               </div>
             </div>
           </div>

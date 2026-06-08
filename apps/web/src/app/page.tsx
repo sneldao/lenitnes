@@ -236,12 +236,12 @@ export default function DashboardPage() {
         {/* ─── Case Study ─── */}
         <div className="space-y-6">
           <div className="text-center">
-            <span className="badge bg-accent/15 text-accent">Case Study</span>
+            <span className="badge bg-signal/15 text-signal">Real Case Study</span>
           </div>
           <div className="card overflow-hidden p-0">
             <div className="border-b border-edge/40 bg-ink-light/60 px-6 py-4 sm:px-8">
               <p className="text-sm font-semibold text-slate-200">
-                How a go-ethereum CVE was caught 47 minutes before CT
+                The $ZEC halo2 bug: 4 days on GitHub before the market knew
               </p>
             </div>
             <div className="grid gap-6 p-6 sm:grid-cols-3 sm:p-8">
@@ -255,10 +255,11 @@ export default function DashboardPage() {
                   </span>
                 </div>
                 <p className="text-sm leading-relaxed text-slate-300">
-                  A LENITNES monitor watching{' '}
-                  <span className="font-mono text-xs text-accent">go-ethereum/commits</span> flagged
-                  a commit containing <em>&quot;consensus critical&quot;</em> and{' '}
-                  <em>&quot;CVE-2024&quot;</em> in the message.
+                  On June 5, a commit landed in{' '}
+                  <span className="font-mono text-xs text-accent">zcash/halo2</span> changing the
+                  verifying key and anchoring a critical ECC multiplication base. Keywords like{' '}
+                  <em>&quot;verifying key&quot;</em>, <em>&quot;anchor&quot;</em>, and{' '}
+                  <em>&quot;security&quot;</em> were in the diff.
                 </p>
               </div>
               <div className="space-y-3">
@@ -271,9 +272,9 @@ export default function DashboardPage() {
                   </span>
                 </div>
                 <p className="text-sm leading-relaxed text-slate-300">
-                  Within 8 seconds, a Hedera HCS message timestamped the detection at{' '}
-                  <span className="font-mono text-xs text-slate-400">14:02:31.847 UTC</span>, and a
-                  Grove proof package was stored immutably — screenshot, evidence, and hash.
+                  A LENITNES monitor would have timestamped this via Hedera HCS within seconds. The
+                  immutable proof package — commit screenshot, diff evidence, SHA — proves you saw it
+                  at T+0, not after the tweet. A compliance artifact with real value.
                 </p>
               </div>
               <div className="space-y-3">
@@ -286,25 +287,35 @@ export default function DashboardPage() {
                   </span>
                 </div>
                 <p className="text-sm leading-relaxed text-slate-300">
-                  A Telegram alert fired to the team&apos;s channel. A linked Kraken rule reduced
-                  ETH exposure by 15%. Crypto Twitter didn&apos;t pick up the CVE for another{' '}
-                  <span className="font-semibold text-warn">47 minutes</span>.
+                  The bug was public on GitHub for{' '}
+                  <span className="font-semibold text-warn">4 days</span> while the market remained
+                  completely blind. A Kraken rule could have hedged ZEC exposure before the news
+                  broke. Bloomberg can&apos;t read git commits. We can.
                 </p>
               </div>
             </div>
-            <div className="flex items-center gap-4 border-t border-edge/40 bg-ink-light/40 px-6 py-3 sm:px-8">
+            <div className="flex flex-wrap items-center gap-4 border-t border-edge/40 bg-ink-light/40 px-6 py-3 sm:px-8">
               <div className="flex items-center gap-1.5 text-[10px] text-signal">
                 <CheckCircle2 className="h-3 w-3" />
-                <span className="font-semibold">Verifiable on HashScan</span>
+                <span className="font-semibold">Real commit: d8e48efd</span>
               </div>
               <div className="flex items-center gap-1.5 text-[10px] text-slate-500">
                 <Clock className="h-3 w-3" />
-                <span>Detection to proof: 8 seconds</span>
+                <span>Public: June 5, 2026</span>
               </div>
               <div className="flex items-center gap-1.5 text-[10px] text-slate-500">
                 <AlertTriangle className="h-3 w-3" />
-                <span>47 min edge over public awareness</span>
+                <span>4-day edge over market awareness</span>
               </div>
+              <a
+                href="https://github.com/zcash/halo2/commit/d8e48efddbe4746d76eb2c8a843a6ddc2b9a727a"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="ml-auto flex items-center gap-1 text-[10px] text-accent hover:text-accent/80"
+              >
+                <LinkIcon className="h-3 w-3" />
+                View commit
+              </a>
             </div>
           </div>
         </div>
