@@ -71,7 +71,7 @@ CREATE TABLE IF NOT EXISTS rules (
 CREATE INDEX IF NOT EXISTS idx_rules_monitor_id ON rules(monitor_id);
 
 -- Orders ------------------------------------------------------
--- status: pending | placed | failed
+-- status: pending | placed | filled | partially_filled | cancelled | failed | expired
 CREATE TABLE IF NOT EXISTS orders (
   id              UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   signal_id       UUID NOT NULL REFERENCES signals(id) ON DELETE CASCADE,
@@ -80,10 +80,12 @@ CREATE TABLE IF NOT EXISTS orders (
   order_params    JSONB NOT NULL DEFAULT '{}'::jsonb,
   status          TEXT NOT NULL DEFAULT 'pending',
   placed_at       TIMESTAMPTZ,
+  cancelled_at    TIMESTAMPTZ,
   kraken_response JSONB
 );
 
 CREATE INDEX IF NOT EXISTS idx_orders_signal_id ON orders(signal_id);
+CREATE INDEX IF NOT EXISTS idx_orders_status ON orders(status) WHERE status = 'placed';
 
 -- Audit logs --------------------------------------------------
 CREATE TABLE IF NOT EXISTS audit_logs (

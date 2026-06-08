@@ -3,8 +3,8 @@
 import { useRef, useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { useQuery } from '@tanstack/react-query';
-import { api, burnRate, statusColor, type Monitor } from '@/lib/api';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { api, burnRate, statusColor } from '@/lib/api';
 import { useWallet } from '@/components/WalletConnect';
 import { useToast } from '@/components/Toast';
 import { useAuth } from '@/lib/useAuth';
@@ -26,7 +26,32 @@ import {
   CheckCircle2,
   AlertTriangle,
   Sparkles,
+  X,
+  BarChart3,
 } from 'lucide-react';
+
+import {
+  AreaChart,
+  Area,
+  XAxis,
+  YAxis,
+  CartesianGrid,
+  Tooltip,
+  ResponsiveContainer,
+} from 'recharts';
+
+import templatesData from '@/data/templates.json';
+
+const ICON_MAP: Record<string, typeof Activity> = {
+  GitCommit,
+  FileText,
+  Bell,
+};
+
+const TEMPLATES = templatesData.map((t) => ({
+  ...t,
+  icon: ICON_MAP[t.icon as string] ?? Bell,
+}));
 
 function ProofChainDiagram() {
   const steps = [
@@ -53,39 +78,6 @@ function ProofChainDiagram() {
   );
 }
 
-const TEMPLATES = [
-  {
-    icon: GitCommit,
-    title: 'GitHub Security Watch',
-    desc: 'Detect commits mentioning CVEs, vulnerabilities, or security patches in any repo.',
-    url: 'https://github.com/ethereum/go-ethereum/commits/master',
-    condition: 'A new commit mentions security, vulnerability, CVE, fix, or critical patch.',
-    frequency: 3600,
-    color: 'text-accent',
-    bg: 'bg-accent/10',
-  },
-  {
-    icon: FileText,
-    title: 'Protocol Docs Change',
-    desc: 'Watch when docs or changelogs update for breaking changes or new APIs.',
-    url: 'https://docs.hedera.com/hedera/whats-new',
-    condition: 'A new release, breaking change, deprecation, or migration guide is published.',
-    frequency: 21600,
-    color: 'text-signal',
-    bg: 'bg-signal/10',
-  },
-  {
-    icon: Bell,
-    title: 'Exchange Status Monitor',
-    desc: 'Get alerted the moment an exchange reports degraded performance or downtime.',
-    url: 'https://status.kraken.com',
-    condition: 'Any service shows degraded performance, partial outage, or maintenance.',
-    frequency: 300,
-    color: 'text-warn',
-    bg: 'bg-warn/10',
-  },
-];
-
 function BurnBar({ balance, daysLeft }: { balance: number; daysLeft: number }) {
   const pct = Math.min(100, Math.max(0, (daysLeft / 30) * 100));
   const color = daysLeft > 14 ? 'bg-signal' : daysLeft > 5 ? 'bg-warn' : 'bg-danger';
@@ -109,11 +101,13 @@ function BurnBar({ balance, daysLeft }: { balance: number; daysLeft: number }) {
 
 export default function DashboardPage() {
   const [executing, setExecuting] = useState<Record<string, boolean>>({});
+  const [search, setSearch] = useState('');
   const { isConnected, executeWithPayment } = useWallet();
   const toast = useToast();
   const { isAuthenticated } = useAuth();
   const howItWorksRef = useRef<HTMLDivElement>(null);
   const router = useRouter();
+  const queryClient = useQueryClient();
 
   const {
     data: monitors = [],
@@ -124,8 +118,16 @@ export default function DashboardPage() {
     queryKey: ['monitors', isAuthenticated],
     queryFn: () => api.listMonitors(),
     staleTime: 10_000,
+    refetchInterval: 30_000,
     enabled: isAuthenticated,
     retry: false,
+  });
+
+  const { data: signals = [] } = useQuery({
+    queryKey: ['signals'],
+    queryFn: () => api.listSignals(),
+    refetchInterval: 30_000,
+    enabled: isAuthenticated,
   });
 
   async function handleExecute(monitorId: string) {
@@ -134,11 +136,13 @@ export default function DashboardPage() {
       return;
     }
     setExecuting((prev) => ({ ...prev, [monitorId]: true }));
+    toast.info('Step 1/3: Sending 0.5 HBAR x402 payment request…');
     try {
+      toast.info('Step 2/3: Waiting for wallet approval in HashPack…');
       const res = await api.executeMonitor(monitorId, executeWithPayment);
       const data = await res.json();
       if (data.ok) {
-        toast.success('Execution successful! Check signals for results.');
+        toast.success('Step 3/3: Payment confirmed — check complete!');
       } else {
         toast.error('Execution failed.');
       }
@@ -161,6 +165,32 @@ export default function DashboardPage() {
   const activeCount = monitors.filter((m) => m.status === 'active').length;
   const triggeredCount = monitors.filter((m) => m.status === 'triggered').length;
   const totalBalance = monitors.reduce((s, m) => s + Number(m.hbar_balance), 0);
+
+  const filtered = search
+    ? monitors.filter(
+        (m) =>
+          m.url.toLowerCase().includes(search.toLowerCase()) ||
+          m.condition_text.toLowerCase().includes(search.toLowerCase()),
+      )
+    : monitors;
+
+  const signalChartData = signals
+    .filter((s) => {
+      const d = new Date(s.detected_at);
+      const weekAgo = new Date(Date.now() - 7 * 86400000);
+      return d >= weekAgo;
+    })
+    .reduce<{ date: string; count: number }[]>((acc, s) => {
+      const d = new Date(s.detected_at).toLocaleDateString(undefined, {
+        month: 'short',
+        day: 'numeric',
+      });
+      const existing = acc.find((e) => e.date === d);
+      if (existing) existing.count++;
+      else acc.push({ date: d, count: 1 });
+      return acc;
+    }, [])
+    .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
 
   if (!isAuthenticated) {
     return (
@@ -387,6 +417,15 @@ export default function DashboardPage() {
           {isRefetching && !isLoading && (
             <span className="text-[10px] text-slate-500 animate-pulse">Refreshing…</span>
           )}
+          <div className="relative hidden sm:block">
+            <input
+              className="input py-2 pl-8 pr-3 text-xs"
+              placeholder="Search monitors…"
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+            />
+            <Eye className="absolute left-2.5 top-1/2 h-3 w-3 -translate-y-1/2 text-slate-600" />
+          </div>
           <Link href="/monitors/new" className="btn text-xs">
             + New Monitor
           </Link>
@@ -426,6 +465,89 @@ export default function DashboardPage() {
         </div>
       </div>
 
+      <details className="group cursor-pointer rounded-xl border border-edge/40 bg-ink-light/30 px-5 py-3 transition-colors hover:border-edge-light">
+        <summary className="flex items-center gap-2 text-xs font-semibold text-slate-400">
+          <Shield className="h-3.5 w-3.5 text-accent" />
+          Why Hedera + x402?
+          <ChevronRight className="ml-auto h-3.5 w-3.5 transition-transform group-open:rotate-90 text-slate-600" />
+        </summary>
+        <div className="mt-3 space-y-2 border-t border-edge/40 pt-3 text-xs leading-relaxed text-slate-500">
+          <p>
+            <strong className="text-slate-300">Hedera Consensus Service (HCS)</strong> timestamps
+            every signal in 3-5 seconds for ~$0.0001 — fast and cheap enough to timestamp every
+            check, not just signals. The carbon-negative network means proof chains are
+            environmentally auditable too.
+          </p>
+          <p>
+            <strong className="text-slate-300">x402 micropayments</strong> let you pay per check via
+            HBAR directly from your wallet — no subscription, no credit card, no platform holding
+            your funds. When you click "Execute," your HashPack wallet signs a micro-transaction
+            that's settled on Hedera before the check runs. Payment and execution are inseparable.
+          </p>
+          <p>
+            <strong className="text-slate-300">HBAR staking</strong> for scheduled checks sits in
+            per-monitor escrow. Each check debits ~0.5 ℏ. You can withdraw remaining funds anytime
+            by deleting the monitor.
+          </p>
+        </div>
+      </details>
+
+      {signalChartData.length > 0 && (
+        <div className="card">
+          <div className="flex items-center gap-2 border-b border-edge/40 pb-4">
+            <BarChart3 className="h-4 w-4 text-accent" />
+            <h2 className="text-sm font-semibold text-slate-200">Signal Activity (7d)</h2>
+          </div>
+          <div className="pt-4">
+            <ResponsiveContainer width="100%" height={200}>
+              <AreaChart
+                data={signalChartData}
+                margin={{ top: 5, right: 10, left: -20, bottom: 0 }}
+              >
+                <defs>
+                  <linearGradient id="signalGradient" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="0%" stopColor="#06b6d4" stopOpacity={0.3} />
+                    <stop offset="100%" stopColor="#06b6d4" stopOpacity={0} />
+                  </linearGradient>
+                </defs>
+                <CartesianGrid strokeDasharray="3 3" stroke="rgba(26,35,50,0.5)" />
+                <XAxis
+                  dataKey="date"
+                  tick={{ fontSize: 10, fill: '#64748b' }}
+                  axisLine={false}
+                  tickLine={false}
+                />
+                <YAxis
+                  allowDecimals={false}
+                  tick={{ fontSize: 10, fill: '#64748b' }}
+                  axisLine={false}
+                  tickLine={false}
+                />
+                <Tooltip
+                  contentStyle={{
+                    background: '#0d111c',
+                    border: '1px solid rgba(26,35,50,0.8)',
+                    borderRadius: '8px',
+                    fontSize: '12px',
+                  }}
+                  itemStyle={{ color: '#e2e8f0' }}
+                  labelStyle={{ color: '#94a3b8' }}
+                />
+                <Area
+                  type="monotone"
+                  dataKey="count"
+                  stroke="#06b6d4"
+                  strokeWidth={2}
+                  fill="url(#signalGradient)"
+                  dot={{ fill: '#06b6d4', r: 3 }}
+                  activeDot={{ r: 5, fill: '#06b6d4' }}
+                />
+              </AreaChart>
+            </ResponsiveContainer>
+          </div>
+        </div>
+      )}
+
       {isLoading && (
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
           {Array.from({ length: 6 }).map((_, i) => (
@@ -452,6 +574,12 @@ export default function DashboardPage() {
         </div>
       )}
 
+      {!isLoading && !error && filtered.length === 0 && monitors.length > 0 && (
+        <div className="stat-card p-6 text-center">
+          <p className="text-sm text-slate-500">No monitors match your search</p>
+        </div>
+      )}
+
       {!isLoading && !error && monitors.length === 0 && (
         <div className="card space-y-4 p-10 text-center">
           <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl bg-accent/10">
@@ -469,79 +597,99 @@ export default function DashboardPage() {
         </div>
       )}
 
-      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-        {monitors.map((m) => {
-          const { perDay, daysLeft } = burnRate(m);
-          const bal = Number(m.hbar_balance);
-          return (
-            <div key={m.id} className="card group space-y-3">
-              <div className="flex items-start justify-between gap-3">
-                <div className="min-w-0 flex-1">
-                  <p className="truncate text-sm font-semibold text-slate-100 group-hover:text-white">
-                    {m.url.replace(/^https?:\/\//, '')}
-                  </p>
-                  <p className="mt-0.5 line-clamp-1 text-xs text-slate-500">{m.condition_text}</p>
+      {filtered.length > 0 && (
+        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+          {filtered.map((m) => {
+            const { perDay, daysLeft } = burnRate(m);
+            const bal = Number(m.hbar_balance);
+            return (
+              <div key={m.id} className="card group space-y-3">
+                <div className="flex items-start justify-between gap-3">
+                  <div className="min-w-0 flex-1">
+                    <p className="truncate text-sm font-semibold text-slate-100 group-hover:text-white">
+                      {m.url.replace(/^https?:\/\//, '')}
+                    </p>
+                    <p className="mt-0.5 line-clamp-1 text-xs text-slate-500">{m.condition_text}</p>
+                  </div>
+                  <span className={`badge shrink-0 ${statusColor(m.status)}`}>
+                    {m.status === 'active' && (
+                      <span className="h-1.5 w-1.5 rounded-full bg-signal animate-pulse" />
+                    )}
+                    {m.status.replace('_', ' ')}
+                  </span>
                 </div>
-                <span className={`badge shrink-0 ${statusColor(m.status)}`}>
-                  {m.status === 'active' && (
-                    <span className="h-1.5 w-1.5 rounded-full bg-signal animate-pulse" />
-                  )}
-                  {m.status.replace('_', ' ')}
-                </span>
-              </div>
 
-              <div className="grid grid-cols-3 gap-2">
-                <div className="stat-card py-2 text-center">
-                  <p className="text-[10px] text-slate-500">Balance</p>
-                  <p className="text-xs font-semibold text-slate-200">{bal.toFixed(1)} ℏ</p>
+                <div className="grid grid-cols-3 gap-2">
+                  <div className="stat-card py-2 text-center">
+                    <p className="text-[10px] text-slate-500">Balance</p>
+                    <p className="text-xs font-semibold text-slate-200">{bal.toFixed(1)} ℏ</p>
+                  </div>
+                  <div className="stat-card py-2 text-center">
+                    <p className="text-[10px] text-slate-500">Burn/day</p>
+                    <p className="text-xs font-semibold text-slate-200">{perDay.toFixed(2)} ℏ</p>
+                  </div>
+                  <div className="stat-card py-2 text-center">
+                    <p className="text-[10px] text-slate-500">Frequency</p>
+                    <p className="text-xs font-semibold text-slate-200">
+                      {m.frequency_seconds >= 3600
+                        ? `${(m.frequency_seconds / 3600).toFixed(0)}h`
+                        : `${(m.frequency_seconds / 60).toFixed(0)}m`}
+                    </p>
+                  </div>
                 </div>
-                <div className="stat-card py-2 text-center">
-                  <p className="text-[10px] text-slate-500">Burn/day</p>
-                  <p className="text-xs font-semibold text-slate-200">{perDay.toFixed(2)} ℏ</p>
-                </div>
-                <div className="stat-card py-2 text-center">
-                  <p className="text-[10px] text-slate-500">Frequency</p>
-                  <p className="text-xs font-semibold text-slate-200">
-                    {m.frequency_seconds >= 3600
-                      ? `${(m.frequency_seconds / 3600).toFixed(0)}h`
-                      : `${(m.frequency_seconds / 60).toFixed(0)}m`}
-                  </p>
+
+                <BurnBar balance={bal} daysLeft={daysLeft} />
+
+                <div className="flex items-center justify-between pt-1">
+                  <div className="flex items-center gap-1.5 text-[10px] text-slate-600">
+                    <Clock className="h-3 w-3" />
+                    {m.last_check_at
+                      ? new Date(m.last_check_at).toLocaleString(undefined, {
+                          month: 'short',
+                          day: 'numeric',
+                          hour: '2-digit',
+                          minute: '2-digit',
+                        })
+                      : 'No checks yet'}
+                  </div>
+                  <div className="flex items-center gap-1">
+                    <button
+                      onClick={async () => {
+                        if (!confirm('Delete this monitor and release remaining escrow?')) return;
+                        try {
+                          await api.deleteMonitor(m.id);
+                          toast.success('Monitor deleted');
+                          queryClient.invalidateQueries({ queryKey: ['monitors'] });
+                        } catch (e) {
+                          toast.error('Delete failed: ' + String(e));
+                        }
+                      }}
+                      className="flex items-center gap-1 rounded-lg px-2 py-1.5 text-[10px] font-medium text-slate-500 transition-colors hover:text-danger cursor-pointer select-none"
+                    >
+                      <X className="h-3 w-3" />
+                      Delete
+                    </button>
+                    <button
+                      onClick={() => handleExecute(m.id)}
+                      disabled={executing[m.id] || !isConnected}
+                      className="flex items-center gap-1 rounded-lg bg-accent/10 px-2.5 py-1.5 text-[10px] font-semibold text-accent transition-all hover:bg-accent/20 hover:shadow-glow-sm active:scale-95 disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer select-none"
+                    >
+                      {executing[m.id] ? (
+                        <span className="animate-pulse">Running…</span>
+                      ) : (
+                        <>
+                          <Play className="h-3 w-3" />
+                          Execute
+                        </>
+                      )}
+                    </button>
+                  </div>
                 </div>
               </div>
-
-              <BurnBar balance={bal} daysLeft={daysLeft} />
-
-              <div className="flex items-center justify-between pt-1">
-                <div className="flex items-center gap-1.5 text-[10px] text-slate-600">
-                  <Clock className="h-3 w-3" />
-                  {m.last_check_at
-                    ? new Date(m.last_check_at).toLocaleString(undefined, {
-                        month: 'short',
-                        day: 'numeric',
-                        hour: '2-digit',
-                        minute: '2-digit',
-                      })
-                    : 'No checks yet'}
-                </div>
-                <button
-                  onClick={() => handleExecute(m.id)}
-                  disabled={executing[m.id] || !isConnected}
-                  className="flex items-center gap-1 rounded-lg bg-accent/10 px-2.5 py-1.5 text-[10px] font-semibold text-accent transition-all hover:bg-accent/20 hover:shadow-glow-sm active:scale-95 disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer select-none"
-                >
-                  {executing[m.id] ? (
-                    <span className="animate-pulse">Running…</span>
-                  ) : (
-                    <>
-                      <Play className="h-3 w-3" />
-                      Execute
-                    </>
-                  )}
-                </button>
-              </div>
-            </div>
-          );
-        })}
-      </div>
+            );
+          })}
+        </div>
+      )}
     </div>
   );
 }

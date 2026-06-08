@@ -80,6 +80,7 @@ export const api = {
         order_params: Record<string, unknown>;
         status: string;
         placed_at: string | null;
+        cancelled_at: string | null;
         kraken_response: Record<string, unknown> | null;
         signal_id: string;
         detected_at: string;
@@ -87,7 +88,12 @@ export const api = {
         monitor_url: string;
       }[]
     >('/orders'),
+  syncOrders: () => req<{ synced: number; updated: number }>('/orders/sync'),
+  cancelOrder: (id: string) => req<{ ok: boolean }>(`/orders/${id}/cancel`, { method: 'POST' }),
 
+  krakenConfigure: (body: { apiKey: string; apiSecret: string }) =>
+    req<{ ok: boolean }>('/kraken/configure', { method: 'POST', body: JSON.stringify(body) }),
+  krakenDeleteConfigure: () => req<{ ok: boolean }>('/kraken/configure', { method: 'DELETE' }),
   krakenStatus: () =>
     req<{ configured: boolean; cliAvailable: boolean; fallback: string }>('/kraken/status'),
   krakenBalance: () => req<{ balance: Record<string, string> }>('/kraken/balance'),
@@ -100,6 +106,9 @@ export const api = {
     }>('/kraken/test-trade', { method: 'POST', body: JSON.stringify(params ?? {}) }),
 
   /** Execute a monitor on-demand via the x402-gated endpoint. */
+  deleteMonitor: (id: string) => req<{ ok: boolean }>(`/monitors/${id}`, { method: 'DELETE' }),
+  deleteRule: (id: string) => req<{ ok: boolean }>(`/rules/${id}`, { method: 'DELETE' }),
+
   executeMonitor: async (
     monitorId: string,
     executeWithPayment: (url: string, init?: RequestInit) => Promise<Response>,

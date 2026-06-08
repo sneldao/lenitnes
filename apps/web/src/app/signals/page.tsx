@@ -4,15 +4,7 @@ import Link from 'next/link';
 import { useQuery } from '@tanstack/react-query';
 import { api, type Signal } from '@/lib/api';
 import { useAuth } from '@/lib/useAuth';
-import {
-  Eye,
-  Clock,
-  Shield,
-  ExternalLink,
-  Activity,
-  ChevronRight,
-  Zap,
-} from 'lucide-react';
+import { Eye, Clock, Shield, Activity, ChevronRight, Zap } from 'lucide-react';
 
 export default function SignalsPage() {
   const { isAuthenticated } = useAuth();
@@ -24,15 +16,14 @@ export default function SignalsPage() {
     queryKey: ['signals'],
     queryFn: () => api.listSignals(),
     enabled: isAuthenticated,
+    refetchInterval: 15_000,
   });
 
   return (
     <div className="space-y-8 animate-fade-in">
       <div>
         <h1 className="text-2xl font-bold tracking-tight text-white">Signals</h1>
-        <p className="mt-1 text-sm text-slate-500">
-          Detection timeline with proof chain records
-        </p>
+        <p className="mt-1 text-sm text-slate-500">Detection timeline with proof chain records</p>
       </div>
 
       {isLoading && (

@@ -2,11 +2,9 @@ import { Router } from 'express';
 import { z } from 'zod';
 import { query } from '../db/pool.js';
 import { config } from '../config.js';
-import * as hedera from '../services/hedera.js';
 import type { AuthenticatedRequest } from '../middleware/auth.js';
 import type { Monitor } from '../types.js';
 import { cacheGet, cacheSet, cacheInvalidate } from '../middleware/cache.js';
-import { logger } from '../logger.js';
 
 export const monitorsRouter = Router();
 
@@ -21,7 +19,6 @@ const createSchema = z.object({
     message: 'Condition must be 500 characters or fewer to prevent token bombing',
   }),
   frequencySeconds: z.number().int().positive().default(3600),
-  stakeHbar: z.number().nonnegative().default(0),
   costPerCheck: z.number().positive().optional(),
   screenshotsEnabled: z.boolean().optional().default(true),
 });
@@ -35,27 +32,19 @@ monitorsRouter.post('/', async (req, res) => {
 
   const { rows } = await query<Monitor>(
     `INSERT INTO monitors (user_id, url, condition_text, frequency_seconds, hbar_balance, cost_per_check, screenshots_enabled)
-     VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING *`,
+     VALUES ($1, $2, $3, $4, 0, $5, $6) RETURNING *`,
     [
       authReq.user.id,
       b.url,
       b.conditionText,
       b.frequencySeconds,
-      b.stakeHbar,
       b.costPerCheck ?? config.hedera.defaultCostPerCheck,
       b.screenshotsEnabled,
     ],
   );
   const monitor = rows[0];
-
-  const { escrowAccountId } = await hedera.createEscrow(monitor.id);
-  await query(`UPDATE monitors SET escrow_account_id = $1 WHERE id = $2`, [
-    escrowAccountId,
-    monitor.id,
-  ]);
-
   cacheInvalidate(`monitors:${authReq.user.id}:`);
-  res.status(201).json({ ...monitor, escrow_account_id: escrowAccountId });
+  res.status(201).json(monitor);
 });
 
 // GET /monitors — list only the authenticated user's monitors.
@@ -148,13 +137,6 @@ monitorsRouter.delete('/:id', async (req, res) => {
   ]);
   if (!rows.length) return res.status(404).json({ error: 'not found' });
   const monitor = rows[0];
-
-  const remaining = Number(monitor.hbar_balance);
-  if (remaining > 0) {
-    await hedera
-      .releaseEscrow({ toWalletAddress: authReq.user.wallet_address, amountHbar: remaining })
-      .catch((e: unknown) => logger.error({ err: e }, 'releaseEscrow failed'));
-  }
 
   await query(`UPDATE monitors SET status = 'paused', hbar_balance = 0 WHERE id = $1`, [
     monitor.id,

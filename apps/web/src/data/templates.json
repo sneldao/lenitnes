@@ -1,0 +1,82 @@
+[
+  {
+    "icon": "GitCommit",
+    "title": "GitHub Security Watch",
+    "desc": "Detect commits mentioning CVEs, vulnerabilities, or security patches in any repo.",
+    "url": "https://github.com/ethereum/go-ethereum/commits/master",
+    "condition": "A new commit mentions security, vulnerability, CVE, fix, or critical patch.",
+    "frequency": 3600,
+    "color": "text-accent",
+    "bg": "bg-accent/10"
+  },
+  {
+    "icon": "FileText",
+    "title": "Protocol Docs Change",
+    "desc": "Watch when docs or changelogs update for breaking changes or new APIs.",
+    "url": "https://docs.hedera.com/hedera/whats-new",
+    "condition": "A new release, breaking change, deprecation, or migration guide is published.",
+    "frequency": 21600,
+    "color": "text-signal",
+    "bg": "bg-signal/10"
+  },
+  {
+    "icon": "Bell",
+    "title": "Exchange Status Monitor",
+    "desc": "Get alerted the moment an exchange reports degraded performance or downtime.",
+    "url": "https://status.kraken.com",
+    "condition": "Any service shows degraded performance, partial outage, or maintenance.",
+    "frequency": 300,
+    "color": "text-warn",
+    "bg": "bg-warn/10"
+  },
+  {
+    "icon": "GitCommit",
+    "title": "Solana Validator News",
+    "desc": "Track Solana validator software releases and critical network updates.",
+    "url": "https://github.com/solana-labs/solana/releases",
+    "condition": "A new release mentions security fix, consensus change, critical patch, or mandatory upgrade.",
+    "frequency": 7200,
+    "color": "text-accent",
+    "bg": "bg-accent/10"
+  },
+  {
+    "icon": "FileText",
+    "title": "SEC Filing Watch",
+    "desc": "Monitor SEC EDGAR for crypto-related filings and regulatory announcements.",
+    "url": "https://www.sec.gov/cgi-bin/browse-edgar?action=getcurrent&CIK=&type=&company=&dateb=&owner=exclude&start=0&count=40&output=atom",
+    "condition": "A filing mentions cryptocurrency, digital asset, bitcoin, ethereum, or blockchain.",
+    "frequency": 21600,
+    "color": "text-warn",
+    "bg": "bg-warn/10"
+  },
+  {
+    "icon": "Bell",
+    "title": "DeFi Protocol Health",
+    "desc": "Watch for liquidation events, oracle issues, or unusual activity on major DeFi protocols.",
+    "url": "https://status.makerdao.com",
+    "condition": "Any incident, degradation, or maintenance affects protocol operations.",
+    "frequency": 900,
+    "color": "text-signal",
+    "bg": "bg-signal/10"
+  },
+  {
+    "icon": "FileText",
+    "title": "Hedera Council Updates",
+    "desc": "Track Hedera governance proposals, council votes, and network upgrades.",
+    "url": "https://hedera.com/updates",
+    "condition": "A new post announces upgrade, proposal, vote, or governance change.",
+    "frequency": 86400,
+    "color": "text-signal",
+    "bg": "bg-signal/10"
+  },
+  {
+    "icon": "GitCommit",
+    "title": "Bitcoin Core Release Watch",
+    "desc": "Monitor Bitcoin Core for new releases, RBF changes, or protocol proposals.",
+    "url": "https://github.com/bitcoin/bitcoin/releases",
+    "condition": "A new release or pre-release includes protocol change, security fix, or BIP implementation.",
+    "frequency": 21600,
+    "color": "text-accent",
+    "bg": "bg-accent/10"
+  }
+]

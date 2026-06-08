@@ -3,13 +3,13 @@ import { z } from 'zod';
 import { query } from '../db/pool.js';
 import { config } from '../config.js';
 import type { Monitor, Rule } from '../types.js';
-import * as hedera from '../services/hedera.js';
 import * as tinyfish from '../services/tinyfish.js';
 import * as scraper from '../services/scraper.js';
 import * as ipfs from '../services/ipfs.js';
 import * as kraken from '../services/kraken.js';
 import * as notify from '../services/notify.js';
 import { decrypt } from '../services/crypto.js';
+import { getProofService } from '../services/proof.js';
 import { isCircuitOpen, recordSuccess, recordFailure } from '../services/circuit.js';
 import { incCounter } from '../middleware/metrics.js';
 import { logger } from '../logger.js';
@@ -55,9 +55,9 @@ export async function executeCheck(
   const cost = Number(monitor.cost_per_check) || config.hedera.defaultCostPerCheck;
 
   let debitTxId = 'x402-on-demand';
+  const proof = getProofService();
 
   if (!opts.skipDebit) {
-    // 1) Atomic balance check + debit (prevents race conditions).
     const { rowCount } = await query(
       `UPDATE monitors SET hbar_balance = hbar_balance - $1, status = CASE WHEN hbar_balance - $1 < 0 THEN 'insufficient_balance' ELSE status END WHERE id = $2 AND hbar_balance >= $1`,
       [cost, monitor.id],
@@ -70,13 +70,12 @@ export async function executeCheck(
       return;
     }
 
-    // 2) Debit per-check fee + write heartbeat to HCS (immutable "check ran" record).
-    const debit = await hedera.debitPerCheckFee({
+    const debit = await proof.debitPerCheckFee!({
       fromAccountId: monitor.escrow_account_id ?? config.hedera.treasuryId,
       amountHbar: cost,
     });
     debitTxId = debit.hederaTxId;
-    await hedera.writeHcsMessage({
+    await proof.writeHcsMessage!({
       kind: 'heartbeat',
       monitorId: monitor.id,
       ts: new Date().toISOString(),
@@ -165,7 +164,7 @@ export async function executeCheck(
   });
 
   // 6) Write the signal record to HCS (immutable on-chain proof).
-  const hcs = await hedera.writeHcsMessage({
+  const hcs = await proof.writeHcsMessage!({
     kind: 'signal',
     signalId,
     monitorId: monitor.id,
@@ -234,9 +233,17 @@ function passesConditions(conditions: Record<string, unknown>): boolean {
 const tradeConfigSchema = z.object({
   pair: z.string().min(1),
   type: z.enum(['buy', 'sell']),
-  ordertype: z.enum(['market', 'limit']),
+  ordertype: z.enum([
+    'market',
+    'limit',
+    'stop-loss',
+    'take-profit',
+    'stop-loss-limit',
+    'take-profit-limit',
+  ]),
   volume: z.string().min(1),
   price: z.string().optional(),
+  price2: z.string().optional(),
   validate: z.boolean().optional(),
 });
 
@@ -259,6 +266,45 @@ async function executeTrade(monitor: Monitor, rule: Rule, signalId: string): Pro
   if (!enc?.k || !enc?.s) throw new Error('user has no Kraken credentials');
 
   const order = validateTradeConfig(rule.action_config);
+  order.cancelAfter = config.trade.cancelAfterSeconds;
+
+  // Pair-level cooldown: skip if same user+pair traded within the cooldown window.
+  const cooldownSeconds = config.trade.cooldownMinutes * 60;
+  const { rows: recent } = await query<{ id: string }>(
+    `SELECT o.id FROM orders o
+     JOIN signals s ON s.id = o.signal_id
+     JOIN monitors m ON m.id = s.monitor_id
+     WHERE m.user_id = $1
+       AND o.order_params->>'pair' = $2
+       AND o.status IN ('placed', 'filled', 'partially_filled')
+       AND o.placed_at > now() - make_interval(secs => $3)
+     LIMIT 1`,
+    [monitor.user_id, order.pair, cooldownSeconds],
+  );
+  if (recent.length > 0) {
+    logger.warn(
+      { userId: monitor.user_id, pair: order.pair },
+      'trade skipped: pair cooldown active',
+    );
+    return;
+  }
+
+  // Max open orders: prevent unbounded accumulation of live orders.
+  const { rows: openCount } = await query<{ count: string }>(
+    `SELECT count(*)::text AS count FROM orders o
+     JOIN signals s ON s.id = o.signal_id
+     JOIN monitors m ON m.id = s.monitor_id
+     WHERE m.user_id = $1 AND o.status = 'placed'`,
+    [monitor.user_id],
+  );
+  if (Number(openCount[0]?.count ?? 0) >= config.trade.maxOpenOrders) {
+    logger.warn(
+      { userId: monitor.user_id, openOrders: openCount[0].count },
+      'trade skipped: max open orders reached',
+    );
+    return;
+  }
+
   const { rows: orderRows } = await query<{ id: string }>(
     `INSERT INTO orders (signal_id, rule_id, order_params, status)
      VALUES ($1, $2, $3, 'pending') RETURNING id`,

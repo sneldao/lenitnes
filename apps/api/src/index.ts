@@ -25,7 +25,14 @@ import { logger } from './logger.js';
 export const app = express();
 app.use(helmet());
 app.use(cors({ origin: config.webOrigin, credentials: true }));
-app.use(express.json({ limit: '10mb' }));
+app.use(
+  express.json({
+    limit: '10mb',
+    verify: (req, _res, buf) => {
+      (req as unknown as Record<string, unknown>).rawBody = buf.toString();
+    },
+  }),
+);
 app.use(cookieParser());
 
 // ── Rate limiting ──────────────────────────────────────────────

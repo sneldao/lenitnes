@@ -25,22 +25,30 @@ export interface KrakenCredentials {
 export interface AddOrderParams {
   pair: string; // e.g. "XBTUSD"
   type: 'buy' | 'sell';
-  ordertype: 'market' | 'limit';
+  ordertype:
+    | 'market'
+    | 'limit'
+    | 'stop-loss'
+    | 'take-profit'
+    | 'stop-loss-limit'
+    | 'take-profit-limit';
   volume: string;
-  price?: string; // required for limit
+  price?: string; // required for limit/stop-loss/take-profit; trigger price for stop-loss-limit
+  price2?: string; // limit price for stop-loss-limit and take-profit-limit
   validate?: boolean; // true => dry-run (paper trade)
+  cancelAfter?: number; // seconds — auto-cancel if not filled (dead-man's switch)
 }
 
 function sign(path: string, body: string, nonce: string, secret: string): string {
-  const message =
-    path +
-    crypto
-      .createHash('sha256')
-      .update(nonce + body)
-      .digest('binary');
-  const hmac = crypto.createHmac('sha512', Buffer.from(secret, 'base64'));
-  hmac.update(message, 'binary');
-  return hmac.digest('base64');
+  const sha256 = crypto
+    .createHash('sha256')
+    .update(nonce + body)
+    .digest();
+  const message = Buffer.concat([Buffer.from(path), sha256]);
+  return crypto
+    .createHmac('sha512', Buffer.from(secret, 'base64'))
+    .update(message)
+    .digest('base64');
 }
 
 async function privateRequest(
@@ -56,6 +64,7 @@ async function privateRequest(
   const res = await fetch(`${KRAKEN_API_URL}${path}`, {
     method: 'POST',
     headers: {
+      'User-Agent': 'LENITNES/0.1.0 (+https://lenitnes.persidian.com)',
       'API-Key': creds.apiKey,
       'API-Sign': signature,
       'Content-Type': 'application/x-www-form-urlencoded',
@@ -74,8 +83,8 @@ async function cliAddOrder(
   order: AddOrderParams,
   creds: KrakenCredentials,
 ): Promise<{ krakenOrderId: string | null; raw: unknown }> {
-  const env = {
-    ...process.env,
+  const env: Record<string, string> = {
+    PATH: process.env.PATH ?? '',
     KRAKEN_API_KEY: creds.apiKey,
     KRAKEN_API_SECRET: creds.apiSecret,
   };
@@ -92,7 +101,9 @@ async function cliAddOrder(
     '--volume',
     order.volume,
     ...(order.price ? ['--price', order.price] : []),
+    ...(order.price2 ? ['--price2', order.price2] : []),
     ...(order.validate ? ['--validate'] : []),
+    ...(order.cancelAfter ? ['--cancel-after', String(order.cancelAfter)] : []),
     '--json',
   ];
 
@@ -112,10 +123,10 @@ export async function addOrder(
   try {
     return await cliAddOrder(order, creds);
   } catch (cliErr) {
-    const msg = cliErr instanceof Error ? cliErr.message : String(cliErr);
-    if (msg.includes('not found') || msg.includes(' ENOENT ')) {
+    if ((cliErr as NodeJS.ErrnoException).code === 'ENOENT') {
       logger.warn('Kraken CLI not found, falling back to REST API');
     } else {
+      const msg = cliErr instanceof Error ? cliErr.message : String(cliErr);
       logger.warn({ msg }, 'Kraken CLI failed, falling back to REST API');
     }
   }
@@ -127,7 +138,9 @@ export async function addOrder(
     volume: order.volume,
   };
   if (order.price) params.price = order.price;
+  if (order.price2) params.price2 = order.price2;
   if (order.validate) params.validate = 'true';
+  if (order.cancelAfter) params.cancelafter = String(order.cancelAfter);
 
   const result = (await withRetry(() => privateRequest('AddOrder', params, creds), {
     retries: 2,
@@ -138,4 +151,48 @@ export async function addOrder(
 
 export async function getBalance(creds: KrakenCredentials): Promise<Record<string, string>> {
   return privateRequest('Balance', {}, creds);
+}
+
+export type KrakenOrderStatus = 'pending' | 'open' | 'closed' | 'canceled' | 'expired';
+
+export interface KrakenOrderInfo {
+  status: KrakenOrderStatus;
+  vol: string;
+  vol_exec: string;
+  cost: string;
+  price: string;
+}
+
+export async function queryOrders(
+  txIds: string[],
+  creds: KrakenCredentials,
+): Promise<Record<string, KrakenOrderInfo>> {
+  const result = (await withRetry(
+    () => privateRequest('QueryOrders', { txid: txIds.join(',') }, creds),
+    { retries: 2, baseDelayMs: 500 },
+  )) as Record<string, KrakenOrderInfo>;
+  return result;
+}
+
+export async function cancelOrder(txIds: string[], creds: KrakenCredentials): Promise<unknown> {
+  return withRetry(() => privateRequest('CancelOrder', { txid: txIds.join(',') }, creds), {
+    retries: 1,
+    baseDelayMs: 300,
+  });
+}
+
+export function mapKrakenStatus(kraken: KrakenOrderInfo): string {
+  switch (kraken.status) {
+    case 'closed':
+      return Number(kraken.vol_exec) < Number(kraken.vol) ? 'partially_filled' : 'filled';
+    case 'open':
+      return 'placed';
+    case 'canceled':
+      return 'cancelled';
+    case 'expired':
+      return 'expired';
+    case 'pending':
+    default:
+      return 'pending';
+  }
 }

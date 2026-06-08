@@ -28,7 +28,6 @@ export interface CreateMonitorInput {
   url: string;
   conditionText: string;
   frequencySeconds?: number; // default 3600
-  stakeHbar?: number; // default 0
   costPerCheck?: number;
   screenshotsEnabled?: boolean; // default true
 }
@@ -89,7 +88,14 @@ export interface CreateRuleInput {
 
 // ── Order ─────────────────────────────────────────────────────
 
-export type OrderStatus = 'pending' | 'placed' | 'failed';
+export type OrderStatus =
+  | 'pending'
+  | 'placed'
+  | 'filled'
+  | 'partially_filled'
+  | 'cancelled'
+  | 'failed'
+  | 'expired';
 
 export interface Order {
   id: string;
@@ -99,6 +105,7 @@ export interface Order {
   order_params: Record<string, unknown>;
   status: OrderStatus;
   placed_at: string | null;
+  cancelled_at: string | null;
   kraken_response: Record<string, unknown> | null;
 }
 
@@ -109,37 +116,4 @@ export interface User {
   wallet_address: string;
   email: string | null;
   created_at: string;
-}
-
-// ── API response shapes ───────────────────────────────────────
-
-export interface ApiError {
-  error: string;
-  details?: unknown;
-}
-
-export interface ApiOk {
-  ok: true;
-}
-
-// ── Health check ───────────────────────────────────────────────
-
-export interface HealthStatus {
-  ok: boolean;
-  service: string;
-  version: string;
-  checks?: {
-    database: 'ok' | 'fail';
-  };
-}
-
-// ── TinyFish result ────────────────────────────────────────────
-
-export interface TinyFishResult {
-  runId: string;
-  conditionMet: boolean;
-  evidence: string;
-  summary: string;
-  screenshots: string[]; // base64 or URLs
-  latestCommitHash?: string;
 }

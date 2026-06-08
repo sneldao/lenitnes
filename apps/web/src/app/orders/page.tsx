@@ -1,26 +1,57 @@
 'use client';
 
 import { useState } from 'react';
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { api } from '@/lib/api';
 import { useAuth } from '@/lib/useAuth';
-import { TrendingUp, Check, X, Play, Settings, Hash, ArrowUpRight, Clock, Zap } from 'lucide-react';
+import { useToast } from '@/components/Toast';
+import {
+  TrendingUp,
+  Check,
+  X,
+  Play,
+  Clock,
+  ArrowUpRight,
+  RefreshCw,
+  Ban,
+  Loader,
+} from 'lucide-react';
 
-interface Order {
-  id: string;
-  kraken_order_id: string | null;
-  order_params: Record<string, unknown>;
-  status: string;
-  placed_at: string | null;
-  kraken_response: Record<string, unknown> | null;
-  signal_id: string;
-  detected_at: string;
-  monitor_id: string;
-  monitor_url: string;
+const STATUS_STYLES: Record<string, string> = {
+  pending: 'bg-slate-500/15 text-slate-400',
+  placed: 'bg-accent/15 text-accent',
+  filled: 'bg-signal/15 text-signal',
+  partially_filled: 'bg-warn/15 text-warn',
+  cancelled: 'bg-slate-500/15 text-slate-400',
+  failed: 'bg-danger/15 text-danger',
+  expired: 'bg-slate-500/15 text-slate-500',
+};
+
+function StatusBadge({ status }: { status: string }) {
+  return (
+    <span className={`badge ${STATUS_STYLES[status] ?? STATUS_STYLES.pending}`}>
+      {status === 'placed' && <ArrowUpRight className="h-3 w-3" />}
+      {status === 'filled' && <Check className="h-3 w-3" />}
+      {status === 'failed' && <X className="h-3 w-3" />}
+      {status === 'cancelled' && <Ban className="h-3 w-3" />}
+      {status.replace('_', ' ')}
+    </span>
+  );
+}
+
+function fillData(response: Record<string, unknown> | null) {
+  if (!response) return null;
+  const price = response.price as string | undefined;
+  const cost = response.cost as string | undefined;
+  const volExec = response.vol_exec as string | undefined;
+  if (!price || !volExec || Number(volExec) === 0) return null;
+  return { avgPrice: Number(price), cost: Number(cost ?? 0), volExec: Number(volExec) };
 }
 
 export default function OrdersPage() {
   const { isAuthenticated } = useAuth();
+  const toast = useToast();
+  const queryClient = useQueryClient();
   const [testing, setTesting] = useState(false);
   const [testResult, setTestResult] = useState<{
     ok: boolean;
@@ -36,12 +67,30 @@ export default function OrdersPage() {
     queryKey: ['orders'],
     queryFn: () => api.listOrders(),
     enabled: isAuthenticated,
+    refetchInterval: 15_000,
+  });
+
+  useQuery({
+    queryKey: ['orders-sync'],
+    queryFn: () => api.syncOrders().catch(() => ({ synced: 0, updated: 0 })),
+    enabled: isAuthenticated,
+    refetchInterval: 15_000,
+    staleTime: 10_000,
   });
   const { data: krakenStatus } = useQuery({
     queryKey: ['krakenStatus'],
     queryFn: () => api.krakenStatus(),
     retry: 1,
     enabled: isAuthenticated,
+  });
+
+  const cancelMutation = useMutation({
+    mutationFn: (id: string) => api.cancelOrder(id),
+    onSuccess: () => {
+      toast.success('Order cancelled');
+      queryClient.invalidateQueries({ queryKey: ['orders'] });
+    },
+    onError: (e: Error) => toast.error(e.message),
   });
 
   async function runPaperTrade() {
@@ -58,7 +107,14 @@ export default function OrdersPage() {
   }
 
   const placedCount = orders.filter((o) => o.status === 'placed').length;
+  const filledCount = orders.filter(
+    (o) => o.status === 'filled' || o.status === 'partially_filled',
+  ).length;
   const failedCount = orders.filter((o) => o.status === 'failed').length;
+  const totalCost = orders.reduce((sum, o) => {
+    const fd = fillData(o.kraken_response);
+    return sum + (fd?.cost ?? 0);
+  }, 0);
 
   return (
     <div className="space-y-8 animate-fade-in">
@@ -87,6 +143,13 @@ export default function OrdersPage() {
               )}
             </span>
           )}
+          <button
+            onClick={() => queryClient.invalidateQueries({ queryKey: ['orders'] })}
+            className="btn text-xs"
+            title="Sync order statuses from Kraken"
+          >
+            <RefreshCw className="h-3.5 w-3.5" /> Sync
+          </button>
           <button onClick={runPaperTrade} disabled={testing} className="btn text-xs">
             {testing ? (
               <span className="animate-pulse">Testing…</span>
@@ -126,7 +189,7 @@ export default function OrdersPage() {
         </div>
       )}
 
-      <div className="grid gap-4 sm:grid-cols-4">
+      <div className="grid gap-4 sm:grid-cols-5">
         <div className="stat-card space-y-1">
           <div className="flex items-center gap-2">
             <TrendingUp className="h-3.5 w-3.5 text-accent" />
@@ -136,10 +199,17 @@ export default function OrdersPage() {
         </div>
         <div className="stat-card space-y-1">
           <div className="flex items-center gap-2">
-            <Check className="h-3.5 w-3.5 text-signal" />
-            <span className="section-title">Placed</span>
+            <ArrowUpRight className="h-3.5 w-3.5 text-accent" />
+            <span className="section-title">Open</span>
           </div>
           <p className="text-2xl font-bold text-white">{placedCount}</p>
+        </div>
+        <div className="stat-card space-y-1">
+          <div className="flex items-center gap-2">
+            <Check className="h-3.5 w-3.5 text-signal" />
+            <span className="section-title">Filled</span>
+          </div>
+          <p className="text-2xl font-bold text-white">{filledCount}</p>
         </div>
         <div className="stat-card space-y-1">
           <div className="flex items-center gap-2">
@@ -150,11 +220,13 @@ export default function OrdersPage() {
         </div>
         <div className="stat-card space-y-1">
           <div className="flex items-center gap-2">
-            <Settings className="h-3.5 w-3.5 text-slate-400" />
-            <span className="section-title">Mode</span>
+            <TrendingUp className="h-3.5 w-3.5 text-slate-400" />
+            <span className="section-title">Cost</span>
           </div>
-          <p className="text-sm font-semibold text-white">
-            {krakenStatus?.cliAvailable ? 'CLI' : (krakenStatus?.fallback ?? '—')}
+          <p className="text-2xl font-bold text-white">
+            {totalCost > 0
+              ? `$${totalCost.toLocaleString(undefined, { maximumFractionDigits: 2 })}`
+              : '—'}
           </p>
         </div>
       </div>
@@ -191,7 +263,7 @@ export default function OrdersPage() {
       )}
 
       {orders.length > 0 && (
-        <div className="overflow-hidden rounded-2xl border border-edge/40 shadow-card">
+        <div className="overflow-x-auto rounded-2xl border border-edge/40 shadow-card">
           <table className="w-full text-left text-sm">
             <thead className="bg-ink-light/80">
               <tr className="text-[10px] uppercase tracking-wider text-slate-500">
@@ -199,9 +271,12 @@ export default function OrdersPage() {
                 <th className="px-5 py-3 font-semibold">Pair</th>
                 <th className="px-5 py-3 font-semibold">Type</th>
                 <th className="px-5 py-3 font-semibold">Volume</th>
+                <th className="px-5 py-3 font-semibold">Avg Price</th>
+                <th className="px-5 py-3 font-semibold">Cost</th>
                 <th className="px-5 py-3 font-semibold">Status</th>
                 <th className="px-5 py-3 font-semibold">Kraken ID</th>
                 <th className="px-5 py-3 font-semibold">Placed</th>
+                <th className="px-5 py-3 font-semibold" />
               </tr>
             </thead>
             <tbody className="divide-y divide-edge/30">
@@ -227,20 +302,18 @@ export default function OrdersPage() {
                   <td className="px-5 py-3.5 text-slate-300">
                     {String(o.order_params.volume ?? '—')}
                   </td>
+                  <td className="px-5 py-3.5 font-mono text-xs text-slate-300">
+                    {fillData(o.kraken_response)?.avgPrice.toLocaleString(undefined, {
+                      maximumFractionDigits: 2,
+                    }) ?? '—'}
+                  </td>
+                  <td className="px-5 py-3.5 font-mono text-xs text-slate-300">
+                    {fillData(o.kraken_response)?.cost.toLocaleString(undefined, {
+                      maximumFractionDigits: 2,
+                    }) ?? '—'}
+                  </td>
                   <td className="px-5 py-3.5">
-                    <span
-                      className={`badge ${
-                        o.status === 'placed'
-                          ? 'bg-signal/15 text-signal'
-                          : o.status === 'failed'
-                            ? 'bg-danger/15 text-danger'
-                            : 'bg-slate-500/15 text-slate-400'
-                      }`}
-                    >
-                      {o.status === 'placed' && <Check className="h-3 w-3" />}
-                      {o.status === 'failed' && <X className="h-3 w-3" />}
-                      {o.status}
-                    </span>
+                    <StatusBadge status={o.status} />
                   </td>
                   <td className="px-5 py-3.5">
                     <span className="font-mono text-xs text-slate-500">
@@ -259,6 +332,22 @@ export default function OrdersPage() {
                           })
                         : '—'}
                     </span>
+                  </td>
+                  <td className="px-5 py-3.5">
+                    {o.status === 'placed' && (
+                      <button
+                        className="text-xs text-danger hover:text-danger/80 transition-colors"
+                        disabled={cancelMutation.isPending}
+                        onClick={() => cancelMutation.mutate(o.id)}
+                        title="Cancel order"
+                      >
+                        {cancelMutation.isPending ? (
+                          <Loader className="h-3.5 w-3.5 animate-spin" />
+                        ) : (
+                          <Ban className="h-3.5 w-3.5" />
+                        )}
+                      </button>
+                    )}
                   </td>
                 </tr>
               ))}

@@ -41,7 +41,9 @@ export const config = {
 
   jwtSecret: required('JWT_SECRET'),
 
-  webhookSecret: process.env.WEBHOOK_SECRET ?? '',
+  proofMode: (process.env.PROOF_MODE ?? 'hedera') as 'hedera' | 'none',
+
+  webhookSecret: required('WEBHOOK_SECRET'),
 
   telegram: { botToken: process.env.TELEGRAM_BOT_TOKEN ?? '' },
   smtpUrl: process.env.SMTP_URL ?? '',
@@ -55,5 +57,11 @@ export const config = {
 
   redis: {
     url: process.env.REDIS_URL ?? 'redis://localhost:6379',
+  },
+
+  trade: {
+    cooldownMinutes: Number(process.env.TRADE_COOLDOWN_MINUTES ?? 15),
+    cancelAfterSeconds: Number(process.env.KRAKEN_CANCEL_AFTER_SECONDS ?? 300),
+    maxOpenOrders: Number(process.env.MAX_OPEN_ORDERS ?? 10),
   },
 } as const;

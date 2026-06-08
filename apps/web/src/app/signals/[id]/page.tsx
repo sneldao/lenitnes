@@ -1,10 +1,13 @@
 'use client';
 
-import { use, useEffect, useState } from 'react';
+import { use, useState } from 'react';
+import { useQuery } from '@tanstack/react-query';
+import Link from 'next/link';
 import { api } from '@/lib/api';
 import {
   Shield,
   Clock,
+  ArrowLeft,
   ExternalLink,
   Copy,
   Check,
@@ -12,21 +15,23 @@ import {
   Link as LinkIcon,
   Zap,
   Image as ImageIcon,
+  Printer,
 } from 'lucide-react';
 
 // Public-facing proof explorer for a single signal.
 export default function SignalDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params);
-  const [signal, setSignal] = useState<any>(null);
-  const [error, setError] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
 
-  useEffect(() => {
-    api
-      .getSignal(id)
-      .then(setSignal)
-      .catch((e) => setError(String(e)));
-  }, [id]);
+  const {
+    data: signal,
+    isLoading,
+    error,
+  } = useQuery({
+    queryKey: ['signal', id],
+    queryFn: () => api.getSignal(id),
+    retry: 1,
+  });
 
   function shareProof() {
     navigator.clipboard.writeText(window.location.href);
@@ -36,15 +41,26 @@ export default function SignalDetailPage({ params }: { params: Promise<{ id: str
 
   if (error)
     return (
-      <div className="card border-danger/30 bg-danger/5 text-danger">
-        <div className="flex items-center gap-3">
-          <Zap className="h-5 w-5" />
-          <span>{error}</span>
+      <div className="mx-auto max-w-3xl space-y-4">
+        <Link
+          href="/signals"
+          className="inline-flex items-center gap-1.5 text-xs font-medium text-accent transition-colors hover:text-accent-glow"
+        >
+          <ArrowLeft className="h-3.5 w-3.5" />
+          Back to Signals
+        </Link>
+        <div className="card border-danger/30 bg-danger/5 text-danger">
+          <div className="flex items-center gap-3">
+            <Zap className="h-5 w-5" />
+            <span>
+              {'Failed to load signal: ' + (error instanceof Error ? error.message : String(error))}
+            </span>
+          </div>
         </div>
       </div>
     );
 
-  if (!signal)
+  if (isLoading || !signal)
     return (
       <div className="flex items-center justify-center py-20">
         <div className="space-y-3 text-center">
@@ -56,26 +72,40 @@ export default function SignalDetailPage({ params }: { params: Promise<{ id: str
 
   return (
     <div className="mx-auto max-w-3xl space-y-6 animate-fade-in">
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-2xl font-bold tracking-tight text-white">Signal Proof</h1>
-          <p className="mt-1 text-sm text-slate-500">
-            Immutable detection record with cryptographic verification
-          </p>
+      <div className="flex items-start justify-between gap-4">
+        <div className="flex items-center gap-3">
+          <Link
+            href="/signals"
+            className="flex h-8 w-8 items-center justify-center rounded-lg border border-edge/40 text-slate-500 transition-colors hover:border-accent/30 hover:text-accent"
+          >
+            <ArrowLeft className="h-4 w-4" />
+          </Link>
+          <div>
+            <h1 className="text-2xl font-bold tracking-tight text-white">Signal Proof</h1>
+            <p className="mt-1 text-sm text-slate-500">
+              Immutable detection record with cryptographic verification
+            </p>
+          </div>
         </div>
-        <button className="btn-ghost text-xs" onClick={shareProof}>
-          {copied ? (
-            <>
-              <Check className="h-3.5 w-3.5 text-signal" />
-              Copied
-            </>
-          ) : (
-            <>
-              <Copy className="h-3.5 w-3.5" />
-              Share Proof
-            </>
-          )}
-        </button>
+        <div className="flex items-center gap-2">
+          <button className="btn-ghost shrink-0 text-xs" onClick={() => window.print()}>
+            <Printer className="h-3.5 w-3.5" />
+            Print / PDF
+          </button>
+          <button className="btn-ghost shrink-0 text-xs" onClick={shareProof}>
+            {copied ? (
+              <>
+                <Check className="h-3.5 w-3.5 text-signal" />
+                Copied
+              </>
+            ) : (
+              <>
+                <Copy className="h-3.5 w-3.5" />
+                Share Proof
+              </>
+            )}
+          </button>
+        </div>
       </div>
 
       <div className="card space-y-4">

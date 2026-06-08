@@ -33,6 +33,9 @@ function getMiddleware() {
 }
 
 export const x402Middleware = async (req: Request, res: Response, next: NextFunction) => {
+  if (config.proofMode === 'none' || !config.x402.payTo) {
+    return res.status(501).json({ error: 'x402 payments not configured' });
+  }
   try {
     const mw = getMiddleware();
     return mw(req, res, next);

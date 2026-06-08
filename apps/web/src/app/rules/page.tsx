@@ -2,7 +2,7 @@
 
 import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { api, type Monitor, type Rule } from '@/lib/api';
+import { api } from '@/lib/api';
 import { useAuth } from '@/lib/useAuth';
 import {
   Workflow,
@@ -12,11 +12,11 @@ import {
   Mail,
   MessageCircle,
   Clock,
-  Play,
   Check,
   X,
   Plus,
   AlertTriangle,
+  Wallet,
 } from 'lucide-react';
 
 const ACTION_META: Record<string, { icon: typeof Zap; label: string; color: string }> = {
@@ -32,28 +32,32 @@ export default function RulesPage() {
   const queryClient = useQueryClient();
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
+  const [fundMonitorId, setFundMonitorId] = useState('');
+  const [fundAmount, setFundAmount] = useState(10);
+  const [funding, setFunding] = useState(false);
 
   const [form, setForm] = useState({
     monitorId: '',
     actionType: 'webhook' as 'trade' | 'webhook' | 'email' | 'telegram',
-    config: '',
+    config: {} as Record<string, unknown>,
     fromHour: '',
     toHour: '',
   });
-  const [testingTrade, setTestingTrade] = useState(false);
-  const [paperTradeResult, setPaperTradeResult] = useState<{ ok: boolean; message: string } | null>(
-    null,
-  );
 
-  const { data: monitors = [], isLoading: monitorsLoading } = useQuery({
+  const setConfig = (key: string, value: unknown) => {
+    setForm((f) => ({ ...f, config: { ...f.config, [key]: value } }));
+  };
+  const { data: monitors = [], isLoading: _monitorsLoading } = useQuery({
     queryKey: ['monitors'],
     queryFn: () => api.listMonitors(),
     enabled: isAuthenticated,
+    refetchInterval: 30_000,
   });
-  const { data: rules = [], isLoading: rulesLoading } = useQuery({
+  const { data: rules = [], isLoading: _rulesLoading } = useQuery({
     queryKey: ['rules'],
     queryFn: () => api.listRules(),
     enabled: isAuthenticated,
+    refetchInterval: 15_000,
   });
   const { data: krakenStatus } = useQuery({
     queryKey: ['krakenStatus'],
@@ -66,23 +70,17 @@ export default function RulesPage() {
     mutationFn: api.createRule,
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['rules'] });
-      setForm((f) => ({ ...f, config: '' }));
+      setForm((f) => ({ ...f, config: {} }));
     },
   });
 
-  async function runPaperTrade() {
-    setTestingTrade(true);
-    setPaperTradeResult(null);
+  async function deleteRule(ruleId: string) {
+    if (!confirm('Delete this rule?')) return;
     try {
-      const res = await api.krakenTestTrade({ pair: 'XBTUSD', type: 'buy', volume: '0.0001' });
-      setPaperTradeResult({
-        ok: true,
-        message: `Paper trade OK. Order ID: ${res.krakenOrderId ?? 'n/a'}`,
-      });
+      await api.deleteRule(ruleId);
+      queryClient.invalidateQueries({ queryKey: ['rules'] });
     } catch (e) {
-      setPaperTradeResult({ ok: false, message: String(e) });
-    } finally {
-      setTestingTrade(false);
+      setError(String(e));
     }
   }
 
@@ -97,7 +95,7 @@ export default function RulesPage() {
       await createRule.mutateAsync({
         monitorId: form.monitorId,
         actionType: form.actionType,
-        actionConfig: form.config ? JSON.parse(form.config) : {},
+        actionConfig: form.config,
         conditions,
       });
     } catch (e) {
@@ -106,13 +104,6 @@ export default function RulesPage() {
       setSaving(false);
     }
   }
-
-  const placeholder: Record<string, string> = {
-    trade: '{"pair":"XBTUSD","type":"buy","ordertype":"market","volume":"0.001","validate":true}',
-    webhook: '{"url":"https://example.com/hook"}',
-    telegram: '{"chatId":"123456789"}',
-    email: '{"to":"you@example.com"}',
-  };
 
   return (
     <div className="mx-auto max-w-3xl space-y-8 animate-fade-in">
@@ -141,41 +132,76 @@ export default function RulesPage() {
               )}
             </span>
           )}
-          <button onClick={runPaperTrade} disabled={testingTrade} className="btn text-xs">
-            {testingTrade ? (
-              <span className="animate-pulse">Testing…</span>
-            ) : (
-              <>
-                <Play className="h-3.5 w-3.5" /> Paper Trade
-              </>
-            )}
-          </button>
         </div>
       </div>
 
-      {paperTradeResult && (
-        <div
-          className={`card ${paperTradeResult.ok ? 'border-signal/30 bg-signal/5' : 'border-danger/30 bg-danger/5'}`}
-        >
-          <div className="flex items-center gap-3">
-            <div
-              className={`flex h-8 w-8 items-center justify-center rounded-lg ${paperTradeResult.ok ? 'bg-signal/20' : 'bg-danger/20'}`}
+      <div className="card space-y-4">
+        <div className="flex items-center gap-2 border-b border-edge/40 pb-4">
+          <Wallet className="h-4 w-4 text-accent" />
+          <h2 className="text-sm font-semibold text-slate-200">Fund Monitor</h2>
+        </div>
+        <p className="text-xs text-slate-400">
+          Pre-fund your monitor escrow so background checks run automatically without per-execute
+          x402 payments.
+        </p>
+        <div className="grid grid-cols-2 gap-3">
+          <div>
+            <label className="label">Monitor</label>
+            <select
+              className="input"
+              value={fundMonitorId}
+              onChange={(e) => setFundMonitorId(e.target.value)}
             >
-              {paperTradeResult.ok ? (
-                <Check className="h-4 w-4 text-signal" />
-              ) : (
-                <X className="h-4 w-4 text-danger" />
-              )}
-            </div>
-            <div>
-              <p className="text-sm font-semibold text-slate-200">
-                {paperTradeResult.ok ? 'Paper trade succeeded' : 'Paper trade failed'}
-              </p>
-              <p className="text-xs text-slate-500">{paperTradeResult.message}</p>
-            </div>
+              <option value="">Select…</option>
+              {monitors.map((m) => (
+                <option key={m.id} value={m.id}>
+                  {m.url.replace(/^https?:\/\//, '').slice(0, 30)}
+                </option>
+              ))}
+            </select>
+          </div>
+          <div>
+            <label className="label">Amount (ℏ)</label>
+            <input
+              className="input"
+              type="number"
+              min={1}
+              value={fundAmount}
+              onChange={(e) => setFundAmount(Number(e.target.value))}
+            />
           </div>
         </div>
-      )}
+        <button
+          className="btn w-full"
+          disabled={!fundMonitorId || fundAmount < 1 || funding}
+          onClick={async () => {
+            setFunding(true);
+            try {
+              const res = await fetch(
+                `${
+                  process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:4000'
+                }/monitors/${fundMonitorId}`,
+                {
+                  method: 'PATCH',
+                  credentials: 'include',
+                  headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify({ topUpHbar: fundAmount }),
+                },
+              );
+              if (!res.ok) throw new Error(await res.text());
+              queryClient.invalidateQueries({ queryKey: ['monitors'] });
+              setFundMonitorId('');
+              setFundAmount(10);
+            } catch (e) {
+              setError(String(e));
+            } finally {
+              setFunding(false);
+            }
+          }}
+        >
+          {funding ? 'Funding…' : 'Add Funds'}
+        </button>
+      </div>
 
       <div className="card space-y-5">
         <div className="flex items-center gap-2 border-b border-edge/40 pb-4">
@@ -234,18 +260,144 @@ export default function RulesPage() {
           </div>
         </div>
 
-        <div>
-          <label className="label">
-            <Workflow className="mr-1 inline h-3 w-3" />
-            Config (JSON)
-          </label>
-          <textarea
-            className="input min-h-[80px] font-mono text-xs"
-            placeholder={placeholder[form.actionType]}
-            value={form.config}
-            onChange={(e) => setForm((f) => ({ ...f, config: e.target.value }))}
-          />
-        </div>
+        {form.actionType === 'trade' && (
+          <div className="space-y-3">
+            <label className="label">
+              <Workflow className="mr-1 inline h-3 w-3" />
+              Trade Config
+            </label>
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label className="text-[10px] text-slate-500">Pair</label>
+                <input
+                  className="input mt-1 font-mono text-xs"
+                  placeholder="XBTUSD"
+                  value={(form.config.pair as string) ?? ''}
+                  onChange={(e) => setConfig('pair', e.target.value)}
+                />
+              </div>
+              <div>
+                <label className="text-[10px] text-slate-500">Type</label>
+                <select
+                  className="input mt-1"
+                  value={(form.config.type as string) ?? 'buy'}
+                  onChange={(e) => setConfig('type', e.target.value)}
+                >
+                  <option value="buy">Buy</option>
+                  <option value="sell">Sell</option>
+                </select>
+              </div>
+              <div>
+                <label className="text-[10px] text-slate-500">Order Type</label>
+                <select
+                  className="input mt-1"
+                  value={(form.config.ordertype as string) ?? 'market'}
+                  onChange={(e) => setConfig('ordertype', e.target.value)}
+                >
+                  <option value="market">Market</option>
+                  <option value="limit">Limit</option>
+                  <option value="stop-loss">Stop Loss</option>
+                  <option value="take-profit">Take Profit</option>
+                  <option value="stop-loss-limit">Stop Loss Limit</option>
+                  <option value="take-profit-limit">Take Profit Limit</option>
+                </select>
+              </div>
+              <div>
+                <label className="text-[10px] text-slate-500">Volume</label>
+                <input
+                  className="input mt-1 font-mono text-xs"
+                  placeholder="0.001"
+                  value={(form.config.volume as string) ?? ''}
+                  onChange={(e) => setConfig('volume', e.target.value)}
+                />
+              </div>
+              {(form.config.ordertype as string) &&
+                (form.config.ordertype as string) !== 'market' && (
+                  <div>
+                    <label className="text-[10px] text-slate-500">
+                      {(form.config.ordertype as string).includes('-') ? 'Trigger Price' : 'Price'}
+                    </label>
+                    <input
+                      className="input mt-1 font-mono text-xs"
+                      placeholder="0.00"
+                      value={(form.config.price as string) ?? ''}
+                      onChange={(e) => setConfig('price', e.target.value)}
+                    />
+                  </div>
+                )}
+              {['stop-loss-limit', 'take-profit-limit'].includes(
+                form.config.ordertype as string,
+              ) && (
+                <div>
+                  <label className="text-[10px] text-slate-500">Limit Price</label>
+                  <input
+                    className="input mt-1 font-mono text-xs"
+                    placeholder="0.00"
+                    value={(form.config.price2 as string) ?? ''}
+                    onChange={(e) => setConfig('price2', e.target.value)}
+                  />
+                </div>
+              )}
+            </div>
+            <label className="flex items-center gap-2">
+              <input
+                type="checkbox"
+                className="rounded border-edge/40 bg-ink-light text-accent"
+                checked={(form.config.validate as boolean) !== false}
+                onChange={(e) => setConfig('validate', e.target.checked)}
+              />
+              <span className="text-xs text-slate-400">
+                Paper trade (validate mode, safe to test)
+              </span>
+            </label>
+          </div>
+        )}
+
+        {form.actionType === 'webhook' && (
+          <div>
+            <label className="label">
+              <Webhook className="mr-1 inline h-3 w-3" />
+              Webhook URL
+            </label>
+            <input
+              className="input font-mono text-xs"
+              placeholder="https://example.com/hook"
+              value={(form.config.url as string) ?? ''}
+              onChange={(e) => setConfig('url', e.target.value)}
+            />
+          </div>
+        )}
+
+        {form.actionType === 'telegram' && (
+          <div>
+            <label className="label">
+              <MessageCircle className="mr-1 inline h-3 w-3" />
+              Chat ID
+            </label>
+            <input
+              className="input font-mono text-xs"
+              placeholder="123456789"
+              value={(form.config.chatId as string) ?? ''}
+              onChange={(e) => setConfig('chatId', e.target.value)}
+            />
+          </div>
+        )}
+
+        {form.actionType === 'email' && (
+          <div>
+            <label className="label">
+              <Mail className="mr-1 inline h-3 w-3" />
+              Recipient Email
+            </label>
+            <input
+              className="input"
+              type="email"
+              placeholder="you@example.com"
+              value={(form.config.to as string) ?? ''}
+              onChange={(e) => setConfig('to', e.target.value)}
+            />
+          </div>
+        )}
 
         <div>
           <label className="label">
@@ -320,19 +472,27 @@ export default function RulesPage() {
                   </p>
                 </div>
               </div>
-              <span
-                className={`badge ${
-                  r.is_active ? 'bg-signal/15 text-signal' : 'bg-slate-500/15 text-slate-500'
-                }`}
-              >
-                {r.is_active ? (
-                  <>
-                    <span className="h-1.5 w-1.5 rounded-full bg-signal animate-pulse" /> Active
-                  </>
-                ) : (
-                  'Disabled'
-                )}
-              </span>
+              <div className="flex items-center gap-3">
+                <span
+                  className={`badge ${
+                    r.is_active ? 'bg-signal/15 text-signal' : 'bg-slate-500/15 text-slate-500'
+                  }`}
+                >
+                  {r.is_active ? (
+                    <>
+                      <span className="h-1.5 w-1.5 rounded-full bg-signal animate-pulse" /> Active
+                    </>
+                  ) : (
+                    'Disabled'
+                  )}
+                </span>
+                <button
+                  onClick={() => deleteRule(r.id)}
+                  className="text-[10px] font-medium text-slate-500 transition-colors hover:text-danger"
+                >
+                  <X className="h-3.5 w-3.5" />
+                </button>
+              </div>
             </div>
           );
         })}

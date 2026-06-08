@@ -43,7 +43,7 @@ export default function NewMonitorPage() {
 function NewMonitorForm() {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const { accountId, isConnected } = useWallet();
+  const { accountId, isConnected, connect } = useWallet();
   const { user } = useAuth();
   const [step, setStep] = useState(1);
   const [submitting, setSubmitting] = useState(false);
@@ -55,7 +55,6 @@ function NewMonitorForm() {
     conditionText: '',
     frequencySeconds: 3600,
     actionType: 'alert' as 'alert' | 'trade',
-    stakeHbar: 10,
     screenshotsEnabled: true,
   });
 
@@ -92,7 +91,6 @@ function NewMonitorForm() {
         url: form.url,
         conditionText: form.conditionText,
         frequencySeconds: form.frequencySeconds,
-        stakeHbar: form.stakeHbar,
         screenshotsEnabled: form.screenshotsEnabled,
       });
       router.push(`/`);
@@ -322,12 +320,15 @@ function NewMonitorForm() {
                   <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-danger/20">
                     <AlertTriangle className="h-4 w-4 text-danger" />
                   </div>
-                  <div>
+                  <div className="flex-1">
                     <p className="text-sm font-medium text-danger">Wallet Required</p>
                     <p className="text-xs text-slate-500">
-                      Connect via the header button to proceed
+                      Connect your Hedera wallet to create a monitor
                     </p>
                   </div>
+                  <button type="button" onClick={connect} className="btn shrink-0 py-2 text-xs">
+                    Connect
+                  </button>
                 </div>
               )}
             </div>
@@ -336,31 +337,8 @@ function NewMonitorForm() {
 
         {step === 4 && (
           <div className="space-y-5">
-            <div>
-              <label htmlFor="stake" className="label">
-                <Wallet className="mr-1 inline h-3 w-3" />
-                Stake HBAR
-              </label>
-              <div className="relative">
-                <input
-                  id="stake"
-                  type="number"
-                  className="input pr-12"
-                  value={form.stakeHbar}
-                  onChange={(e) => set('stakeHbar', Number(e.target.value))}
-                  aria-describedby="stake-hint"
-                />
-                <span className="absolute right-4 top-1/2 -translate-y-1/2 text-sm font-medium text-slate-500">
-                  ℏ
-                </span>
-              </div>
-              <p id="stake-hint" className="mt-1.5 text-[11px] text-slate-600">
-                Funds the escrow for background checks. On-demand execution uses x402 micropayments.
-              </p>
-            </div>
-
             <div className="stat-card space-y-3 p-5">
-              <p className="section-title">Summary</p>
+              <p className="section-title">Review</p>
               <div className="space-y-2 text-sm">
                 <div className="flex justify-between">
                   <span className="text-slate-500">URL</span>
@@ -378,12 +356,27 @@ function NewMonitorForm() {
                   <span className="text-slate-500">Action</span>
                   <span className="text-slate-200">{form.actionType}</span>
                 </div>
-                <div className="flex justify-between">
-                  <span className="text-slate-500">Stake</span>
-                  <span className="font-semibold text-accent">{form.stakeHbar} ℏ</span>
-                </div>
               </div>
             </div>
+
+            {!isConnected && (
+              <div className="stat-card flex items-center gap-3 border-accent/20 p-4">
+                <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-accent/20">
+                  <Wallet className="h-4 w-4 text-accent" />
+                </div>
+                <div className="flex-1">
+                  <p className="text-sm font-medium text-slate-200">
+                    Connect wallet to fund escrow
+                  </p>
+                  <p className="text-xs text-slate-500">
+                    Optional — you can fund your monitor later for background checks
+                  </p>
+                </div>
+                <button type="button" onClick={connect} className="btn-ghost shrink-0 py-2 text-xs">
+                  Connect
+                </button>
+              </div>
+            )}
 
             {error && (
               <div className="flex items-center gap-2 text-sm text-danger" role="alert">
@@ -411,7 +404,7 @@ function NewMonitorForm() {
             </button>
           ) : (
             <button type="button" className="btn" disabled={submitting} onClick={submit}>
-              {submitting ? 'Creating…' : 'Stake & Create'}
+              {submitting ? 'Creating…' : 'Create Monitor'}
             </button>
           )}
         </div>

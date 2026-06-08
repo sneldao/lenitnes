@@ -106,3 +106,74 @@ body {
 .animate-toast-in {
   animation: toastIn 0.25s ease-out;
 }
+
+@media (prefers-reduced-motion: reduce) {
+  .card,
+  .btn,
+  .btn-ghost,
+  .btn-danger,
+  .input,
+  .animate-fade-in,
+  .animate-slide-up,
+  .animate-toast-in,
+  .animate-pulse {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}
+
+.small-muted {
+  @apply text-slate-400;
+}
+
+@media print {
+  * {
+    print-color-adjust: exact;
+    -webkit-print-color-adjust: exact;
+  }
+  body {
+    background: #fff !important;
+    color: #000 !important;
+  }
+  nav,
+  footer,
+  [class*='animate-'] {
+    display: none !important;
+  }
+  .card {
+    border: 1px solid #ddd !important;
+    box-shadow: none !important;
+    background: #fff !important;
+    break-inside: avoid;
+    page-break-inside: avoid;
+  }
+  .stat-card {
+    border: 1px solid #eee !important;
+    background: #fafafa !important;
+  }
+  .section-title {
+    color: #666 !important;
+  }
+  a[href^='http']::after {
+    content: ' (' attr(href) ')';
+    font-size: 10px;
+    color: #666;
+  }
+  img {
+    max-width: 100% !important;
+    page-break-inside: avoid;
+  }
+  pre {
+    background: #f5f5f5 !important;
+    color: #333 !important;
+    border: 1px solid #ddd !important;
+    white-space: pre-wrap !important;
+  }
+  .btn-ghost {
+    display: none !important;
+  }
+  @page {
+    margin: 1.5cm;
+  }
+}
