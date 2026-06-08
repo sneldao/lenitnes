@@ -61,6 +61,11 @@ services:
       - X402_HEDERA_NETWORK=${X402_HEDERA_NETWORK:-hedera:testnet}
       - X402_PAY_TO=${X402_PAY_TO}
       - X402_PRICE_HBAR=${X402_PRICE_HBAR:-0.5}
+      - WEBHOOK_SECRET=${WEBHOOK_SECRET}
+      - PROOF_MODE=${PROOF_MODE:-hedera}
+      - TRADE_COOLDOWN_MINUTES=${TRADE_COOLDOWN_MINUTES:-15}
+      - KRAKEN_CANCEL_AFTER_SECONDS=${KRAKEN_CANCEL_AFTER_SECONDS:-300}
+      - MAX_OPEN_ORDERS=${MAX_OPEN_ORDERS:-10}
     networks:
       - default
       - coolify
@@ -114,6 +119,11 @@ services:
       - X402_HEDERA_NETWORK=${X402_HEDERA_NETWORK:-hedera:testnet}
       - X402_PAY_TO=${X402_PAY_TO}
       - X402_PRICE_HBAR=${X402_PRICE_HBAR:-0.5}
+      - WEBHOOK_SECRET=${WEBHOOK_SECRET}
+      - PROOF_MODE=${PROOF_MODE:-hedera}
+      - TRADE_COOLDOWN_MINUTES=${TRADE_COOLDOWN_MINUTES:-15}
+      - KRAKEN_CANCEL_AFTER_SECONDS=${KRAKEN_CANCEL_AFTER_SECONDS:-300}
+      - MAX_OPEN_ORDERS=${MAX_OPEN_ORDERS:-10}
     depends_on:
       db:
         condition: service_healthy
