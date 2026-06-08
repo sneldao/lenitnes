@@ -30,7 +30,12 @@ WORKDIR /app
 ENV NODE_ENV=production
 COPY --from=base /app/apps/api/dist ./dist
 COPY --from=base /app/node_modules ./node_modules
+COPY --from=base /app/apps/api/node_modules ./apps/api/node_modules
 COPY --from=base /app/packages ./packages
 COPY --from=base /app/apps/api/package.json ./
+# npm workspaces may nest @hashgraph/sdk inside hedera-agent-kit/node_modules.
+# Install it explicitly at the root so ESM resolution from /app/dist works.
+RUN npm install @hashgraph/sdk@2.80.0 --no-save --legacy-peer-deps 2>/dev/null || \
+    npm install @hashgraph/sdk@2.80.0 --no-save 2>/dev/null || true
 EXPOSE 4000
 CMD ["node", "dist/index.js"]

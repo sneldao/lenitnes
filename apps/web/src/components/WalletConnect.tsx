@@ -1,7 +1,8 @@
 'use client';
 
-import React, { createContext, useContext, useEffect, useState } from 'react';
+import React, { createContext, useContext, useEffect, useState, useRef } from 'react';
 import { api } from '@/lib/api';
+import { LogOut, Copy, Check, ChevronDown, Wallet } from 'lucide-react';
 
 function bytesToHex(bytes: Uint8Array): string {
   return Array.from(bytes)
@@ -200,23 +201,81 @@ export function useWallet() {
 
 export function WalletConnectButton() {
   const { isConnected, accountId, connect, disconnect, projectIdMissing } = useWallet();
+  const [open, setOpen] = useState(false);
+  const [copied, setCopied] = useState(false);
+  const menuRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    function handleClickOutside(event: MouseEvent) {
+      if (menuRef.current && !menuRef.current.contains(event.target as Node)) {
+        setOpen(false);
+      }
+    }
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
 
   async function handleConnect() {
     await connect();
   }
 
+  async function handleCopy() {
+    if (!accountId) return;
+    await navigator.clipboard.writeText(accountId);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 1500);
+  }
+
+  async function handleDisconnect() {
+    setOpen(false);
+    await disconnect();
+  }
+
   if (isConnected) {
     return (
-      <button
-        onClick={disconnect}
-        aria-label={`Disconnect wallet ${accountId ?? ''}`}
-        className="flex items-center gap-2 rounded-xl border border-signal/20 bg-signal/5 px-3 py-2 text-xs font-medium text-signal transition-all hover:border-signal/40 hover:bg-signal/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-signal focus-visible:ring-offset-2 focus-visible:ring-offset-ink"
-      >
-        <span className="h-1.5 w-1.5 rounded-full bg-signal animate-pulse" />
-        <span className="font-mono">
-          {accountId?.slice(0, 8)}…{accountId?.slice(-4)}
-        </span>
-      </button>
+      <div ref={menuRef} className="relative">
+        <button
+          onClick={() => setOpen((v) => !v)}
+          aria-label={`Wallet menu for ${accountId ?? ''}`}
+          aria-expanded={open}
+          className="flex items-center gap-2 rounded-xl border border-signal/20 bg-signal/5 px-3 py-2 text-xs font-medium text-signal transition-all hover:border-signal/40 hover:bg-signal/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-signal focus-visible:ring-offset-2 focus-visible:ring-offset-ink"
+        >
+          <span className="h-1.5 w-1.5 rounded-full bg-signal animate-pulse" />
+          <span className="font-mono">
+            {accountId?.slice(0, 8)}…{accountId?.slice(-4)}
+          </span>
+          <ChevronDown className={`h-3 w-3 transition-transform ${open ? 'rotate-180' : ''}`} />
+        </button>
+
+        {open && (
+          <div className="absolute right-0 mt-2 w-56 origin-top-right rounded-xl border border-edge/60 bg-panel/95 p-2 shadow-card backdrop-blur-md animate-fade-in z-50">
+            <div className="flex items-center gap-3 px-3 py-2">
+              <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-signal/10">
+                <Wallet className="h-4 w-4 text-signal" />
+              </div>
+              <div className="min-w-0 flex-1">
+                <p className="text-[11px] font-semibold text-slate-200">Connected</p>
+                <p className="truncate font-mono text-[10px] text-slate-500">{accountId}</p>
+              </div>
+            </div>
+            <div className="my-1 h-px bg-edge/40" />
+            <button
+              onClick={handleCopy}
+              className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-xs text-slate-300 transition-colors hover:bg-ink-light/50"
+            >
+              {copied ? <Check className="h-3.5 w-3.5 text-signal" /> : <Copy className="h-3.5 w-3.5 text-slate-500" />}
+              {copied ? 'Copied!' : 'Copy address'}
+            </button>
+            <button
+              onClick={handleDisconnect}
+              className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-xs text-danger transition-colors hover:bg-danger/10"
+            >
+              <LogOut className="h-3.5 w-3.5" />
+              Disconnect
+            </button>
+          </div>
+        )}
+      </div>
     );
   }
 
