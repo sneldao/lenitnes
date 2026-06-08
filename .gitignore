@@ -36,6 +36,7 @@ coverage/
 *.tsbuildinfo
 .turbo/
 .blackboxcli/
+.antigravitycli/
 
 # Qoder
 .qoder/

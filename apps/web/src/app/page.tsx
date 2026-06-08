@@ -1,6 +1,6 @@
 'use client';
 
-import { useRef, useState, useMemo } from 'react';
+import { useState, useMemo } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
@@ -9,27 +9,17 @@ import { useWallet } from '@/components/WalletConnect';
 import { useToast } from '@/components/Toast';
 import { useAuth } from '@/lib/useAuth';
 import { useReveal } from '@/lib/useReveal';
-import { Tooltip } from '@/components/Tooltip';
 import {
   Activity,
   Shield,
   Zap,
   Eye,
-  ArrowRight,
-  ArrowDown,
   Clock,
   Wallet,
   Play,
-  Link as LinkIcon,
   ChevronRight,
-  CheckCircle2,
-  AlertTriangle,
-  Sparkles,
   X,
   BarChart3,
-  Coins,
-  Unlock,
-  Timer,
 } from 'lucide-react';
 
 import {
@@ -42,7 +32,18 @@ import {
   ResponsiveContainer,
 } from 'recharts';
 
-import { TEMPLATES } from '@/data/templates';
+import CinematicHero from '@/components/landing/CinematicHero';
+import ProofChainLive from '@/components/landing/ProofChainLive';
+import StoryTimeline from '@/components/landing/StoryTimeline';
+import SocialProof from '@/components/landing/SocialProof';
+import InteractiveDemo from '@/components/landing/InteractiveDemo';
+import { OnboardingWizard } from '@/components/onboarding/OnboardingWizard';
+
+type TemplateSelection = {
+  url: string;
+  condition: string;
+  frequency: number;
+};
 
 function categoryColor(url: string): string {
   if (url.includes('github.com')) return 'border-l-violet';
@@ -54,40 +55,6 @@ function categoryColor(url: string): string {
 
 type SortKey = 'newest' | 'balance' | 'daysLeft';
 type FilterStatus = 'all' | 'active' | 'triggered' | 'paused' | 'insufficient_balance';
-
-// ─── Proof Chain Diagram (animated) ───
-
-function ProofChainDiagram() {
-  const steps = [
-    { icon: Eye, label: 'Detect', desc: 'TinyFish AI scans', color: 'text-accent' },
-    { icon: Shield, label: 'Timestamp', desc: 'Hedera HCS proof', color: 'text-signal' },
-    { icon: LinkIcon, label: 'Store', desc: 'Grove immutable', color: 'text-cyan-400' },
-    { icon: Zap, label: 'Act', desc: 'Alert or trade', color: 'text-warn' },
-  ];
-  return (
-    <div className="flex flex-wrap items-center justify-center gap-3 sm:gap-2">
-      {steps.map((s, i) => (
-        <div
-          key={s.label}
-          className={`flex items-center gap-3 sm:gap-2 proof-step reveal-delay-${i + 1}`}
-        >
-          <div className="flex flex-col items-center gap-1.5">
-            <div className="stat-card flex h-14 w-14 items-center justify-center rounded-xl transition-transform hover:scale-110">
-              <s.icon className={`h-6 w-6 ${s.color}`} />
-            </div>
-            <span className="text-[11px] font-semibold text-slate-300">{s.label}</span>
-            <span className="text-[10px] text-slate-500">{s.desc}</span>
-          </div>
-          {i < steps.length - 1 && (
-            <ArrowRight
-              className={`mb-6 h-4 w-4 text-edge-light proof-step reveal-delay-${i + 2}`}
-            />
-          )}
-        </div>
-      ))}
-    </div>
-  );
-}
 
 // ─── Burn Bar ───
 
@@ -213,298 +180,6 @@ function MonitorCard({
           </button>
         </div>
       </div>
-    </div>
-  );
-}
-
-// ─── Landing Page Sections ───
-
-function LandingHero({ onScrollToHow }: { onScrollToHow: () => void }) {
-  return (
-    <div className="reveal relative overflow-hidden rounded-3xl border border-edge/40 bg-hero-gradient px-8 py-14 text-center sm:px-12 sm:py-16">
-      <div className="absolute inset-0 bg-glow-radial" />
-      <div className="relative space-y-8">
-        <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-2xl bg-gradient-to-br from-accent to-signal shadow-glow animate-glow-pulse">
-          <Activity className="h-8 w-8 text-ink" />
-        </div>
-        <div className="space-y-4">
-          <h1 className="text-3xl font-extrabold tracking-tight text-white sm:text-4xl">
-            Signal Intelligence,{' '}
-            <span className="bg-gradient-to-r from-accent via-violet to-signal bg-clip-text text-transparent">
-              Proof-Chained
-            </span>
-          </h1>
-          <p className="mx-auto max-w-xl text-base leading-relaxed text-slate-400">
-            Monitor GitHub repos and web sources for market-moving signals. Every detection carries
-            an immutable <Tooltip term="HCS">Hedera timestamp</Tooltip> and{' '}
-            <Tooltip term="Grove">Grove-stored</Tooltip> proof package — compliance-grade evidence
-            that you saw it first.
-          </p>
-        </div>
-        <div className="flex flex-col items-center justify-center gap-3 sm:flex-row sm:gap-4">
-          <Link href="/monitors/new" className="btn">
-            <Eye className="h-4 w-4" />
-            Create Monitor
-          </Link>
-          <button className="btn-ghost" onClick={onScrollToHow}>
-            <ArrowDown className="h-4 w-4" />
-            See How It Works
-          </button>
-        </div>
-      </div>
-    </div>
-  );
-}
-
-function CaseStudy() {
-  return (
-    <div className="reveal reveal-delay-1 space-y-6">
-      <div className="text-center">
-        <span className="badge bg-signal/15 text-signal">Real Case Study</span>
-      </div>
-      <div className="card overflow-hidden p-0">
-        <div className="border-b border-edge/40 bg-ink-light/60 px-6 py-4 sm:px-8">
-          <p className="text-sm font-semibold text-slate-200">
-            The $ZEC halo2 bug: 4 days on GitHub before the market knew
-          </p>
-        </div>
-        <div className="grid gap-6 p-6 sm:grid-cols-3 sm:p-8">
-          <div className="space-y-3">
-            <div className="flex items-center gap-2">
-              <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-accent/15">
-                <Eye className="h-3.5 w-3.5 text-accent" />
-              </div>
-              <span className="text-[10px] font-semibold uppercase tracking-wider text-slate-500">
-                1. Detection
-              </span>
-            </div>
-            <p className="text-sm leading-relaxed text-slate-300">
-              On June 5, a commit landed in{' '}
-              <span className="font-mono text-xs text-accent">zcash/halo2</span> changing the
-              verifying key and anchoring a critical ECC multiplication base. Keywords like{' '}
-              <em>&quot;verifying key&quot;</em>, <em>&quot;anchor&quot;</em>, and{' '}
-              <em>&quot;security&quot;</em> were in the diff.
-            </p>
-          </div>
-          <div className="space-y-3">
-            <div className="flex items-center gap-2">
-              <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-signal/15">
-                <Shield className="h-3.5 w-3.5 text-signal" />
-              </div>
-              <span className="text-[10px] font-semibold uppercase tracking-wider text-slate-500">
-                2. Proof
-              </span>
-            </div>
-            <p className="text-sm leading-relaxed text-slate-300">
-              A LENITNES monitor would have timestamped this via{' '}
-              <Tooltip term="HCS">Hedera HCS</Tooltip> within seconds. The immutable{' '}
-              <Tooltip term="proof chain">proof package</Tooltip> — commit screenshot, diff
-              evidence, SHA — proves you saw it at T+0, not after the tweet.
-            </p>
-          </div>
-          <div className="space-y-3">
-            <div className="flex items-center gap-2">
-              <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-warn/15">
-                <Zap className="h-3.5 w-3.5 text-warn" />
-              </div>
-              <span className="text-[10px] font-semibold uppercase tracking-wider text-slate-500">
-                3. Action
-              </span>
-            </div>
-            <p className="text-sm leading-relaxed text-slate-300">
-              The bug was public on GitHub for{' '}
-              <span className="font-semibold text-warn">4 days</span> while the market remained
-              completely blind. A Kraken rule could have hedged ZEC exposure before the news broke.
-              Bloomberg can&apos;t read git commits. We can.
-            </p>
-          </div>
-        </div>
-        <div className="flex flex-wrap items-center gap-4 border-t border-edge/40 bg-ink-light/40 px-6 py-3 sm:px-8">
-          <div className="flex items-center gap-1.5 text-[10px] text-signal">
-            <CheckCircle2 className="h-3 w-3" />
-            <span className="font-semibold">Real commit: d8e48efd</span>
-          </div>
-          <div className="flex items-center gap-1.5 text-[10px] text-slate-500">
-            <Clock className="h-3 w-3" />
-            <span>Public: June 5, 2026</span>
-          </div>
-          <div className="flex items-center gap-1.5 text-[10px] text-slate-500">
-            <AlertTriangle className="h-3 w-3" />
-            <span>4-day edge over market awareness</span>
-          </div>
-          <a
-            href="https://github.com/zcash/halo2/commit/d8e48efddbe4746d76eb2c8a843a6ddc2b9a727a"
-            target="_blank"
-            rel="noopener noreferrer"
-            className="ml-auto flex items-center gap-1 text-[10px] text-accent hover:text-accent/80"
-          >
-            <LinkIcon className="h-3 w-3" />
-            View commit
-          </a>
-        </div>
-      </div>
-    </div>
-  );
-}
-
-function PricingSection() {
-  return (
-    <div className="reveal reveal-delay-2 space-y-6">
-      <div className="text-center">
-        <h2 className="text-lg font-bold text-white">Pay per signal, not per month</h2>
-        <p className="mt-1 text-sm text-slate-500">
-          No subscription. No credit card. Fund your monitor and pay only when it runs.
-        </p>
-      </div>
-      <div className="grid gap-4 sm:grid-cols-3">
-        <div className="card group space-y-3 text-center">
-          <div className="mx-auto flex h-10 w-10 items-center justify-center rounded-xl bg-violet/10 transition-colors group-hover:bg-violet/20">
-            <Coins className="h-5 w-5 text-violet" />
-          </div>
-          <h3 className="text-sm font-semibold text-slate-100">
-            Stake <Tooltip term="ℏ">ℏ</Tooltip>
-          </h3>
-          <p className="text-xs leading-relaxed text-slate-400">
-            Deposit HBAR into a per-monitor <Tooltip term="escrow">escrow</Tooltip>. Your funds stay
-            on-chain and under your control.
-          </p>
-        </div>
-        <div className="card group space-y-3 text-center">
-          <div className="mx-auto flex h-10 w-10 items-center justify-center rounded-xl bg-accent/10 transition-colors group-hover:bg-accent/20">
-            <Timer className="h-5 w-5 text-accent" />
-          </div>
-          <h3 className="text-sm font-semibold text-slate-100">~0.5ℏ per check</h3>
-          <p className="text-xs leading-relaxed text-slate-400">
-            Each automated check costs ~0.5 ℏ via <Tooltip term="x402">x402 micropayments</Tooltip>.
-            Run every 5 minutes or once a day — you choose.
-          </p>
-        </div>
-        <div className="card group space-y-3 text-center">
-          <div className="mx-auto flex h-10 w-10 items-center justify-center rounded-xl bg-signal/10 transition-colors group-hover:bg-signal/20">
-            <Unlock className="h-5 w-5 text-signal" />
-          </div>
-          <h3 className="text-sm font-semibold text-slate-100">Withdraw anytime</h3>
-          <p className="text-xs leading-relaxed text-slate-400">
-            No lock-in period. Delete a monitor and remaining escrow returns to your wallet
-            immediately.
-          </p>
-        </div>
-      </div>
-    </div>
-  );
-}
-
-function TemplateGallery({
-  onUseTemplate,
-}: {
-  onUseTemplate: (t: (typeof TEMPLATES)[number]) => void;
-}) {
-  return (
-    <div className="reveal reveal-delay-1 space-y-6">
-      <div className="text-center">
-        <h2 className="text-lg font-bold text-white">Start in 30 seconds</h2>
-        <p className="mt-1 text-sm text-slate-500">
-          Pick a template, connect your wallet, and you&apos;re monitoring. No config needed.
-        </p>
-      </div>
-      <div className="grid gap-4 sm:grid-cols-3">
-        {TEMPLATES.map((t) => (
-          <button
-            key={t.title}
-            onClick={() => onUseTemplate(t)}
-            className="card group cursor-pointer space-y-3 text-left transition-all hover:border-accent/30 hover:scale-[1.02] active:scale-[0.98]"
-          >
-            <div className="flex items-center justify-between">
-              <div
-                className={`flex h-10 w-10 items-center justify-center rounded-xl ${t.bg} transition-transform group-hover:scale-110`}
-              >
-                <t.icon className={`h-5 w-5 ${t.color}`} />
-              </div>
-              <ChevronRight className="h-4 w-4 text-slate-600 transition-transform group-hover:translate-x-0.5 group-hover:text-accent" />
-            </div>
-            <div>
-              <h3 className="text-sm font-semibold text-slate-100 group-hover:text-white">
-                {t.title}
-              </h3>
-              <p className="mt-1 text-xs leading-relaxed text-slate-500">{t.desc}</p>
-            </div>
-            <div className="flex items-center gap-2 text-[10px] text-slate-600">
-              <Clock className="h-3 w-3" />
-              {t.frequency >= 3600 ? `Every ${t.frequency / 3600}h` : `Every ${t.frequency / 60}m`}
-              <span className="text-edge-light">·</span>
-              <Sparkles className="h-3 w-3" />
-              Pre-configured
-            </div>
-          </button>
-        ))}
-      </div>
-    </div>
-  );
-}
-
-function HowItWorks({ innerRef }: { innerRef: React.RefObject<HTMLDivElement> }) {
-  return (
-    <div ref={innerRef} className="reveal reveal-delay-1 scroll-mt-24 space-y-8">
-      <div className="text-center">
-        <h2 className="text-lg font-bold text-white">How the proof chain works</h2>
-        <p className="mt-1 text-sm text-slate-500">
-          Four steps. Fully automated. Cryptographically verifiable.
-        </p>
-      </div>
-      <ProofChainDiagram />
-    </div>
-  );
-}
-
-function FeatureCards() {
-  return (
-    <div className="reveal reveal-delay-2 grid gap-6 sm:grid-cols-3">
-      {[
-        {
-          icon: Eye,
-          title: 'AI Detection',
-          desc: (
-            <>
-              <Tooltip term="TinyFish">TinyFish</Tooltip> natural-language web intelligence scans
-              your targets for the exact conditions you describe — in plain English.
-            </>
-          ),
-          accent: 'accent',
-        },
-        {
-          icon: Shield,
-          title: 'Hedera Timestamped',
-          desc: (
-            <>
-              Every signal is written to <Tooltip term="HCS">Hedera Consensus Service</Tooltip> with
-              a microsecond-accurate timestamp. Verifiable on HashScan by anyone.
-            </>
-          ),
-          accent: 'signal',
-        },
-        {
-          icon: Zap,
-          title: 'Automated Action',
-          desc: 'Connect webhooks, Telegram alerts, or Kraken trades — all triggered within seconds of detection. Zero manual intervention.',
-          accent: 'warn',
-        },
-      ].map((f) => (
-        <div key={f.title} className="card group space-y-3">
-          <div
-            className={`flex h-10 w-10 items-center justify-center rounded-xl transition-all group-hover:scale-110 ${
-              f.accent === 'accent'
-                ? 'bg-accent/10 text-accent group-hover:bg-accent/20'
-                : f.accent === 'signal'
-                  ? 'bg-signal/10 text-signal group-hover:bg-signal/20'
-                  : 'bg-warn/10 text-warn group-hover:bg-warn/20'
-            }`}
-          >
-            <f.icon className="h-5 w-5" />
-          </div>
-          <h3 className="text-sm font-semibold text-slate-100">{f.title}</h3>
-          <p className="text-xs leading-relaxed text-slate-400">{f.desc}</p>
-        </div>
-      ))}
     </div>
   );
 }
@@ -846,10 +521,10 @@ function DashboardView({
 export default function DashboardPage() {
   const [executing, setExecuting] = useState<Record<string, boolean>>({});
   const [search, setSearch] = useState('');
-  const { isConnected, executeWithPayment } = useWallet();
+  const { isConnected, executeWithPayment, connect } = useWallet();
+  const [showOnboarding, setShowOnboarding] = useState(false);
   const toast = useToast();
   const { isAuthenticated } = useAuth();
-  const howItWorksRef = useRef<HTMLDivElement>(null);
   const landingRef = useReveal();
   const router = useRouter();
   const queryClient = useQueryClient();
@@ -898,7 +573,7 @@ export default function DashboardPage() {
     }
   }
 
-  function handleUseTemplate(t: (typeof TEMPLATES)[number]) {
+  function handleUseTemplate(t: TemplateSelection) {
     const params = new URLSearchParams({
       url: t.url,
       condition: t.condition,
@@ -920,27 +595,57 @@ export default function DashboardPage() {
 
   if (!isAuthenticated) {
     return (
-      <div ref={landingRef} className="space-y-20">
-        <LandingHero
-          onScrollToHow={() =>
-            howItWorksRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' })
-          }
-        />
-        <CaseStudy />
-        <PricingSection />
-        <TemplateGallery onUseTemplate={handleUseTemplate} />
-        <HowItWorks innerRef={howItWorksRef} />
-        <FeatureCards />
-        <div className="reveal text-center">
-          <Link href="/monitors/new" className="btn">
-            <Eye className="h-4 w-4" />
-            Create Your First Monitor
-          </Link>
-          <p className="mt-3 text-xs text-slate-600">
-            No credit card. Stake ℏ to run. Withdraw anytime.
-          </p>
+      <>
+        <div
+          ref={landingRef}
+          aria-hidden={showOnboarding || undefined}
+          inert={showOnboarding || undefined}
+          className="space-y-16 pb-24"
+        >
+          {/* Cinematic Hero */}
+          <CinematicHero
+            onStartOnboarding={() => setShowOnboarding(true)}
+            onScrollToHow={() => {
+              const el = document.getElementById('how-it-works');
+              el?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+            }}
+          />
+
+          {/* Social Proof Stats */}
+          <SocialProof />
+
+          {/* Proof Chain Live Animation */}
+          <div id="how-it-works">
+            <ProofChainLive />
+          </div>
+
+          {/* Story Timeline (ZEC narrative) */}
+          <StoryTimeline />
+
+          {/* Interactive Sandbox Demo */}
+          <InteractiveDemo onUseTemplate={handleUseTemplate} />
+
+          {/* Bottom Call to Action */}
+          <div className="reveal text-center py-12">
+            <button onClick={() => setShowOnboarding(true)} className="btn text-base px-8 py-3.5">
+              <Eye className="h-4 w-4" />
+              Start Watching in 30 Seconds
+            </button>
+            <p className="mt-3 text-xs text-slate-600">
+              No credit card. Stake ℏ to run. Withdraw anytime.
+            </p>
+          </div>
         </div>
-      </div>
+        {/* Onboarding Wizard Modal */}
+        {showOnboarding && (
+          <OnboardingWizard
+            onClose={() => setShowOnboarding(false)}
+            onComplete={() => setShowOnboarding(false)}
+            isWalletConnected={isConnected}
+            onConnectWallet={connect}
+          />
+        )}
+      </>
     );
   }
 

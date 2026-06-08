@@ -54,6 +54,9 @@ const config: Config = {
         'glow-pulse': 'glowPulse 2s ease-in-out infinite alternate',
         'fade-slide-up': 'fadeSlideUp 0.5s ease-out both',
         'proof-reveal': 'proofReveal 0.4s ease-out both',
+        'cinematic-entrance': 'cinematicEntrance 0.8s cubic-bezier(0.16, 1, 0.3, 1) both',
+        'bounce-down': 'bounceDown 2s ease-in-out infinite',
+        'timeline-glow': 'timelineGlow 2s ease-in-out infinite',
       },
       keyframes: {
         fadeIn: {
@@ -75,6 +78,22 @@ const config: Config = {
         proofReveal: {
           '0%': { opacity: '0', transform: 'scale(0.85)' },
           '100%': { opacity: '1', transform: 'scale(1)' },
+        },
+        cinematicEntrance: {
+          '0%': { opacity: '0', transform: 'scale(0.95) translateY(20px)' },
+          '100%': { opacity: '1', transform: 'scale(1) translateY(0)' },
+        },
+        bounceDown: {
+          '0%, 100%': { transform: 'translateY(0)', opacity: '0.4' },
+          '50%': { transform: 'translateY(6px)', opacity: '0.8' },
+        },
+        timelineGlow: {
+          '0%, 100%': {
+            boxShadow: '0 0 10px rgba(16,185,129,0.2), 0 0 30px rgba(16,185,129,0.1)',
+          },
+          '50%': {
+            boxShadow: '0 0 20px rgba(16,185,129,0.4), 0 0 60px rgba(16,185,129,0.2)',
+          },
         },
       },
     },
