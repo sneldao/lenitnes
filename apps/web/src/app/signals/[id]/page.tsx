@@ -19,6 +19,12 @@ import {
   Printer,
   FileCheck2,
   Globe,
+  Hash,
+  Fingerprint,
+  X,
+  Loader2,
+  Info,
+  AlertTriangle,
 } from 'lucide-react';
 
 // Public-facing proof explorer for a single signal.
@@ -30,7 +36,7 @@ export default function SignalDetailPage({ params }: { params: Promise<{ id: str
   const isPublic = pathname.startsWith('/public/proof');
   const shareToken = searchParams.get('share') ?? undefined;
 
-  const [copied, setCopied] = useState<'link' | 'receipt' | null>(null);
+  const [copied, setCopied] = useState<'link' | 'receipt' | 'cid' | 'hash' | null>(null);
 
   const queryKey = isPublic ? ['public-proof', id] : ['signal', id];
   const queryFn = isPublic ? () => api.getPublicProof(id, shareToken) : () => api.getSignal(id);
@@ -99,12 +105,28 @@ export default function SignalDetailPage({ params }: { params: Promise<{ id: str
           <ArrowLeft className="h-3.5 w-3.5" />
           {backLabel}
         </Link>
-        <div className="card border-danger/30 bg-danger/5 text-danger">
-          <div className="flex items-center gap-3">
-            <Zap className="h-5 w-5" />
-            <span>
-              {'Failed to load signal: ' + (error instanceof Error ? error.message : String(error))}
-            </span>
+        <div className="card space-y-4 border-danger/20 bg-danger/5">
+          <div className="flex items-start gap-4">
+            <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-danger/10">
+              <AlertTriangle className="h-6 w-6 text-danger" />
+            </div>
+            <div>
+              <p className="text-base font-semibold text-danger">Proof link unavailable</p>
+              <p className="mt-1 text-sm leading-relaxed text-danger/80">
+                {isPublic
+                  ? 'This proof link may have expired or the token is invalid. Ask the owner for a fresh link.'
+                  : 'Failed to load signal: ' +
+                    (error instanceof Error ? error.message : String(error))}
+              </p>
+            </div>
+          </div>
+          <div className="flex gap-2">
+            <button onClick={() => window.location.reload()} className="btn-danger text-xs">
+              Try Again
+            </button>
+            <Link href="/" className="btn-ghost text-xs text-slate-400">
+              Go Home
+            </Link>
           </div>
         </div>
       </div>
@@ -274,47 +296,155 @@ export default function SignalDetailPage({ params }: { params: Promise<{ id: str
           Proof Chain
         </h2>
         <div className="space-y-3">
-          <ProofLink
-            icon={Shield}
-            label="Hedera Consensus (HashScan)"
-            href={signal.proof?.hashscanUrl}
-            color="text-signal"
-          />
-          <ProofLink
-            icon={LinkIcon}
-            label="Grove proof package"
-            href={signal.proof?.ipfsUrl}
-            color="text-cyan-400"
-          />
+          {/* HCS transaction status */}
+          <div className="flex items-center gap-3 rounded-xl border border-edge/40 bg-ink-light/30 p-3">
+            <div
+              className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-lg ${signal.hedera_tx_id ? 'bg-signal/10 text-signal' : 'bg-warn/10 text-warn'}`}
+            >
+              <Shield className="h-4 w-4" />
+            </div>
+            <div className="min-w-0 flex-1">
+              <p className="text-xs font-semibold text-slate-200">Hedera Consensus</p>
+              <p className="text-[10px] text-slate-500">
+                {signal.hedera_tx_id
+                  ? 'Transaction recorded on HashScan'
+                  : 'Pending on-chain submission'}
+              </p>
+            </div>
+            {signal.proof?.hashscanUrl ? (
+              <a
+                href={signal.proof.hashscanUrl}
+                target="_blank"
+                rel="noreferrer"
+                className="flex items-center gap-1 rounded-lg bg-signal/10 px-2.5 py-1.5 text-[10px] font-semibold text-signal transition-colors hover:bg-signal/20"
+              >
+                <ExternalLink className="h-3 w-3" />
+                View
+              </a>
+            ) : (
+              <span className="flex items-center gap-1 rounded-lg bg-edge/40 px-2.5 py-1.5 text-[10px] text-slate-500">
+                <Loader2 className="h-3 w-3 animate-spin" />
+                Pending
+              </span>
+            )}
+          </div>
+
+          {/* Grove CID with copy */}
+          {signal.ipfs_cid && (
+            <div className="flex items-center gap-3 rounded-xl border border-edge/40 bg-ink-light/30 p-3">
+              <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-cyan-400/10 text-cyan-400">
+                <Fingerprint className="h-4 w-4" />
+              </div>
+              <div className="min-w-0 flex-1">
+                <p className="text-xs font-semibold text-slate-200">Grove CID</p>
+                <p className="truncate font-mono text-[10px] text-slate-500">{signal.ipfs_cid}</p>
+              </div>
+              <button
+                onClick={() => {
+                  navigator.clipboard.writeText(signal.ipfs_cid!);
+                  setCopied('cid');
+                  setTimeout(() => setCopied(null), 1500);
+                }}
+                className="flex items-center gap-1 rounded-lg bg-cyan-400/10 px-2.5 py-1.5 text-[10px] font-semibold text-cyan-400 transition-colors hover:bg-cyan-400/20"
+              >
+                {copied === 'cid' ? <Check className="h-3 w-3" /> : <Copy className="h-3 w-3" />}
+                {copied === 'cid' ? 'Copied' : 'Copy'}
+              </button>
+            </div>
+          )}
+
+          {/* Evidence hash */}
+          {signal.evidence_hash && (
+            <div className="flex items-center gap-3 rounded-xl border border-edge/40 bg-ink-light/30 p-3">
+              <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-accent/10 text-accent">
+                <Hash className="h-4 w-4" />
+              </div>
+              <div className="min-w-0 flex-1">
+                <p className="text-xs font-semibold text-slate-200">Evidence SHA-256</p>
+                <p className="truncate font-mono text-[10px] text-slate-500">
+                  {signal.evidence_hash}
+                </p>
+              </div>
+              <button
+                onClick={() => {
+                  navigator.clipboard.writeText(signal.evidence_hash!);
+                  setCopied('hash');
+                  setTimeout(() => setCopied(null), 1500);
+                }}
+                className="flex items-center gap-1 rounded-lg bg-accent/10 px-2.5 py-1.5 text-[10px] font-semibold text-accent transition-colors hover:bg-accent/20"
+              >
+                {copied === 'hash' ? <Check className="h-3 w-3" /> : <Copy className="h-3 w-3" />}
+                {copied === 'hash' ? 'Copied' : 'Copy'}
+              </button>
+            </div>
+          )}
+
+          {/* Source URL */}
+          <div className="flex items-center gap-3 rounded-xl border border-edge/40 bg-ink-light/30 p-3">
+            <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-accent/10 text-accent">
+              <Globe className="h-4 w-4" />
+            </div>
+            <div className="min-w-0 flex-1">
+              <p className="text-xs font-semibold text-slate-200">Source URL</p>
+              <p className="truncate text-[10px] text-slate-500">{signal.monitor?.url ?? '—'}</p>
+            </div>
+            {signal.monitor?.url && (
+              <a
+                href={signal.monitor.url}
+                target="_blank"
+                rel="noreferrer"
+                className="flex items-center gap-1 rounded-lg bg-accent/10 px-2.5 py-1.5 text-[10px] font-semibold text-accent transition-colors hover:bg-accent/20"
+              >
+                <ExternalLink className="h-3 w-3" />
+                Visit
+              </a>
+            )}
+          </div>
         </div>
       </div>
 
       <div className="card">
-        <h2 className="section-title mb-4 flex items-center gap-2">
-          <Check className="h-3.5 w-3.5 text-signal" />
-          Verification Checklist
-        </h2>
+        <div className="mb-4 flex items-center justify-between">
+          <h2 className="section-title flex items-center gap-2">
+            <Check className="h-3.5 w-3.5 text-signal" />
+            What was independently verified
+          </h2>
+          {signal.verification_checklist && (
+            <span className="badge bg-signal/15 text-signal text-[10px]">
+              {signal.verification_checklist.filter((c) => c.ok).length}/
+              {signal.verification_checklist.length} checks passed
+            </span>
+          )}
+        </div>
         <div className="grid gap-3 sm:grid-cols-2">
-          <CheckItem
-            label="Detection timestamp"
-            ok={Boolean(signal.detected_at)}
-            detail={new Date(signal.detected_at).toLocaleString()}
-          />
-          <CheckItem
-            label="Monitor condition"
-            ok={Boolean(signal.monitor?.condition_text)}
-            detail={signal.monitor?.condition_text ?? 'Missing monitor condition'}
-          />
-          <CheckItem
-            label="Hedera timestamp"
-            ok={Boolean(signal.proof?.hashscanUrl)}
-            detail={signal.proof?.hashscanUrl ? 'HashScan link available' : 'Pending HCS link'}
-          />
-          <CheckItem
-            label="Grove evidence package"
-            ok={Boolean(signal.proof?.ipfsUrl)}
-            detail={signal.proof?.ipfsUrl ? 'Proof package available' : 'Pending proof package'}
-          />
+          {signal.verification_checklist ? (
+            signal.verification_checklist.map((item) => (
+              <CheckItem key={item.name} label={item.name} ok={item.ok} detail={item.detail} />
+            ))
+          ) : (
+            <>
+              <CheckItem
+                label="Detection timestamp"
+                ok={Boolean(signal.detected_at)}
+                detail={new Date(signal.detected_at).toLocaleString()}
+              />
+              <CheckItem
+                label="Monitor condition"
+                ok={Boolean(signal.monitor?.condition_text)}
+                detail={signal.monitor?.condition_text ?? 'Missing monitor condition'}
+              />
+              <CheckItem
+                label="Hedera timestamp"
+                ok={Boolean(signal.proof?.hashscanUrl)}
+                detail={signal.proof?.hashscanUrl ? 'HashScan link available' : 'Pending HCS link'}
+              />
+              <CheckItem
+                label="Grove evidence package"
+                ok={Boolean(signal.proof?.ipfsUrl)}
+                detail={signal.proof?.ipfsUrl ? 'Proof package available' : 'Pending proof package'}
+              />
+            </>
+          )}
         </div>
       </div>
 
@@ -408,14 +538,16 @@ function CheckItem({ label, ok, detail }: { label: string; ok: boolean; detail: 
       <div
         className={
           'mt-0.5 flex h-6 w-6 shrink-0 items-center justify-center rounded-lg ' +
-          (ok ? 'bg-signal/15 text-signal' : 'bg-slate-500/15 text-slate-500')
+          (ok ? 'bg-signal/15 text-signal' : 'bg-danger/10 text-danger')
         }
       >
-        <Check className="h-3.5 w-3.5" />
+        {ok ? <Check className="h-3.5 w-3.5" /> : <X className="h-3.5 w-3.5" />}
       </div>
       <div className="min-w-0">
         <p className="text-sm font-medium text-slate-200">{label}</p>
-        <p className="mt-0.5 line-clamp-2 text-xs text-slate-500">{detail}</p>
+        <p className={`mt-0.5 line-clamp-2 text-xs ${ok ? 'text-slate-500' : 'text-danger/70'}`}>
+          {detail}
+        </p>
       </div>
     </div>
   );

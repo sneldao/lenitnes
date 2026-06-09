@@ -563,11 +563,27 @@ export default function DashboardPage() {
       const data = await res.json();
       if (data.ok) {
         toast.success('Step 3/3: Payment confirmed — check complete!');
+        queryClient.invalidateQueries({ queryKey: ['signals'] });
+        queryClient.invalidateQueries({ queryKey: ['monitors'] });
+        return;
+      }
+      // Backend returned ok: false
+      if (data.error === 'monitor_not_active') {
+        toast.error('Monitor is paused or has insufficient balance. Top up to re-enable.');
       } else {
-        toast.error('Execution failed.');
+        toast.error('Check failed on the server. Try again in a moment.');
       }
     } catch (e) {
-      toast.error('Execution failed: ' + String(e));
+      const msg = String(e).toLowerCase();
+      if (msg.includes('rejected') || msg.includes('cancel') || msg.includes('denied')) {
+        toast.error('Payment rejected in wallet. You were not charged.');
+      } else if (msg.includes('402') || msg.includes('payment') || msg.includes('x402')) {
+        toast.error('x402 payment setup failed. Check your wallet balance and try again.');
+      } else if (msg.includes('timeout') || msg.includes('timed out')) {
+        toast.error('Request timed out. The network may be congested — try again.');
+      } else {
+        toast.error('Execution failed: ' + String(e));
+      }
     } finally {
       setExecuting((prev) => ({ ...prev, [monitorId]: false }));
     }

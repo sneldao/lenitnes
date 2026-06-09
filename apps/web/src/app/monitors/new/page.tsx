@@ -25,6 +25,12 @@ import {
   Shield,
   Copy,
   ExternalLink,
+  Battery,
+  BatteryWarning,
+  TrendingDown,
+  CalendarDays,
+  Plus,
+  Info,
 } from 'lucide-react';
 
 import { TEMPLATES } from '@/data/templates';
@@ -72,6 +78,10 @@ function NewMonitorForm() {
   const [error, setError] = useState<string | null>(null);
   const [fieldErrors, setFieldErrors] = useState<{ url?: string; conditionText?: string }>({});
   const [prefilled, setPrefilled] = useState(false);
+
+  // Post-create funding
+  const [topUpAmount, setTopUpAmount] = useState(10);
+  const [toppingUp, setToppingUp] = useState(false);
 
   const [form, setForm] = useState({
     url: '',
@@ -223,7 +233,21 @@ function NewMonitorForm() {
         toast.info('First check completed. No match yet, but the run record is available.');
       }
     } catch (e) {
-      const message = 'First check failed: ' + String(e);
+      const raw = String(e);
+      const msg = raw.toLowerCase();
+      let message: string;
+      if (msg.includes('rejected') || msg.includes('cancel') || msg.includes('denied')) {
+        message = 'Wallet rejected the payment request. No funds were transferred.';
+      } else if (msg.includes('402') || msg.includes('payment') || msg.includes('x402')) {
+        message = 'Payment setup failed. Check your wallet balance and try again.';
+      } else if (msg.includes('timeout') || msg.includes('timed out')) {
+        message = 'Request timed out. The network may be congested — try again.';
+      } else if (msg.includes('tinyfish') || msg.includes('scraper')) {
+        message =
+          'The intelligence service had trouble reaching the target. A fallback check was attempted.';
+      } else {
+        message = raw.startsWith('First check failed') ? raw : 'First check failed: ' + raw;
+      }
       setError(message);
       toast.error(message);
     } finally {
@@ -238,6 +262,32 @@ function NewMonitorForm() {
     setCopiedShareLink(true);
     setTimeout(() => setCopiedShareLink(false), 1500);
     toast.success('Public proof link copied.');
+  }
+
+  async function topUp() {
+    if (!createdMonitor || topUpAmount < 1) return;
+    setToppingUp(true);
+    try {
+      const res = await fetch(
+        `${process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:4000'}/monitors/${createdMonitor.id}`,
+        {
+          method: 'PATCH',
+          credentials: 'include',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ topUpHbar: topUpAmount }),
+        },
+      );
+      if (!res.ok) throw new Error(await res.text());
+      const updated = (await res.json()) as Monitor;
+      setCreatedMonitor(updated);
+      queryClient.invalidateQueries({ queryKey: ['monitors'] });
+      toast.success(`Added ${topUpAmount} ℏ. Monitor is now funded.`);
+      setTopUpAmount(10);
+    } catch (e) {
+      toast.error('Top-up failed: ' + String(e));
+    } finally {
+      setToppingUp(false);
+    }
   }
 
   return (
@@ -680,6 +730,97 @@ function NewMonitorForm() {
               </div>
             </div>
 
+            {/* ── Monitor Health & Funding ── */}
+            {createdMonitor && (
+              <div className="card space-y-4">
+                <div className="flex items-center gap-2">
+                  <Battery
+                    className={`h-4 w-4 ${Number(createdMonitor.hbar_balance) > 0 ? 'text-signal' : 'text-warn'}`}
+                  />
+                  <h3 className="section-title">Monitor Health & Funding</h3>
+                </div>
+                <PostCreateHealth monitor={createdMonitor} />
+                <div className="grid gap-3 sm:grid-cols-2">
+                  <div className="stat-card space-y-1 p-3">
+                    <div className="flex items-center gap-1.5 text-[10px] text-slate-500">
+                      <TrendingDown className="h-3 w-3" />
+                      Cost per check
+                    </div>
+                    <p className="text-sm font-semibold text-slate-200">
+                      {Number(createdMonitor.cost_per_check).toFixed(2)} ℏ
+                    </p>
+                  </div>
+                  <div className="stat-card space-y-1 p-3">
+                    <div className="flex items-center gap-1.5 text-[10px] text-slate-500">
+                      <CalendarDays className="h-3 w-3" />
+                      Check frequency
+                    </div>
+                    <p className="text-sm font-semibold text-slate-200">
+                      {createdMonitor.frequency_seconds >= 3600
+                        ? `Every ${(createdMonitor.frequency_seconds / 3600).toFixed(0)}h`
+                        : `Every ${(createdMonitor.frequency_seconds / 60).toFixed(0)}m`}
+                    </p>
+                  </div>
+                </div>
+
+                <div className="rounded-xl border border-edge/40 bg-ink-light/30 p-3">
+                  <div className="flex items-center gap-2 text-[10px] text-slate-400">
+                    <Clock className="h-3 w-3" />
+                    Next scheduled check:{' '}
+                    <span className="font-medium text-slate-300">
+                      {createdMonitor.last_check_at
+                        ? new Date(
+                            new Date(createdMonitor.last_check_at).getTime() +
+                              createdMonitor.frequency_seconds * 1000,
+                          ).toLocaleString(undefined, {
+                            month: 'short',
+                            day: 'numeric',
+                            hour: '2-digit',
+                            minute: '2-digit',
+                          })
+                        : 'After first check runs'}
+                    </span>
+                  </div>
+                </div>
+
+                <div className="flex items-center gap-2 pt-1">
+                  <input
+                    type="number"
+                    min={1}
+                    max={1000}
+                    value={topUpAmount}
+                    onChange={(e) => setTopUpAmount(Math.max(1, Number(e.target.value)))}
+                    className="input w-24 text-xs py-2"
+                    aria-label="Top-up amount in HBAR"
+                  />
+                  <span className="text-xs text-slate-500">ℏ</span>
+                  <button
+                    type="button"
+                    onClick={topUp}
+                    disabled={toppingUp}
+                    className="btn text-xs"
+                  >
+                    {toppingUp ? (
+                      'Adding…'
+                    ) : (
+                      <>
+                        <Plus className="h-3.5 w-3.5" />
+                        Top Up
+                      </>
+                    )}
+                  </button>
+                  <span className="ml-auto text-[10px] text-slate-500">
+                    {Number(createdMonitor.hbar_balance) <= 0
+                      ? 'Balance is 0 — top up to enable scheduled checks'
+                      : Number(createdMonitor.hbar_balance) <
+                          Number(createdMonitor.cost_per_check) * 5
+                        ? 'Low balance — consider topping up'
+                        : 'Funded and ready'}
+                  </span>
+                </div>
+              </div>
+            )}
+
             {activationResult && (
               <div
                 className={`stat-card space-y-4 p-4 ${
@@ -697,18 +838,18 @@ function NewMonitorForm() {
                     {activationResult.conditionMet ? (
                       <Shield className="h-4 w-4" />
                     ) : (
-                      <AlertTriangle className="h-4 w-4" />
+                      <Info className="h-4 w-4" />
                     )}
                   </div>
                   <div className="min-w-0 flex-1">
                     <p className="text-sm font-semibold text-slate-200">
                       {activationResult.conditionMet
                         ? 'Match detected. Proof ready.'
-                        : 'First check complete. No match yet.'}
+                        : 'No match this time — that is expected.'}
                     </p>
                     <p className="mt-1 text-xs leading-relaxed text-slate-500">
                       {activationResult.summary ??
-                        'The first run completed and the monitor is ready for scheduled checks.'}
+                        'The monitor ran successfully and will check again on schedule. You only get notified when the condition actually matches.'}
                     </p>
                   </div>
                 </div>
@@ -749,9 +890,40 @@ function NewMonitorForm() {
             )}
 
             {error && (
-              <div className="flex items-center gap-2 text-sm text-danger" role="alert">
-                <AlertTriangle className="h-4 w-4" />
-                {error}
+              <div className="card space-y-3 border-danger/20 bg-danger/5" role="alert">
+                <div className="flex items-start gap-3">
+                  <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-danger/10">
+                    <AlertTriangle className="h-5 w-5 text-danger" />
+                  </div>
+                  <div>
+                    <p className="text-sm font-semibold text-danger">Check failed</p>
+                    <p className="mt-0.5 text-xs leading-relaxed text-danger/80">{error}</p>
+                  </div>
+                </div>
+                <div className="flex gap-2">
+                  <button
+                    type="button"
+                    onClick={runFirstCheck}
+                    disabled={runningFirstCheck}
+                    className="btn-danger text-xs"
+                  >
+                    {runningFirstCheck ? (
+                      'Retrying…'
+                    ) : (
+                      <>
+                        <Play className="h-3.5 w-3.5" />
+                        Retry Check
+                      </>
+                    )}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setError(null)}
+                    className="btn-ghost text-xs text-slate-400"
+                  >
+                    Dismiss
+                  </button>
+                </div>
               </div>
             )}
 
@@ -859,6 +1031,64 @@ function ActivationStep({ label, state }: { label: string; state: 'done' | 'acti
       }`}
     >
       {label}
+    </div>
+  );
+}
+
+function PostCreateHealth({ monitor }: { monitor: Monitor }) {
+  const bal = Number(monitor.hbar_balance);
+  const cost = Number(monitor.cost_per_check);
+  const freqSec = monitor.frequency_seconds;
+  const checksPerDay = 86400 / freqSec;
+  const perDay = checksPerDay * cost;
+  const daysLeft = perDay > 0 ? bal / perDay : Infinity;
+  const isFunded = bal > cost * 5;
+  const pct = Math.min(100, Math.max(0, daysLeft > 30 ? 100 : (daysLeft / 30) * 100));
+
+  return (
+    <div className="space-y-3">
+      <div className="flex items-end gap-4">
+        <div>
+          <p className="text-[10px] text-slate-500">Current balance</p>
+          <p className={`text-2xl font-bold tabular-nums ${bal > 0 ? 'text-signal' : 'text-warn'}`}>
+            {bal.toFixed(1)} ℏ
+          </p>
+        </div>
+        <div className="flex-1">
+          <p className="text-[10px] text-slate-500">Burn rate</p>
+          <p className="text-sm font-semibold text-slate-200">{perDay.toFixed(2)} ℏ / day</p>
+        </div>
+        <div className="text-right">
+          <p className="text-[10px] text-slate-500">Estimated runtime</p>
+          <p
+            className={`text-2xl font-bold tabular-nums ${daysLeft > 14 ? 'text-signal' : daysLeft > 5 ? 'text-warn' : 'text-danger'}`}
+          >
+            {Number.isFinite(daysLeft) ? daysLeft.toFixed(0) : '∞'}
+          </p>
+          <p className="text-[10px] text-slate-500">days left</p>
+        </div>
+      </div>
+
+      {/* Burn bar */}
+      <div className="h-2 w-full overflow-hidden rounded-full bg-edge/40">
+        <div
+          className={`h-full rounded-full transition-all ${
+            pct > 50 ? 'bg-signal' : pct > 20 ? 'bg-warn' : 'bg-danger'
+          }`}
+          style={{ width: `${pct}%` }}
+        />
+      </div>
+
+      {!isFunded && (
+        <div className="flex items-center gap-2 rounded-lg border border-warn/20 bg-warn/5 p-2.5 text-xs text-warn">
+          <BatteryWarning className="h-4 w-4 shrink-0" />
+          <span>
+            {bal <= 0
+              ? 'Balance is 0. Scheduled checks are paused. Top up to re-enable.'
+              : `Low balance. Monitor will pause in ~${daysLeft.toFixed(0)} days. Top up to keep it running.`}
+          </span>
+        </div>
+      )}
     </div>
   );
 }

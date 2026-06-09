@@ -1,4 +1,5 @@
 import { Router, type Request, type Response } from 'express';
+import { createHash } from 'crypto';
 import { query } from '../db/pool.js';
 import { groveGatewayUrl } from '../services/ipfs.js';
 import type { AuthenticatedRequest } from '../middleware/auth.js';
@@ -107,11 +108,50 @@ signalsRouter.get('/:id', async (req: Request, res: Response) => {
 
   const pkg = await getSignalWithProof(req.params.id);
   if (!pkg) return res.status(404).json({ error: 'not found' });
+
+  const evidenceHash = pkg.signal.evidence_text
+    ? createHash('sha256').update(pkg.signal.evidence_text).digest('hex')
+    : null;
+  const checklist = [
+    {
+      name: 'Detection timestamp',
+      ok: Boolean(pkg.signal.detected_at),
+      detail: pkg.signal.detected_at ?? 'Missing',
+    },
+    {
+      name: 'Target URL verified',
+      ok: Boolean(pkg.monitor?.url),
+      detail: pkg.monitor?.url ?? 'Missing',
+    },
+    {
+      name: 'Condition text recorded',
+      ok: Boolean(pkg.monitor?.condition_text),
+      detail: pkg.monitor?.condition_text ? 'Recorded' : 'Missing',
+    },
+    {
+      name: 'HCS on-chain proof',
+      ok: Boolean(pkg.signal.hedera_tx_id),
+      detail: pkg.signal.hedera_tx_id ? 'HashScan link available' : 'Pending HCS submission',
+    },
+    {
+      name: 'Grove evidence package',
+      ok: Boolean(pkg.signal.ipfs_cid),
+      detail: pkg.signal.ipfs_cid ? 'CID available' : 'Pending upload',
+    },
+    {
+      name: 'Evidence collected',
+      ok: Boolean(pkg.signal.evidence_text),
+      detail: pkg.signal.evidence_text ? 'Evidence text available' : 'No evidence text',
+    },
+  ];
+
   res.json({
     ...pkg.signal,
     monitor: pkg.monitor,
     orders: pkg.orders,
     proof: pkg.proof,
+    evidence_hash: evidenceHash,
+    verification_checklist: checklist,
     public_share_token: createSignalShareToken(pkg.signal.id),
   });
 });

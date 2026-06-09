@@ -2,7 +2,7 @@
 
 import React, { createContext, useContext, useEffect, useState, useRef } from 'react';
 import { api } from '@/lib/api';
-import { LogOut, Copy, Check, ChevronDown, Wallet } from 'lucide-react';
+import { LogOut, Copy, Check, ChevronDown, Wallet, AlertCircle, Loader2 } from 'lucide-react';
 
 function bytesToHex(bytes: Uint8Array): string {
   return Array.from(bytes)
@@ -15,6 +15,7 @@ interface WalletContextType {
   isConnected: boolean;
   isLoading: boolean;
   projectIdMissing: boolean;
+  connectError: string | null;
   connect: () => Promise<void>;
   disconnect: () => Promise<void>;
   executeWithPayment: (url: string, init?: RequestInit) => Promise<Response>;
@@ -29,6 +30,7 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
   const [accountId, setAccountId] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [projectIdMissing, setProjectIdMissing] = useState(false);
+  const [connectError, setConnectError] = useState<string | null>(null);
 
   useEffect(() => {
     let mounted = true;
@@ -97,6 +99,7 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
   const connect = async () => {
     if (!connector) return;
     setIsLoading(true);
+    setConnectError(null);
     try {
       await connector.openModal();
 
@@ -120,11 +123,23 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
             window.dispatchEvent(new Event('auth-changed'));
           }
         } catch {
-          // auto-login failed
+          // auto-login failed — wallet is still connected
         }
       }
-    } catch {
-      // User rejected or modal error
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : String(err);
+      if (
+        msg.toLowerCase().includes('rejected') ||
+        msg.toLowerCase().includes('cancel') ||
+        msg.toLowerCase().includes('closed') ||
+        msg.toLowerCase().includes('user denied')
+      ) {
+        setConnectError('Connection cancelled. You can try again whenever you\u2019re ready.');
+      } else {
+        setConnectError(
+          'Wallet connection failed. Check that your wallet app is open and try again.',
+        );
+      }
     } finally {
       setIsLoading(false);
     }
@@ -183,6 +198,7 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
         isConnected: !!accountId,
         isLoading,
         projectIdMissing,
+        connectError,
         connect,
         disconnect,
         executeWithPayment,
@@ -200,7 +216,8 @@ export function useWallet() {
 }
 
 export function WalletConnectButton() {
-  const { isConnected, accountId, connect, disconnect, projectIdMissing } = useWallet();
+  const { isConnected, accountId, connect, disconnect, projectIdMissing, connectError, isLoading } =
+    useWallet();
   const [open, setOpen] = useState(false);
   const [copied, setCopied] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
@@ -263,7 +280,11 @@ export function WalletConnectButton() {
               onClick={handleCopy}
               className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-xs text-slate-300 transition-colors hover:bg-ink-light/50"
             >
-              {copied ? <Check className="h-3.5 w-3.5 text-signal" /> : <Copy className="h-3.5 w-3.5 text-slate-500" />}
+              {copied ? (
+                <Check className="h-3.5 w-3.5 text-signal" />
+              ) : (
+                <Copy className="h-3.5 w-3.5 text-slate-500" />
+              )}
               {copied ? 'Copied!' : 'Copy address'}
             </button>
             <button
@@ -292,12 +313,36 @@ export function WalletConnectButton() {
   }
 
   return (
-    <button
-      onClick={handleConnect}
-      aria-label="Connect Hedera wallet"
-      className="flex items-center gap-2 rounded-xl bg-gradient-to-r from-accent to-signal px-4 py-2 text-xs font-bold text-ink shadow-glow-sm transition-all hover:shadow-glow focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-ink"
-    >
-      Connect Wallet
-    </button>
+    <div className="flex items-center gap-2">
+      {connectError && (
+        <span className="flex items-center gap-1.5 rounded-lg border border-danger/20 bg-danger/5 px-2.5 py-1.5 text-[10px] text-danger">
+          <AlertCircle className="h-3 w-3 shrink-0" />
+          <span className="max-w-[200px] truncate">{connectError}</span>
+        </span>
+      )}
+      <button
+        onClick={handleConnect}
+        disabled={isLoading}
+        aria-label="Connect Hedera wallet"
+        className="flex items-center gap-2 rounded-xl bg-gradient-to-r from-accent to-signal px-4 py-2 text-xs font-bold text-ink shadow-glow-sm transition-all hover:shadow-glow focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-ink disabled:opacity-60 disabled:cursor-not-allowed"
+      >
+        {isLoading ? (
+          <>
+            <Loader2 className="h-3.5 w-3.5 animate-spin" />
+            Connecting…
+          </>
+        ) : connectError ? (
+          <>
+            <Wallet className="h-3.5 w-3.5" />
+            Retry
+          </>
+        ) : (
+          <>
+            <Wallet className="h-3.5 w-3.5" />
+            Connect Wallet
+          </>
+        )}
+      </button>
+    </div>
   );
 }
