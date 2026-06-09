@@ -51,7 +51,12 @@ export async function runDueChecks(): Promise<void> {
 export async function executeCheck(
   monitor: Monitor,
   opts: { skipDebit?: boolean } = {},
-): Promise<void> {
+): Promise<{
+  signalId: string | null;
+  conditionMet: boolean;
+  isHeartbeat: boolean;
+  summary: string | null;
+}> {
   const cost = Number(monitor.cost_per_check) || config.hedera.defaultCostPerCheck;
 
   let debitTxId = 'x402-on-demand';
@@ -67,7 +72,7 @@ export async function executeCheck(
         monitor.id,
       ]);
       logger.warn({ monitorId: monitor.id }, 'monitor paused: insufficient balance');
-      return;
+      return { signalId: null, conditionMet: false, isHeartbeat: false, summary: null };
     }
 
     const debit = await proof.debitPerCheckFee!({
@@ -122,12 +127,18 @@ export async function executeCheck(
 
   // 4) No signal -> store a heartbeat row and stop.
   if (!result.conditionMet) {
-    await query(
+    const { rows: heartbeatRows } = await query<{ id: string }>(
       `INSERT INTO signals (monitor_id, tinyfish_run_id, is_heartbeat, condition_summary)
-       VALUES ($1, $2, true, $3)`,
+       VALUES ($1, $2, true, $3)
+       RETURNING id`,
       [monitor.id, result.runId, result.summary],
     );
-    return;
+    return {
+      signalId: heartbeatRows[0]?.id ?? null,
+      conditionMet: false,
+      isHeartbeat: true,
+      summary: result.summary,
+    };
   }
 
   // 5) Signal! Package proof and pin to IPFS.
@@ -181,6 +192,8 @@ export async function executeCheck(
 
   // 7) Execute attached rules.
   await executeRules(monitor, signalId, result.summary);
+
+  return { signalId, conditionMet: true, isHeartbeat: false, summary: result.summary };
 }
 
 async function executeRules(monitor: Monitor, signalId: string, summary: string): Promise<void> {

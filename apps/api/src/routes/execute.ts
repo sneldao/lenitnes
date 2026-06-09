@@ -4,6 +4,7 @@ import type { Monitor } from '../types.js';
 import type { AuthenticatedRequest } from '../middleware/auth.js';
 import { executeCheck } from '../execution/loop.js';
 import { logger } from '../logger.js';
+import { createSignalShareToken } from '../services/share-token.js';
 
 export const executeRouter = Router();
 
@@ -41,8 +42,13 @@ executeRouter.post('/:monitorId', async (req, res) => {
   }
 
   try {
-    await executeCheck(monitor, { skipDebit: true });
-    res.json({ ok: true, monitorId });
+    const result = await executeCheck(monitor, { skipDebit: true });
+    res.json({
+      ok: true,
+      monitorId,
+      ...result,
+      publicShareToken: result.signalId ? createSignalShareToken(result.signalId) : null,
+    });
   } catch (err) {
     logger.error({ err, monitorId }, 'on-demand execution failed');
     res.status(500).json({ error: 'execution_failed', detail: String(err) });

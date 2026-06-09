@@ -119,6 +119,7 @@ export const api = {
   ) => {
     return executeWithPayment(`${BASE}/execute/${monitorId}`, {
       method: 'POST',
+      credentials: 'include',
       headers: { 'Content-Type': 'application/json' },
     });
   },

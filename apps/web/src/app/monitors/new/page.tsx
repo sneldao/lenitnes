@@ -3,9 +3,11 @@
 import { Suspense, useEffect, useState } from 'react';
 import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
+import { useQueryClient } from '@tanstack/react-query';
 import { api, type Monitor } from '@/lib/api';
 import { useWallet } from '@/components/WalletConnect';
 import { useAuth } from '@/lib/useAuth';
+import { useToast } from '@/components/Toast';
 import {
   Globe,
   MessageSquare,
@@ -21,6 +23,8 @@ import {
   Sparkles,
   Play,
   Shield,
+  Copy,
+  ExternalLink,
 } from 'lucide-react';
 
 import { TEMPLATES } from '@/data/templates';
@@ -50,10 +54,21 @@ export default function NewMonitorPage() {
 function NewMonitorForm() {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const { accountId, isConnected, connect } = useWallet();
+  const queryClient = useQueryClient();
+  const toast = useToast();
+  const { accountId, isConnected, connect, executeWithPayment } = useWallet();
   const { user, isLoading: authLoading } = useAuth();
   const [step, setStep] = useState(1);
   const [submitting, setSubmitting] = useState(false);
+  const [runningFirstCheck, setRunningFirstCheck] = useState(false);
+  const [activationResult, setActivationResult] = useState<{
+    signalId: string | null;
+    conditionMet: boolean;
+    isHeartbeat: boolean;
+    summary: string | null;
+    publicShareToken: string | null;
+  } | null>(null);
+  const [copiedShareLink, setCopiedShareLink] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [fieldErrors, setFieldErrors] = useState<{ url?: string; conditionText?: string }>({});
   const [prefilled, setPrefilled] = useState(false);
@@ -127,6 +142,13 @@ function NewMonitorForm() {
 
   const [createdMonitor, setCreatedMonitor] = useState<Monitor | null>(null);
 
+  const publicProofUrl =
+    activationResult?.signalId && activationResult.publicShareToken
+      ? `/public/proof/${activationResult.signalId}?share=${encodeURIComponent(
+          activationResult.publicShareToken,
+        )}`
+      : null;
+
   async function submit() {
     if (!user?.id) {
       setError('Connect your wallet and approve sign-in before creating a monitor.');
@@ -143,12 +165,79 @@ function NewMonitorForm() {
         screenshotsEnabled: form.screenshotsEnabled,
       });
       setCreatedMonitor(monitor);
+      setActivationResult(null);
+      setCopiedShareLink(false);
       setStep(5); // post-create engagement step
     } catch (e) {
       setError(String(e));
     } finally {
       setSubmitting(false);
     }
+  }
+
+  async function runFirstCheck() {
+    if (!createdMonitor) return;
+    if (!isConnected) {
+      toast.warn('Connect your Hedera wallet first to approve the on-demand check.');
+      await connect();
+      return;
+    }
+
+    setRunningFirstCheck(true);
+    setError(null);
+    setActivationResult(null);
+    setCopiedShareLink(false);
+    toast.info('Requesting wallet approval for the first check...');
+
+    try {
+      const res = await api.executeMonitor(createdMonitor.id, executeWithPayment);
+      const data = (await res.json()) as {
+        ok?: boolean;
+        signalId?: string | null;
+        conditionMet?: boolean;
+        isHeartbeat?: boolean;
+        summary?: string | null;
+        publicShareToken?: string | null;
+        error?: string;
+      };
+
+      if (!res.ok || !data.ok) {
+        throw new Error(data.error ?? 'First check failed.');
+      }
+
+      const nextResult = {
+        signalId: data.signalId ?? null,
+        conditionMet: Boolean(data.conditionMet),
+        isHeartbeat: Boolean(data.isHeartbeat),
+        summary: data.summary ?? null,
+        publicShareToken: data.publicShareToken ?? null,
+      };
+
+      setActivationResult(nextResult);
+      queryClient.invalidateQueries({ queryKey: ['signals'] });
+      queryClient.invalidateQueries({ queryKey: ['monitors'] });
+
+      if (nextResult.conditionMet) {
+        toast.success('First check found a match. Proof is ready to review.');
+      } else {
+        toast.info('First check completed. No match yet, but the run record is available.');
+      }
+    } catch (e) {
+      const message = 'First check failed: ' + String(e);
+      setError(message);
+      toast.error(message);
+    } finally {
+      setRunningFirstCheck(false);
+    }
+  }
+
+  async function copyPublicProofLink() {
+    if (!publicProofUrl) return;
+    const absoluteUrl = window.location.origin + publicProofUrl;
+    await navigator.clipboard.writeText(absoluteUrl);
+    setCopiedShareLink(true);
+    setTimeout(() => setCopiedShareLink(false), 1500);
+    toast.success('Public proof link copied.');
   }
 
   return (
@@ -539,57 +628,152 @@ function NewMonitorForm() {
               </div>
             </div>
 
+            <div className="rounded-2xl border border-accent/25 bg-accent/5 p-4">
+              <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+                <div className="space-y-1">
+                  <p className="section-title">Activation loop</p>
+                  <h3 className="text-base font-semibold text-white">
+                    Run the first check and turn it into a proof
+                  </h3>
+                  <p className="text-xs leading-relaxed text-slate-400">
+                    This executes the monitor now. If the condition matches, LENITNES creates a
+                    proof package you can inspect and share.
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={runFirstCheck}
+                  disabled={runningFirstCheck}
+                  className="btn shrink-0 text-xs"
+                >
+                  {runningFirstCheck ? (
+                    'Running...'
+                  ) : (
+                    <>
+                      <Play className="h-3.5 w-3.5 fill-ink" />
+                      Run First Check
+                    </>
+                  )}
+                </button>
+              </div>
+
+              <div className="mt-4 grid gap-2 sm:grid-cols-4">
+                <ActivationStep label="Created" state="done" />
+                <ActivationStep
+                  label="Checked"
+                  state={activationResult ? 'done' : runningFirstCheck ? 'active' : 'pending'}
+                />
+                <ActivationStep
+                  label="Proof"
+                  state={
+                    activationResult?.conditionMet
+                      ? 'done'
+                      : runningFirstCheck
+                        ? 'active'
+                        : 'pending'
+                  }
+                />
+                <ActivationStep
+                  label="Share"
+                  state={copiedShareLink ? 'done' : publicProofUrl ? 'active' : 'pending'}
+                />
+              </div>
+            </div>
+
+            {activationResult && (
+              <div
+                className={`stat-card space-y-4 p-4 ${
+                  activationResult.conditionMet ? 'border-signal/30' : 'border-warn/25'
+                }`}
+              >
+                <div className="flex items-start gap-3">
+                  <div
+                    className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-xl ${
+                      activationResult.conditionMet
+                        ? 'bg-signal/15 text-signal'
+                        : 'bg-warn/15 text-warn'
+                    }`}
+                  >
+                    {activationResult.conditionMet ? (
+                      <Shield className="h-4 w-4" />
+                    ) : (
+                      <AlertTriangle className="h-4 w-4" />
+                    )}
+                  </div>
+                  <div className="min-w-0 flex-1">
+                    <p className="text-sm font-semibold text-slate-200">
+                      {activationResult.conditionMet
+                        ? 'Match detected. Proof ready.'
+                        : 'First check complete. No match yet.'}
+                    </p>
+                    <p className="mt-1 text-xs leading-relaxed text-slate-500">
+                      {activationResult.summary ??
+                        'The first run completed and the monitor is ready for scheduled checks.'}
+                    </p>
+                  </div>
+                </div>
+
+                <div className="flex flex-wrap gap-2">
+                  {activationResult.signalId && (
+                    <Link
+                      href={`/signals/${activationResult.signalId}`}
+                      className="btn-ghost text-xs"
+                    >
+                      <ExternalLink className="h-3.5 w-3.5" />
+                      View Proof
+                    </Link>
+                  )}
+                  {publicProofUrl && activationResult.conditionMet && (
+                    <>
+                      <Link href={publicProofUrl} className="btn-ghost text-xs">
+                        <Shield className="h-3.5 w-3.5" />
+                        Public Proof
+                      </Link>
+                      <button type="button" onClick={copyPublicProofLink} className="btn text-xs">
+                        {copiedShareLink ? (
+                          <>
+                            <Check className="h-3.5 w-3.5" />
+                            Copied
+                          </>
+                        ) : (
+                          <>
+                            <Copy className="h-3.5 w-3.5" />
+                            Copy Share Link
+                          </>
+                        )}
+                      </button>
+                    </>
+                  )}
+                </div>
+              </div>
+            )}
+
+            {error && (
+              <div className="flex items-center gap-2 text-sm text-danger" role="alert">
+                <AlertTriangle className="h-4 w-4" />
+                {error}
+              </div>
+            )}
+
             <div className="space-y-3">
-              <p className="section-title text-center">Next steps</p>
-              <div className="grid gap-3 sm:grid-cols-2">
-                {/* Run first check */}
+              <p className="section-title text-center">Keep momentum</p>
+              <div className="grid gap-3 sm:grid-cols-3">
                 <Link
-                  href={'/'}
-                  className="stat-card group flex cursor-pointer items-center gap-3 p-4 transition-all hover:border-accent/30"
-                >
-                  <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-accent/10 text-accent transition-transform group-hover:scale-110">
-                    <Play className="h-4 w-4 fill-accent" />
-                  </div>
-                  <div>
-                    <p className="text-sm font-semibold text-slate-200">Run first check</p>
-                    <p className="text-[10px] text-slate-500">Execute an on-demand check now</p>
-                  </div>
-                  <ChevronRightIcon className="ml-auto h-3.5 w-3.5 text-slate-600" />
-                </Link>
-
-                {/* Fund monitor */}
-                <Link
-                  href={'/'}
-                  className="stat-card group flex cursor-pointer items-center gap-3 p-4 transition-all hover:border-accent/30"
-                >
-                  <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-warn/10 text-warn transition-transform group-hover:scale-110">
-                    <Wallet className="h-4 w-4" />
-                  </div>
-                  <div>
-                    <p className="text-sm font-semibold text-slate-200">Fund monitor</p>
-                    <p className="text-[10px] text-slate-500">Stake HBAR for scheduled checks</p>
-                  </div>
-                  <ChevronRightIcon className="ml-auto h-3.5 w-3.5 text-slate-600" />
-                </Link>
-
-                {/* Add alert channel */}
-                <Link
-                  href={'/rules'}
+                  href="/rules"
                   className="stat-card group flex cursor-pointer items-center gap-3 p-4 transition-all hover:border-accent/30"
                 >
                   <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-signal/10 text-signal transition-transform group-hover:scale-110">
                     <Sparkles className="h-4 w-4" />
                   </div>
                   <div>
-                    <p className="text-sm font-semibold text-slate-200">Add alert channel</p>
-                    <p className="text-[10px] text-slate-500">Webhook, Telegram, or email action</p>
+                    <p className="text-sm font-semibold text-slate-200">Add alert</p>
+                    <p className="text-[10px] text-slate-500">Webhook, Telegram, or email</p>
                   </div>
                   <ChevronRightIcon className="ml-auto h-3.5 w-3.5 text-slate-600" />
                 </Link>
 
-                {/* Share proof */}
                 <Link
-                  href={'/'}
+                  href="/signals"
                   className="stat-card group flex cursor-pointer items-center gap-3 p-4 transition-all hover:border-accent/30"
                 >
                   <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-violet/10 text-violet transition-transform group-hover:scale-110">
@@ -597,9 +781,21 @@ function NewMonitorForm() {
                   </div>
                   <div>
                     <p className="text-sm font-semibold text-slate-200">View signals</p>
-                    <p className="text-[10px] text-slate-500">
-                      Monitor signal timeline and proof chain
-                    </p>
+                    <p className="text-[10px] text-slate-500">Timeline and proof chain</p>
+                  </div>
+                  <ChevronRightIcon className="ml-auto h-3.5 w-3.5 text-slate-600" />
+                </Link>
+
+                <Link
+                  href="/"
+                  className="stat-card group flex cursor-pointer items-center gap-3 p-4 transition-all hover:border-accent/30"
+                >
+                  <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-warn/10 text-warn transition-transform group-hover:scale-110">
+                    <Wallet className="h-4 w-4" />
+                  </div>
+                  <div>
+                    <p className="text-sm font-semibold text-slate-200">Dashboard</p>
+                    <p className="text-[10px] text-slate-500">Funding and monitor status</p>
                   </div>
                   <ChevronRightIcon className="ml-auto h-3.5 w-3.5 text-slate-600" />
                 </Link>
@@ -647,6 +843,22 @@ function NewMonitorForm() {
           )}
         </div>
       </div>
+    </div>
+  );
+}
+
+function ActivationStep({ label, state }: { label: string; state: 'done' | 'active' | 'pending' }) {
+  return (
+    <div
+      className={`rounded-xl border px-3 py-2 text-center text-[10px] font-semibold transition-colors ${
+        state === 'done'
+          ? 'border-signal/30 bg-signal/10 text-signal'
+          : state === 'active'
+            ? 'border-accent/30 bg-accent/10 text-accent'
+            : 'border-edge/40 bg-ink/30 text-slate-600'
+      }`}
+    >
+      {label}
     </div>
   );
 }
