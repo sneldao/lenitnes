@@ -37,5 +37,5 @@ COPY --from=base /app/apps/api/package.json ./
 # Install it explicitly at the root so ESM resolution from /app/dist works.
 RUN npm install @hashgraph/sdk@2.80.0 --no-save --legacy-peer-deps 2>/dev/null || \
     npm install @hashgraph/sdk@2.80.0 --no-save 2>/dev/null || true
-EXPOSE 4000
+EXPOSE 8742
 CMD ["node", "dist/index.js"]

@@ -3,7 +3,7 @@
 # Services: postgres (db), api, worker, web.
 # Secrets and public URLs are supplied via Coolify environment variables.
 # SERVICE_FQDN_* are Coolify "magic" vars that auto-generate domains + Traefik
-# routing for the exposed services (api on :4000, web on :3000).
+# routing for the exposed services (api on :8742, web on :3000).
 
 services:
   db:
@@ -38,9 +38,9 @@ services:
       dockerfile: apps/api/Dockerfile
     restart: unless-stopped
     environment:
-      - SERVICE_FQDN_API_4000
+      - SERVICE_FQDN_API_8742
       - NODE_ENV=production
-      - API_PORT=4000
+      - API_PORT=8742
       - DATABASE_URL=postgresql://${POSTGRES_USER:-lenitnes}:${POSTGRES_PASSWORD:-lenitnes}@db:5432/${POSTGRES_DB:-lenitnes}
       - PGSSLMODE=disable
       - REDIS_URL=redis://redis:6379
@@ -78,16 +78,16 @@ services:
       - 'traefik.http.routers.lenitnes-api.tls.certresolver=letsencrypt'
       - 'traefik.http.routers.lenitnes-api.middlewares=lenitnes-api-stripprefix'
       - 'traefik.http.middlewares.lenitnes-api-stripprefix.stripprefix.prefixes=/api'
-      - 'traefik.http.services.lenitnes-api.loadbalancer.server.port=4000'
+      - 'traefik.http.services.lenitnes-api.loadbalancer.server.port=8742'
     ports:
-      - '4000:4000'
+      - '8742:8742'
     depends_on:
       db:
         condition: service_healthy
       redis:
         condition: service_healthy
     healthcheck:
-      test: ['CMD-SHELL', 'wget -qO- http://localhost:4000/health || exit 1']
+      test: ['CMD-SHELL', 'wget -qO- http://localhost:8742/health || exit 1']
       interval: 30s
       timeout: 5s
       retries: 5
