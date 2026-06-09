@@ -133,6 +133,24 @@ export function renderMetrics(): string {
     );
   }
 
+  const dlqTotal = counters.get('monitor_check_dlq_total') ?? [];
+  if (dlqTotal.length) {
+    parts.push(
+      renderCounter('monitor_check_dlq_total', 'Monitor check jobs moved to the DLQ', dlqTotal),
+    );
+  }
+
+  const checkFailures = counters.get('monitor_check_failures_total') ?? [];
+  if (checkFailures.length) {
+    parts.push(
+      renderCounter(
+        'monitor_check_failures_total',
+        'Total monitor check job failures',
+        checkFailures,
+      ),
+    );
+  }
+
   return parts.join('\n\n');
 }
 

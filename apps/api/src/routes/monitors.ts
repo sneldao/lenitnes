@@ -1,49 +1,42 @@
 import { Router } from 'express';
-import { z } from 'zod';
-import { query } from '../db/pool.js';
-import { config } from '../config.js';
 import type { AuthenticatedRequest } from '../middleware/auth.js';
-import type { Monitor } from '../types.js';
-import { cacheGet, cacheSet, cacheInvalidate } from '../middleware/cache.js';
+import type { Monitor } from '@lenitnes/types';
+import { cacheGet, cacheSet } from '../middleware/cache.js';
+import { createMonitorSchema, patchMonitorSchema } from '../validation/index.js';
+import { validate } from '../middleware/validate.js';
+import {
+  createMonitor as createMonitorSvc,
+  listMonitors as listMonitorsSvc,
+  getMonitorWithSignals as getMonitorWithSignalsSvc,
+  updateMonitor as updateMonitorSvc,
+  pauseAndReleaseEscrow as pauseAndReleaseEscrowSvc,
+} from '../services/domain/monitor.service.js';
 
 export const monitorsRouter = Router();
 
-const createSchema = z.object({
-  url: z
-    .string()
-    .url()
-    .refine((u) => /^https?:\/\//i.test(u), {
-      message: 'URL must use http or https scheme',
-    }),
-  conditionText: z.string().min(1).max(500, {
-    message: 'Condition must be 500 characters or fewer to prevent token bombing',
-  }),
-  frequencySeconds: z.number().int().positive().default(3600),
-  costPerCheck: z.number().positive().optional(),
-  screenshotsEnabled: z.boolean().optional().default(true),
-});
+function hasAnyUpdateFields(b: Record<string, unknown>): boolean {
+  return Object.values(b).some((v) => v !== undefined);
+}
 
 // POST /monitors — create monitor + provision escrow.
-monitorsRouter.post('/', async (req, res) => {
+monitorsRouter.post('/', validate(createMonitorSchema), async (req, res) => {
   const authReq = req as unknown as AuthenticatedRequest;
-  const parsed = createSchema.safeParse(req.body);
-  if (!parsed.success) return res.status(400).json({ error: parsed.error.flatten() });
-  const b = parsed.data;
+  const b = req.body as {
+    url: string;
+    conditionText: string;
+    frequencySeconds: number;
+    costPerCheck?: number;
+    screenshotsEnabled: boolean;
+  };
 
-  const { rows } = await query<Monitor>(
-    `INSERT INTO monitors (user_id, url, condition_text, frequency_seconds, hbar_balance, cost_per_check, screenshots_enabled)
-     VALUES ($1, $2, $3, $4, 0, $5, $6) RETURNING *`,
-    [
-      authReq.user.id,
-      b.url,
-      b.conditionText,
-      b.frequencySeconds,
-      b.costPerCheck ?? config.hedera.defaultCostPerCheck,
-      b.screenshotsEnabled,
-    ],
-  );
-  const monitor = rows[0];
-  cacheInvalidate(`monitors:${authReq.user.id}:`);
+  const monitor = await createMonitorSvc({
+    userId: authReq.user.id,
+    url: b.url,
+    conditionText: b.conditionText,
+    frequencySeconds: b.frequencySeconds,
+    costPerCheck: b.costPerCheck,
+    screenshotsEnabled: b.screenshotsEnabled,
+  });
   res.status(201).json(monitor);
 });
 
@@ -59,10 +52,7 @@ monitorsRouter.get('/', async (req, res) => {
     res.json(cached);
     return;
   }
-  const { rows } = await query<Monitor>(
-    `SELECT * FROM monitors WHERE user_id = $1 ORDER BY created_at DESC LIMIT $2 OFFSET $3`,
-    [authReq.user.id, limit, offset],
-  );
+  const rows = await listMonitorsSvc(authReq.user.id, limit, offset);
   cacheSet(cacheKey, rows, 30_000); // 30s TTL
   res.setHeader('X-Cache', 'MISS');
   res.json(rows);
@@ -71,76 +61,34 @@ monitorsRouter.get('/', async (req, res) => {
 // GET /monitors/:id — detail with signal history (own monitors only).
 monitorsRouter.get('/:id', async (req, res) => {
   const authReq = req as unknown as AuthenticatedRequest;
-  const { rows } = await query<Monitor>(`SELECT * FROM monitors WHERE id = $1 AND user_id = $2`, [
-    req.params.id,
-    authReq.user.id,
-  ]);
-  if (!rows.length) return res.status(404).json({ error: 'not found' });
-  const signals = await query(
-    `SELECT * FROM signals WHERE monitor_id = $1 ORDER BY detected_at DESC`,
-    [req.params.id],
-  );
-  res.json({ ...rows[0], signals: signals.rows });
-});
-
-const patchSchema = z.object({
-  frequencySeconds: z.number().int().positive().optional(),
-  conditionText: z.string().min(1).max(500).optional(),
-  topUpHbar: z.number().positive().optional(),
-  status: z.enum(['active', 'paused']).optional(),
+  const result = await getMonitorWithSignalsSvc(req.params.id ?? '', authReq.user.id);
+  if (!result) return res.status(404).json({ error: 'not found' });
+  res.json(result);
 });
 
 // PATCH /monitors/:id — update frequency/condition/top up/status (own monitors only).
-monitorsRouter.patch('/:id', async (req, res) => {
+monitorsRouter.patch('/:id', validate(patchMonitorSchema), async (req, res) => {
   const authReq = req as unknown as AuthenticatedRequest;
-  const parsed = patchSchema.safeParse(req.body);
-  if (!parsed.success) return res.status(400).json({ error: parsed.error.flatten() });
-  const b = parsed.data;
+  const b = req.body as {
+    frequencySeconds?: number;
+    conditionText?: string;
+    topUpHbar?: number;
+    status?: 'active' | 'paused';
+  };
 
-  const sets: string[] = [];
-  const vals: unknown[] = [];
-  let i = 1;
-  if (b.frequencySeconds !== undefined) {
-    sets.push(`frequency_seconds = $${i++}`);
-    vals.push(b.frequencySeconds);
+  if (!hasAnyUpdateFields(b)) {
+    return res.status(400).json({ error: 'no fields to update' });
   }
-  if (b.conditionText !== undefined) {
-    sets.push(`condition_text = $${i++}`);
-    vals.push(b.conditionText);
-  }
-  if (b.topUpHbar !== undefined) {
-    sets.push(`hbar_balance = hbar_balance + $${i++}`);
-    vals.push(b.topUpHbar);
-  }
-  if (b.status !== undefined) {
-    sets.push(`status = $${i++}`);
-    vals.push(b.status);
-  }
-  if (!sets.length) return res.status(400).json({ error: 'no fields to update' });
 
-  vals.push(req.params.id, authReq.user.id);
-  const { rows } = await query<Monitor>(
-    `UPDATE monitors SET ${sets.join(', ')} WHERE id = $${i++} AND user_id = $${i} RETURNING *`,
-    vals,
-  );
-  if (!rows.length) return res.status(404).json({ error: 'not found' });
-  cacheInvalidate(`monitors:${authReq.user.id}:`);
-  res.json(rows[0]);
+  const monitor = await updateMonitorSvc(req.params.id ?? '', authReq.user.id, b);
+  if (!monitor) return res.status(404).json({ error: 'not found' });
+  res.json(monitor);
 });
 
 // DELETE /monitors/:id — pause + release remaining escrow (own monitors only).
 monitorsRouter.delete('/:id', async (req, res) => {
   const authReq = req as unknown as AuthenticatedRequest;
-  const { rows } = await query<Monitor>(`SELECT * FROM monitors WHERE id = $1 AND user_id = $2`, [
-    req.params.id,
-    authReq.user.id,
-  ]);
-  if (!rows.length) return res.status(404).json({ error: 'not found' });
-  const monitor = rows[0];
-
-  await query(`UPDATE monitors SET status = 'paused', hbar_balance = 0 WHERE id = $1`, [
-    monitor.id,
-  ]);
-  cacheInvalidate(`monitors:${authReq.user.id}:`);
+  const ok = await pauseAndReleaseEscrowSvc(req.params.id ?? '', authReq.user.id);
+  if (!ok) return res.status(404).json({ error: 'not found' });
   res.json({ ok: true });
 });

@@ -1,8 +1,6 @@
 import { Router, type Request, type Response } from 'express';
-import { query } from '../db/pool.js';
 import type { AuthenticatedRequest } from '../middleware/auth.js';
 import { cacheGet, cacheSet, cacheInvalidate } from '../middleware/cache.js';
-import { decrypt } from '../services/crypto.js';
 import {
   queryOrders,
   cancelOrder,
@@ -10,6 +8,8 @@ import {
   type KrakenCredentials,
 } from '../services/kraken.js';
 import { logger } from '../logger.js';
+import { getKrakenCredentials } from '../services/domain/user.service.js';
+import { FEATURES } from '../features.js';
 
 export const ordersRouter = Router();
 
@@ -25,19 +25,15 @@ ordersRouter.get('/', async (req: Request, res: Response) => {
     res.json(cached);
     return;
   }
+  // NOTE: kept as inline SQL for now because it joins 3 tables and the
+  // resulting domain-service signature would be less readable than the SQL.
+  const { query } = await import('../db/pool.js');
   const { rows } = await query(
     `SELECT
-       o.id,
-       o.kraken_order_id,
-       o.order_params,
-       o.status,
-       o.placed_at,
-       o.cancelled_at,
-       o.kraken_response,
-       s.id as signal_id,
-       s.detected_at,
-       m.id as monitor_id,
-       m.url as monitor_url
+       o.id, o.kraken_order_id, o.order_params, o.status,
+       o.placed_at, o.cancelled_at, o.kraken_response,
+       s.id as signal_id, s.detected_at,
+       m.id as monitor_id, m.url as monitor_url
      FROM orders o
      JOIN signals s ON s.id = o.signal_id
      JOIN monitors m ON m.id = s.monitor_id
@@ -51,26 +47,18 @@ ordersRouter.get('/', async (req: Request, res: Response) => {
   res.json(rows);
 });
 
-async function loadUserCreds(userId: string): Promise<KrakenCredentials | null> {
-  const { rows } = await query<{ k: string | null; s: string | null }>(
-    `SELECT kraken_api_key_encrypted AS k, kraken_api_secret_encrypted AS s
-     FROM users WHERE id = $1`,
-    [userId],
-  );
-  const enc = rows[0];
-  if (!enc?.k || !enc?.s) return null;
-  return { apiKey: decrypt(enc.k), apiSecret: decrypt(enc.s) };
-}
-
 // GET /orders/sync — sync placed order statuses from Kraken
 ordersRouter.get('/sync', async (req: Request, res: Response) => {
+  if (!FEATURES.krakenTrading) {
+    return res.status(501).json({ error: 'kraken_trading_not_configured' });
+  }
   const authReq = req as unknown as AuthenticatedRequest;
-  const creds = await loadUserCreds(authReq.user.id);
+  const creds = await getKrakenCredentials(authReq.user.id);
   if (!creds) {
-    res.status(400).json({ error: 'Kraken API keys not configured' });
-    return;
+    return res.status(400).json({ error: 'Kraken API keys not configured' });
   }
 
+  const { query } = await import('../db/pool.js');
   const { rows: placed } = await query<{ id: string; kraken_order_id: string }>(
     `SELECT o.id, o.kraken_order_id FROM orders o
      JOIN signals s ON s.id = o.signal_id
@@ -80,8 +68,7 @@ ordersRouter.get('/sync', async (req: Request, res: Response) => {
   );
 
   if (placed.length === 0) {
-    res.json({ synced: 0, updated: 0 });
-    return;
+    return res.json({ synced: 0, updated: 0 });
   }
 
   const txIds = placed.map((o) => o.kraken_order_id);
@@ -104,19 +91,22 @@ ordersRouter.get('/sync', async (req: Request, res: Response) => {
     }
   } catch (err) {
     logger.warn({ err }, 'order sync failed');
-    res.status(502).json({ error: 'Kraken API error', message: String(err) });
-    return;
+    return res.status(502).json({ error: 'Kraken API error', message: String(err) });
   }
 
   cacheInvalidate(`orders:${authReq.user.id}:`);
-  res.json({ synced: placed.length, updated });
+  return res.json({ synced: placed.length, updated });
 });
 
 // POST /orders/:id/cancel — cancel a placed order
 ordersRouter.post('/:id/cancel', async (req: Request, res: Response) => {
+  if (!FEATURES.krakenTrading) {
+    return res.status(501).json({ error: 'kraken_trading_not_configured' });
+  }
   const authReq = req as unknown as AuthenticatedRequest;
   const { id } = req.params;
 
+  const { query } = await import('../db/pool.js');
   const { rows } = await query<{
     id: string;
     kraken_order_id: string | null;
@@ -132,36 +122,28 @@ ordersRouter.post('/:id/cancel', async (req: Request, res: Response) => {
   );
 
   const order = rows[0];
-  if (!order) {
-    res.status(404).json({ error: 'order not found' });
-    return;
-  }
-  if (order.user_id !== authReq.user.id) {
-    res.status(403).json({ error: 'forbidden' });
-    return;
-  }
+  if (!order) return res.status(404).json({ error: 'order not found' });
+  if (order.user_id !== authReq.user.id) return res.status(403).json({ error: 'forbidden' });
   if (order.status !== 'placed') {
-    res.status(400).json({ error: `cannot cancel order in status: ${order.status}` });
-    return;
+    return res.status(400).json({ error: `cannot cancel order in status: ${order.status}` });
   }
-  if (!order.kraken_order_id) {
-    res.status(400).json({ error: 'no Kraken order ID' });
-    return;
-  }
+  if (!order.kraken_order_id) return res.status(400).json({ error: 'no Kraken order ID' });
 
-  const creds = await loadUserCreds(authReq.user.id);
+  const creds = await getKrakenCredentials(authReq.user.id);
   if (!creds) {
-    res.status(400).json({ error: 'Kraken API keys not configured' });
-    return;
+    return res.status(400).json({ error: 'Kraken API keys not configured' });
   }
 
   try {
     await cancelOrder([order.kraken_order_id], creds);
     await query(`UPDATE orders SET status = 'cancelled', cancelled_at = now() WHERE id = $1`, [id]);
     cacheInvalidate(`orders:${authReq.user.id}:`);
-    res.json({ ok: true });
+    return res.json({ ok: true });
   } catch (err) {
     logger.warn({ err, orderId: id }, 'cancel order failed');
-    res.status(502).json({ error: 'Kraken API error', message: String(err) });
+    return res.status(502).json({ error: 'Kraken API error', message: String(err) });
   }
 });
+
+// Suppress unused-import warning for KrakenCredentials — kept for type consumers.
+export type { KrakenCredentials };

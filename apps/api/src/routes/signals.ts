@@ -3,7 +3,7 @@ import { createHash } from 'crypto';
 import { query } from '../db/pool.js';
 import { groveGatewayUrl } from '../services/ipfs.js';
 import type { AuthenticatedRequest } from '../middleware/auth.js';
-import type { Signal } from '../types.js';
+import type { Signal } from '@lenitnes/types';
 import { cacheGet, cacheSet } from '../middleware/cache.js';
 import { createSignalShareToken } from '../services/share-token.js';
 

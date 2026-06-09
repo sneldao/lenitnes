@@ -268,17 +268,7 @@ function NewMonitorForm() {
     if (!createdMonitor || topUpAmount < 1) return;
     setToppingUp(true);
     try {
-      const res = await fetch(
-        `${process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:4000'}/monitors/${createdMonitor.id}`,
-        {
-          method: 'PATCH',
-          credentials: 'include',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ topUpHbar: topUpAmount }),
-        },
-      );
-      if (!res.ok) throw new Error(await res.text());
-      const updated = (await res.json()) as Monitor;
+      const updated = await api.topUpMonitor(createdMonitor.id, topUpAmount);
       setCreatedMonitor(updated);
       queryClient.invalidateQueries({ queryKey: ['monitors'] });
       toast.success(`Added ${topUpAmount} ℏ. Monitor is now funded.`);

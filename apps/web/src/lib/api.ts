@@ -64,6 +64,14 @@ export const api = {
   getMonitor: (id: string) => req<Monitor & { signals: Signal[] }>(`/monitors/${id}`),
   createMonitor: (body: CreateMonitorInput) =>
     req<Monitor>(`/monitors`, { method: 'POST', body: JSON.stringify(body) }),
+  deleteMonitor: (id: string) => req<{ ok: boolean }>(`/monitors/${id}`, { method: 'DELETE' }),
+
+  /** Top up monitor escrow balance (replaces inline fetch calls in rules.tsx and monitors/new/page.tsx). */
+  topUpMonitor: (id: string, amountHbar: number) =>
+    req<Monitor>(`/monitors/${id}`, {
+      method: 'PATCH',
+      body: JSON.stringify({ topUpHbar: amountHbar }),
+    }),
   listSignals: (monitorId?: string) =>
     req<Signal[]>(`/signals${monitorId ? `?monitorId=${monitorId}` : ''}`),
   getSignal: (id: string) => req<SignalDetail>(`/signals/${id}`),
@@ -75,6 +83,7 @@ export const api = {
     req<Rule>(`/rules`, { method: 'POST', body: JSON.stringify(body) }),
   listRules: (monitorId?: string) =>
     req<Rule[]>(`/rules${monitorId ? `?monitorId=${monitorId}` : ''}`),
+  deleteRule: (id: string) => req<{ ok: boolean }>(`/rules/${id}`, { method: 'DELETE' }),
 
   listOrders: () =>
     req<
@@ -110,8 +119,6 @@ export const api = {
     }>('/kraken/test-trade', { method: 'POST', body: JSON.stringify(params ?? {}) }),
 
   /** Execute a monitor on-demand via the x402-gated endpoint. */
-  deleteMonitor: (id: string) => req<{ ok: boolean }>(`/monitors/${id}`, { method: 'DELETE' }),
-  deleteRule: (id: string) => req<{ ok: boolean }>(`/rules/${id}`, { method: 'DELETE' }),
 
   executeMonitor: async (
     monitorId: string,
@@ -123,26 +130,18 @@ export const api = {
       headers: { 'Content-Type': 'application/json' },
     });
   },
+
+  // DLQ admin — for inspecting/replaying stuck monitor check jobs.
+  listDlq: (limit = 50) =>
+    req<{
+      depth: number;
+      jobs: Array<{ monitorId: string; finalError: string; attemptsMade: number; movedAt: string }>;
+    }>(`/dlq?limit=${limit}`),
+  replayDlqJob: (jobId: string) =>
+    req<{ ok: boolean }>(`/dlq/${encodeURIComponent(jobId)}/replay`, { method: 'POST' }),
+  discardDlqJob: (jobId: string) =>
+    req<{ ok: boolean }>(`/dlq/${encodeURIComponent(jobId)}`, { method: 'DELETE' }),
 };
 
-// Helpers ------------------------------------------------------
-
-export function burnRate(m: Monitor): { perDay: number; daysLeft: number } {
-  const checksPerDay = 86400 / m.frequency_seconds;
-  const perDay = checksPerDay * Number(m.cost_per_check);
-  const daysLeft = perDay > 0 ? Number(m.hbar_balance) / perDay : Infinity;
-  return { perDay, daysLeft };
-}
-
-export function statusColor(s: MonitorStatus): string {
-  switch (s) {
-    case 'active':
-      return 'bg-signal/15 text-signal';
-    case 'triggered':
-      return 'bg-accent/15 text-accent';
-    case 'paused':
-      return 'bg-slate-500/15 text-slate-400';
-    case 'insufficient_balance':
-      return 'bg-danger/15 text-danger';
-  }
-}
+// Helpers — re-exported from @/lib/format for backward compatibility.
+export { burnRate, statusColor } from '@/lib/format';

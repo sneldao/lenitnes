@@ -1,8 +1,7 @@
 import pLimit from 'p-limit';
-import { z } from 'zod';
-import { query } from '../db/pool.js';
+import { query, withTransaction } from '../db/pool.js';
 import { config } from '../config.js';
-import type { Monitor, Rule } from '../types.js';
+import type { Monitor, Rule, TinyFishResult } from '@lenitnes/types';
 import * as tinyfish from '../services/tinyfish.js';
 import * as scraper from '../services/scraper.js';
 import * as ipfs from '../services/ipfs.js';
@@ -13,6 +12,7 @@ import { getProofService } from '../services/proof.js';
 import { isCircuitOpen, recordSuccess, recordFailure } from '../services/circuit.js';
 import { incCounter } from '../middleware/metrics.js';
 import { logger } from '../logger.js';
+import { tradeConfigSchema } from '../validation/index.js';
 
 // ─────────────────────────────────────────────────────────────
 // Monitor execution loop — the heart of LENITNES.
@@ -57,14 +57,19 @@ export async function executeCheck(
   isHeartbeat: boolean;
   summary: string | null;
 }> {
+  const proof = getProofService();
   const cost = Number(monitor.cost_per_check) || config.hedera.defaultCostPerCheck;
+  const isPaid = !opts.skipDebit;
 
   let debitTxId = 'x402-on-demand';
-  const proof = getProofService();
+  const circuitOpts = { name: 'tinyfish', threshold: 5, windowMs: 60_000, cooldownMs: 300_000 };
 
-  if (!opts.skipDebit) {
+  // ── 1) Atomic balance debit (outside transaction) ─────────────────
+  if (isPaid) {
     const { rowCount } = await query(
-      `UPDATE monitors SET hbar_balance = hbar_balance - $1, status = CASE WHEN hbar_balance - $1 < 0 THEN 'insufficient_balance' ELSE status END WHERE id = $2 AND hbar_balance >= $1`,
+      `UPDATE monitors SET hbar_balance = hbar_balance - $1,
+         status = CASE WHEN hbar_balance - $1 < 0 THEN 'insufficient_balance' ELSE status END
+       WHERE id = $2 AND hbar_balance >= $1`,
       [cost, monitor.id],
     );
     if (!rowCount) {
@@ -75,27 +80,16 @@ export async function executeCheck(
       return { signalId: null, conditionMet: false, isHeartbeat: false, summary: null };
     }
 
+    // External proof call — record the debit on-ledger.
     const debit = await proof.debitPerCheckFee!({
       fromAccountId: monitor.escrow_account_id ?? config.hedera.treasuryId,
       amountHbar: cost,
     });
     debitTxId = debit.hederaTxId;
-    await proof.writeHcsMessage!({
-      kind: 'heartbeat',
-      monitorId: monitor.id,
-      ts: new Date().toISOString(),
-      txRef: debitTxId,
-    });
-    await query(`UPDATE monitors SET last_check_at = now() WHERE id = $1`, [monitor.id]);
-  } else {
-    // On-demand execution via x402 — payment was settled by the middleware.
-    await query(`UPDATE monitors SET last_check_at = now() WHERE id = $1`, [monitor.id]);
   }
 
-  // 3) Run TinyFish (with circuit breaker + scraper fallback).
-  let result: import('../types.js').TinyFishResult;
-  const circuitOpts = { name: 'tinyfish', threshold: 5, windowMs: 60_000, cooldownMs: 300_000 };
-
+  // ── 2) Run TinyFish (with circuit breaker + scraper fallback) ─────
+  let result: TinyFishResult;
   if (isCircuitOpen(circuitOpts)) {
     logger.warn({ monitorId: monitor.id }, 'TinyFish circuit open — using scraper fallback');
     result = await scraper.runScraperFallback(monitor.url, monitor.condition_text);
@@ -117,33 +111,163 @@ export async function executeCheck(
     }
   }
 
+  // ── 3) DB mutations inside a transaction ──────────────────────────
+  let signalId: string | null = null;
+  let isHeartbeat: boolean;
+  const summary: string | null = result.summary;
+
+  try {
+    const txResult = await withTransaction((client) =>
+      executeCheckTransaction(client, {
+        monitor,
+        result,
+        debitTxId,
+        isPaid,
+      }),
+    );
+    signalId = txResult.signalId;
+    isHeartbeat = txResult.isHeartbeat;
+  } catch (err) {
+    logger.error({ err, monitorId: monitor.id }, 'monitor check transaction failed');
+
+    // Compensating refund: if the debit was already charged, release escrow.
+    if (isPaid) {
+      try {
+        await proof.releaseEscrow?.({
+          toWalletAddress: monitor.escrow_account_id ?? config.hedera.treasuryId,
+          amountHbar: cost,
+        });
+        logger.info(
+          { monitorId: monitor.id, amountHbar: cost },
+          'escrow released after failed transaction',
+        );
+      } catch (refundErr) {
+        logger.error({ err: refundErr, monitorId: monitor.id }, 'failed to release escrow');
+      }
+    }
+
+    return { signalId: null, conditionMet: false, isHeartbeat: false, summary: null };
+  }
+
+  // ── 4) Post-commit: IPFS + HCS (best-effort) ──────────────────────
+  if (!isHeartbeat && signalId) {
+    try {
+      const { cid } = await ipfs.uploadProofPackage({
+        signalId,
+        monitorId: monitor.id,
+        detectedAt: new Date().toISOString(),
+        url: monitor.url,
+        condition: monitor.condition_text,
+        tinyfishRunId: result.runId,
+        evidence: result.evidence,
+        summary: result.summary,
+        screenshots: result.screenshots,
+        hederaTxId: debitTxId,
+      });
+
+      const hcs = await proof.writeHcsMessage!({
+        kind: 'signal',
+        signalId,
+        monitorId: monitor.id,
+        ipfsCid: cid,
+        ts: new Date().toISOString(),
+      });
+
+      await query(`UPDATE signals SET ipfs_cid = $1, hedera_hcs_message_id = $2 WHERE id = $3`, [
+        cid,
+        hcs.hederaTxId,
+        signalId,
+      ]);
+    } catch (err) {
+      logger.error({ err, monitorId: monitor.id, signalId }, 'post-commit IPFS/HCS write failed');
+      // Intentional swallow — the signal row is already committed in the DB.
+    }
+
+    // Also write a heartbeat HCS message for the successful signal.
+    try {
+      await proof.writeHcsMessage!({
+        kind: 'heartbeat',
+        monitorId: monitor.id,
+        ts: new Date().toISOString(),
+        txRef: debitTxId,
+      });
+    } catch (err) {
+      logger.error({ err, monitorId: monitor.id }, 'failed to write HCS heartbeat (best-effort)');
+    }
+  }
+
+  // ── 5) Best-effort rule execution ─────────────────────────────────
+  if (!isHeartbeat && signalId) {
+    executeRules(monitor, signalId, result.summary).catch((err) => {
+      logger.error({ err, monitorId: monitor.id }, 'rule execution error (best-effort)');
+    });
+  }
+
+  return {
+    signalId,
+    conditionMet: !isHeartbeat,
+    isHeartbeat,
+    summary,
+  };
+}
+
+// ── Transaction handler ──────────────────────────────────────
+
+interface TxHandlerParams {
+  monitor: Monitor;
+  result: TinyFishResult;
+  debitTxId: string;
+  isPaid: boolean;
+}
+
+async function executeCheckTransaction(
+  client: import('pg').PoolClient,
+  params: TxHandlerParams,
+): Promise<{ signalId: string | null; isHeartbeat: boolean }> {
+  const { monitor, result, debitTxId, isPaid } = params;
+
+  // Update last_check_at.
+  await client.query(`UPDATE monitors SET last_check_at = now() WHERE id = $1`, [monitor.id]);
+
   // Track the newest commit hash so we only evaluate new commits next cycle.
   if (result.latestCommitHash) {
-    await query(`UPDATE monitors SET last_seen_commit_hash = $1 WHERE id = $2`, [
+    await client.query(`UPDATE monitors SET last_seen_commit_hash = $1 WHERE id = $2`, [
       result.latestCommitHash,
       monitor.id,
     ]);
   }
 
-  // 4) No signal -> store a heartbeat row and stop.
+  // If this was an on-demand check, write the heartbeat HCS message from inside the
+  // transaction (the on-demand middleware already settled payment).
+  if (!isPaid) {
+    const proof = getProofService();
+    await proof.writeHcsMessage!({
+      kind: 'heartbeat',
+      monitorId: monitor.id,
+      ts: new Date().toISOString(),
+      txRef: debitTxId,
+    }).catch((err: unknown) => {
+      logger.error(
+        { err, monitorId: monitor.id },
+        'failed to write on-demand heartbeat (best-effort)',
+      );
+    });
+  }
+
+  // No signal -> store a heartbeat row.
   if (!result.conditionMet) {
-    const { rows: heartbeatRows } = await query<{ id: string }>(
+    const { rows: heartbeatRows } = await client.query<{ id: string }>(
       `INSERT INTO signals (monitor_id, tinyfish_run_id, is_heartbeat, condition_summary)
        VALUES ($1, $2, true, $3)
        RETURNING id`,
       [monitor.id, result.runId, result.summary],
     );
-    return {
-      signalId: heartbeatRows[0]?.id ?? null,
-      conditionMet: false,
-      isHeartbeat: true,
-      summary: result.summary,
-    };
+    return { signalId: heartbeatRows[0]?.id ?? null, isHeartbeat: true };
   }
 
-  // 5) Signal! Package proof and pin to IPFS.
+  // Signal! Insert the signal row.
   const detectedAt = new Date().toISOString();
-  const { rows: sigRows } = await query<{ id: string }>(
+  const { rows: sigRows } = await client.query<{ id: string }>(
     `INSERT INTO signals
        (monitor_id, detected_at, hedera_tx_id, tinyfish_run_id, evidence_text,
         screenshot_urls, condition_summary, is_heartbeat)
@@ -161,40 +285,13 @@ export async function executeCheck(
   );
   const signalId = sigRows[0].id;
 
-  const { cid } = await ipfs.uploadProofPackage({
-    signalId,
-    monitorId: monitor.id,
-    detectedAt,
-    url: monitor.url,
-    condition: monitor.condition_text,
-    tinyfishRunId: result.runId,
-    evidence: result.evidence,
-    summary: result.summary,
-    screenshots: result.screenshots,
-    hederaTxId: debitTxId,
-  });
+  // Mark the monitor as triggered.
+  await client.query(`UPDATE monitors SET status = 'triggered' WHERE id = $1`, [monitor.id]);
 
-  // 6) Write the signal record to HCS (immutable on-chain proof).
-  const hcs = await proof.writeHcsMessage!({
-    kind: 'signal',
-    signalId,
-    monitorId: monitor.id,
-    ipfsCid: cid,
-    ts: detectedAt,
-  });
-
-  await query(`UPDATE signals SET ipfs_cid = $1, hedera_hcs_message_id = $2 WHERE id = $3`, [
-    cid,
-    hcs.hederaTxId,
-    signalId,
-  ]);
-  await query(`UPDATE monitors SET status = 'triggered' WHERE id = $1`, [monitor.id]);
-
-  // 7) Execute attached rules.
-  await executeRules(monitor, signalId, result.summary);
-
-  return { signalId, conditionMet: true, isHeartbeat: false, summary: result.summary };
+  return { signalId, isHeartbeat: false };
 }
+
+// ── Rule execution ───────────────────────────────────────────
 
 async function executeRules(monitor: Monitor, signalId: string, summary: string): Promise<void> {
   const { rows: rules } = await query<Rule>(
@@ -242,23 +339,6 @@ function passesConditions(conditions: Record<string, unknown>): boolean {
   }
   return true;
 }
-
-const tradeConfigSchema = z.object({
-  pair: z.string().min(1),
-  type: z.enum(['buy', 'sell']),
-  ordertype: z.enum([
-    'market',
-    'limit',
-    'stop-loss',
-    'take-profit',
-    'stop-loss-limit',
-    'take-profit-limit',
-  ]),
-  volume: z.string().min(1),
-  price: z.string().optional(),
-  price2: z.string().optional(),
-  validate: z.boolean().optional(),
-});
 
 function validateTradeConfig(raw: Record<string, unknown>): kraken.AddOrderParams {
   const parsed = tradeConfigSchema.safeParse(raw);

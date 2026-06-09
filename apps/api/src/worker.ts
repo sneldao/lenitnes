@@ -3,6 +3,7 @@ import { logger } from './logger.js';
 import { startScheduler, stopScheduler } from './queue/scheduler.js';
 import { startWorker, stopWorker } from './queue/worker.js';
 import { closeQueue } from './queue/producer.js';
+import { closeDlq } from './queue/dlq.js';
 
 logger.info('worker started — BullMQ queue + scheduler');
 
@@ -19,6 +20,7 @@ async function shutdown(signal: string) {
   stopScheduler();
   await stopWorker();
   await closeQueue();
+  await closeDlq();
 
   pool
     .end()

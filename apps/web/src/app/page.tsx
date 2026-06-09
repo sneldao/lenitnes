@@ -4,11 +4,12 @@ import { useState, useMemo } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { api, burnRate, statusColor, type Monitor } from '@/lib/api';
+import { api, type Monitor } from '@/lib/api';
 import { useWallet } from '@/components/WalletConnect';
 import { useToast } from '@/components/Toast';
 import { useAuth } from '@/lib/useAuth';
 import { useReveal } from '@/lib/useReveal';
+import { burnRate, statusColor } from '@/lib/format';
 import {
   Activity,
   Shield,

@@ -1,16 +1,14 @@
 import { Worker, type Job } from 'bullmq';
 import { getRedisConnectionOpts } from './connection.js';
 import { query } from '../db/pool.js';
-import type { Monitor } from '../types.js';
+import type { Monitor } from '@lenitnes/types';
+import { QUEUE_NAME, MAX_JOB_ATTEMPTS, type CheckJobData } from './contract.js';
 import { executeCheck } from '../execution/loop.js';
 import { logger } from '../logger.js';
+import { sendToDlq } from './dlq.js';
+import { incCounter } from '../middleware/metrics.js';
 
-const QUEUE_NAME = 'monitor-checks';
 const CONCURRENCY = 5;
-
-interface CheckJobData {
-  monitorId: string;
-}
 
 async function processCheck(job: Job<CheckJobData>): Promise<void> {
   const { monitorId } = job.data;
@@ -41,11 +39,26 @@ export function startWorker(): void {
     logger.debug({ jobId: job.id, monitorId: job.data.monitorId }, 'check completed');
   });
 
-  worker.on('failed', (job, err) => {
+  worker.on('failed', async (job, err) => {
+    if (!job) return;
+    const attemptsMade = job.attemptsMade;
+    incCounter('monitor_check_failures_total', { reason: 'unknown' });
     logger.error(
-      { err, jobId: job?.id, monitorId: job?.data.monitorId },
+      { err, jobId: job.id, monitorId: job.data.monitorId, attemptsMade },
       'check failed',
     );
+
+    // After the final attempt, move to the DLQ for human inspection.
+    if (attemptsMade >= MAX_JOB_ATTEMPTS) {
+      try {
+        await sendToDlq(job.data, err, attemptsMade);
+      } catch (dlqErr) {
+        logger.error(
+          { err: dlqErr, jobId: job.id, monitorId: job.data.monitorId },
+          'failed to move exhausted job to DLQ',
+        );
+      }
+    }
   });
 
   worker.on('error', (err) => {

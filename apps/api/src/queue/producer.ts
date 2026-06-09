@@ -1,7 +1,6 @@
 import { Queue } from 'bullmq';
 import { getRedisConnectionOpts } from './connection.js';
-
-const QUEUE_NAME = 'monitor-checks';
+import { QUEUE_NAME, MAX_JOB_ATTEMPTS, type CheckJobData } from './contract.js';
 
 let queue: Queue | null = null;
 
@@ -16,18 +15,15 @@ export async function enqueueMonitorCheck(
   opts: { priority?: number } = {},
 ): Promise<void> {
   const q = getQueue();
-  await q.add(
-    'check',
-    { monitorId },
-    {
-      jobId: `monitor:${monitorId}:${Date.now()}`,
-      priority: opts.priority ?? 0,
-      removeOnComplete: { count: 100 },
-      removeOnFail: { count: 500 },
-      attempts: 2,
-      backoff: { type: 'exponential', delay: 2000 },
-    },
-  );
+  const jobData: CheckJobData = { monitorId };
+  await q.add('check', jobData, {
+    jobId: `monitor:${monitorId}:${Date.now()}`,
+    priority: opts.priority ?? 0,
+    removeOnComplete: { count: 100 },
+    removeOnFail: { count: 500 },
+    attempts: MAX_JOB_ATTEMPTS,
+    backoff: { type: 'exponential', delay: 2000 },
+  });
 }
 
 export async function closeQueue(): Promise<void> {

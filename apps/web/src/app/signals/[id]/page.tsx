@@ -26,6 +26,8 @@ import {
   Info,
   AlertTriangle,
 } from 'lucide-react';
+import ProofChain from '@/components/ProofChain';
+import { getProofChainSteps } from '@/lib/proof-chain';
 
 // Public-facing proof explorer for a single signal.
 // Supports both authenticated (private) and public (shareable) modes.
@@ -401,6 +403,15 @@ export default function SignalDetailPage({ params }: { params: Promise<{ id: str
             )}
           </div>
         </div>
+      </div>
+
+      {/* ── Interactive Proof Chain ── */}
+      <div className="card">
+        <ProofChain
+          steps={getProofChainSteps(signal)}
+          title="Proof Chain"
+          subtitle="Four steps. Fully automated."
+        />
       </div>
 
       <div className="card">

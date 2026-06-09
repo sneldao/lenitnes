@@ -84,11 +84,18 @@ describe('API smoke tests', () => {
     vi.clearAllMocks();
   });
 
-  it('GET /health returns 200 with ok=true', async () => {
-    const res = await request(server).get('/health');
+  it('GET /health/live returns 200 (process is up)', async () => {
+    const res = await request(server).get('/health/live');
     expect(res.status).toBe(200);
     expect(res.body).toMatchObject({ ok: true, service: 'lenitnes-api', version: '0.1.0' });
+  });
+
+  it('GET /health returns a snapshot with database check', async () => {
+    const res = await request(server).get('/health');
+    expect(res.status).toBe(200);
+    expect(res.body).toMatchObject({ service: 'lenitnes-api', version: '0.1.0' });
     expect(res.body.checks?.database).toBe('ok');
+    // Redis may be unreachable in test env; that just surfaces as 'fail', not a test failure.
   });
 
   it('GET /monitors without token returns 401', async () => {

@@ -1,6 +1,6 @@
 import { Router } from 'express';
 import { query } from '../db/pool.js';
-import type { Monitor } from '../types.js';
+import type { Monitor } from '@lenitnes/types';
 import type { AuthenticatedRequest } from '../middleware/auth.js';
 import { executeCheck } from '../execution/loop.js';
 import { logger } from '../logger.js';

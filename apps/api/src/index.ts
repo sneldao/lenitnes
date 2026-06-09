@@ -16,12 +16,15 @@ import { executeRouter } from './routes/execute.js';
 import { ordersRouter } from './routes/orders.js';
 import { krakenRouter } from './routes/kraken.js';
 import { proofRouter } from './routes/proof.js';
+import { dlqRouter } from './routes/dlq.js';
 import { requireAuth } from './middleware/auth.js';
 import { auditMiddleware } from './middleware/audit.js';
 import { renderMetrics, metricsMiddleware } from './middleware/metrics.js';
 import { x402Middleware } from './middleware/x402.js';
 import { validateSchema } from './db/validate.js';
 import { logger } from './logger.js';
+import { checkRedisReachable } from './queue/connection.js';
+import { getDlqDepth } from './queue/dlq.js';
 
 export const app = express();
 app.use(helmet());
@@ -79,7 +82,35 @@ app.get('/metrics', (_req, res) => {
   res.send(renderMetrics());
 });
 
-// ── Health check (no auth required) ────────────────────────────
+// ── Health endpoints (no auth required) ────────────────────────
+//   /health/live  → 200 always (process is up). For Kubernetes liveness.
+//   /health/ready → 200 only when DB + Redis are reachable. For readiness
+//                    probes and load-balancer health checks.
+//   /health       → verbose snapshot (DB, Redis, DLQ depth, memory, uptime).
+app.get('/health/live', (_req, res) => {
+  res.json({ ok: true, service: 'lenitnes-api', version: '0.1.0' });
+});
+
+app.get('/health/ready', async (_req, res) => {
+  const checks: Record<string, 'ok' | 'fail'> = { database: 'fail', redis: 'fail' };
+  const settled: Array<Promise<void>> = [
+    pool
+      .query('SELECT 1')
+      .then(() => {
+        checks.database = 'ok';
+      })
+      .catch(() => {
+        /* fail */
+      }),
+    checkRedisReachable().then((ok) => {
+      checks.redis = ok ? 'ok' : 'fail';
+    }),
+  ];
+  await Promise.all(settled);
+  const ok = checks.database === 'ok' && checks.redis === 'ok';
+  res.status(ok ? 200 : 503).json({ ok, checks });
+});
+
 app.get('/health', async (_req, res) => {
   let dbStatus: 'ok' | 'fail' = 'ok';
   try {
@@ -87,13 +118,19 @@ app.get('/health', async (_req, res) => {
   } catch {
     dbStatus = 'fail';
   }
+  const redisOk = await checkRedisReachable();
+  const dlqDepth = await getDlqDepth();
   const mem = process.memoryUsage();
   res.json({
     ok: dbStatus === 'ok',
     service: 'lenitnes-api',
     version: '0.1.0',
     uptime: process.uptime(),
-    checks: { database: dbStatus },
+    checks: {
+      database: dbStatus,
+      redis: redisOk ? 'ok' : 'fail',
+      dlq_depth: dlqDepth,
+    },
     memory: { rss: mem.rss, heapUsed: mem.heapUsed, external: mem.external },
   });
 });
@@ -107,6 +144,7 @@ app.use('/rules', requireAuth, rulesRouter);
 app.use('/webhooks', webhooksRouter); // Kraken callbacks — use separate HMAC auth
 app.use('/orders', requireAuth, ordersRouter);
 app.use('/kraken', requireAuth, krakenRouter);
+app.use('/dlq', requireAuth, dlqRouter);
 
 // ── x402-gated execution (payment → execution tightly coupled) ─
 app.use('/execute', requireAuth, executeLimiter, x402Middleware, executeRouter);

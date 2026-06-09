@@ -1,9 +1,10 @@
 import { Router, type Request, type Response } from 'express';
-import { z } from 'zod';
 import { jwtVerify } from 'jose';
 import { upsertUserByWallet, generateToken } from '../middleware/auth.js';
 import { verifyEd25519, isRecentAuthMessage } from '../services/signature.js';
 import { config } from '../config.js';
+import { authSchema } from '../validation/index.js';
+import { validate } from '../middleware/validate.js';
 
 export const authRouter = Router();
 
@@ -20,25 +21,14 @@ function cookieOptions() {
 }
 
 // POST /auth/login — verify an Ed25519 wallet signature, then issue JWT.
-const loginSchema = z.object({
-  walletAddress: z.string().min(1).max(100),
-  publicKey: z.string().min(1).max(200),
-  message: z
-    .string()
-    .min(1)
-    .max(200)
-    .refine((m) => m.startsWith('lenitnes:auth:'), {
-      message: 'Message must be a lenitnes auth nonce',
-    }),
-  signature: z.string().min(1).max(500),
-  email: z.string().email().optional(),
-});
-
-authRouter.post('/login', async (req, res) => {
-  const parsed = loginSchema.safeParse(req.body);
-  if (!parsed.success) return res.status(400).json({ error: parsed.error.flatten() });
-
-  const { walletAddress, publicKey, message, signature, email } = parsed.data;
+authRouter.post('/login', validate(authSchema), async (req, res) => {
+  const { walletAddress, publicKey, message, signature, email } = req.body as {
+    walletAddress: string;
+    publicKey: string;
+    message: string;
+    signature: string;
+    email?: string;
+  };
 
   if (!isRecentAuthMessage(message)) {
     return res.status(401).json({ error: 'invalid_or_expired_message' });

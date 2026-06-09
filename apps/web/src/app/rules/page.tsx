@@ -177,18 +177,7 @@ export default function RulesPage() {
           onClick={async () => {
             setFunding(true);
             try {
-              const res = await fetch(
-                `${
-                  process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:4000'
-                }/monitors/${fundMonitorId}`,
-                {
-                  method: 'PATCH',
-                  credentials: 'include',
-                  headers: { 'Content-Type': 'application/json' },
-                  body: JSON.stringify({ topUpHbar: fundAmount }),
-                },
-              );
-              if (!res.ok) throw new Error(await res.text());
+              await api.topUpMonitor(fundMonitorId, fundAmount);
               queryClient.invalidateQueries({ queryKey: ['monitors'] });
               setFundMonitorId('');
               setFundAmount(10);

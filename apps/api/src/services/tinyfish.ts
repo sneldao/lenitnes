@@ -1,6 +1,6 @@
 import { z } from 'zod';
 import { config } from '../config.js';
-import type { TinyFishResult } from '../types.js';
+import type { TinyFishResult } from '@lenitnes/types';
 import { withRetry } from './retry.js';
 import { observeHistogram } from '../middleware/metrics.js';
 
