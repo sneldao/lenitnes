@@ -1,8 +1,9 @@
 'use client';
 
 import { Suspense, useEffect, useState } from 'react';
+import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { api } from '@/lib/api';
+import { api, type Monitor } from '@/lib/api';
 import { useWallet } from '@/components/WalletConnect';
 import { useAuth } from '@/lib/useAuth';
 import {
@@ -18,6 +19,8 @@ import {
   AlertTriangle,
   ChevronRight as ChevronRightIcon,
   Sparkles,
+  Play,
+  Shield,
 } from 'lucide-react';
 
 import { TEMPLATES } from '@/data/templates';
@@ -52,6 +55,7 @@ function NewMonitorForm() {
   const [step, setStep] = useState(1);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [fieldErrors, setFieldErrors] = useState<{ url?: string; conditionText?: string }>({});
   const [prefilled, setPrefilled] = useState(false);
 
   const [form, setForm] = useState({
@@ -79,8 +83,49 @@ function NewMonitorForm() {
     }
   }, [searchParams, prefilled]);
 
-  const set = <K extends keyof typeof form>(k: K, v: (typeof form)[K]) =>
+  const set = <K extends keyof typeof form>(k: K, v: (typeof form)[K]) => {
+    setError(null);
+    if (k === 'url' || k === 'conditionText') {
+      setFieldErrors((prev) => ({ ...prev, [k]: undefined }));
+    }
     setForm((f) => ({ ...f, [k]: v }));
+  };
+
+  function validateTargetStep(): boolean {
+    const nextErrors: typeof fieldErrors = {};
+    const trimmedUrl = form.url.trim();
+    const trimmedCondition = form.conditionText.trim();
+
+    if (!trimmedUrl) {
+      nextErrors.url = 'Enter a public URL to monitor.';
+    } else {
+      try {
+        const parsed = new URL(trimmedUrl);
+        if (!['http:', 'https:'].includes(parsed.protocol)) {
+          nextErrors.url = 'Use an http or https URL.';
+        }
+      } catch {
+        nextErrors.url = 'Enter a valid URL, including https://.';
+      }
+    }
+
+    if (!trimmedCondition) {
+      nextErrors.conditionText = 'Describe the signal Sentinel should detect.';
+    } else if (trimmedCondition.length < 12) {
+      nextErrors.conditionText = 'Add a little more detail so the detector has a clear condition.';
+    }
+
+    setFieldErrors(nextErrors);
+    return Object.keys(nextErrors).length === 0;
+  }
+
+  function goNext() {
+    setError(null);
+    if (step === 1 && !validateTargetStep()) return;
+    setStep((s) => Math.min(4, s + 1));
+  }
+
+  const [createdMonitor, setCreatedMonitor] = useState<Monitor | null>(null);
 
   async function submit() {
     if (!user?.id) {
@@ -97,8 +142,8 @@ function NewMonitorForm() {
         frequencySeconds: form.frequencySeconds,
         screenshotsEnabled: form.screenshotsEnabled,
       });
-      router.push(`/`);
-      void monitor;
+      setCreatedMonitor(monitor);
+      setStep(5); // post-create engagement step
     } catch (e) {
       setError(String(e));
     } finally {
@@ -164,15 +209,22 @@ function NewMonitorForm() {
               </label>
               <input
                 id="url"
-                className="input"
+                className={`input ${fieldErrors.url ? 'border-danger/60 focus:border-danger' : ''}`}
                 placeholder="https://github.com/owner/repo/commits/main"
                 value={form.url}
                 onChange={(e) => set('url', e.target.value)}
                 aria-required="true"
+                aria-invalid={!!fieldErrors.url}
+                aria-describedby={fieldErrors.url ? 'url-error url-hint' : 'url-hint'}
               />
-              <p className="mt-1.5 text-[11px] text-slate-600">
+              <p id="url-hint" className="mt-1.5 text-[11px] text-slate-600">
                 Any public URL — GitHub repos, docs pages, API endpoints, social feeds
               </p>
+              {fieldErrors.url && (
+                <p id="url-error" className="mt-1.5 text-[11px] font-medium text-danger">
+                  {fieldErrors.url}
+                </p>
+              )}
             </div>
             <div>
               <label htmlFor="condition" className="label">
@@ -181,13 +233,18 @@ function NewMonitorForm() {
               </label>
               <textarea
                 id="condition"
-                className="input min-h-[120px]"
+                className={`input min-h-[120px] ${
+                  fieldErrors.conditionText ? 'border-danger/60 focus:border-danger' : ''
+                }`}
                 placeholder="A new commit mentions security, vulnerability, fix, CVE, or verifying key change."
                 value={form.conditionText}
                 onChange={(e) => set('conditionText', e.target.value)}
                 aria-required="true"
+                aria-invalid={!!fieldErrors.conditionText}
                 maxLength={500}
-                aria-describedby="condition-hint"
+                aria-describedby={
+                  fieldErrors.conditionText ? 'condition-error condition-hint' : 'condition-hint'
+                }
               />
               <div className="mt-1.5 flex items-center justify-between">
                 <p id="condition-hint" className="text-[11px] text-slate-600">
@@ -195,6 +252,11 @@ function NewMonitorForm() {
                 </p>
                 <span className="text-[10px] text-slate-600">{form.conditionText.length}/500</span>
               </div>
+              {fieldErrors.conditionText && (
+                <p id="condition-error" className="mt-1.5 text-[11px] font-medium text-danger">
+                  {fieldErrors.conditionText}
+                </p>
+              )}
             </div>
 
             <div className="space-y-3 pt-2">
@@ -212,6 +274,8 @@ function NewMonitorForm() {
                       key={t.title}
                       type="button"
                       onClick={() => {
+                        setError(null);
+                        setFieldErrors({});
                         setForm((f) => ({
                           ...f,
                           url: t.url,
@@ -460,31 +524,126 @@ function NewMonitorForm() {
           </div>
         )}
 
+        {step === 5 && createdMonitor && (
+          <div className="space-y-6 animate-slide-up">
+            <div className="flex flex-col items-center gap-4 text-center">
+              <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-signal/15">
+                <Check className="h-7 w-7 text-signal" />
+              </div>
+              <div>
+                <h2 className="text-lg font-semibold text-white">Monitor created successfully</h2>
+                <p className="mt-1 text-sm text-slate-400">
+                  Your monitor for {createdMonitor.url.replace(/^https?:\/\//, '').slice(0, 40)} is
+                  ready.
+                </p>
+              </div>
+            </div>
+
+            <div className="space-y-3">
+              <p className="section-title text-center">Next steps</p>
+              <div className="grid gap-3 sm:grid-cols-2">
+                {/* Run first check */}
+                <Link
+                  href={'/'}
+                  className="stat-card group flex cursor-pointer items-center gap-3 p-4 transition-all hover:border-accent/30"
+                >
+                  <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-accent/10 text-accent transition-transform group-hover:scale-110">
+                    <Play className="h-4 w-4 fill-accent" />
+                  </div>
+                  <div>
+                    <p className="text-sm font-semibold text-slate-200">Run first check</p>
+                    <p className="text-[10px] text-slate-500">Execute an on-demand check now</p>
+                  </div>
+                  <ChevronRightIcon className="ml-auto h-3.5 w-3.5 text-slate-600" />
+                </Link>
+
+                {/* Fund monitor */}
+                <Link
+                  href={'/'}
+                  className="stat-card group flex cursor-pointer items-center gap-3 p-4 transition-all hover:border-accent/30"
+                >
+                  <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-warn/10 text-warn transition-transform group-hover:scale-110">
+                    <Wallet className="h-4 w-4" />
+                  </div>
+                  <div>
+                    <p className="text-sm font-semibold text-slate-200">Fund monitor</p>
+                    <p className="text-[10px] text-slate-500">Stake HBAR for scheduled checks</p>
+                  </div>
+                  <ChevronRightIcon className="ml-auto h-3.5 w-3.5 text-slate-600" />
+                </Link>
+
+                {/* Add alert channel */}
+                <Link
+                  href={'/rules'}
+                  className="stat-card group flex cursor-pointer items-center gap-3 p-4 transition-all hover:border-accent/30"
+                >
+                  <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-signal/10 text-signal transition-transform group-hover:scale-110">
+                    <Sparkles className="h-4 w-4" />
+                  </div>
+                  <div>
+                    <p className="text-sm font-semibold text-slate-200">Add alert channel</p>
+                    <p className="text-[10px] text-slate-500">Webhook, Telegram, or email action</p>
+                  </div>
+                  <ChevronRightIcon className="ml-auto h-3.5 w-3.5 text-slate-600" />
+                </Link>
+
+                {/* Share proof */}
+                <Link
+                  href={'/'}
+                  className="stat-card group flex cursor-pointer items-center gap-3 p-4 transition-all hover:border-accent/30"
+                >
+                  <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-violet/10 text-violet transition-transform group-hover:scale-110">
+                    <Shield className="h-4 w-4" />
+                  </div>
+                  <div>
+                    <p className="text-sm font-semibold text-slate-200">View signals</p>
+                    <p className="text-[10px] text-slate-500">
+                      Monitor signal timeline and proof chain
+                    </p>
+                  </div>
+                  <ChevronRightIcon className="ml-auto h-3.5 w-3.5 text-slate-600" />
+                </Link>
+              </div>
+            </div>
+
+            <div className="text-center">
+              <button type="button" onClick={() => router.push('/')} className="btn text-xs">
+                Go to Dashboard
+                <ChevronRight className="h-3.5 w-3.5" />
+              </button>
+            </div>
+          </div>
+        )}
+
         <div className="mt-8 flex justify-between">
-          <button
-            type="button"
-            className="btn-ghost"
-            disabled={step === 1}
-            onClick={() => setStep((s) => Math.max(1, s - 1))}
-          >
-            <ChevronLeft className="h-4 w-4" />
-            Back
-          </button>
-          {step < 4 ? (
-            <button type="button" className="btn" onClick={() => setStep((s) => s + 1)}>
-              Next
-              <ChevronRight className="h-4 w-4" />
-            </button>
-          ) : (
-            <button
-              type="button"
-              className="btn"
-              disabled={submitting || authLoading || !user?.id}
-              onClick={submit}
-              title={!user?.id ? 'Connect your wallet and approve sign-in first' : undefined}
-            >
-              {submitting ? 'Creating…' : authLoading ? 'Checking sign-in…' : 'Create Monitor'}
-            </button>
+          {step < 5 && (
+            <>
+              <button
+                type="button"
+                className="btn-ghost"
+                disabled={step === 1}
+                onClick={() => setStep((s) => Math.max(1, s - 1))}
+              >
+                <ChevronLeft className="h-4 w-4" />
+                Back
+              </button>
+              {step < 4 ? (
+                <button type="button" className="btn" onClick={goNext}>
+                  Next
+                  <ChevronRight className="h-4 w-4" />
+                </button>
+              ) : (
+                <button
+                  type="button"
+                  className="btn"
+                  disabled={submitting || authLoading || !user?.id}
+                  onClick={submit}
+                  title={!user?.id ? 'Connect your wallet and approve sign-in first' : undefined}
+                >
+                  {submitting ? 'Creating…' : authLoading ? 'Checking sign-in…' : 'Create Monitor'}
+                </button>
+              )}
+            </>
           )}
         </div>
       </div>

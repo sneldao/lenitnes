@@ -4,6 +4,7 @@ import http from 'node:http';
 
 process.env.ENCRYPTION_KEY = 'a'.repeat(64);
 process.env.JWT_SECRET = 'dev-only-insecure-jwt-secret-change-me';
+process.env.WEBHOOK_SECRET = 'test-webhook-secret';
 process.env.DATABASE_URL = 'postgresql://postgres:postgres@localhost:5432/lenitnes';
 
 const { app } = await import('../src/index.js');
@@ -107,7 +108,7 @@ describe('API smoke tests', () => {
   it('POST /auth/login with valid body returns 200 and a token', async () => {
     const res = await request(server).post('/auth/login').send(validLogin);
     expect(res.status).toBe(200);
-    expect(typeof res.body.token).toBe('string');
+    expect(res.headers['set-cookie']?.[0]).toContain('lenitnes_token=');
     expect(res.body.user).toMatchObject({ wallet_address: validLogin.walletAddress });
   });
 
@@ -124,9 +125,9 @@ describe('API smoke tests', () => {
         ...validLogin,
         walletAddress: '0.0.99999',
       });
-    const token = loginRes.body.token;
+    const cookie = loginRes.headers['set-cookie'];
 
-    const res = await request(server).get('/monitors').set('Authorization', `Bearer ${token}`);
+    const res = await request(server).get('/monitors').set('Cookie', cookie);
     expect(res.status).toBe(200);
     expect(Array.isArray(res.body)).toBe(true);
   });

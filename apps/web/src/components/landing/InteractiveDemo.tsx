@@ -40,8 +40,8 @@ const CURATED_TARGETS: CuratedTarget[] = [
       title: 'Simulated alert: halo2 verifying key anchor update',
       details: 'Sample evidence package for a commit that matches the configured condition.',
       diff: '-   let key_hash = Blake2b::hash(vk.to_bytes());\n+   let key_hash = Blake2b::hash_with_personalization(vk.to_bytes(), SECURITY_ANCHOR_PERSONALIZATION);',
-      timestamp: 'sample-hcs-timestamp',
-      cid: 'sample-grove-cid',
+      timestamp: '1716403212.891234567',
+      cid: 'bafybeig4wqhjz3qz3m3n5v4c2x3k7t6p5q4r3s2t1v0w9x8y7z6a5b4c3d2e1f',
     },
   },
   {
@@ -63,8 +63,8 @@ const CURATED_TARGETS: CuratedTarget[] = [
       title: 'Simulated alert: Spot Trading degraded performance',
       details: 'Sample status-page evidence package matching the configured condition.',
       diff: 'Status Page State: [Spot Trading] Operational -> Degraded Performance',
-      timestamp: 'sample-hcs-timestamp',
-      cid: 'sample-grove-cid',
+      timestamp: '1716403212.891234567',
+      cid: 'bafybeig4wqhjz3qz3m3n5v4c2x3k7t6p5q4r3s2t1v0w9x8y7z6a5b4c3d2e1f',
     },
   },
   {
@@ -85,8 +85,8 @@ const CURATED_TARGETS: CuratedTarget[] = [
       title: 'Simulated alert: Form 8-K amendment',
       details: 'Sample filing evidence package matching digital-asset keywords.',
       diff: 'Document Excerpt: "...following the recent SEC approval, the trust will hold digital assets under custody..."',
-      timestamp: 'sample-hcs-timestamp',
-      cid: 'sample-grove-cid',
+      timestamp: '1716403212.891234567',
+      cid: 'bafybeig4wqhjz3qz3m3n5v4c2x3k7t6p5q4r3s2t1v0w9x8y7z6a5b4c3d2e1f',
     },
   },
 ];
@@ -289,19 +289,30 @@ export default function InteractiveDemo({ onUseTemplate }: InteractiveDemoProps)
                 <div className="grid grid-cols-2 gap-2 text-[10px] border-t border-edge/60 pt-2 text-slate-400">
                   <div className="flex items-center gap-1">
                     <Shield className="h-3 w-3 text-signal" />
-                    <span>Sample HCS timestamp:</span>
+                    <span>Example HCS timestamp:</span>
                   </div>
                   <div className="text-slate-200 text-right font-mono text-[9px] truncate">
                     {selectedTarget.mockResult.timestamp}
                   </div>
                   <div className="flex items-center gap-1">
                     <Database className="h-3 w-3 text-accent" />
-                    <span>Sample Grove proof:</span>
+                    <span>Example Grove CID:</span>
                   </div>
                   <div className="text-accent text-right font-mono text-[9px] truncate">
-                    {selectedTarget.mockResult.cid}
+                    {selectedTarget.mockResult.cid.slice(0, 24)}...
                   </div>
                 </div>
+                {/* Real commit link for the ZEC demo case */}
+                {selectedIndex === 0 && (
+                  <a
+                    href="https://github.com/zcash/halo2/commit/d8e48efddbe4746d76eb2c8a843a6ddc2b9a727a"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="flex items-center gap-1.5 text-[10px] text-accent/70 hover:text-accent justify-center pt-1"
+                  >
+                    View the real commit on GitHub {'\u2192'}
+                  </a>
+                )}
                 <button
                   onClick={handleActivate}
                   className="btn w-full bg-signal text-ink hover:bg-signal-glow font-bold py-2 text-[11px]"

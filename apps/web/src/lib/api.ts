@@ -67,6 +67,10 @@ export const api = {
   listSignals: (monitorId?: string) =>
     req<Signal[]>(`/signals${monitorId ? `?monitorId=${monitorId}` : ''}`),
   getSignal: (id: string) => req<SignalDetail>(`/signals/${id}`),
+  getPublicProof: (id: string, shareToken?: string) =>
+    req<SignalDetail>(
+      `/proof/public/${id}${shareToken ? `?share=${encodeURIComponent(shareToken)}` : ''}`,
+    ),
   createRule: (body: CreateRuleInput) =>
     req<Rule>(`/rules`, { method: 'POST', body: JSON.stringify(body) }),
   listRules: (monitorId?: string) =>

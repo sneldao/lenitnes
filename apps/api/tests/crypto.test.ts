@@ -2,6 +2,8 @@ import { describe, it, expect } from 'vitest';
 
 // Set encryption key before importing the module so config picks it up.
 process.env.ENCRYPTION_KEY = 'a'.repeat(64);
+process.env.JWT_SECRET = 'dev-only-insecure-jwt-secret-change-me';
+process.env.WEBHOOK_SECRET = 'test-webhook-secret';
 
 const { encrypt, decrypt } = await import('../src/services/crypto.js');
 

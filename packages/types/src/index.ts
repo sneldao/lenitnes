@@ -58,6 +58,7 @@ export interface Signal {
 export interface SignalDetail extends Signal {
   monitor: Pick<Monitor, 'id' | 'url' | 'condition_text'> | null;
   orders: Order[];
+  public_share_token?: string;
   proof: {
     ipfsUrl: string | null;
     hashscanUrl: string | null;

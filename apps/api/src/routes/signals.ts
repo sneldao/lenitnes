@@ -4,8 +4,50 @@ import { groveGatewayUrl } from '../services/ipfs.js';
 import type { AuthenticatedRequest } from '../middleware/auth.js';
 import type { Signal } from '../types.js';
 import { cacheGet, cacheSet } from '../middleware/cache.js';
+import { createSignalShareToken } from '../services/share-token.js';
 
 export const signalsRouter = Router();
+
+// ── Shared: assemble full proof package for a signal (DRY) ──────────
+export interface ProofPackage {
+  signal: Signal;
+  monitor: { id: string; url: string; condition_text: string } | null;
+  orders: unknown[];
+  proof: { ipfsUrl: string | null; hashscanUrl: string | null };
+}
+
+export async function getSignalWithProof(
+  signalId: string,
+  options: { includeOrders?: boolean } = {},
+): Promise<ProofPackage | null> {
+  const { rows } = await query(
+    `SELECT s.* FROM signals s
+     JOIN monitors m ON m.id = s.monitor_id
+     WHERE s.id = $1`,
+    [signalId],
+  );
+  if (!rows.length) return null;
+  const signal = rows[0] as unknown as Signal;
+
+  const includeOrders = options.includeOrders ?? true;
+  const [orders, monitor] = await Promise.all([
+    includeOrders ? query(`SELECT * FROM orders WHERE signal_id = $1`, [signal.id]) : { rows: [] },
+    query(`SELECT id, url, condition_text FROM monitors WHERE id = $1`, [signal.monitor_id]),
+  ]);
+
+  return {
+    signal,
+    monitor:
+      (monitor.rows[0] as { id: string; url: string; condition_text: string } | undefined) ?? null,
+    orders: orders.rows,
+    proof: {
+      ipfsUrl: signal.ipfs_cid ? groveGatewayUrl(signal.ipfs_cid) : null,
+      hashscanUrl: signal.hedera_tx_id
+        ? `https://hashscan.io/testnet/transaction/${encodeURIComponent(signal.hedera_tx_id)}`
+        : null,
+    },
+  };
+}
 
 // GET /signals?monitorId=...  (heartbeats excluded by default, own monitors only)
 signalsRouter.get('/', async (req: Request, res: Response) => {
@@ -52,32 +94,24 @@ signalsRouter.get('/', async (req: Request, res: Response) => {
   res.json(rows as unknown as Signal[]);
 });
 
-// GET /signals/:id — full proof package (own monitors only).
+// GET /signals/:id — full proof package (own monitors only, DRY via getSignalWithProof).
 signalsRouter.get('/:id', async (req: Request, res: Response) => {
   const authReq = req as unknown as AuthenticatedRequest;
   const { rows } = await query(
-    `SELECT s.* FROM signals s
+    `SELECT 1 FROM signals s
      JOIN monitors m ON m.id = s.monitor_id
      WHERE s.id = $1 AND m.user_id = $2`,
     [req.params.id, authReq.user.id],
   );
   if (!rows.length) return res.status(404).json({ error: 'not found' });
-  const signal = rows[0] as unknown as Signal;
 
-  const orders = await query(`SELECT * FROM orders WHERE signal_id = $1`, [signal.id]);
-  const monitor = await query(`SELECT id, url, condition_text FROM monitors WHERE id = $1`, [
-    signal.monitor_id,
-  ]);
-
+  const pkg = await getSignalWithProof(req.params.id);
+  if (!pkg) return res.status(404).json({ error: 'not found' });
   res.json({
-    ...signal,
-    monitor: monitor.rows[0] ?? null,
-    orders: orders.rows,
-    proof: {
-      ipfsUrl: signal.ipfs_cid ? groveGatewayUrl(signal.ipfs_cid) : null,
-      hashscanUrl: signal.hedera_tx_id
-        ? `https://hashscan.io/testnet/transaction/${encodeURIComponent(signal.hedera_tx_id)}`
-        : null,
-    },
+    ...pkg.signal,
+    monitor: pkg.monitor,
+    orders: pkg.orders,
+    proof: pkg.proof,
+    public_share_token: createSignalShareToken(pkg.signal.id),
   });
 });
