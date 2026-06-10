@@ -62,10 +62,26 @@ krakenRouter.get('/status', async (req: Request, res: Response) => {
 
   // Check CLI availability
   let cliAvailable = false;
+  let mcpAvailable = false;
+  let paperAvailable = false;
   try {
     const { execSync } = await import('node:child_process');
     execSync('kraken --version', { encoding: 'utf-8', timeout: 5000 });
     cliAvailable = true;
+    // MCP server is built into the CLI (kraken mcp -s market,trade,paper)
+    try {
+      execSync('kraken mcp --help', { encoding: 'utf-8', timeout: 5000 });
+      mcpAvailable = true;
+    } catch {
+      /* mcp not available */
+    }
+    // Paper engine requires no credentials — check if initialized
+    try {
+      execSync('kraken paper status', { encoding: 'utf-8', timeout: 5000 });
+      paperAvailable = true;
+    } catch {
+      /* paper not initialized */
+    }
   } catch {
     cliAvailable = false;
   }
@@ -73,6 +89,8 @@ krakenRouter.get('/status', async (req: Request, res: Response) => {
   return res.json({
     configured: hasKeys,
     cliAvailable,
+    mcpAvailable,
+    paperAvailable,
     fallback: 'rest',
   });
 });
@@ -122,6 +140,36 @@ krakenRouter.post('/test-trade', validate(testTradeSchema), async (req: Request,
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);
     return res.status(502).json({ error: 'Kraken API error', message: msg });
+  }
+});
+
+// POST /kraken/paper-test — execute a paper trade using the CLI's built-in paper engine (no credentials required)
+krakenRouter.post('/paper-test', async (req: Request, res: Response) => {
+  const { execFile } = await import('node:child_process');
+  const { promisify } = await import('node:util');
+  const execFileAsync = promisify(execFile);
+
+  const body = (req.body ?? {}) as { pair?: string; type?: 'buy' | 'sell'; volume?: string };
+  const pair = body.pair || 'XBTUSD';
+  const type = body.type || 'buy';
+  const volume = body.volume || '0.001';
+
+  try {
+    const { stdout } = await execFileAsync('kraken', ['paper', type, pair, volume], {
+      timeout: 15000,
+    });
+    return res.json({
+      ok: true,
+      mode: 'paper',
+      pair,
+      type,
+      volume,
+      output: stdout,
+      note: 'Executed via kraken-cli paper engine. No real money, no credentials, live prices.',
+    });
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err);
+    return res.status(502).json({ error: 'Paper trade failed', message: msg });
   }
 });
 
