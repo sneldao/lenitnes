@@ -89,6 +89,7 @@ function NewMonitorForm() {
     frequencySeconds: 3600,
     actionType: 'alert' as 'alert' | 'trade',
     screenshotsEnabled: true,
+    isPublic: false,
   });
 
   // Pre-fill from URL params (template links from landing page)
@@ -173,6 +174,7 @@ function NewMonitorForm() {
         conditionText: form.conditionText,
         frequencySeconds: form.frequencySeconds,
         screenshotsEnabled: form.screenshotsEnabled,
+        isPublic: form.isPublic,
       });
       setCreatedMonitor(monitor);
       setActivationResult(null);
@@ -524,6 +526,20 @@ function NewMonitorForm() {
               >
                 <Camera className="h-3.5 w-3.5 text-slate-500" />
                 Capture screenshots with each check
+              </label>
+            </div>
+            <div className="flex items-center gap-3 rounded-xl border border-edge/40 bg-ink-light/50 p-3">
+              <input
+                id="public"
+                type="checkbox"
+                className="h-4 w-4 rounded border-edge bg-ink accent-accent"
+                checked={form.isPublic}
+                onChange={(e) => set('isPublic', e.target.checked)}
+              />
+              <label htmlFor="public" className="flex items-center gap-2 text-sm text-slate-300">
+                <Globe className="h-3.5 w-3.5 text-slate-500" />
+                Share to public feed
+                <span className="text-[10px] text-accent">(beta — free)</span>
               </label>
             </div>
           </div>

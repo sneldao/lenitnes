@@ -289,7 +289,16 @@ function DashboardView({
     <div className="space-y-8">
       <div className="flex items-end justify-between">
         <div>
-          <h1 className="text-2xl font-bold tracking-tight text-white">Dashboard</h1>
+          <div className="flex items-center gap-3">
+            <h1 className="text-2xl font-bold tracking-tight text-white">Dashboard</h1>
+            <span className="badge bg-accent/10 text-accent text-[10px]">Beta — Free</span>
+            <Link
+              href="/leaderboard"
+              className="badge bg-ink-light/50 text-slate-400 hover:text-white text-[10px] transition-colors"
+            >
+              🏆 Leaderboard
+            </Link>
+          </div>
           <p className="mt-1 text-sm text-slate-500">
             {monitors.length} monitor{monitors.length !== 1 ? 's' : ''} configured
           </p>

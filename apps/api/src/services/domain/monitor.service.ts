@@ -15,12 +15,13 @@ export interface CreateMonitorParams {
   frequencySeconds: number;
   costPerCheck?: number;
   screenshotsEnabled: boolean;
+  isPublic?: boolean;
 }
 
 export async function createMonitor(params: CreateMonitorParams): Promise<Monitor> {
   const { rows } = await query<Monitor>(
-    `INSERT INTO monitors (user_id, url, condition_text, frequency_seconds, hbar_balance, cost_per_check, screenshots_enabled)
-     VALUES ($1, $2, $3, $4, 0, $5, $6) RETURNING *`,
+    `INSERT INTO monitors (user_id, url, condition_text, frequency_seconds, hbar_balance, cost_per_check, screenshots_enabled, is_public)
+     VALUES ($1, $2, $3, $4, 0, $5, $6, $7) RETURNING *`,
     [
       params.userId,
       params.url,
@@ -28,6 +29,7 @@ export async function createMonitor(params: CreateMonitorParams): Promise<Monito
       params.frequencySeconds,
       params.costPerCheck ?? config.hedera.defaultCostPerCheck,
       params.screenshotsEnabled,
+      params.isPublic ?? false,
     ],
   );
   cacheInvalidate(`monitors:${params.userId}:`);
@@ -72,6 +74,7 @@ export interface UpdateMonitorParams {
   conditionText?: string;
   topUpHbar?: number;
   status?: 'active' | 'paused';
+  isPublic?: boolean;
 }
 
 export async function updateMonitor(
@@ -97,6 +100,10 @@ export async function updateMonitor(
   if (params.status !== undefined) {
     sets.push(`status = $${i++}`);
     vals.push(params.status);
+  }
+  if (params.isPublic !== undefined) {
+    sets.push(`is_public = $${i++}`);
+    vals.push(params.isPublic);
   }
   if (!sets.length) return null;
 

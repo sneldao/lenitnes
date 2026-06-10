@@ -45,7 +45,10 @@ export const config = {
 
   webhookSecret: required('WEBHOOK_SECRET'),
 
-  telegram: { botToken: process.env.TELEGRAM_BOT_TOKEN ?? '' },
+  telegram: {
+    botToken: process.env.TELEGRAM_BOT_TOKEN ?? '',
+    publicChannelId: process.env.TELEGRAM_PUBLIC_CHANNEL_ID ?? '',
+  },
   smtpUrl: process.env.SMTP_URL ?? '',
 
   x402: {

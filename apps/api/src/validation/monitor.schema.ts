@@ -13,6 +13,7 @@ export const createMonitorSchema = z.object({
   frequencySeconds: z.number().int().positive().default(3600),
   costPerCheck: z.number().positive().optional(),
   screenshotsEnabled: z.boolean().optional().default(true),
+  isPublic: z.boolean().optional().default(false),
 });
 
 export const patchMonitorSchema = z.object({
@@ -20,4 +21,5 @@ export const patchMonitorSchema = z.object({
   conditionText: z.string().min(1).max(500).optional(),
   topUpHbar: z.number().positive().optional(),
   status: z.enum(['active', 'paused']).optional(),
+  isPublic: z.boolean().optional(),
 });

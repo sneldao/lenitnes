@@ -328,6 +328,20 @@ async function executeRules(monitor: Monitor, signalId: string, summary: string)
       logger.error({ err, ruleId: rule.id, actionType: rule.action_type }, 'rule action failed');
     }
   }
+
+  // ── Public feed: post to Telegram channel if monitor is public ──
+  if (monitor.is_public && config.telegram.publicChannelId) {
+    try {
+      const url = `${config.webOrigin}/proof/public/${signalId}`;
+      await notify.sendTelegram(
+        config.telegram.publicChannelId,
+        `🔔 Public signal detected\n\n${summary}\n\nProof: ${url}`,
+      );
+      logger.info({ signalId, monitorId: monitor.id }, 'public signal posted to Telegram');
+    } catch (err) {
+      logger.error({ err, signalId }, 'failed to post public signal to Telegram');
+    }
+  }
 }
 
 /** Evaluate optional rule conditions (time-of-day filters, etc.). */

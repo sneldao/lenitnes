@@ -18,6 +18,7 @@ export interface Monitor {
   cost_per_check: string;
   status: MonitorStatus;
   screenshots_enabled: boolean;
+  is_public: boolean;
   last_check_at: string | null;
   last_seen_commit_hash: string | null;
   created_at: string;
@@ -30,6 +31,7 @@ export interface CreateMonitorInput {
   frequencySeconds?: number; // default 3600
   costPerCheck?: number;
   screenshotsEnabled?: boolean; // default true
+  isPublic?: boolean; // default false
 }
 
 export interface UpdateMonitorInput {

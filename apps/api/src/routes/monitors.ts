@@ -27,6 +27,7 @@ monitorsRouter.post('/', validate(createMonitorSchema), async (req, res) => {
     frequencySeconds: number;
     costPerCheck?: number;
     screenshotsEnabled: boolean;
+    isPublic?: boolean;
   };
 
   const monitor = await createMonitorSvc({
@@ -36,6 +37,7 @@ monitorsRouter.post('/', validate(createMonitorSchema), async (req, res) => {
     frequencySeconds: b.frequencySeconds,
     costPerCheck: b.costPerCheck,
     screenshotsEnabled: b.screenshotsEnabled,
+    isPublic: b.isPublic,
   });
   res.status(201).json(monitor);
 });
