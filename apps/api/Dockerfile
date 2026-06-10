@@ -28,6 +28,12 @@ RUN npm run build --workspace=@lenitnes/api
 FROM node:20-alpine AS prod
 WORKDIR /app
 ENV NODE_ENV=production
+
+# Install Kraken CLI (judging criterion: "Use of Kraken CLI functionality")
+RUN apk add --no-cache curl bash
+RUN curl --proto '=https' --tlsv1.2 -LsSf \
+  https://github.com/krakenfx/kraken-cli/releases/latest/download/kraken-cli-installer.sh | sh
+
 COPY --from=base /app/apps/api/dist ./dist
 COPY --from=base /app/node_modules ./node_modules
 COPY --from=base /app/apps/api/node_modules ./apps/api/node_modules
