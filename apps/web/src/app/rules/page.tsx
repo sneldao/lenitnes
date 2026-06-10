@@ -336,7 +336,7 @@ export default function RulesPage() {
                 onChange={(e) => setConfig('validate', e.target.checked)}
               />
               <span className="text-xs text-slate-400">
-                Paper trade (validate mode, safe to test)
+                Paper trade — tests against live prices, no Kraken credentials required
               </span>
             </label>
           </div>

@@ -534,11 +534,11 @@ function NewMonitorForm() {
             <div className="stat-card p-5">
               {form.actionType === 'trade' ? (
                 <div className="space-y-2">
-                  <p className="text-sm font-medium text-slate-200">Trade Execution</p>
+                  <p className="text-sm font-medium text-slate-200">Paper trade, then go live</p>
                   <p className="text-xs leading-relaxed text-slate-400">
-                    After creation, attach a Kraken trade rule. Your API keys are stored encrypted
-                    (AES-256-GCM) and trades execute through the Kraken CLI with safety rails
-                    (cooldowns, max-open-orders, dead-man&apos;s switch).
+                    Test against live prices — no credentials required. When ready, paper buy
+                    becomes real order. That&apos;s it. (Kraken CLI with safety rails: cooldowns,
+                    max-open-orders, dead-man&apos;s switch.)
                   </p>
                 </div>
               ) : (
