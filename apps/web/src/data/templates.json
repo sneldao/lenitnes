@@ -81,10 +81,10 @@
   },
   {
     "icon": "Shield",
-    "title": "Zcash halo2 Crypto Watch",
-    "desc": "Track commits to zcash/halo2 for cryptography vulnerabilities and verifying key changes.",
+    "title": "Zcash halo2 — Code Alpha",
+    "desc": "Detect critical crypto bugs in zcash/halo2 commits before the market prices them in. Inspired by the June 2025 soundness fix that took 4 days to hit price action.",
     "url": "https://github.com/zcash/halo2/commits/main",
-    "condition": "A new commit mentions verifying key change, anchor, security, vulnerability, fix, or circuit bug.",
+    "condition": "A new commit fixes a critical cryptography bug, soundness issue, or verifying key change in the halo2 circuit — something that could affect ZEC token confidence or require immediate network attention.",
     "frequency": 1800,
     "color": "text-danger",
     "bg": "bg-danger/10"

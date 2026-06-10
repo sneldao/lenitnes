@@ -129,8 +129,8 @@ export default function CinematicHero({ onStartOnboarding, onScrollToHow }: Cine
 
         {/* Sub-headline */}
         <p className="reveal reveal-delay-2 mt-4 max-w-lg text-base leading-relaxed text-slate-400 sm:text-lg">
-          AI-powered web monitoring with cryptographic proof. Detect market-moving signals before
-          anyone else.
+          AI reads commits, docs, and code changes that move markets before the price does. Every
+          signal is cryptographically proven on Hedera — timestamped, immutable, trade-ready.
         </p>
 
         {/* CTA buttons */}

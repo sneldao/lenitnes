@@ -536,8 +536,9 @@ function NewMonitorForm() {
                 <div className="space-y-2">
                   <p className="text-sm font-medium text-slate-200">Trade Execution</p>
                   <p className="text-xs leading-relaxed text-slate-400">
-                    Connect your Kraken API key in the Rules builder after creating the monitor.
-                    Keys are stored encrypted (AES-256-GCM).
+                    After creation, attach a Kraken trade rule. Your API keys are stored encrypted
+                    (AES-256-GCM) and trades execute through the Kraken CLI with safety rails
+                    (cooldowns, max-open-orders, dead-man&apos;s switch).
                   </p>
                 </div>
               ) : (

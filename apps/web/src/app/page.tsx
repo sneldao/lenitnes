@@ -21,6 +21,7 @@ import {
   ChevronRight,
   X,
   BarChart3,
+  GitCommit,
 } from 'lucide-react';
 
 import {
@@ -100,14 +101,22 @@ function MonitorCard({
   const daysDisplay = Number.isFinite(daysLeft) ? daysLeft.toFixed(0) : '∞';
   const daysColor = daysLeft > 14 ? 'text-signal' : daysLeft > 5 ? 'text-warn' : 'text-danger';
   const cat = categoryColor(monitor.url);
+  const isCodeSignal = monitor.url.includes('github.com');
 
   return (
     <div className={`card group space-y-4 border-l-2 ${cat} !pl-5`}>
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0 flex-1">
-          <p className="truncate text-sm font-semibold text-slate-100 group-hover:text-white">
-            {monitor.url.replace(/^https?:\/\//, '')}
-          </p>
+          <div className="flex items-center gap-2">
+            <p className="truncate text-sm font-semibold text-slate-100 group-hover:text-white">
+              {monitor.url.replace(/^https?:\/\//, '')}
+            </p>
+            {isCodeSignal && (
+              <span className="badge shrink-0 bg-violet-500/15 text-violet-400">
+                <GitCommit className="h-2.5 w-2.5" /> Code Signal
+              </span>
+            )}
+          </div>
           <p className="mt-0.5 line-clamp-1 text-xs text-slate-500">{monitor.condition_text}</p>
         </div>
         <span className={`badge shrink-0 ${statusColor(monitor.status)}`}>
