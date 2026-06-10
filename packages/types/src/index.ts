@@ -55,6 +55,7 @@ export interface Signal {
   screenshot_urls: string[];
   condition_summary: string | null;
   is_heartbeat: boolean;
+  orders_count?: number;
 }
 
 export interface SignalDetail extends Signal {

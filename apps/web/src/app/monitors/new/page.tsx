@@ -212,6 +212,15 @@ function NewMonitorForm() {
     }
   }
 
+  // Auto-run first check when reaching step 5 for cinematic demo flow.
+  useEffect(() => {
+    if (step !== 5 || !createdMonitor || activationResult || runningFirstCheck) return;
+    const t = setTimeout(() => {
+      runFirstCheck();
+    }, 800);
+    return () => clearTimeout(t);
+  }, [step, createdMonitor?.id]);
+
   async function runFirstCheck() {
     if (!createdMonitor) return;
     if (!isConnected) {
@@ -766,8 +775,8 @@ function NewMonitorForm() {
                     Run the first check — on us
                   </h3>
                   <p className="text-xs leading-relaxed text-slate-400">
-                    Your first check is free. If the condition matches, LENITNES creates a proof
-                    package you can inspect and share. Fund the monitor to keep it running.
+                    Your first check is free. After this, each check costs ~0.5 ℏ. If the condition
+                    matches, LENITNES creates a proof package you can inspect and share.
                   </p>
                 </div>
                 <button

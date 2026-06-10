@@ -201,6 +201,7 @@ function MonitorCard({
 function DashboardView({
   monitors,
   signals,
+  ordersCount,
   isLoading,
   error,
   isRefetching,
@@ -213,6 +214,7 @@ function DashboardView({
 }: {
   monitors: Monitor[];
   signals: { detected_at: string }[];
+  ordersCount: number;
   isLoading: boolean;
   error: Error | null;
   isRefetching: boolean;
@@ -346,6 +348,13 @@ function DashboardView({
           <p className="text-2xl font-bold text-white">
             {totalBalance.toFixed(1)} <span className="text-sm font-normal text-slate-500">ℏ</span>
           </p>
+        </div>
+        <div className="stat-card space-y-1">
+          <div className="flex items-center gap-2">
+            <Zap className="h-3.5 w-3.5 text-warn" />
+            <span className="section-title">Paper Trades</span>
+          </div>
+          <p className="text-2xl font-bold text-white">{ordersCount}</p>
         </div>
         <div className="stat-card space-y-1">
           <div className="flex items-center gap-2">
@@ -621,6 +630,13 @@ export default function DashboardPage() {
     enabled: isAuthenticated,
   });
 
+  const { data: orders = [] } = useQuery({
+    queryKey: ['orders'],
+    queryFn: () => api.listOrders(),
+    refetchInterval: 30_000,
+    enabled: isAuthenticated,
+  });
+
   async function handleExecute(monitorId: string) {
     if (!isConnected) {
       toast.warn('Connect your Hedera wallet first to pay via x402.');
@@ -745,6 +761,7 @@ export default function DashboardPage() {
     <DashboardView
       monitors={monitors}
       signals={signals}
+      ordersCount={orders.length}
       isLoading={isLoading}
       error={error as Error | null}
       isRefetching={isRefetching}

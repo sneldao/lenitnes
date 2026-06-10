@@ -82,8 +82,11 @@ signalsRouter.get('/', async (req: Request, res: Response) => {
   vals.push(limit, offset);
 
   const { rows } = await query(
-    `SELECT s.* FROM signals s
+    `SELECT s.*, COALESCE(o.orders_count, 0) AS orders_count FROM signals s
      JOIN monitors m ON m.id = s.monitor_id
+     LEFT JOIN (
+       SELECT signal_id, COUNT(*) AS orders_count FROM orders GROUP BY signal_id
+     ) o ON o.signal_id = s.id
      WHERE ${where.join(' AND ')}
      ORDER BY s.detected_at DESC
      LIMIT $${vals.length - 1} OFFSET $${vals.length}`,

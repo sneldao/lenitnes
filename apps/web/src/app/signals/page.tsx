@@ -115,6 +115,12 @@ export default function SignalsPage() {
                         Proof stored
                       </span>
                     )}
+                    {(s.orders_count ?? 0) > 0 && (
+                      <span className="flex items-center gap-1 text-warn">
+                        <Zap className="h-3 w-3" />
+                        Traded
+                      </span>
+                    )}
                   </div>
                 </div>
               </div>
