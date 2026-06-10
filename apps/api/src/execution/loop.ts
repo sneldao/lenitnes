@@ -349,6 +349,12 @@ function validateTradeConfig(raw: Record<string, unknown>): kraken.AddOrderParam
 }
 
 async function executeTrade(monitor: Monitor, rule: Rule, signalId: string): Promise<void> {
+  const order = validateTradeConfig(rule.action_config);
+  order.cancelAfter = config.trade.cancelAfterSeconds;
+
+  // Determine if this is a paper trade (validate mode)
+  const isPaper = order.validate === true;
+
   // Load + decrypt the owning user's Kraken credentials.
   const { rows } = await query<{ k: string | null; s: string | null }>(
     `SELECT kraken_api_key_encrypted AS k, kraken_api_secret_encrypted AS s
@@ -356,10 +362,12 @@ async function executeTrade(monitor: Monitor, rule: Rule, signalId: string): Pro
     [monitor.user_id],
   );
   const enc = rows[0];
-  if (!enc?.k || !enc?.s) throw new Error('user has no Kraken credentials');
+  const hasCreds = !!enc?.k && !!enc?.s;
 
-  const order = validateTradeConfig(rule.action_config);
-  order.cancelAfter = config.trade.cancelAfterSeconds;
+  // If live trade and no credentials, abort.
+  if (!isPaper && !hasCreds) {
+    throw new Error('user has no Kraken credentials');
+  }
 
   // Pair-level cooldown: skip if same user+pair traded within the cooldown window.
   const cooldownSeconds = config.trade.cooldownMinutes * 60;
@@ -406,10 +414,22 @@ async function executeTrade(monitor: Monitor, rule: Rule, signalId: string): Pro
   const orderId = orderRows[0].id;
 
   try {
-    const res = await kraken.addOrder(order, {
-      apiKey: decrypt(enc.k),
-      apiSecret: decrypt(enc.s),
-    });
+    let res: { krakenOrderId: string | null; raw: unknown };
+    if (isPaper) {
+      // Credential-less paper trade via the CLI built-in paper engine.
+      logger.info(
+        { userId: monitor.user_id, pair: order.pair },
+        'executing paper trade (no credentials)',
+      );
+      res = await kraken.paperAddOrder(order);
+    } else {
+      // hasCreds is true here, so enc.k and enc.s are non-null.
+      const { k, s } = enc as { k: string; s: string };
+      res = await kraken.addOrder(order, {
+        apiKey: decrypt(k),
+        apiSecret: decrypt(s),
+      });
+    }
     await query(
       `UPDATE orders SET kraken_order_id = $1, status = 'placed', placed_at = now(), kraken_response = $2 WHERE id = $3`,
       [res.krakenOrderId, JSON.stringify(res.raw), orderId],

@@ -115,6 +115,19 @@ async function cliAddOrder(
   return { krakenOrderId: parsed?.txid?.[0] ?? null, raw: parsed };
 }
 
+/**
+ * Credential-less paper trade via the Kraken CLI built-in paper engine.
+ * Uses simulated account with $10K USD — no API keys, no real money, live prices.
+ */
+export async function paperAddOrder(
+  order: AddOrderParams,
+): Promise<{ krakenOrderId: string | null; raw: unknown }> {
+  const args = ['paper', order.type, order.pair, order.volume];
+  const { stdout } = await execFileAsync('kraken', args, { timeout: 30000 });
+  // The CLI output is a human-readable table; wrap it in a structured object.
+  return { krakenOrderId: 'paper-' + Date.now(), raw: { mode: 'paper', output: stdout, ...order } };
+}
+
 export async function addOrder(
   order: AddOrderParams,
   creds: KrakenCredentials,

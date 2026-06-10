@@ -10,6 +10,7 @@ import { useToast } from '@/components/Toast';
 import { useAuth } from '@/lib/useAuth';
 import { useReveal } from '@/lib/useReveal';
 import { burnRate, statusColor } from '@/lib/format';
+import { WaitlistBanner } from '@/components/WaitlistBanner';
 import {
   Activity,
   Shield,
@@ -663,6 +664,9 @@ export default function DashboardPage() {
               No credit card. Stake ℏ to run. Withdraw anytime.
             </p>
           </div>
+
+          {/* Waitlist / Feedback */}
+          <WaitlistBanner />
         </div>
         {/* Onboarding Wizard Modal */}
         {showOnboarding && (
