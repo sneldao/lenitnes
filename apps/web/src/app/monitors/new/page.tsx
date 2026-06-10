@@ -1,6 +1,6 @@
 'use client';
 
-import { Suspense, useEffect, useState } from 'react';
+import { Suspense, useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useQueryClient } from '@tanstack/react-query';
@@ -42,6 +42,43 @@ const STEP_META = [
   { icon: Clock, label: 'Schedule' },
   { icon: Zap, label: 'Connect' },
   { icon: Wallet, label: 'Review' },
+];
+
+type Category = 'code' | 'status' | 'regulatory';
+
+const CATEGORY_META: Record<Category, { label: string; hint: string }> = {
+  code: { label: 'Code & Releases', hint: 'Commits, releases, security patches' },
+  status: { label: 'Status & Health', hint: 'Outages, incidents, protocol health' },
+  regulatory: { label: 'Regulatory & News', hint: 'Filings, sanctions, governance' },
+};
+
+const POPULAR_TEMPLATE_TITLE = 'Zcash halo2 — Code Alpha';
+
+// Buckets the 10 templates into the 3 categories using icon + URL hints.
+// We derive rather than editing templates.json to keep that file untouched.
+function getCategoryForTemplate(t: (typeof TEMPLATES)[number]): Category {
+  const url = t.url.toLowerCase();
+  if (url.includes('status.') || url.includes('sec.gov')) return 'regulatory';
+  if (t.icon.displayName === 'Bell' || url.includes('chainalysis') || url.includes('hedera.com')) {
+    return 'regulatory';
+  }
+  if (t.icon.displayName === 'GitCommit' || t.icon.displayName === 'FileText') {
+    // FileText covers docs/changelogs; both belong to code/releases in this taxonomy.
+    return 'code';
+  }
+  return 'status';
+}
+
+function isPopular(t: (typeof TEMPLATES)[number]): boolean {
+  return t.title === POPULAR_TEMPLATE_TITLE;
+}
+
+// 2-3 inline example chips shown only in scratch mode, beneath the condition textarea.
+// Clicking inserts into the textarea, appending if there's already text.
+const SCRATCH_EXAMPLES: string[] = [
+  'new commit mentions CVE',
+  'status page shows outage',
+  'new SEC filing mentions crypto',
 ];
 
 // Suspense wrapper needed for useSearchParams during static export.
@@ -100,6 +137,11 @@ function NewMonitorForm() {
     },
   });
 
+  // Step 1 view state: choose-screen first, then edit-mode (template or scratch).
+  const [mode, setMode] = useState<'choose' | 'template' | 'scratch'>('choose');
+  const [activeCategory, setActiveCategory] = useState<Category>('code');
+  const conditionRef = useRef<HTMLTextAreaElement | null>(null);
+
   // Pre-fill from URL params (template links from landing page)
   useEffect(() => {
     if (prefilled) return;
@@ -114,8 +156,25 @@ function NewMonitorForm() {
         ...(frequency ? { frequencySeconds: Number(frequency) } : {}),
       }));
       setPrefilled(true);
+      setMode('template');
     }
   }, [searchParams, prefilled]);
+
+  // Auto-focus the condition textarea when entering template edit mode,
+  // so the edit affordance is obvious and the user's first interaction is a tweak.
+  useEffect(() => {
+    if (mode === 'template') {
+      // Defer one frame so the textarea is mounted.
+      const id = requestAnimationFrame(() => {
+        conditionRef.current?.focus();
+        conditionRef.current?.setSelectionRange(
+          conditionRef.current.value.length,
+          conditionRef.current.value.length,
+        );
+      });
+      return () => cancelAnimationFrame(id);
+    }
+  }, [mode]);
 
   const set = <K extends keyof typeof form>(k: K, v: (typeof form)[K]) => {
     setError(null);
@@ -350,8 +409,142 @@ function NewMonitorForm() {
       </div>
 
       <div className="card animate-slide-up">
-        {step === 1 && (
+        {step === 1 && mode === 'choose' && (
           <div className="space-y-5">
+            <div className="rounded-xl border border-accent/15 bg-accent/5 p-3">
+              <p className="text-xs leading-relaxed text-slate-300">
+                <Sparkles className="mr-1.5 inline h-3.5 w-3.5 text-accent" />
+                <span className="font-semibold text-white">Most people start from a template</span>
+                <span className="text-slate-400"> — every field stays editable.</span>
+              </p>
+            </div>
+
+            <div className="flex flex-wrap gap-2" role="tablist" aria-label="Template category">
+              {(Object.keys(CATEGORY_META) as Category[]).map((cat) => {
+                const isActive = activeCategory === cat;
+                const count = TEMPLATES.filter((t) => getCategoryForTemplate(t) === cat).length;
+                return (
+                  <button
+                    key={cat}
+                    type="button"
+                    role="tab"
+                    aria-selected={isActive}
+                    onClick={() => setActiveCategory(cat)}
+                    className={`flex items-center gap-2 rounded-full border px-3 py-1.5 text-xs font-semibold transition-all ${
+                      isActive
+                        ? 'border-accent/40 bg-accent/10 text-accent'
+                        : 'border-edge/40 text-slate-400 hover:border-edge-light hover:text-slate-200'
+                    }`}
+                  >
+                    {CATEGORY_META[cat].label}
+                    <span
+                      className={`rounded-full px-1.5 py-0.5 text-[9px] ${
+                        isActive ? 'bg-accent/20 text-accent' : 'bg-edge/40 text-slate-500'
+                      }`}
+                    >
+                      {count}
+                    </span>
+                  </button>
+                );
+              })}
+            </div>
+            <p className="-mt-2 text-[11px] text-slate-500">{CATEGORY_META[activeCategory].hint}</p>
+
+            <div className="grid gap-2 sm:grid-cols-2">
+              {TEMPLATES.filter((t) => getCategoryForTemplate(t) === activeCategory).map((t) => {
+                const popular = isPopular(t);
+                return (
+                  <button
+                    key={t.title}
+                    type="button"
+                    onClick={() => {
+                      setError(null);
+                      setFieldErrors({});
+                      setForm((f) => ({
+                        ...f,
+                        url: t.url,
+                        conditionText: t.condition,
+                        frequencySeconds: t.frequency,
+                      }));
+                      setPrefilled(true);
+                      setMode('template');
+                    }}
+                    className={`group relative cursor-pointer rounded-xl border p-3 text-left transition-all ${
+                      popular
+                        ? 'border-accent/30 bg-accent/5 hover:border-accent/50'
+                        : 'border-edge/40 hover:border-accent/30'
+                    }`}
+                  >
+                    {popular && (
+                      <span className="absolute -top-1.5 right-2 inline-flex items-center gap-1 rounded-full bg-accent px-2 py-0.5 text-[9px] font-bold uppercase tracking-wider text-ink shadow-glow-sm">
+                        <Sparkles className="h-2.5 w-2.5" />
+                        Popular
+                      </span>
+                    )}
+                    <div className="flex items-start gap-2.5">
+                      <div
+                        className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-lg ${t.bg}`}
+                      >
+                        <t.icon className={`h-3.5 w-3.5 ${t.color}`} />
+                      </div>
+                      <div className="min-w-0 flex-1">
+                        <p className="text-xs font-semibold text-slate-200 group-hover:text-white">
+                          {t.title}
+                        </p>
+                        <p className="mt-0.5 text-[10px] leading-relaxed text-slate-500">
+                          {t.desc}
+                        </p>
+                        <p className="mt-1.5 text-[10px] italic text-slate-600 line-clamp-2">
+                          &ldquo;{t.condition}&rdquo;
+                        </p>
+                      </div>
+                      <ChevronRightIcon className="mt-0.5 h-3.5 w-3.5 shrink-0 text-slate-600 transition-transform group-hover:translate-x-0.5 group-hover:text-accent" />
+                    </div>
+                  </button>
+                );
+              })}
+            </div>
+
+            <button
+              type="button"
+              onClick={() => {
+                setError(null);
+                setFieldErrors({});
+                setMode('scratch');
+              }}
+              className="group flex w-full cursor-pointer items-center gap-3 rounded-xl border border-dashed border-edge-light bg-transparent p-3 text-left transition-all hover:border-accent/40 hover:bg-accent/5"
+            >
+              <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-dashed border-edge-light text-slate-500 group-hover:border-accent/40 group-hover:text-accent">
+                <Plus className="h-4 w-4" />
+              </div>
+              <div className="min-w-0 flex-1">
+                <p className="text-xs font-semibold text-slate-200 group-hover:text-white">
+                  Start from scratch
+                </p>
+                <p className="mt-0.5 text-[10px] leading-relaxed text-slate-500">
+                  I&apos;ll describe my own target and condition
+                </p>
+              </div>
+              <ChevronRightIcon className="h-3.5 w-3.5 shrink-0 text-slate-600 transition-transform group-hover:translate-x-0.5 group-hover:text-accent" />
+            </button>
+          </div>
+        )}
+
+        {step === 1 && (mode === 'template' || mode === 'scratch') && (
+          <div className="space-y-5">
+            <button
+              type="button"
+              onClick={() => {
+                setMode('choose');
+                setError(null);
+                setFieldErrors({});
+              }}
+              className="inline-flex items-center gap-1 text-[11px] font-medium text-slate-500 transition-colors hover:text-accent"
+            >
+              <ChevronLeft className="h-3 w-3" />
+              Back to templates
+            </button>
+
             <div>
               <label htmlFor="url" className="label">
                 <Globe className="mr-1 inline h-3 w-3" />
@@ -383,6 +576,7 @@ function NewMonitorForm() {
               </label>
               <textarea
                 id="condition"
+                ref={conditionRef}
                 className={`input min-h-[120px] ${
                   fieldErrors.conditionText ? 'border-danger/60 focus:border-danger' : ''
                 }`}
@@ -407,62 +601,29 @@ function NewMonitorForm() {
                   {fieldErrors.conditionText}
                 </p>
               )}
-            </div>
 
-            <div className="space-y-3 pt-2">
-              <div className="flex items-center gap-2">
-                <Sparkles className="h-3.5 w-3.5 text-accent" />
-                <span className="text-xs font-semibold text-slate-300">
-                  Need inspiration? Pick a template
-                </span>
-              </div>
-              <div className="grid gap-2 sm:grid-cols-2">
-                {TEMPLATES.map((t) => {
-                  const isActive = form.url === t.url && form.conditionText === t.condition;
-                  return (
+              {mode === 'scratch' && (
+                <div className="mt-3 flex flex-wrap items-center gap-2">
+                  <span className="text-[10px] font-semibold uppercase tracking-wider text-slate-500">
+                    Try:
+                  </span>
+                  {SCRATCH_EXAMPLES.map((ex) => (
                     <button
-                      key={t.title}
+                      key={ex}
                       type="button"
                       onClick={() => {
-                        setError(null);
-                        setFieldErrors({});
-                        setForm((f) => ({
-                          ...f,
-                          url: t.url,
-                          conditionText: t.condition,
-                          frequencySeconds: t.frequency,
-                        }));
-                        setPrefilled(true);
+                        const current = form.conditionText.trim();
+                        const next = current ? `${current} ${ex}` : ex;
+                        set('conditionText', next.slice(0, 500));
+                        conditionRef.current?.focus();
                       }}
-                      className={`group cursor-pointer rounded-xl border p-3 text-left transition-all ${
-                        isActive
-                          ? 'border-accent/40 bg-accent/5 shadow-glow-sm'
-                          : 'border-edge/40 hover:border-accent/30'
-                      }`}
+                      className="rounded-full border border-edge/40 bg-ink-light/40 px-2.5 py-1 text-[10px] text-slate-300 transition-all hover:border-accent/30 hover:bg-accent/5 hover:text-accent"
                     >
-                      <div className="flex items-start gap-2.5">
-                        <div
-                          className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-lg ${t.bg}`}
-                        >
-                          <t.icon className={`h-3.5 w-3.5 ${t.color}`} />
-                        </div>
-                        <div className="min-w-0 flex-1">
-                          <p className="text-xs font-semibold text-slate-200 group-hover:text-white">
-                            {t.title}
-                          </p>
-                          <p className="mt-0.5 text-[10px] leading-relaxed text-slate-500">
-                            {t.desc}
-                          </p>
-                          <p className="mt-1.5 text-[10px] italic text-slate-600 line-clamp-2">
-                            &ldquo;{t.condition}&rdquo;
-                          </p>
-                        </div>
-                        <ChevronRightIcon className="mt-0.5 h-3.5 w-3.5 shrink-0 text-slate-600 transition-transform group-hover:translate-x-0.5 group-hover:text-accent" />
-                      </div>
+                      {ex}
                     </button>
-                  );
-                })}
-              </div>
+                  ))}
+                </div>
+              )}
             </div>
           </div>
         )}
@@ -493,42 +654,68 @@ function NewMonitorForm() {
                 Action type
               </label>
               <div className="grid grid-cols-2 gap-3" role="radiogroup" aria-label="Action type">
-                {(['alert', 'trade'] as const).map((t) => (
-                  <button
-                    key={t}
-                    type="button"
-                    role="radio"
-                    aria-checked={form.actionType === t}
-                    onClick={() => set('actionType', t)}
-                    className={`flex items-center gap-3 rounded-xl border p-4 text-left transition-all ${
-                      form.actionType === t
-                        ? 'border-accent/40 bg-accent/5 shadow-glow-sm'
-                        : 'border-edge hover:border-edge-light'
-                    }`}
-                  >
-                    <div
-                      className={`flex h-8 w-8 items-center justify-center rounded-lg ${
-                        form.actionType === t
-                          ? 'bg-accent/20 text-accent'
-                          : 'bg-edge/40 text-slate-500'
+                {(['alert', 'trade'] as const).map((t) => {
+                  const active = form.actionType === t;
+                  return (
+                    <button
+                      key={t}
+                      type="button"
+                      role="radio"
+                      aria-checked={active}
+                      onClick={() => set('actionType', t)}
+                      className={`relative flex items-start gap-3 rounded-xl border p-4 text-left transition-all ${
+                        active
+                          ? t === 'trade'
+                            ? 'border-warn/40 bg-warn/5 shadow-glow-sm'
+                            : 'border-accent/40 bg-accent/5 shadow-glow-sm'
+                          : 'border-edge/40 hover:border-edge-light'
                       }`}
                     >
-                      {t === 'alert' ? (
-                        <AlertTriangle className="h-4 w-4" />
-                      ) : (
-                        <Zap className="h-4 w-4" />
+                      {t === 'trade' && (
+                        <span
+                          className={`absolute -top-1.5 right-2 rounded-full px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wider ${
+                            active ? 'bg-warn text-ink' : 'bg-edge/40 text-slate-500'
+                          }`}
+                        >
+                          Premium
+                        </span>
                       )}
-                    </div>
-                    <div>
-                      <p className="text-sm font-semibold text-slate-200">
-                        {t === 'alert' ? 'Alert only' : 'Trade execution'}
-                      </p>
-                      <p className="text-[10px] text-slate-500">
-                        {t === 'alert' ? 'Webhook, Telegram, email' : 'Auto-execute on Kraken'}
-                      </p>
-                    </div>
-                  </button>
-                ))}
+                      <div
+                        className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-lg ${
+                          active
+                            ? t === 'trade'
+                              ? 'bg-warn/20 text-warn'
+                              : 'bg-accent/20 text-accent'
+                            : 'bg-edge/40 text-slate-500'
+                        }`}
+                      >
+                        {t === 'alert' ? (
+                          <AlertTriangle className="h-4 w-4" />
+                        ) : (
+                          <Zap className="h-4 w-4" />
+                        )}
+                      </div>
+                      <div className="min-w-0 flex-1">
+                        <p
+                          className={`text-sm font-semibold ${
+                            active ? 'text-slate-200' : 'text-slate-400'
+                          }`}
+                        >
+                          {t === 'alert' ? 'Alert only' : 'Trade execution'}
+                        </p>
+                        <p
+                          className={`mt-0.5 text-[10px] leading-relaxed ${
+                            active ? 'text-slate-400' : 'text-slate-500'
+                          }`}
+                        >
+                          {t === 'alert'
+                            ? 'Webhook, Telegram, or email. No exchange connection needed.'
+                            : 'Auto-execute on Kraken when a signal triggers. Paper mode by default.'}
+                        </p>
+                      </div>
+                    </button>
+                  );
+                })}
               </div>
             </div>
 
@@ -625,23 +812,19 @@ function NewMonitorForm() {
 
         {step === 3 && (
           <div className="space-y-5">
-            <div className="stat-card p-5">
+            <div className="stat-card p-4">
               {form.actionType === 'trade' ? (
-                <div className="space-y-2">
-                  <p className="text-sm font-medium text-slate-200">Paper trade, then go live</p>
-                  <p className="text-xs leading-relaxed text-slate-400">
-                    Test against live prices — no credentials required. When ready, paper buy
-                    becomes real order. That&apos;s it. (Kraken CLI with safety rails: cooldowns,
-                    max-open-orders, dead-man&apos;s switch.)
-                  </p>
-                </div>
+                <p className="text-xs leading-relaxed text-slate-400">
+                  <span className="font-semibold text-warn">Paper trade first.</span> Test with
+                  simulated orders against live prices — no credentials required. When ready, paper
+                  buys become real. Safety rails: cooldowns, max open orders, dead-man&apos;s
+                  switch.
+                </p>
               ) : (
-                <div className="space-y-2">
-                  <p className="text-sm font-medium text-slate-200">Alert Mode</p>
-                  <p className="text-xs leading-relaxed text-slate-400">
-                    Add webhook, Telegram, or email actions in the Rules builder after creation.
-                  </p>
-                </div>
+                <p className="text-xs leading-relaxed text-slate-400">
+                  <span className="font-semibold text-accent">Notification only.</span> Add webhook,
+                  Telegram, or email actions in the Rules builder after the monitor is created.
+                </p>
               )}
             </div>
             <div>
@@ -650,46 +833,52 @@ function NewMonitorForm() {
                 Wallet connection
               </label>
               {isConnected && accountId && user?.id ? (
-                <div className="stat-card flex items-center gap-3 p-4">
-                  <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-signal/20">
-                    <Check className="h-4 w-4 text-signal" />
+                <div className="stat-card flex items-center gap-3 p-3">
+                  <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-signal/20">
+                    <Check className="h-3.5 w-3.5 text-signal" />
                   </div>
-                  <div>
-                    <p className="text-sm font-medium text-slate-200">Connected and signed in</p>
-                    <p className="font-mono text-xs text-slate-500">
+                  <div className="flex min-w-0 flex-1 items-center gap-3">
+                    <p className="shrink-0 text-xs font-medium text-signal">Signed in</p>
+                    <p className="truncate font-mono text-[11px] text-slate-500">
                       {accountId.slice(0, 8)}…{accountId.slice(-4)}
                     </p>
                   </div>
                 </div>
               ) : isConnected && accountId ? (
-                <div className="stat-card flex items-center gap-3 border-warn/20 p-4">
-                  <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-warn/20">
-                    <AlertTriangle className="h-4 w-4 text-warn" />
+                <div className="stat-card flex items-center gap-3 border-warn/20 p-3">
+                  <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-warn/20">
+                    <AlertTriangle className="h-3.5 w-3.5 text-warn" />
                   </div>
-                  <div className="flex-1">
-                    <p className="text-sm font-medium text-warn">
-                      Wallet connected, sign-in needed
-                    </p>
-                    <p className="font-mono text-xs text-slate-500">
+                  <div className="min-w-0 flex-1">
+                    <p className="text-xs font-medium text-warn">Sign-in pending</p>
+                    <p className="truncate font-mono text-[11px] text-slate-500">
                       {accountId.slice(0, 8)}…{accountId.slice(-4)}
                     </p>
                   </div>
-                  <button type="button" onClick={connect} className="btn shrink-0 py-2 text-xs">
-                    Approve Sign-In
+                  <button
+                    type="button"
+                    onClick={connect}
+                    className="btn shrink-0 py-1.5 text-[11px]"
+                  >
+                    Approve
                   </button>
                 </div>
               ) : (
-                <div className="stat-card flex items-center gap-3 border-danger/20 p-4">
-                  <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-danger/20">
-                    <AlertTriangle className="h-4 w-4 text-danger" />
+                <div className="stat-card flex items-center gap-3 p-3">
+                  <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-edge/40">
+                    <Wallet className="h-3.5 w-3.5 text-slate-500" />
                   </div>
                   <div className="flex-1">
-                    <p className="text-sm font-medium text-danger">Wallet Required</p>
-                    <p className="text-xs text-slate-500">
-                      Connect your Hedera wallet to create a monitor
+                    <p className="text-xs font-medium text-slate-300">Wallet required</p>
+                    <p className="text-[11px] text-slate-500">
+                      Connect to create and fund your monitor
                     </p>
                   </div>
-                  <button type="button" onClick={connect} className="btn shrink-0 py-2 text-xs">
+                  <button
+                    type="button"
+                    onClick={connect}
+                    className="btn-ghost shrink-0 py-1.5 text-[11px]"
+                  >
                     Connect
                   </button>
                 </div>
@@ -699,13 +888,17 @@ function NewMonitorForm() {
         )}
 
         {step === 4 && (
-          <div className="space-y-5">
-            <div className="stat-card space-y-3 p-5">
-              <p className="section-title">Review</p>
-              <div className="space-y-2 text-sm">
+          <div className="space-y-4">
+            <div className="stat-card divide-y divide-edge/40">
+              <div className="pb-2">
+                <p className="section-title">Review</p>
+              </div>
+              <div className="space-y-1.5 pt-2 text-xs">
                 <div className="flex justify-between">
                   <span className="text-slate-500">URL</span>
-                  <span className="truncate pl-4 text-slate-200">{form.url || '—'}</span>
+                  <span className="max-w-[60%] truncate pl-4 text-slate-200">
+                    {form.url || '—'}
+                  </span>
                 </div>
                 <div className="flex justify-between">
                   <span className="text-slate-500">Frequency</span>
@@ -719,33 +912,42 @@ function NewMonitorForm() {
                   <span className="text-slate-500">Action</span>
                   <span className="text-slate-200">
                     {form.actionType === 'trade' && form.tradeConfig.pair
-                      ? `${form.tradeConfig.type.toUpperCase()} ${form.tradeConfig.pair} @ ${form.tradeConfig.volume} (paper)`
-                      : form.actionType}
+                      ? `${form.tradeConfig.type.toUpperCase()} ${form.tradeConfig.pair} @ ${form.tradeConfig.volume}`
+                      : form.actionType === 'trade'
+                        ? 'Trade (pair not set)'
+                        : form.actionType}
+                    {form.actionType === 'trade' && (
+                      <span className="ml-1 text-[10px] text-slate-500">(paper)</span>
+                    )}
                   </span>
                 </div>
+                {form.screenshotsEnabled && (
+                  <div className="flex justify-between">
+                    <span className="text-slate-500">Screenshots</span>
+                    <span className="text-slate-200">On</span>
+                  </div>
+                )}
               </div>
             </div>
 
             {!user?.id && (
-              <div className="stat-card flex items-center gap-3 border-accent/20 p-4">
-                <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-accent/20">
-                  <Wallet className="h-4 w-4 text-accent" />
+              <div className="flex items-center gap-3 rounded-xl border border-accent/20 bg-accent/5 p-3">
+                <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-accent/20">
+                  <Wallet className="h-3.5 w-3.5 text-accent" />
                 </div>
-                <div className="flex-1">
-                  <p className="text-sm font-medium text-slate-200">Wallet sign-in required</p>
-                  <p className="text-xs text-slate-500">
-                    Connect your Hedera wallet and approve the sign-in request before creation.
-                  </p>
-                </div>
-                <button type="button" onClick={connect} className="btn-ghost shrink-0 py-2 text-xs">
+                <p className="flex-1 text-xs text-slate-400">
+                  <span className="font-medium text-slate-200">Wallet sign-in required</span>
+                  {' — '}connect and approve before creation.
+                </p>
+                <button type="button" onClick={connect} className="btn shrink-0 py-1.5 text-[11px]">
                   {isConnected ? 'Approve' : 'Connect'}
                 </button>
               </div>
             )}
 
             {error && (
-              <div className="flex items-center gap-2 text-sm text-danger" role="alert">
-                <AlertTriangle className="h-4 w-4" />
+              <div className="flex items-center gap-2 text-xs text-danger" role="alert">
+                <AlertTriangle className="h-3.5 w-3.5" />
                 {error}
               </div>
             )}
