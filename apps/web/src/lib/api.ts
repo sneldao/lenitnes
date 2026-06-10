@@ -118,6 +118,12 @@ export const api = {
       note: string;
     }>('/kraken/test-trade', { method: 'POST', body: JSON.stringify(params ?? {}) }),
 
+  joinWaitlist: (email: string) =>
+    req<{ ok: boolean; message: string }>('/waitlist', {
+      method: 'POST',
+      body: JSON.stringify({ email }),
+    }),
+
   /** Execute a monitor on-demand via the x402-gated endpoint. */
 
   executeMonitor: async (

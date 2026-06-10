@@ -17,6 +17,7 @@ import { ordersRouter } from './routes/orders.js';
 import { krakenRouter } from './routes/kraken.js';
 import { proofRouter } from './routes/proof.js';
 import { dlqRouter } from './routes/dlq.js';
+import { waitlistRouter } from './routes/waitlist.js';
 import { requireAuth } from './middleware/auth.js';
 import { auditMiddleware } from './middleware/audit.js';
 import { renderMetrics, metricsMiddleware } from './middleware/metrics.js';
@@ -136,8 +137,9 @@ app.get('/health', async (_req, res) => {
 });
 
 app.use('/auth', authLimiter, authRouter);
-// ── Public proof endpoint (no auth required) ─────────────────────────
+// ── Public endpoints (no auth required) ─────────────────────────
 app.use('/proof', proofRouter);
+app.use('/waitlist', waitlistRouter);
 app.use('/monitors', requireAuth, monitorsRouter);
 app.use('/signals', requireAuth, signalsRouter);
 app.use('/rules', requireAuth, rulesRouter);

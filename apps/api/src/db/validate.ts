@@ -1,6 +1,14 @@
 import { query } from './pool.js';
 
-const EXPECTED_TABLES = ['users', 'monitors', 'signals', 'rules', 'orders', 'audit_logs'];
+const EXPECTED_TABLES = [
+  'users',
+  'monitors',
+  'signals',
+  'rules',
+  'orders',
+  'audit_logs',
+  'waitlist',
+];
 
 export async function validateSchema(): Promise<{ ok: boolean; missing: string[] }> {
   const { rows } = await query<{ table_name: string }>(

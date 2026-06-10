@@ -2,21 +2,26 @@
 
 import { useState } from 'react';
 import { Mail, Send, X } from 'lucide-react';
+import { api } from '@/lib/api';
 
 export function WaitlistBanner() {
   const [email, setEmail] = useState('');
   const [submitted, setSubmitted] = useState(false);
   const [dismissed, setDismissed] = useState(false);
+  const [error, setError] = useState('');
 
   if (dismissed) return null;
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    setError('');
     if (!email.includes('@')) return;
-    // In a real app you'd POST to /api/waitlist here.
-    // For now, opening a mailto with the feedback intent.
-    window.location.href = `mailto:hello@lenitnes.com?subject=LENITNES%20Early%20Access&body=Count%20me%20in!%0A%0AEmail:%20${encodeURIComponent(email)}`;
-    setSubmitted(true);
+    try {
+      await api.joinWaitlist(email.trim());
+      setSubmitted(true);
+    } catch {
+      setError('Something went wrong. Try again?');
+    }
   };
 
   return (
@@ -57,7 +62,7 @@ export function WaitlistBanner() {
           </button>
         </form>
       ) : (
-        <p className="mt-4 text-xs text-signal">Thanks! Check your inbox to confirm.</p>
+        <p className="mt-4 text-xs text-signal">You are on the list. We will be in touch.</p>
       )}
 
       <div className="mt-3 flex items-center justify-center gap-3 text-[10px] text-slate-500">
@@ -72,6 +77,7 @@ export function WaitlistBanner() {
         </a>
         <span>for instant feedback.</span>
       </div>
+      {error && <p className="mt-2 text-xs text-danger">{error}</p>}
     </div>
   );
 }
