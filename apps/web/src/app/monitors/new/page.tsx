@@ -32,6 +32,7 @@ import {
   Plus,
   Info,
   Lock,
+  Workflow,
 } from 'lucide-react';
 
 import { TEMPLATES } from '@/data/templates';
@@ -91,6 +92,12 @@ function NewMonitorForm() {
     actionType: 'alert' as 'alert' | 'trade',
     screenshotsEnabled: true,
     isPublic: true,
+    tradeConfig: {
+      pair: '',
+      type: 'buy' as 'buy' | 'sell',
+      ordertype: 'market',
+      volume: '0.001',
+    },
   });
 
   // Pre-fill from URL params (template links from landing page)
@@ -177,6 +184,23 @@ function NewMonitorForm() {
         screenshotsEnabled: form.screenshotsEnabled,
         isPublic: form.isPublic,
       });
+      // If trade mode selected, create the rule atomically so the loop is complete.
+      if (form.actionType === 'trade' && form.tradeConfig.pair) {
+        try {
+          await api.createRule({
+            monitorId: monitor.id,
+            actionType: 'trade',
+            actionConfig: {
+              ...form.tradeConfig,
+              validate: true, // paper mode by default
+            },
+            isActive: true,
+          });
+        } catch (ruleErr) {
+          // Monitor is created; rule can be added later from /rules
+          console.warn('Rule creation failed:', ruleErr);
+        }
+      }
       setCreatedMonitor(monitor);
       setActivationResult(null);
       setCopiedShareLink(false);
@@ -191,7 +215,7 @@ function NewMonitorForm() {
   async function runFirstCheck() {
     if (!createdMonitor) return;
     if (!isConnected) {
-      toast.warn('Connect your Hedera wallet first to approve the on-demand check.');
+      toast.warn('Connect your Hedera wallet first.');
       await connect();
       return;
     }
@@ -200,23 +224,10 @@ function NewMonitorForm() {
     setError(null);
     setActivationResult(null);
     setCopiedShareLink(false);
-    toast.info('Requesting wallet approval for the first check...');
+    toast.info('Running first check (free)...');
 
     try {
-      const res = await api.executeMonitor(createdMonitor.id, executeWithPayment);
-      const data = (await res.json()) as {
-        ok?: boolean;
-        signalId?: string | null;
-        conditionMet?: boolean;
-        isHeartbeat?: boolean;
-        summary?: string | null;
-        publicShareToken?: string | null;
-        error?: string;
-      };
-
-      if (!res.ok || !data.ok) {
-        throw new Error(data.error ?? 'First check failed.');
-      }
+      const data = await api.firstCheck(createdMonitor.id);
 
       const nextResult = {
         signalId: data.signalId ?? null,
@@ -239,15 +250,13 @@ function NewMonitorForm() {
       const raw = String(e);
       const msg = raw.toLowerCase();
       let message: string;
-      if (msg.includes('rejected') || msg.includes('cancel') || msg.includes('denied')) {
-        message = 'Wallet rejected the payment request. No funds were transferred.';
-      } else if (msg.includes('402') || msg.includes('payment') || msg.includes('x402')) {
-        message = 'Payment setup failed. Check your wallet balance and try again.';
-      } else if (msg.includes('timeout') || msg.includes('timed out')) {
+      if (msg.includes('timeout') || msg.includes('timed out')) {
         message = 'Request timed out. The network may be congested — try again.';
       } else if (msg.includes('tinyfish') || msg.includes('scraper')) {
         message =
           'The intelligence service had trouble reaching the target. A fallback check was attempted.';
+      } else if (msg.includes('first_check_already_used')) {
+        message = 'First check already used. Use on-demand execution for subsequent checks.';
       } else {
         message = raw.startsWith('First check failed') ? raw : 'First check failed: ' + raw;
       }
@@ -513,6 +522,65 @@ function NewMonitorForm() {
                 ))}
               </div>
             </div>
+
+            {form.actionType === 'trade' && (
+              <div className="space-y-3 rounded-xl border border-warn/20 bg-warn/5 p-4">
+                <div className="flex items-center gap-2 text-[10px] font-semibold uppercase tracking-wider text-warn">
+                  <Workflow className="h-3.5 w-3.5" />
+                  Paper trade config
+                </div>
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="text-[10px] text-slate-500">Pair</label>
+                    <input
+                      className="input mt-1 font-mono text-xs"
+                      placeholder="XBTUSD"
+                      value={form.tradeConfig.pair}
+                      onChange={(e) =>
+                        setForm((f) => ({
+                          ...f,
+                          tradeConfig: { ...f.tradeConfig, pair: e.target.value.toUpperCase() },
+                        }))
+                      }
+                    />
+                  </div>
+                  <div>
+                    <label className="text-[10px] text-slate-500">Direction</label>
+                    <select
+                      className="input mt-1"
+                      value={form.tradeConfig.type}
+                      onChange={(e) =>
+                        setForm((f) => ({
+                          ...f,
+                          tradeConfig: { ...f.tradeConfig, type: e.target.value as 'buy' | 'sell' },
+                        }))
+                      }
+                    >
+                      <option value="buy">Buy</option>
+                      <option value="sell">Sell</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label className="text-[10px] text-slate-500">Volume</label>
+                    <input
+                      className="input mt-1 font-mono text-xs"
+                      placeholder="0.001"
+                      value={form.tradeConfig.volume}
+                      onChange={(e) =>
+                        setForm((f) => ({
+                          ...f,
+                          tradeConfig: { ...f.tradeConfig, volume: e.target.value },
+                        }))
+                      }
+                    />
+                  </div>
+                </div>
+                <p className="text-[10px] text-slate-500">
+                  Paper mode — no Kraken credentials required. Simulated $10K account, live prices.
+                </p>
+              </div>
+            )}
+
             <div className="flex items-center gap-3 rounded-xl border border-edge/40 bg-ink-light/50 p-3">
               <input
                 id="screenshots"
@@ -640,7 +708,11 @@ function NewMonitorForm() {
                 </div>
                 <div className="flex justify-between">
                   <span className="text-slate-500">Action</span>
-                  <span className="text-slate-200">{form.actionType}</span>
+                  <span className="text-slate-200">
+                    {form.actionType === 'trade' && form.tradeConfig.pair
+                      ? `${form.tradeConfig.type.toUpperCase()} ${form.tradeConfig.pair} @ ${form.tradeConfig.volume} (paper)`
+                      : form.actionType}
+                  </span>
                 </div>
               </div>
             </div>
@@ -691,11 +763,11 @@ function NewMonitorForm() {
                 <div className="space-y-1">
                   <p className="section-title">Activation loop</p>
                   <h3 className="text-base font-semibold text-white">
-                    Run the first check and turn it into a proof
+                    Run the first check — on us
                   </h3>
                   <p className="text-xs leading-relaxed text-slate-400">
-                    This executes the monitor now. If the condition matches, LENITNES creates a
-                    proof package you can inspect and share.
+                    Your first check is free. If the condition matches, LENITNES creates a proof
+                    package you can inspect and share. Fund the monitor to keep it running.
                   </p>
                 </div>
                 <button
@@ -817,13 +889,29 @@ function NewMonitorForm() {
                       </>
                     )}
                   </button>
-                  <span className="ml-auto text-[10px] text-slate-500">
-                    {Number(createdMonitor.hbar_balance) <= 0
-                      ? 'Balance is 0 — top up to enable scheduled checks'
-                      : Number(createdMonitor.hbar_balance) <
-                          Number(createdMonitor.cost_per_check) * 5
-                        ? 'Low balance — consider topping up'
-                        : 'Funded and ready'}
+                  <span className="ml-auto flex items-center gap-1.5 text-[10px] text-slate-500">
+                    {Number(createdMonitor.hbar_balance) <= 0 ? (
+                      <>
+                        Balance is 0 — top up to enable scheduled checks
+                        {(process.env.NEXT_PUBLIC_HEDERA_NETWORK ?? 'testnet').toLowerCase() ===
+                          'testnet' && (
+                          <a
+                            href="https://portal.hedera.com/faucet"
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="inline-flex items-center gap-0.5 text-accent hover:underline"
+                          >
+                            Get free test HBAR
+                            <ExternalLink className="h-2.5 w-2.5" />
+                          </a>
+                        )}
+                      </>
+                    ) : Number(createdMonitor.hbar_balance) <
+                      Number(createdMonitor.cost_per_check) * 5 ? (
+                      'Low balance — consider topping up'
+                    ) : (
+                      'Funded and ready'
+                    )}
                   </span>
                 </div>
               </div>

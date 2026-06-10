@@ -11,6 +11,10 @@ import {
   updateMonitor as updateMonitorSvc,
   pauseAndReleaseEscrow as pauseAndReleaseEscrowSvc,
 } from '../services/domain/monitor.service.js';
+import { executeCheck } from '../execution/loop.js';
+import { query } from '../db/pool.js';
+import { createSignalShareToken } from '../services/share-token.js';
+import { logger } from '../logger.js';
 
 export const monitorsRouter = Router();
 
@@ -93,4 +97,47 @@ monitorsRouter.delete('/:id', async (req, res) => {
   const ok = await pauseAndReleaseEscrowSvc(req.params.id ?? '', authReq.user.id);
   if (!ok) return res.status(404).json({ error: 'not found' });
   res.json({ ok: true });
+});
+
+// POST /monitors/:id/first-check — free first check (no x402, no escrow debit).
+// One-time per monitor. Skips payment to give instant gratification.
+monitorsRouter.post('/:id/first-check', async (req, res) => {
+  const authReq = req as unknown as AuthenticatedRequest;
+  const monitorId = req.params.id ?? '';
+
+  // Verify ownership
+  const { rows } = await query<Monitor>(`SELECT * FROM monitors WHERE id = $1 AND user_id = $2`, [
+    monitorId,
+    authReq.user.id,
+  ]);
+  const monitor = rows[0];
+  if (!monitor) return res.status(404).json({ error: 'not found' });
+  if (monitor.status !== 'active') return res.status(400).json({ error: 'monitor_not_active' });
+
+  // Enforce one-time
+  const { rows: countRows } = await query<{ count: string }>(
+    `SELECT count(*)::text AS count FROM signals WHERE monitor_id = $1`,
+    [monitorId],
+  );
+  if (Number(countRows[0]?.count ?? 0) > 0) {
+    return res
+      .status(400)
+      .json({
+        error: 'first_check_already_used',
+        message: 'Use on-demand execution for subsequent checks.',
+      });
+  }
+
+  try {
+    const result = await executeCheck(monitor, { skipDebit: true });
+    res.json({
+      ok: true,
+      monitorId,
+      ...result,
+      publicShareToken: result.signalId ? createSignalShareToken(result.signalId) : null,
+    });
+  } catch (err) {
+    logger.error({ err, monitorId }, 'first check failed');
+    res.status(500).json({ error: 'execution_failed', detail: String(err) });
+  }
 });

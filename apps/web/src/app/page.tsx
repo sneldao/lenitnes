@@ -23,6 +23,7 @@ import {
   X,
   BarChart3,
   GitCommit,
+  Bell,
 } from 'lucide-react';
 
 import {
@@ -502,19 +503,69 @@ function DashboardView({
       )}
 
       {!isLoading && !error && monitors.length === 0 && (
-        <div className="card space-y-4 p-10 text-center">
-          <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl bg-accent/10">
-            <Eye className="h-7 w-7 text-accent" />
+        <div className="space-y-6">
+          <div className="card space-y-4 p-10 text-center">
+            <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl bg-accent/10">
+              <Eye className="h-7 w-7 text-accent" />
+            </div>
+            <div className="space-y-2">
+              <p className="text-lg font-semibold text-white">No monitors yet</p>
+              <p className="text-sm text-slate-400">
+                Pick a template below and create your first monitor in one click.
+              </p>
+            </div>
           </div>
-          <div className="space-y-2">
-            <p className="text-lg font-semibold text-white">No monitors yet</p>
-            <p className="text-sm text-slate-400">
-              Create your first monitor to start watching for market signals.
-            </p>
+          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+            {[
+              {
+                title: 'Zcash halo2 — Code Alpha',
+                url: 'https://github.com/zcash/halo2/commits/main',
+                condition:
+                  'A new commit fixes a critical cryptography bug, soundness issue, or verifying key change in the halo2 circuit — something that could affect ZEC token confidence or require immediate network attention.',
+                freq: 1800,
+                icon: Shield,
+                color: 'text-danger',
+                bg: 'bg-danger/10',
+              },
+              {
+                title: 'GitHub Security Watch',
+                url: 'https://github.com/ethereum/go-ethereum/commits/master',
+                condition:
+                  'A new commit mentions security, vulnerability, CVE, fix, or critical patch.',
+                freq: 3600,
+                icon: GitCommit,
+                color: 'text-accent',
+                bg: 'bg-accent/10',
+              },
+              {
+                title: 'Exchange Status Monitor',
+                url: 'https://status.kraken.com',
+                condition:
+                  'Any service shows degraded performance, partial outage, or maintenance.',
+                freq: 300,
+                icon: Bell,
+                color: 'text-warn',
+                bg: 'bg-warn/10',
+              },
+            ].map((t) => (
+              <div key={t.title} className="card space-y-3 p-4">
+                <div className="flex items-center gap-2">
+                  <div className={`flex h-8 w-8 items-center justify-center rounded-lg ${t.bg}`}>
+                    <t.icon className={`h-4 w-4 ${t.color}`} />
+                  </div>
+                  <p className="text-sm font-semibold text-slate-200">{t.title}</p>
+                </div>
+                <p className="text-xs text-slate-500 line-clamp-2">{t.condition}</p>
+                <Link
+                  href={`/monitors/new?url=${encodeURIComponent(t.url)}&condition=${encodeURIComponent(t.condition)}&frequency=${t.freq}`}
+                  className="btn inline-flex w-full justify-center text-xs"
+                >
+                  <Play className="h-3 w-3 fill-ink" />
+                  Create Monitor
+                </Link>
+              </div>
+            ))}
           </div>
-          <Link href="/monitors/new" className="btn inline-flex">
-            Create Monitor
-          </Link>
         </div>
       )}
 

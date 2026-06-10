@@ -491,34 +491,48 @@ export default function SignalDetailPage({ params }: { params: Promise<{ id: str
       )}
 
       {!isPublic && Array.isArray((signal as any).orders) && (signal as any).orders.length > 0 && (
-        <div className="card">
+        <div className="card border-warn/20 bg-warn/5">
           <h2 className="section-title mb-4 flex items-center gap-2">
             <Zap className="h-3.5 w-3.5 text-warn" />
-            Kraken Orders
+            Action taken
           </h2>
-          <div className="space-y-2">
-            {(signal as any).orders.map((o: any) => (
-              <div key={o.id} className="stat-card flex items-center justify-between">
-                <div className="space-y-0.5">
-                  <p className="font-mono text-xs text-slate-300">
-                    {o.kraken_order_id ?? '\u2014'}
-                  </p>
-                  <p className="text-[10px] text-slate-500">Order ID</p>
+          <div className="space-y-3">
+            {(signal as any).orders.map((o: any) => {
+              const params = o.order_params || {};
+              const isPaper =
+                params.validate === true || String(o.kraken_order_id).startsWith('paper-');
+              return (
+                <div key={o.id} className="space-y-2">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <span className="font-mono text-sm font-semibold text-slate-200">
+                        {params.type?.toUpperCase()} {params.pair} @ {params.volume}
+                      </span>
+                      {isPaper && (
+                        <span className="badge bg-warn/15 text-warn text-[10px]">Paper</span>
+                      )}
+                    </div>
+                    <span
+                      className={
+                        'badge text-[10px] ' +
+                        (o.status === 'placed'
+                          ? 'bg-signal/15 text-signal'
+                          : o.status === 'failed'
+                            ? 'bg-danger/15 text-danger'
+                            : 'bg-slate-500/15 text-slate-400')
+                      }
+                    >
+                      {o.status}
+                    </span>
+                  </div>
+                  {o.kraken_response?.mode === 'paper' && o.kraken_response?.output && (
+                    <pre className="overflow-auto rounded-lg bg-ink-light/80 p-3 font-mono text-[10px] leading-relaxed text-slate-400">
+                      {o.kraken_response.output}
+                    </pre>
+                  )}
                 </div>
-                <span
-                  className={
-                    'badge ' +
-                    (o.status === 'placed'
-                      ? 'bg-signal/15 text-signal'
-                      : o.status === 'failed'
-                        ? 'bg-danger/15 text-danger'
-                        : 'bg-slate-500/15 text-slate-400')
-                  }
-                >
-                  {o.status}
-                </span>
-              </div>
-            ))}
+              );
+            })}
           </div>
         </div>
       )}

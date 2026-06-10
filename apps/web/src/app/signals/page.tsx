@@ -4,7 +4,7 @@ import Link from 'next/link';
 import { useQuery } from '@tanstack/react-query';
 import { api, type Signal } from '@/lib/api';
 import { useAuth } from '@/lib/useAuth';
-import { Eye, Clock, Shield, Activity, ChevronRight, Zap } from 'lucide-react';
+import { Eye, Clock, Shield, Activity, ChevronRight, Zap, MessageCircle } from 'lucide-react';
 
 export default function SignalsPage() {
   const { isAuthenticated } = useAuth();
@@ -47,14 +47,25 @@ export default function SignalsPage() {
       )}
 
       {!isLoading && !error && signals.length === 0 && (
-        <div className="card space-y-3 p-10 text-center">
+        <div className="card space-y-4 p-10 text-center">
           <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl bg-accent/10">
             <Activity className="h-7 w-7 text-accent" />
           </div>
-          <p className="text-lg font-semibold text-white">No signals yet</p>
-          <p className="text-sm text-slate-400">
-            Signals appear when a monitor detects a condition match.
-          </p>
+          <div className="space-y-2">
+            <p className="text-lg font-semibold text-white">No signals yet</p>
+            <p className="text-sm text-slate-400">
+              Signals appear when a monitor detects a condition match.
+            </p>
+          </div>
+          <a
+            href="https://t.me/lenitnesapp"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="btn-ghost inline-flex text-xs text-slate-400"
+          >
+            <MessageCircle className="h-3.5 w-3.5" />
+            See live public signals on Telegram
+          </a>
         </div>
       )}
 
