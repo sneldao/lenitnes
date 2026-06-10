@@ -68,7 +68,7 @@ export function WaitlistBanner() {
       <div className="mt-3 flex items-center justify-center gap-3 text-[10px] text-slate-500">
         <span>Or join</span>
         <a
-          href="https://t.me/lenitnes"
+          href="https://t.me/lenitnesapp"
           target="_blank"
           rel="noopener noreferrer"
           className="inline-flex items-center gap-1 text-accent hover:underline"
