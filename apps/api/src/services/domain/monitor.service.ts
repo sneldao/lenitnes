@@ -29,7 +29,7 @@ export async function createMonitor(params: CreateMonitorParams): Promise<Monito
       params.frequencySeconds,
       params.costPerCheck ?? config.hedera.defaultCostPerCheck,
       params.screenshotsEnabled,
-      params.isPublic ?? false,
+      params.isPublic ?? true,
     ],
   );
   cacheInvalidate(`monitors:${params.userId}:`);

@@ -31,6 +31,7 @@ import {
   CalendarDays,
   Plus,
   Info,
+  Lock,
 } from 'lucide-react';
 
 import { TEMPLATES } from '@/data/templates';
@@ -86,10 +87,10 @@ function NewMonitorForm() {
   const [form, setForm] = useState({
     url: '',
     conditionText: '',
-    frequencySeconds: 3600,
+    frequencySeconds: 86400,
     actionType: 'alert' as 'alert' | 'trade',
     screenshotsEnabled: true,
-    isPublic: false,
+    isPublic: true,
   });
 
   // Pre-fill from URL params (template links from landing page)
@@ -461,11 +462,11 @@ function NewMonitorForm() {
                 value={form.frequencySeconds}
                 onChange={(e) => set('frequencySeconds', Number(e.target.value))}
               >
-                <option value={300}>Every 5 minutes</option>
-                <option value={900}>Every 15 minutes</option>
-                <option value={3600}>Every hour</option>
+                <option value={86400}>Daily (default)</option>
                 <option value={21600}>Every 6 hours</option>
-                <option value={86400}>Daily</option>
+                <option value={3600}>Every hour (burns 24× faster)</option>
+                <option value={900}>Every 15 minutes (burns 96× faster)</option>
+                <option value={300}>Every 5 minutes (burns 288× faster)</option>
               </select>
             </div>
             <div>
@@ -530,16 +531,16 @@ function NewMonitorForm() {
             </div>
             <div className="flex items-center gap-3 rounded-xl border border-edge/40 bg-ink-light/50 p-3">
               <input
-                id="public"
+                id="private"
                 type="checkbox"
                 className="h-4 w-4 rounded border-edge bg-ink accent-accent"
-                checked={form.isPublic}
-                onChange={(e) => set('isPublic', e.target.checked)}
+                checked={!form.isPublic}
+                onChange={(e) => set('isPublic', !e.target.checked)}
               />
-              <label htmlFor="public" className="flex items-center gap-2 text-sm text-slate-300">
-                <Globe className="h-3.5 w-3.5 text-slate-500" />
-                Share to public feed
-                <span className="text-[10px] text-accent">(beta — free)</span>
+              <label htmlFor="private" className="flex items-center gap-2 text-sm text-slate-300">
+                <Lock className="h-3.5 w-3.5 text-slate-500" />
+                Keep signals private
+                <span className="text-[10px] text-accent">(premium — free during beta)</span>
               </label>
             </div>
           </div>

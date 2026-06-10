@@ -3,6 +3,8 @@ import { config } from '../config.js';
 import type { TinyFishResult } from '@lenitnes/types';
 import { withRetry } from './retry.js';
 import { observeHistogram } from '../middleware/metrics.js';
+import { fetchCommitsSince } from './github.js';
+import { logger } from '../logger.js';
 
 // ─────────────────────────────────────────────────────────────
 // TinyFish integration — natural-language web intelligence.
@@ -33,13 +35,14 @@ function truncateCondition(condition: string): string {
   return condition.slice(0, MAX_CONDITION_LEN) + '…';
 }
 
-function buildGoalPrompt(p: RunMonitorCheckParams): string {
+function buildGoalPrompt(p: RunMonitorCheckParams, commitContext = ''): string {
   const condition = truncateCondition(p.condition);
   const sinceClause = p.lastSeenCommitHash ? `Commits since ${p.lastSeenCommitHash}. ` : '';
   // Compact prompt to minimize token usage while preserving intent.
   return [
     `Visit ${p.url}. Is this true: "${condition}"?`,
     sinceClause,
+    commitContext,
     `Extract evidence. Return strict JSON: condition_met(bool), evidence(str), summary(str), latest_commit_hash(str, commits only).`,
   ].join(' ');
 }
@@ -67,7 +70,25 @@ export async function runMonitorCheck(p: RunMonitorCheckParams): Promise<TinyFis
   }
 
   const start = performance.now();
-  const goal = buildGoalPrompt(p);
+
+  // ── Optional GitHub enrichment: fetch commit data for richer evaluation ──
+  let commitContext = '';
+  if (config.github.token && p.url.includes('github.com')) {
+    try {
+      const commits = await fetchCommitsSince(p.url, p.lastSeenCommitHash ?? null);
+      if (commits && commits.length > 0) {
+        commitContext = `
+Recent commits since last check:\n${commits
+          .slice(0, 5)
+          .map((c) => `- ${c.sha.slice(0, 7)}: ${c.message.split('\n')[0]} (${c.author})`)
+          .join('\n')}`;
+      }
+    } catch (err) {
+      logger.warn({ err, url: p.url }, 'GitHub enrichment skipped');
+    }
+  }
+
+  const goal = buildGoalPrompt(p, commitContext);
 
   const baseUrl = process.env.TINYFISH_API_URL ?? 'https://api.tinyfish.ai/v1';
   const res = await withRetry(

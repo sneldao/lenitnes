@@ -317,7 +317,11 @@ async function executeRules(monitor: Monitor, signalId: string, summary: string)
         case 'telegram':
           await notify.sendTelegram(
             String(rule.action_config.chatId),
-            `LENITNES signal: ${summary}`,
+            notify.formatSignalMessage({
+              summary,
+              monitorUrl: monitor.url,
+              pair: rule.action_config.pair as string | undefined,
+            }),
           );
           break;
         case 'email':
@@ -330,12 +334,18 @@ async function executeRules(monitor: Monitor, signalId: string, summary: string)
   }
 
   // ── Public feed: post to Telegram channel if monitor is public ──
+  const tradeRule = rules.find((r) => r.action_type === 'trade');
   if (monitor.is_public && config.telegram.publicChannelId) {
     try {
-      const url = `${config.webOrigin}/proof/public/${signalId}`;
+      const proofUrl = `${config.webOrigin}/proof/public/${signalId}`;
       await notify.sendTelegram(
         config.telegram.publicChannelId,
-        `🔔 Public signal detected\n\n${summary}\n\nProof: ${url}`,
+        notify.formatSignalMessage({
+          summary,
+          monitorUrl: monitor.url,
+          pair: tradeRule?.action_config.pair as string | undefined,
+          proofUrl,
+        }),
       );
       logger.info({ signalId, monitorId: monitor.id }, 'public signal posted to Telegram');
     } catch (err) {

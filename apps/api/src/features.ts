@@ -27,6 +27,9 @@ export const FEATURES = {
 
   /** Public proof sharing */
   publicProofs: true,
+
+  /** GitHub API commit enrichment */
+  githubApi: (process.env.GITHUB_TOKEN ?? '') !== '',
 } as const;
 
 export type FeatureName = keyof typeof FEATURES;

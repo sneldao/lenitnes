@@ -10,10 +10,10 @@ export const createMonitorSchema = z.object({
   conditionText: z.string().min(1).max(500, {
     message: 'Condition must be 500 characters or fewer to prevent token bombing',
   }),
-  frequencySeconds: z.number().int().positive().default(3600),
+  frequencySeconds: z.number().int().positive().default(86400),
   costPerCheck: z.number().positive().optional(),
   screenshotsEnabled: z.boolean().optional().default(true),
-  isPublic: z.boolean().optional().default(false),
+  isPublic: z.boolean().optional().default(true),
 });
 
 export const patchMonitorSchema = z.object({

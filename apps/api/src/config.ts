@@ -58,6 +58,10 @@ export const config = {
     priceHbar: Number(process.env.X402_PRICE_HBAR ?? 0.5),
   },
 
+  github: {
+    token: process.env.GITHUB_TOKEN ?? '',
+  },
+
   redis: {
     url: process.env.REDIS_URL ?? 'redis://localhost:6379',
   },

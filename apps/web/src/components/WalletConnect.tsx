@@ -10,6 +10,9 @@ function bytesToHex(bytes: Uint8Array): string {
     .join('');
 }
 
+const EXPECTED_NETWORK = (process.env.NEXT_PUBLIC_HEDERA_NETWORK ?? 'testnet').toLowerCase();
+const IS_TESTNET = EXPECTED_NETWORK === 'testnet';
+
 interface WalletContextType {
   accountId: string | null;
   isConnected: boolean;
@@ -44,8 +47,7 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
       const { LedgerId } = await import('@hashgraph/sdk');
       const { DAppConnector } = await import('@hashgraph/hedera-wallet-connect');
 
-      const network = (process.env.NEXT_PUBLIC_HEDERA_NETWORK ?? 'testnet').toLowerCase();
-      const ledger = LedgerId.fromString(network);
+      const ledger = LedgerId.fromString(EXPECTED_NETWORK);
 
       const dc = new DAppConnector(
         {
@@ -274,6 +276,11 @@ export function WalletConnectButton() {
                 <p className="text-[11px] font-semibold text-slate-200">Connected</p>
                 <p className="truncate font-mono text-[10px] text-slate-500">{accountId}</p>
               </div>
+              {IS_TESTNET && (
+                <span className="shrink-0 rounded bg-accent/10 px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wider text-accent">
+                  Testnet
+                </span>
+              )}
             </div>
             <div className="my-1 h-px bg-edge/40" />
             <button
@@ -319,6 +326,16 @@ export function WalletConnectButton() {
           <AlertCircle className="h-3 w-3 shrink-0" />
           <span className="max-w-[200px] truncate">{connectError}</span>
         </span>
+      )}
+      {IS_TESTNET && !isConnected && !connectError && (
+        <a
+          href="https://portal.hedera.com/faucet"
+          target="_blank"
+          rel="noopener noreferrer"
+          className="hidden sm:inline-flex items-center gap-1 rounded-lg border border-accent/20 bg-accent/5 px-2 py-1 text-[10px] text-accent hover:bg-accent/10 transition-colors"
+        >
+          Testnet — get free HBAR
+        </a>
       )}
       <button
         onClick={handleConnect}

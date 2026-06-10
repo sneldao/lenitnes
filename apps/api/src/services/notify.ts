@@ -38,3 +38,20 @@ export async function sendEmail(to: string, subject: string, body: string): Prom
   });
   if (!res.ok) throw new Error(`Email API failed: ${res.status}`);
 }
+
+/** Build a consistent, actionable Telegram / alert message for a detected signal. */
+export function formatSignalMessage(opts: {
+  summary: string;
+  monitorUrl: string;
+  pair?: string | null;
+  proofUrl?: string | null;
+}): string {
+  const lines = [`🔔 Signal detected`, '', opts.summary, '', `Source: ${opts.monitorUrl}`];
+  if (opts.pair) {
+    lines.push(`Trade pair: ${opts.pair}`);
+  }
+  if (opts.proofUrl) {
+    lines.push(`Proof: ${opts.proofUrl}`);
+  }
+  return lines.join('\n');
+}
