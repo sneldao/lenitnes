@@ -21,14 +21,18 @@ RUN npm run build --workspace=@lenitnes/types
 RUN npm run build --workspace=@lenitnes/api
 
 # ── Production image ──────────────────────────────────────────
-FROM node:20-alpine AS prod
+FROM node:20-slim AS prod
 WORKDIR /app
 ENV NODE_ENV=production
 
 # Install Kraken CLI (judging criterion: "Use of Kraken CLI functionality")
-RUN apk add --no-cache curl bash
-RUN curl --proto '=https' --tlsv1.2 -LsSf \
-  https://github.com/krakenfx/kraken-cli/releases/latest/download/kraken-cli-installer.sh | sh
+RUN apt-get update && apt-get install -y --no-install-recommends curl ca-certificates tar \
+  && curl -L -o /tmp/kraken-cli.tar.gz \
+    "https://github.com/krakenfx/kraken-cli/releases/latest/download/kraken-cli-x86_64-unknown-linux-gnu.tar.gz" \
+  && tar -xzf /tmp/kraken-cli.tar.gz -C /usr/local/bin --strip-components=1 \
+  && chmod +x /usr/local/bin/kraken \
+  && rm /tmp/kraken-cli.tar.gz \
+  && rm -rf /var/lib/apt/lists/*
 
 COPY --from=base /app/apps/api/dist ./dist
 COPY --from=base /app/node_modules ./node_modules
