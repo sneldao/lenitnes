@@ -13,6 +13,15 @@ function bytesToHex(bytes: Uint8Array): string {
 const EXPECTED_NETWORK = (process.env.NEXT_PUBLIC_HEDERA_NETWORK ?? 'testnet').toLowerCase();
 const IS_TESTNET = EXPECTED_NETWORK === 'testnet';
 
+type WalletSignature = {
+  publicKey: { toStringRaw: () => string };
+  signature: Uint8Array;
+};
+
+type MessageSigner = {
+  sign: (messages: Uint8Array[]) => Promise<WalletSignature[]>;
+};
+
 interface WalletContextType {
   accountId: string | null;
   isConnected: boolean;
@@ -25,6 +34,39 @@ interface WalletContextType {
 }
 
 const WalletContext = createContext<WalletContextType | null>(null);
+
+async function authenticateSigner(signer: MessageSigner, walletAddress: string) {
+  const message = `lenitnes:auth:${Date.now()}`;
+  const sigs = await signer.sign([new TextEncoder().encode(message)]);
+  if (!sigs || sigs.length === 0) {
+    throw new Error('Wallet did not return a sign-in signature.');
+  }
+
+  const pk = sigs[0].publicKey.toStringRaw();
+  const sig = bytesToHex(sigs[0].signature);
+  await api.login({
+    walletAddress,
+    publicKey: pk,
+    message,
+    signature: sig,
+  });
+}
+
+function authErrorMessage(err: unknown): string {
+  const msg = err instanceof Error ? err.message : String(err);
+  if (
+    msg.toLowerCase().includes('rejected') ||
+    msg.toLowerCase().includes('cancel') ||
+    msg.toLowerCase().includes('closed') ||
+    msg.toLowerCase().includes('user denied')
+  ) {
+    return 'Sign-in approval was cancelled. Connect again to finish signing in.';
+  }
+  if (msg.includes('API 404')) {
+    return 'Sign-in API is not reachable. Check the /api deployment route.';
+  }
+  return 'Wallet connected, but sign-in failed. Please try again.';
+}
 
 export function WalletProvider({ children }: { children: React.ReactNode }) {
   const [connector, setConnector] = useState<
@@ -68,21 +110,11 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
         const addr = signer.getAccountId().toString();
         setAccountId(addr);
         try {
-          const message = `lenitnes:auth:${Date.now()}`;
-          const sigs = await signer.sign([new TextEncoder().encode(message)]);
-          if (sigs && sigs.length > 0) {
-            const pk = sigs[0].publicKey.toStringRaw();
-            const sig = bytesToHex(sigs[0].signature);
-            await api.login({
-              walletAddress: addr,
-              publicKey: pk,
-              message,
-              signature: sig,
-            });
-            window.dispatchEvent(new Event('auth-changed'));
-          }
-        } catch {
-          // auto-login failed — user can still use the app unauthenticated
+          await authenticateSigner(signer, addr);
+          window.dispatchEvent(new Event('auth-changed'));
+        } catch (err) {
+          setAccountId(null);
+          setConnectError(authErrorMessage(err));
         }
       }
 
@@ -111,21 +143,16 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
         setAccountId(addr);
 
         try {
-          const message = `lenitnes:auth:${Date.now()}`;
-          const sigs = await signer.sign([new TextEncoder().encode(message)]);
-          if (sigs && sigs.length > 0) {
-            const pk = sigs[0].publicKey.toStringRaw();
-            const sig = bytesToHex(sigs[0].signature);
-            await api.login({
-              walletAddress: addr,
-              publicKey: pk,
-              message,
-              signature: sig,
-            });
-            window.dispatchEvent(new Event('auth-changed'));
+          await authenticateSigner(signer, addr);
+          window.dispatchEvent(new Event('auth-changed'));
+        } catch (err) {
+          setAccountId(null);
+          try {
+            await connector.disconnectAll();
+          } catch {
+            // session may already be disconnected
           }
-        } catch {
-          // auto-login failed — wallet is still connected
+          setConnectError(authErrorMessage(err));
         }
       }
     } catch (err: unknown) {
