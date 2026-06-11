@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
@@ -26,6 +26,7 @@ import {
   BarChart3,
   GitCommit,
   Bell,
+  Sparkles,
 } from 'lucide-react';
 
 import {
@@ -93,12 +94,16 @@ function MonitorCard({
   isConnected,
   onExecute,
   onDelete,
+  latestSignal,
+  signalCount,
 }: {
   monitor: Monitor;
   executing: boolean;
   isConnected: boolean;
   onExecute: (id: string) => void;
   onDelete: (id: string) => void;
+  latestSignal?: { id: string; detected_at: string } | null;
+  signalCount?: number;
 }) {
   const { perDay, daysLeft, checksRemaining } = burnRate(monitor);
   const bal = Number(monitor.hbar_balance);
@@ -109,6 +114,34 @@ function MonitorCard({
   const isCodeSignal = monitor.url.includes('github.com');
   const [expanded, setExpanded] = useState(false);
   const canExecute = isConnected && monitor.status !== 'insufficient_balance';
+  const host = hostnameFromUrl(monitor.url);
+
+  // ── Countdown timer for low-balance monitors ──
+  const [countdown, setCountdown] = useState('');
+  useEffect(() => {
+    if (!isFunded || checksRemaining >= 5) {
+      setCountdown('');
+      return;
+    }
+    function tick() {
+      const secondsLeft = checksRemaining * monitor.frequency_seconds;
+      setCountdown(COPY.monitor.expiresIn(secondsLeft));
+    }
+    tick();
+    const id = setInterval(tick, 60_000);
+    return () => clearInterval(id);
+  }, [isFunded, checksRemaining, monitor.frequency_seconds]);
+
+  // ── Time since inactive (loss aversion) ──
+  const darkFor = useMemo(() => {
+    if (isFunded || !monitor.last_check_at) return '';
+    const ms = Date.now() - new Date(monitor.last_check_at).getTime();
+    const h = Math.floor(ms / 3_600_000);
+    const m = Math.floor((ms % 3_600_000) / 60_000);
+    if (h > 0) return `Dark for ${h}h ${m}m — top up to resume`;
+    if (m > 0) return `Dark for ${m}m — top up to resume`;
+    return 'Just went dark — top up to resume';
+  }, [isFunded, monitor.last_check_at]);
 
   return (
     <div className={`card group space-y-3 border-l-2 ${cat} !pl-5`}>
@@ -144,11 +177,10 @@ function MonitorCard({
       {/* Funding row — checks-remaining framing */}
       <div className="flex items-end gap-3">
         {!isFunded ? (
-          <div className="flex-1">
+          <div className="flex-1 space-y-0.5">
             <p className="text-xl font-bold text-danger tabular-nums">Inactive</p>
-            <p className="text-[10px] text-danger/80">
-              {COPY.monitor.inactive(0) /* TODO: wire missed signal count in Phase 2 */}
-            </p>
+            <p className="text-[10px] text-danger/80">{COPY.monitor.inactive(0)}</p>
+            {darkFor && <p className="text-[10px] text-slate-600">{darkFor}</p>}
           </div>
         ) : (
           <>
@@ -188,6 +220,31 @@ function MonitorCard({
 
       {isFunded && <BurnBar balance={bal} daysLeft={daysLeft} />}
 
+      {/* Countdown for low-balance monitors — scarcity urgency */}
+      {countdown && <p className="text-[10px] text-warn font-medium">{countdown}</p>}
+
+      {/* Signal celebration — peak-end rule */}
+      {monitor.status === 'triggered' && (
+        <div className="rounded-lg border border-accent/30 bg-accent/5 p-3 space-y-1.5">
+          <div className="flex items-center gap-2">
+            <Sparkles className="h-3.5 w-3.5 text-accent" />
+            <p className="text-sm font-bold text-accent">{COPY.signals.detected(host).headline}</p>
+          </div>
+          <p className="text-xs text-slate-300 leading-relaxed">
+            {COPY.signals.detected(host).body}
+          </p>
+          {latestSignal && (
+            <Link
+              href={`/signals/${latestSignal.id}`}
+              className="inline-flex items-center gap-1 text-[10px] font-semibold text-accent hover:text-accent/80 transition-colors"
+            >
+              {COPY.signals.detected(host).cta}
+              <ChevronRight className="h-3 w-3" />
+            </Link>
+          )}
+        </div>
+      )}
+
       {/* Expanded details */}
       {expanded && (
         <div className="space-y-2 border-t border-edge/40 pt-3">
@@ -209,6 +266,10 @@ function MonitorCard({
             <div>
               <span className="text-[10px] text-slate-600">Public</span>
               <p className="font-medium text-slate-300">{monitor.is_public ? 'Yes' : 'No'}</p>
+            </div>
+            <div>
+              <span className="text-[10px] text-slate-600">Signals caught</span>
+              <p className="font-medium text-slate-300">{signalCount ?? 0}</p>
             </div>
             <div>
               <span className="text-[10px] text-slate-600">Created</span>
@@ -289,7 +350,7 @@ function DashboardView({
   onDelete,
 }: {
   monitors: Monitor[];
-  signals: { detected_at: string }[];
+  signals: { id: string; monitor_id: string; detected_at: string }[];
   ordersCount: number;
   isLoading: boolean;
   error: Error | null;
@@ -654,16 +715,24 @@ function DashboardView({
 
       {filtered.length > 0 && (
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-          {filtered.map((m) => (
-            <MonitorCard
-              key={m.id}
-              monitor={m}
-              executing={!!executing[m.id]}
-              isConnected={isConnected}
-              onExecute={onExecute}
-              onDelete={onDelete}
-            />
-          ))}
+          {filtered.map((m) => {
+            const monitorSignals = signals.filter((s) => s.monitor_id === m.id);
+            const latest = monitorSignals.sort(
+              (a, b) => new Date(b.detected_at).getTime() - new Date(a.detected_at).getTime(),
+            )[0];
+            return (
+              <MonitorCard
+                key={m.id}
+                monitor={m}
+                executing={!!executing[m.id]}
+                isConnected={isConnected}
+                onExecute={onExecute}
+                onDelete={onDelete}
+                latestSignal={latest ?? null}
+                signalCount={monitorSignals.length}
+              />
+            );
+          })}
         </div>
       )}
     </div>
