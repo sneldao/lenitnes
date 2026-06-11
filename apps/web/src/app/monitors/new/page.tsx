@@ -54,19 +54,13 @@ const CATEGORY_META: Record<Category, { label: string; hint: string }> = {
 
 const POPULAR_TEMPLATE_TITLE = 'Zcash halo2 — Code Alpha';
 
-// Buckets the 10 templates into the 3 categories using icon + URL hints.
-// We derive rather than editing templates.json to keep that file untouched.
+// Buckets templates into 3 categories by URL domain.
 function getCategoryForTemplate(t: (typeof TEMPLATES)[number]): Category {
   const url = t.url.toLowerCase();
-  if (url.includes('status.') || url.includes('sec.gov')) return 'regulatory';
-  if (t.icon.displayName === 'Bell' || url.includes('chainalysis') || url.includes('hedera.com')) {
-    return 'regulatory';
-  }
-  if (t.icon.displayName === 'GitCommit' || t.icon.displayName === 'FileText') {
-    // FileText covers docs/changelogs; both belong to code/releases in this taxonomy.
-    return 'code';
-  }
-  return 'status';
+  if (url.includes('status.')) return 'status';
+  if (url.includes('sec.gov') || url.includes('chainalysis')) return 'regulatory';
+  // GitHub repos, docs pages, and everything else → code & releases
+  return 'code';
 }
 
 function isPopular(t: (typeof TEMPLATES)[number]): boolean {
