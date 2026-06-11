@@ -10,7 +10,9 @@ import { useToast } from '@/components/Toast';
 import { useAuth } from '@/lib/useAuth';
 import { useReveal } from '@/lib/useReveal';
 import { burnRate, statusColor } from '@/lib/format';
+import { COPY, hostnameFromUrl } from '@/lib/copy';
 import { WaitlistBanner } from '@/components/WaitlistBanner';
+import { ConfirmDialog } from '@/components/ConfirmDialog';
 import {
   Activity,
   Shield,
@@ -74,7 +76,7 @@ function BurnBar({ balance, daysLeft }: { balance: number; daysLeft: number }) {
         />
       </div>
       <div className="flex items-center justify-between text-[10px]">
-        <span className="text-slate-500">{balance.toFixed(1)} ℏ staked</span>
+        <span className="text-slate-500">{COPY.funding.staked(balance)}</span>
         <span className="font-medium text-slate-400">
           {Number.isFinite(daysLeft) ? `${daysLeft.toFixed(0)}d remaining` : '∞'}
         </span>
@@ -98,63 +100,130 @@ function MonitorCard({
   onExecute: (id: string) => void;
   onDelete: (id: string) => void;
 }) {
-  const { perDay, daysLeft } = burnRate(monitor);
+  const { perDay, daysLeft, checksRemaining } = burnRate(monitor);
   const bal = Number(monitor.hbar_balance);
-  const daysDisplay = Number.isFinite(daysLeft) ? daysLeft.toFixed(0) : '∞';
-  const daysColor = daysLeft > 14 ? 'text-signal' : daysLeft > 5 ? 'text-warn' : 'text-danger';
+  const cost = Number(monitor.cost_per_check);
+  const isFunded = bal > 0 && checksRemaining > 0;
+  const isLowFunds = isFunded && checksRemaining < 5;
   const cat = categoryColor(monitor.url);
   const isCodeSignal = monitor.url.includes('github.com');
+  const [expanded, setExpanded] = useState(false);
+  const canExecute = isConnected && monitor.status !== 'insufficient_balance';
 
   return (
-    <div className={`card group space-y-4 border-l-2 ${cat} !pl-5`}>
-      <div className="flex items-start justify-between gap-3">
-        <div className="min-w-0 flex-1">
-          <div className="flex items-center gap-2">
-            <p className="truncate text-sm font-semibold text-slate-100 group-hover:text-white">
-              {monitor.url.replace(/^https?:\/\//, '')}
-            </p>
-            {isCodeSignal && (
-              <span className="badge shrink-0 bg-violet-500/15 text-violet-400">
-                <GitCommit className="h-2.5 w-2.5" /> Code Signal
-              </span>
+    <div className={`card group space-y-3 border-l-2 ${cat} !pl-5`}>
+      {/* Header — clickable to expand */}
+      <button
+        onClick={() => setExpanded((v) => !v)}
+        className="w-full text-left"
+        aria-expanded={expanded}
+      >
+        <div className="flex items-start justify-between gap-3">
+          <div className="min-w-0 flex-1">
+            <div className="flex items-center gap-2">
+              <p className="truncate text-sm font-semibold text-slate-100 group-hover:text-white">
+                {monitor.url.replace(/^https?:\/\//, '')}
+              </p>
+              {isCodeSignal && (
+                <span className="badge shrink-0 bg-violet-500/15 text-violet-400">
+                  <GitCommit className="h-2.5 w-2.5" /> Code Signal
+                </span>
+              )}
+            </div>
+            <p className="mt-0.5 line-clamp-1 text-xs text-slate-500">{monitor.condition_text}</p>
+          </div>
+          <span className={`badge shrink-0 ${statusColor(monitor.status)}`}>
+            {monitor.status === 'active' && (
+              <span className="h-1.5 w-1.5 rounded-full bg-signal animate-pulse" />
             )}
-          </div>
-          <p className="mt-0.5 line-clamp-1 text-xs text-slate-500">{monitor.condition_text}</p>
+            {COPY.monitor.statusLabel(monitor.status)}
+          </span>
         </div>
-        <span className={`badge shrink-0 ${statusColor(monitor.status)}`}>
-          {monitor.status === 'active' && (
-            <span className="h-1.5 w-1.5 rounded-full bg-signal animate-pulse" />
-          )}
-          {monitor.status.replace('_', ' ')}
-        </span>
-      </div>
+      </button>
 
+      {/* Funding row — checks-remaining framing */}
       <div className="flex items-end gap-3">
-        <div>
-          <p className={`text-3xl font-bold tabular-nums ${daysColor}`}>{daysDisplay}</p>
-          <p className="text-[10px] text-slate-500">days left</p>
-        </div>
-        <div className="mb-1 grid flex-1 grid-cols-3 gap-2">
-          <div className="text-center">
-            <p className="text-xs font-semibold text-slate-200">{bal.toFixed(1)}</p>
-            <p className="text-[10px] text-slate-500">ℏ</p>
-          </div>
-          <div className="text-center">
-            <p className="text-xs font-semibold text-slate-200">{perDay.toFixed(2)}</p>
-            <p className="text-[10px] text-slate-500">ℏ/day</p>
-          </div>
-          <div className="text-center">
-            <p className="text-xs font-semibold text-slate-200">
-              {monitor.frequency_seconds >= 3600
-                ? `${(monitor.frequency_seconds / 3600).toFixed(0)}h`
-                : `${(monitor.frequency_seconds / 60).toFixed(0)}m`}
+        {!isFunded ? (
+          <div className="flex-1">
+            <p className="text-xl font-bold text-danger tabular-nums">Inactive</p>
+            <p className="text-[10px] text-danger/80">
+              {COPY.monitor.inactive(0) /* TODO: wire missed signal count in Phase 2 */}
             </p>
-            <p className="text-[10px] text-slate-500">freq</p>
           </div>
-        </div>
+        ) : (
+          <>
+            <div>
+              <p
+                className={`text-3xl font-bold tabular-nums ${isLowFunds ? 'text-warn' : 'text-signal'}`}
+              >
+                {checksRemaining}
+              </p>
+              <p className={`text-[10px] ${isLowFunds ? 'text-warn' : 'text-slate-500'}`}>
+                {isLowFunds
+                  ? COPY.monitor.lowBalance(checksRemaining)
+                  : COPY.monitor.checksRemaining(checksRemaining)}
+              </p>
+            </div>
+            <div className="mb-1 grid flex-1 grid-cols-3 gap-2">
+              <div className="text-center">
+                <p className="text-xs font-semibold text-slate-200">{bal.toFixed(1)}</p>
+                <p className="text-[10px] text-slate-500">ℏ staked</p>
+              </div>
+              <div className="text-center">
+                <p className="text-xs font-semibold text-slate-200">{perDay.toFixed(2)}</p>
+                <p className="text-[10px] text-slate-500">ℏ/day</p>
+              </div>
+              <div className="text-center">
+                <p className="text-xs font-semibold text-slate-200">
+                  {monitor.frequency_seconds >= 3600
+                    ? `${(monitor.frequency_seconds / 3600).toFixed(0)}h`
+                    : `${(monitor.frequency_seconds / 60).toFixed(0)}m`}
+                </p>
+                <p className="text-[10px] text-slate-500">freq</p>
+              </div>
+            </div>
+          </>
+        )}
       </div>
 
-      <BurnBar balance={bal} daysLeft={daysLeft} />
+      {isFunded && <BurnBar balance={bal} daysLeft={daysLeft} />}
+
+      {/* Expanded details */}
+      {expanded && (
+        <div className="space-y-2 border-t border-edge/40 pt-3">
+          <div className="space-y-1">
+            <p className="text-[10px] font-semibold uppercase tracking-wider text-slate-500">
+              Condition
+            </p>
+            <p className="text-xs text-slate-300 leading-relaxed">{monitor.condition_text}</p>
+          </div>
+          <div className="grid grid-cols-2 gap-2 text-xs text-slate-400">
+            <div>
+              <span className="text-[10px] text-slate-600">Sensitivity</span>
+              <p className="font-medium text-slate-300">{monitor.confidence_threshold}/100</p>
+            </div>
+            <div>
+              <span className="text-[10px] text-slate-600">Cost per check</span>
+              <p className="font-medium text-slate-300">{COPY.funding.perCheck(cost)}</p>
+            </div>
+            <div>
+              <span className="text-[10px] text-slate-600">Public</span>
+              <p className="font-medium text-slate-300">{monitor.is_public ? 'Yes' : 'No'}</p>
+            </div>
+            <div>
+              <span className="text-[10px] text-slate-600">Created</span>
+              <p className="font-medium text-slate-300">
+                {monitor.created_at
+                  ? new Date(monitor.created_at).toLocaleDateString(undefined, {
+                      month: 'short',
+                      day: 'numeric',
+                    })
+                  : '—'}
+              </p>
+            </div>
+          </div>
+        </div>
+      )}
 
       <div className="flex items-center justify-between pt-1">
         <div className="flex items-center gap-1.5 text-[10px] text-slate-600">
@@ -170,23 +239,30 @@ function MonitorCard({
         </div>
         <div className="flex items-center gap-1">
           <button
-            onClick={() => onDelete(monitor.id)}
+            onClick={(e) => {
+              e.stopPropagation();
+              onDelete(monitor.id);
+            }}
             className="flex items-center gap-1 rounded-lg px-2 py-1.5 text-[10px] font-medium text-slate-500 transition-colors hover:text-danger cursor-pointer select-none"
           >
             <X className="h-3 w-3" />
-            Delete
+            {COPY.monitor.actions.delete}
           </button>
           <button
-            onClick={() => onExecute(monitor.id)}
-            disabled={executing || !isConnected}
+            onClick={(e) => {
+              e.stopPropagation();
+              onExecute(monitor.id);
+            }}
+            disabled={executing || !canExecute}
+            title={!isConnected ? COPY.errors.noWallet : COPY.monitor.actions.executeSubtitle}
             className="flex items-center gap-1 rounded-lg bg-accent/10 px-2.5 py-1.5 text-[10px] font-semibold text-accent transition-all hover:bg-accent/20 hover:shadow-glow-sm active:scale-95 disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer select-none"
           >
             {executing ? (
-              <span className="animate-pulse">Running…</span>
+              <span className="animate-pulse">Checking…</span>
             ) : (
               <>
                 <Play className="h-3 w-3" />
-                Execute
+                {COPY.monitor.actions.execute}
               </>
             )}
           </button>
@@ -282,10 +358,10 @@ function DashboardView({
 
   const STATUS_FILTERS: { key: FilterStatus; label: string }[] = [
     { key: 'all', label: 'All' },
-    { key: 'active', label: 'Active' },
-    { key: 'triggered', label: 'Triggered' },
+    { key: 'active', label: 'Watching' },
+    { key: 'triggered', label: 'Signal caught!' },
     { key: 'paused', label: 'Paused' },
-    { key: 'insufficient_balance', label: 'Low balance' },
+    { key: 'insufficient_balance', label: 'Needs funds' },
   ];
 
   return (
@@ -320,7 +396,7 @@ function DashboardView({
             <Eye className="absolute left-2.5 top-1/2 h-3 w-3 -translate-y-1/2 text-slate-600" />
           </div>
           <Link href="/monitors/new" className="btn text-xs">
-            + New Monitor
+            + Watch New Target
           </Link>
         </div>
       </div>
@@ -345,9 +421,7 @@ function DashboardView({
             <Wallet className="h-3.5 w-3.5 text-warn" />
             <span className="section-title">Total Staked</span>
           </div>
-          <p className="text-2xl font-bold text-white">
-            {totalBalance.toFixed(1)} <span className="text-sm font-normal text-slate-500">ℏ</span>
-          </p>
+          <p className="text-2xl font-bold text-white">{COPY.funding.staked(totalBalance)}</p>
         </div>
         <div className="stat-card space-y-1">
           <div className="flex items-center gap-2">
@@ -381,14 +455,14 @@ function DashboardView({
           <p>
             <strong className="text-slate-300">x402 micropayments</strong> let you pay per check via
             HBAR directly from your wallet — no subscription, no credit card, no platform holding
-            your funds. When you click &quot;Execute,&quot; your wallet signs a micro-transaction
+            your funds. When you click &quot;Check Now,&quot; your wallet signs a micro-transaction
             that&apos;s settled on Hedera before the check runs. Payment and execution are
             inseparable.
           </p>
           <p>
             <strong className="text-slate-300">HBAR staking</strong> for scheduled checks sits in
             per-monitor escrow. Each check debits ~0.5 ℏ. You can withdraw remaining funds anytime
-            by deleting the monitor.
+            by removing the monitor.
           </p>
         </div>
       </details>
@@ -518,9 +592,9 @@ function DashboardView({
               <Eye className="h-7 w-7 text-accent" />
             </div>
             <div className="space-y-2">
-              <p className="text-lg font-semibold text-white">No monitors yet</p>
+              <p className="text-lg font-semibold text-white">Nothing watching yet</p>
               <p className="text-sm text-slate-400">
-                Pick a template below and create your first monitor in one click.
+                Pick a target below and start detecting signals in under a minute.
               </p>
             </div>
           </div>
@@ -604,6 +678,13 @@ export default function DashboardPage() {
   const { isConnected, executeWithPayment, connect } = useWallet();
   const [showOnboarding, setShowOnboarding] = useState(false);
   const toast = useToast();
+
+  const [confirmDialog, setConfirmDialog] = useState<{
+    type: 'execute' | 'delete';
+    monitorId: string;
+    monitorUrl?: string;
+    monitorBalance?: number;
+  } | null>(null);
   const { isAuthenticated } = useAuth();
   const landingRef = useReveal();
   const router = useRouter();
@@ -637,37 +718,44 @@ export default function DashboardPage() {
     enabled: isAuthenticated,
   });
 
-  async function handleExecute(monitorId: string) {
+  function handleExecute(monitorId: string) {
     if (!isConnected) {
-      toast.warn('Connect your Hedera wallet first to pay via x402.');
+      toast.warn(COPY.errors.noWallet);
       return;
     }
+    const m = monitors.find((x) => x.id === monitorId);
+    setConfirmDialog({
+      type: 'execute',
+      monitorId,
+      monitorUrl: m?.url,
+      monitorBalance: m ? Number(m.hbar_balance) : undefined,
+    });
+  }
+
+  async function doExecute(monitorId: string) {
     setExecuting((prev) => ({ ...prev, [monitorId]: true }));
-    toast.info('Step 1/3: Sending 0.5 HBAR x402 payment request…');
     try {
-      toast.info('Step 2/3: Waiting for wallet approval…');
       const res = await api.executeMonitor(monitorId, executeWithPayment);
       const data = await res.json();
       if (data.ok) {
-        toast.success('Step 3/3: Payment confirmed — check complete!');
+        toast.success('Payment confirmed — check complete!');
         queryClient.invalidateQueries({ queryKey: ['signals'] });
         queryClient.invalidateQueries({ queryKey: ['monitors'] });
         return;
       }
-      // Backend returned ok: false
       if (data.error === 'monitor_not_active') {
-        toast.error('Monitor is paused or has insufficient balance. Top up to re-enable.');
+        toast.error(COPY.errors.monitorInactive);
       } else {
-        toast.error('Check failed on the server. Try again in a moment.');
+        toast.error(COPY.errors.serverError);
       }
     } catch (e) {
       const msg = String(e).toLowerCase();
       if (msg.includes('rejected') || msg.includes('cancel') || msg.includes('denied')) {
-        toast.error('Payment rejected in wallet. You were not charged.');
+        toast.error(COPY.errors.paymentRejected);
       } else if (msg.includes('402') || msg.includes('payment') || msg.includes('x402')) {
-        toast.error('x402 payment setup failed. Check your wallet balance and try again.');
+        toast.error(COPY.errors.paymentFailed);
       } else if (msg.includes('timeout') || msg.includes('timed out')) {
-        toast.error('Request timed out. The network may be congested — try again.');
+        toast.error(COPY.errors.timeout);
       } else {
         toast.error('Execution failed: ' + String(e));
       }
@@ -685,14 +773,23 @@ export default function DashboardPage() {
     router.push(`/monitors/new?${params.toString()}`);
   }
 
-  async function handleDelete(monitorId: string) {
-    if (!confirm('Delete this monitor and release remaining escrow?')) return;
+  function handleDelete(monitorId: string) {
+    const m = monitors.find((x) => x.id === monitorId);
+    setConfirmDialog({
+      type: 'delete',
+      monitorId,
+      monitorUrl: m?.url,
+      monitorBalance: m ? Number(m.hbar_balance) : undefined,
+    });
+  }
+
+  async function doDelete(monitorId: string) {
     try {
       await api.deleteMonitor(monitorId);
-      toast.success('Monitor deleted');
+      toast.success('Monitor removed');
       queryClient.invalidateQueries({ queryKey: ['monitors'] });
     } catch (e) {
-      toast.error('Delete failed: ' + String(e));
+      toast.error(COPY.errors.deleteFailed + String(e));
     }
   }
 
@@ -758,19 +855,51 @@ export default function DashboardPage() {
   }
 
   return (
-    <DashboardView
-      monitors={monitors}
-      signals={signals}
-      ordersCount={orders.length}
-      isLoading={isLoading}
-      error={error as Error | null}
-      isRefetching={isRefetching}
-      isConnected={isConnected}
-      executing={executing}
-      search={search}
-      setSearch={setSearch}
-      onExecute={handleExecute}
-      onDelete={handleDelete}
-    />
+    <>
+      <DashboardView
+        monitors={monitors}
+        signals={signals}
+        ordersCount={orders.length}
+        isLoading={isLoading}
+        error={error as Error | null}
+        isRefetching={isRefetching}
+        isConnected={isConnected}
+        executing={executing}
+        search={search}
+        setSearch={setSearch}
+        onExecute={handleExecute}
+        onDelete={handleDelete}
+      />
+      <ConfirmDialog
+        isOpen={!!confirmDialog}
+        onClose={() => setConfirmDialog(null)}
+        onConfirm={() => {
+          if (!confirmDialog) return;
+          if (confirmDialog.type === 'execute') {
+            doExecute(confirmDialog.monitorId);
+          } else {
+            doDelete(confirmDialog.monitorId);
+          }
+          setConfirmDialog(null);
+        }}
+        title={
+          confirmDialog?.type === 'execute'
+            ? COPY.confirmation.execute.title
+            : COPY.confirmation.delete.title
+        }
+        description={(() => {
+          const host = hostnameFromUrl(confirmDialog?.monitorUrl || '');
+          return confirmDialog?.type === 'execute'
+            ? COPY.confirmation.execute.description(host)
+            : COPY.confirmation.delete.description(host, confirmDialog?.monitorBalance ?? 0);
+        })()}
+        confirmLabel={
+          confirmDialog?.type === 'execute'
+            ? COPY.confirmation.execute.confirmLabel
+            : COPY.confirmation.delete.confirmLabel
+        }
+        confirmVariant={confirmDialog?.type === 'execute' ? 'accent' : 'danger'}
+      />
+    </>
   );
 }

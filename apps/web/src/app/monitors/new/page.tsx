@@ -8,6 +8,7 @@ import { api, type Monitor } from '@/lib/api';
 import { useWallet } from '@/components/WalletConnect';
 import { useAuth } from '@/lib/useAuth';
 import { useToast } from '@/components/Toast';
+import { COPY } from '@/lib/copy';
 import {
   Globe,
   MessageSquare,
@@ -39,10 +40,10 @@ import {
 import { TEMPLATES } from '@/data/templates';
 
 const STEP_META = [
-  { icon: Globe, label: 'Target' },
-  { icon: Clock, label: 'Schedule' },
-  { icon: Zap, label: 'Connect' },
-  { icon: Wallet, label: 'Review' },
+  { icon: Globe, label: COPY.creation.steps.target },
+  { icon: Clock, label: COPY.creation.steps.schedule },
+  { icon: Zap, label: COPY.creation.steps.action },
+  { icon: Wallet, label: COPY.creation.steps.review },
 ];
 
 type Category = 'code' | 'status' | 'regulatory';
@@ -297,7 +298,7 @@ function NewMonitorForm() {
     setError(null);
     setActivationResult(null);
     setCopiedShareLink(false);
-    toast.info('Running first check (free)...');
+    toast.info(COPY.creation.firstCheck.running);
 
     try {
       const data = await api.firstCheck(createdMonitor.id);
@@ -316,23 +317,23 @@ function NewMonitorForm() {
       queryClient.invalidateQueries({ queryKey: ['monitors'] });
 
       if (nextResult.conditionMet) {
-        toast.success('First check found a match. Proof is ready to review.');
+        toast.success('Preview check found a match. Your monitor is ready to go.');
       } else {
-        toast.info('First check completed. No match yet, but the run record is available.');
+        toast.info('Preview check complete. No match yet — your monitor will keep watching.');
       }
     } catch (e) {
       const raw = String(e);
       const msg = raw.toLowerCase();
       let message: string;
       if (msg.includes('timeout') || msg.includes('timed out')) {
-        message = 'Request timed out. The network may be congested — try again.';
+        message = COPY.errors.timeout;
       } else if (msg.includes('tinyfish') || msg.includes('scraper')) {
         message =
           'The intelligence service had trouble reaching the target. A fallback check was attempted.';
       } else if (msg.includes('first_check_already_used')) {
-        message = 'First check already used. Use on-demand execution for subsequent checks.';
+        message = 'Preview already used. Use Check Now for subsequent checks.';
       } else {
-        message = raw.startsWith('First check failed') ? raw : 'First check failed: ' + raw;
+        message = raw.startsWith('First check failed') ? raw : 'Preview check failed: ' + raw;
       }
       setError(message);
       toast.error(message);
@@ -647,11 +648,11 @@ function NewMonitorForm() {
                 value={form.frequencySeconds}
                 onChange={(e) => set('frequencySeconds', Number(e.target.value))}
               >
-                <option value={86400}>Daily (default)</option>
-                <option value={21600}>Every 6 hours</option>
-                <option value={3600}>Every hour (burns 24× faster)</option>
-                <option value={900}>Every 15 minutes (burns 96× faster)</option>
-                <option value={300}>Every 5 minutes (burns 288× faster)</option>
+                <option value={86400}>{COPY.creation.frequency(86400)}</option>
+                <option value={21600}>{COPY.creation.frequency(21600)}</option>
+                <option value={3600}>{COPY.creation.frequency(3600)}</option>
+                <option value={900}>{COPY.creation.frequency(900)}</option>
+                <option value={300}>{COPY.creation.frequency(300)}</option>
               </select>
             </div>
 
@@ -660,7 +661,7 @@ function NewMonitorForm() {
               <div className="flex items-center justify-between">
                 <label className="label mb-0">
                   <SlidersHorizontal className="mr-1 inline h-3 w-3" />
-                  Signal sensitivity
+                  {COPY.creation.sensitivity.label}
                 </label>
                 <span className="text-xs font-semibold text-accent tabular-nums">
                   {form.confidenceThreshold}/100
@@ -683,10 +684,10 @@ function NewMonitorForm() {
               </div>
               <p className="text-[10px] text-slate-500">
                 {form.confidenceThreshold >= 80
-                  ? 'Strict: Only alerts on high-confidence matches. Best for avoiding noise.'
+                  ? COPY.creation.sensitivity.strict
                   : form.confidenceThreshold >= 50
-                    ? 'Balanced: Good mix of precision and recall.'
-                    : 'Relaxed: Catches edge cases. Expect more false positives.'}
+                    ? COPY.creation.sensitivity.balanced
+                    : COPY.creation.sensitivity.relaxed}
               </p>
             </div>
 
@@ -1016,11 +1017,10 @@ function NewMonitorForm() {
                 <div className="space-y-1">
                   <p className="section-title">Activation loop</p>
                   <h3 className="text-base font-semibold text-white">
-                    Run the first check — on us
+                    {COPY.creation.firstCheck.title}
                   </h3>
                   <p className="text-xs leading-relaxed text-slate-400">
-                    Your first check is free. After this, each check costs ~0.5 ℏ. If the condition
-                    matches, LENITNES creates a proof package you can inspect and share.
+                    {COPY.creation.firstCheck.subtitle}
                   </p>
                 </div>
                 <button
@@ -1030,11 +1030,11 @@ function NewMonitorForm() {
                   className="btn shrink-0 text-xs"
                 >
                   {runningFirstCheck ? (
-                    'Running...'
+                    'Analyzing…'
                   ) : (
                     <>
                       <Play className="h-3.5 w-3.5 fill-ink" />
-                      Run First Check
+                      {COPY.creation.firstCheck.cta}
                     </>
                   )}
                 </button>
@@ -1111,7 +1111,7 @@ function NewMonitorForm() {
                             hour: '2-digit',
                             minute: '2-digit',
                           })
-                        : 'After first check runs'}
+                        : 'After preview check runs'}
                     </span>
                   </div>
                 </div>
@@ -1124,7 +1124,7 @@ function NewMonitorForm() {
                     value={topUpAmount}
                     onChange={(e) => setTopUpAmount(Math.max(1, Number(e.target.value)))}
                     className="input w-24 text-xs py-2"
-                    aria-label="Top-up amount in HBAR"
+                    aria-label="Amount to stake in HBAR"
                   />
                   <span className="text-xs text-slate-500">ℏ</span>
                   <button
@@ -1138,14 +1138,14 @@ function NewMonitorForm() {
                     ) : (
                       <>
                         <Plus className="h-3.5 w-3.5" />
-                        Top Up
+                        {COPY.monitor.actions.topUp}
                       </>
                     )}
                   </button>
                   <span className="ml-auto flex items-center gap-1.5 text-[10px] text-slate-500">
                     {Number(createdMonitor.hbar_balance) <= 0 ? (
                       <>
-                        Balance is 0 — top up to enable scheduled checks
+                        No funds staked — refill to activate scheduled checks
                         {(process.env.NEXT_PUBLIC_HEDERA_NETWORK ?? 'testnet').toLowerCase() ===
                           'testnet' && (
                           <a
@@ -1161,9 +1161,9 @@ function NewMonitorForm() {
                       </>
                     ) : Number(createdMonitor.hbar_balance) <
                       Number(createdMonitor.cost_per_check) * 5 ? (
-                      `Low balance — ${topUpAmount} ℏ ≈ ${Math.floor(topUpAmount / Number(createdMonitor.cost_per_check))} checks`
+                      `Low balance — ${topUpAmount} ℏ ${COPY.creation.topUp.checksEquivalent(topUpAmount, Number(createdMonitor.cost_per_check))}`
                     ) : (
-                      `Funded and ready — ${topUpAmount} ℏ ≈ ${Math.floor(topUpAmount / Number(createdMonitor.cost_per_check))} extra checks`
+                      `Funded — ${topUpAmount} ℏ ${COPY.creation.topUp.checksEquivalent(topUpAmount, Number(createdMonitor.cost_per_check))}`
                     )}
                   </span>
                 </div>
@@ -1526,22 +1526,19 @@ function PostCreateHealth({ monitor }: { monitor: Monitor }) {
       {!canRun && (
         <div className="flex items-center gap-2 rounded-lg border border-warn/20 bg-warn/5 p-2.5 text-xs text-warn">
           <BatteryWarning className="h-4 w-4 shrink-0" />
-          <span>Balance is 0. Scheduled checks are paused. Top up to re-enable.</span>
+          <span>{COPY.monitor.inactive(0)}</span>
         </div>
       )}
       {canRun && checksRemaining < 5 && (
         <div className="flex items-center gap-2 rounded-lg border border-warn/20 bg-warn/5 p-2.5 text-xs text-warn">
           <BatteryWarning className="h-4 w-4 shrink-0" />
-          <span>
-            Low balance. Only {checksRemaining} check{checksRemaining === 1 ? '' : 's'} left. Top up
-            soon.
-          </span>
+          <span>{COPY.monitor.lowBalance(checksRemaining)}</span>
         </div>
       )}
       {canRun && checksRemaining >= 5 && (
         <div className="flex items-center gap-2 rounded-lg border border-signal/20 bg-signal/5 p-2.5 text-xs text-signal">
           <Check className="h-4 w-4 shrink-0" />
-          <span>Funded and ready. {checksRemaining} checks available.</span>
+          <span>{COPY.monitor.checksRemaining(checksRemaining)} — monitor is active.</span>
         </div>
       )}
     </div>

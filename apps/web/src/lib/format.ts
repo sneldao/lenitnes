@@ -33,16 +33,23 @@ export function burnRate(monitor: {
   hbar_balance: string | number;
   cost_per_check: string | number;
   frequency_seconds: number;
-}): { perDay: number; daysLeft: number } {
+}): { perDay: number; daysLeft: number; checksRemaining: number } {
   const bal = Number(monitor.hbar_balance);
   const cost = Number(monitor.cost_per_check);
   const checksPerDay = 86_400 / monitor.frequency_seconds;
   const perDay = checksPerDay * cost;
+  const checksRemaining = cost > 0 ? Math.floor(bal / cost) : 0;
   const daysLeft = perDay > 0 ? bal / perDay : Infinity;
-  return { perDay, daysLeft };
+  return { perDay, daysLeft, checksRemaining };
 }
 
-/** Map monitor status to Tailwind badge classes. */
+/** Map monitor status to Tailwind badge classes.
+ *  Colors communicate emotional state, not just technical state:
+ *  - active    → signal (green)   : calm, everything is fine
+ *  - triggered → accent (cyan)    : exciting peak moment
+ *  - paused    → danger (red)     : urgent, you are missing signals NOW
+ *  - insufficient_balance → warn (orange) : fixable, act before it goes red
+ */
 export function statusColor(s: MonitorStatus): string {
   switch (s) {
     case 'active':
@@ -50,9 +57,9 @@ export function statusColor(s: MonitorStatus): string {
     case 'triggered':
       return 'bg-accent/15 text-accent';
     case 'paused':
-      return 'bg-slate-500/15 text-slate-400';
-    case 'insufficient_balance':
       return 'bg-danger/15 text-danger';
+    case 'insufficient_balance':
+      return 'bg-warn/15 text-warn';
   }
 }
 

@@ -1,4 +1,5 @@
 import { burnRate, burnBarColor } from '@/lib/format';
+import { COPY } from '@/lib/copy';
 import type { Monitor } from '@lenitnes/types';
 
 interface BurnBarProps {
@@ -6,7 +7,7 @@ interface BurnBarProps {
 }
 
 /**
- * Burn bar with days-left display.
+ * Burn bar with days-left display and USD anchoring.
  * Extracted from the dashboard MonitorCard for reuse in post-create flow.
  *
  * @example
@@ -28,8 +29,8 @@ export function BurnBar({ monitor }: BurnBarProps) {
         />
       </div>
       <div className="flex items-center justify-between text-[10px]">
-        <span className="text-slate-500">{bal.toFixed(1)} ℏ staked</span>
-        <span className={`font-medium text-slate-400`}>{daysText}</span>
+        <span className="text-slate-500">{COPY.funding.staked(bal)}</span>
+        <span className="font-medium text-slate-400">{daysText}</span>
       </div>
     </div>
   );
