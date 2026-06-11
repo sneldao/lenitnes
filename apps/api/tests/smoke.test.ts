@@ -19,6 +19,7 @@ const mockUsers: Record<string, { id: string; wallet_address: string; email: str
 
 vi.mock('../src/services/signature.js', () => ({
   verifyEd25519: () => true,
+  verifyWalletSignature: () => true,
   isRecentAuthMessage: () => true,
 }));
 

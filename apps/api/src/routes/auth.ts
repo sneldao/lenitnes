@@ -1,7 +1,7 @@
 import { Router, type Request, type Response } from 'express';
 import { jwtVerify } from 'jose';
 import { upsertUserByWallet, generateToken } from '../middleware/auth.js';
-import { verifyEd25519, isRecentAuthMessage } from '../services/signature.js';
+import { verifyWalletSignature, isRecentAuthMessage } from '../services/signature.js';
 import { config } from '../config.js';
 import { authSchema } from '../validation/index.js';
 import { validate } from '../middleware/validate.js';
@@ -34,7 +34,7 @@ authRouter.post('/login', validate(authSchema), async (req, res) => {
     return res.status(401).json({ error: 'invalid_or_expired_message' });
   }
 
-  if (!verifyEd25519(message, signature, publicKey)) {
+  if (!verifyWalletSignature(message, signature, publicKey)) {
     return res.status(401).json({ error: 'invalid_signature' });
   }
 

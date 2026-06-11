@@ -1,4 +1,45 @@
 import crypto from 'node:crypto';
+import { PublicKey } from '@hashgraph/sdk';
+
+// HIP-820 / hedera-wallet-connect message prefix (mirrors Ethereum's personal_sign).
+// Wallets like HashPack and Kabila sign `prefix + message`, not the raw message.
+function prefixMessageToSign(message: string): Uint8Array {
+  return Buffer.from('\x19Hedera Signed Message:\n' + message.length + message, 'utf8');
+}
+
+/**
+ * Verify a wallet signature against a message, supporting:
+ * - Ed25519 and ECDSA(secp256k1) public keys (via Hedera SDK)
+ * - HIP-820 prefixed messages (HashPack, Kabila via WalletConnect) and raw messages
+ */
+export function verifyWalletSignature(
+  message: string,
+  signatureHex: string,
+  publicKeyHex: string,
+): boolean {
+  let publicKey: PublicKey;
+  try {
+    publicKey = PublicKey.fromString(publicKeyHex);
+  } catch {
+    return false;
+  }
+  let signature: Uint8Array;
+  try {
+    signature = Buffer.from(signatureHex, 'hex');
+  } catch {
+    return false;
+  }
+  try {
+    if (publicKey.verify(prefixMessageToSign(message), signature)) return true;
+  } catch {
+    // fall through to raw verification
+  }
+  try {
+    return publicKey.verify(Buffer.from(message, 'utf8'), signature);
+  } catch {
+    return false;
+  }
+}
 
 // SPKI DER prefix for Ed25519: SEQUENCE { SEQUENCE { OID 1.3.101.112 } BIT STRING { 0 unused bits } }
 const ED25519_SPKI_PREFIX = Buffer.from('302a300506032b6570032100', 'hex');
