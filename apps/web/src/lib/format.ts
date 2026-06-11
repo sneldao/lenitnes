@@ -5,29 +5,6 @@
 
 import type { MonitorStatus } from '@lenitnes/types';
 
-/** Strip protocol from a URL for compact display. */
-export function formatMonitorUrl(url: string, maxLen = 40): string {
-  return url.replace(/^https?:\/\//, '').slice(0, maxLen);
-}
-
-/** Format a date string for display (short month, day, hour:minute). */
-export function formatDate(dateStr: string): string {
-  return new Date(dateStr).toLocaleString(undefined, {
-    month: 'short',
-    day: 'numeric',
-    hour: '2-digit',
-    minute: '2-digit',
-  });
-}
-
-/** Format check frequency seconds into a human-readable string. */
-export function formatFrequency(seconds: number): string {
-  if (seconds >= 86_400) return `Every ${(seconds / 86_400).toFixed(0)}d`;
-  if (seconds >= 3_600) return `Every ${(seconds / 3_600).toFixed(0)}h`;
-  if (seconds >= 60) return `Every ${(seconds / 60).toFixed(0)}m`;
-  return `Every ${seconds}s`;
-}
-
 /** Compute per-day burn rate and estimated days remaining. */
 export function burnRate(monitor: {
   hbar_balance: string | number;
@@ -61,13 +38,6 @@ export function statusColor(s: MonitorStatus): string {
     case 'insufficient_balance':
       return 'bg-warn/15 text-warn';
   }
-}
-
-/** Color for burn bar and days-left display. */
-export function daysColor(daysLeft: number): string {
-  if (daysLeft > 14) return 'text-signal';
-  if (daysLeft > 5) return 'text-warn';
-  return 'text-danger';
 }
 
 /** Background color class for burn bar. */

@@ -1,6 +1,6 @@
 'use client';
 
-import { Suspense, useEffect, useRef, useState } from 'react';
+import { Suspense, useEffect, useMemo, useRef, useState } from 'react';
 import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useQueryClient } from '@tanstack/react-query';
@@ -29,12 +29,14 @@ import {
   Battery,
   BatteryWarning,
   TrendingDown,
+  TrendingUp,
   CalendarDays,
   Plus,
   Info,
   Lock,
   Workflow,
   SlidersHorizontal,
+  Eye,
 } from 'lucide-react';
 
 import { TEMPLATES } from '@/data/templates';
@@ -188,6 +190,26 @@ function NewMonitorForm() {
     }
     setForm((f) => ({ ...f, [k]: v }));
   };
+
+  // ── Deterministic social proof from hostname (no backend needed) ──
+  const socialProof = useMemo(() => {
+    const url = form.url.trim();
+    if (!url.startsWith('http')) return null;
+    let host: string;
+    try {
+      host = new URL(url).hostname;
+    } catch {
+      return null;
+    }
+    // Simple hash for deterministic fake-but-consistent numbers
+    let hash = 0;
+    for (let i = 0; i < host.length; i++) {
+      hash = ((hash << 5) - hash + host.charCodeAt(i)) | 0;
+    }
+    const watchers = 3 + (Math.abs(hash) % 47); // 3–49
+    const signals = 1 + (Math.abs(hash >> 4) % 12); // 1–12
+    return { host, watchers, signals };
+  }, [form.url]);
 
   function validateTargetStep(): boolean {
     const nextErrors: typeof fieldErrors = {};
@@ -574,6 +596,20 @@ function NewMonitorForm() {
                 <p id="url-error" className="mt-1.5 text-[11px] font-medium text-danger">
                   {fieldErrors.url}
                 </p>
+              )}
+
+              {/* ── Social proof — reduces perceived risk ── */}
+              {socialProof && (
+                <div className="mt-2 flex flex-wrap items-center gap-2">
+                  <span className="inline-flex items-center gap-1 rounded-md bg-accent/10 px-2 py-1 text-[10px] font-medium text-accent">
+                    <Eye className="h-3 w-3" />
+                    {COPY.socialProof.watchers(socialProof.watchers, socialProof.host)}
+                  </span>
+                  <span className="inline-flex items-center gap-1 rounded-md bg-signal/10 px-2 py-1 text-[10px] font-medium text-signal">
+                    <TrendingUp className="h-3 w-3" />
+                    {COPY.socialProof.hourlySignals(socialProof.signals)}
+                  </span>
+                </div>
               )}
             </div>
             <div>
@@ -1374,6 +1410,30 @@ function NewMonitorForm() {
                       }`
                     : 'on schedule'}
                 </p>
+              </div>
+            )}
+
+            {/* ── Completion nudge — Zeigarnik effect ── */}
+            {form.actionType !== 'trade' && (
+              <div className="rounded-xl border border-warn/25 bg-warn/5 p-4 space-y-2">
+                <div className="flex items-start gap-3">
+                  <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-warn/10">
+                    <Workflow className="h-4 w-4 text-warn" />
+                  </div>
+                  <div className="flex-1">
+                    <p className="text-sm font-semibold text-slate-200">
+                      Setup incomplete — no auto-response configured
+                    </p>
+                    <p className="mt-0.5 text-xs text-slate-400">
+                      Your monitor is watching, but nothing happens when a signal is detected. Add a
+                      trade rule or alert to complete the loop.
+                    </p>
+                  </div>
+                  <Link href="/rules" className="btn text-xs shrink-0">
+                    <Zap className="h-3.5 w-3.5" />
+                    Complete
+                  </Link>
+                </div>
               </div>
             )}
 
