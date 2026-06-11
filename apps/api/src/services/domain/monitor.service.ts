@@ -16,12 +16,13 @@ export interface CreateMonitorParams {
   costPerCheck?: number;
   screenshotsEnabled: boolean;
   isPublic?: boolean;
+  confidenceThreshold?: number;
 }
 
 export async function createMonitor(params: CreateMonitorParams): Promise<Monitor> {
   const { rows } = await query<Monitor>(
-    `INSERT INTO monitors (user_id, url, condition_text, frequency_seconds, hbar_balance, cost_per_check, screenshots_enabled, is_public)
-     VALUES ($1, $2, $3, $4, 0, $5, $6, $7) RETURNING *`,
+    `INSERT INTO monitors (user_id, url, condition_text, frequency_seconds, hbar_balance, cost_per_check, screenshots_enabled, is_public, confidence_threshold)
+     VALUES ($1, $2, $3, $4, 0, $5, $6, $7, $8) RETURNING *`,
     [
       params.userId,
       params.url,
@@ -30,6 +31,7 @@ export async function createMonitor(params: CreateMonitorParams): Promise<Monito
       params.costPerCheck ?? config.hedera.defaultCostPerCheck,
       params.screenshotsEnabled,
       params.isPublic ?? true,
+      params.confidenceThreshold ?? 50,
     ],
   );
   cacheInvalidate(`monitors:${params.userId}:`);

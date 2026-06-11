@@ -14,6 +14,7 @@ export const createMonitorSchema = z.object({
   costPerCheck: z.number().positive().optional(),
   screenshotsEnabled: z.boolean().optional().default(true),
   isPublic: z.boolean().optional().default(true),
+  confidenceThreshold: z.number().int().min(0).max(100).optional().default(50),
 });
 
 export const patchMonitorSchema = z.object({
@@ -22,4 +23,5 @@ export const patchMonitorSchema = z.object({
   topUpHbar: z.number().positive().optional(),
   status: z.enum(['active', 'paused']).optional(),
   isPublic: z.boolean().optional(),
+  confidenceThreshold: z.number().int().min(0).max(100).optional(),
 });

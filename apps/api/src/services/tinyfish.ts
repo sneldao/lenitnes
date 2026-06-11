@@ -39,11 +39,12 @@ function buildGoalPrompt(p: RunMonitorCheckParams, commitContext = ''): string {
   const condition = truncateCondition(p.condition);
   const sinceClause = p.lastSeenCommitHash ? `Commits since ${p.lastSeenCommitHash}. ` : '';
   // Compact prompt to minimize token usage while preserving intent.
+  // Confidence 0-100 helps users tune sensitivity (strict vs relaxed).
   return [
     `Visit ${p.url}. Is this true: "${condition}"?`,
     sinceClause,
     commitContext,
-    `Extract evidence. Return strict JSON: condition_met(bool), evidence(str), summary(str), latest_commit_hash(str, commits only).`,
+    `Return strict JSON: condition_met(bool), confidence(int 0-100), evidence(str), summary(str), latest_commit_hash(str, commits only).`,
   ].join(' ');
 }
 
@@ -58,6 +59,7 @@ const tinyFishResponseSchema = z.object({
   condition_met: z
     .union([z.boolean(), z.literal('true'), z.literal('false')])
     .transform((v) => v === true || v === 'true'),
+  confidence: z.coerce.number().min(0).max(100).default(50),
   evidence: z.string().default(''),
   summary: z.string().default(''),
   latest_commit_hash: z.string().optional(),
@@ -138,6 +140,7 @@ Recent commits since last check:\n${commits
   return {
     runId,
     conditionMet: parsed.condition_met,
+    confidence: parsed.confidence,
     evidence: parsed.evidence,
     summary: parsed.summary,
     screenshots: parsed.screenshots,

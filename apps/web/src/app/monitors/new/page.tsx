@@ -33,6 +33,7 @@ import {
   Info,
   Lock,
   Workflow,
+  SlidersHorizontal,
 } from 'lucide-react';
 
 import { TEMPLATES } from '@/data/templates';
@@ -110,6 +111,9 @@ function NewMonitorForm() {
       checkMethod: 'tinyfish' | 'scraper-fallback';
       circuitOpen: boolean;
       githubCommitsFetched: number;
+      confidence: number;
+      confidenceThreshold: number;
+      thresholdBlocked: boolean;
     };
   } | null>(null);
   const [copiedShareLink, setCopiedShareLink] = useState(false);
@@ -128,6 +132,7 @@ function NewMonitorForm() {
     actionType: 'alert' as 'alert' | 'trade',
     screenshotsEnabled: true,
     isPublic: true,
+    confidenceThreshold: 50,
     tradeConfig: {
       pair: '',
       type: 'buy' as 'buy' | 'sell',
@@ -241,6 +246,7 @@ function NewMonitorForm() {
         frequencySeconds: form.frequencySeconds,
         screenshotsEnabled: form.screenshotsEnabled,
         isPublic: form.isPublic,
+        confidenceThreshold: form.confidenceThreshold,
       });
       // If trade mode selected, create the rule atomically so the loop is complete.
       if (form.actionType === 'trade' && form.tradeConfig.pair) {
@@ -648,6 +654,42 @@ function NewMonitorForm() {
                 <option value={300}>Every 5 minutes (burns 288× faster)</option>
               </select>
             </div>
+
+            {/* ── Signal Sensitivity ── */}
+            <div className="rounded-xl border border-edge/40 bg-ink-light/30 p-4 space-y-3">
+              <div className="flex items-center justify-between">
+                <label className="label mb-0">
+                  <SlidersHorizontal className="mr-1 inline h-3 w-3" />
+                  Signal sensitivity
+                </label>
+                <span className="text-xs font-semibold text-accent tabular-nums">
+                  {form.confidenceThreshold}/100
+                </span>
+              </div>
+              <input
+                type="range"
+                min={0}
+                max={100}
+                step={5}
+                value={form.confidenceThreshold}
+                onChange={(e) => set('confidenceThreshold', Number(e.target.value))}
+                className="w-full accent-accent"
+                aria-label="Confidence threshold"
+              />
+              <div className="flex justify-between text-[10px] text-slate-500">
+                <span>Relaxed — more signals</span>
+                <span>Balanced</span>
+                <span>Strict — fewer signals</span>
+              </div>
+              <p className="text-[10px] text-slate-500">
+                {form.confidenceThreshold >= 80
+                  ? 'Strict: Only alerts on high-confidence matches. Best for avoiding noise.'
+                  : form.confidenceThreshold >= 50
+                    ? 'Balanced: Good mix of precision and recall.'
+                    : 'Relaxed: Catches edge cases. Expect more false positives.'}
+              </p>
+            </div>
+
             <div>
               <label className="label">
                 <Zap className="mr-1 inline h-3 w-3" />
@@ -1269,14 +1311,56 @@ function NewMonitorForm() {
                       </span>
                     </div>
                   )}
+                  {/* Confidence score */}
                   <div className="flex items-center gap-2.5 text-xs">
-                    <div className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-signal/10">
-                      <Check className="h-3 w-3 text-signal" />
+                    <div
+                      className={`flex h-5 w-5 shrink-0 items-center justify-center rounded-full ${
+                        activationResult.metadata.confidence >=
+                        activationResult.metadata.confidenceThreshold
+                          ? 'bg-signal/10'
+                          : 'bg-warn/10'
+                      }`}
+                    >
+                      <span
+                        className={`text-[10px] font-bold ${
+                          activationResult.metadata.confidence >=
+                          activationResult.metadata.confidenceThreshold
+                            ? 'text-signal'
+                            : 'text-warn'
+                        }`}
+                      >
+                        {activationResult.metadata.confidence}
+                      </span>
                     </div>
                     <span className="text-slate-300">
-                      {activationResult.conditionMet
-                        ? 'Condition matched — signal created and proof packaged'
-                        : 'Condition not met — no signal this time. Monitor continues checking.'}
+                      Confidence score: {activationResult.metadata.confidence}/100
+                      {activationResult.metadata.thresholdBlocked && (
+                        <span className="text-warn">
+                          {' '}
+                          — below your threshold of {activationResult.metadata.confidenceThreshold}
+                        </span>
+                      )}
+                    </span>
+                  </div>
+                  {/* Final outcome */}
+                  <div className="flex items-center gap-2.5 text-xs">
+                    <div
+                      className={`flex h-5 w-5 shrink-0 items-center justify-center rounded-full ${
+                        activationResult.conditionMet ? 'bg-signal/10' : 'bg-warn/10'
+                      }`}
+                    >
+                      {activationResult.conditionMet ? (
+                        <Check className="h-3 w-3 text-signal" />
+                      ) : (
+                        <Info className="h-3 w-3 text-warn" />
+                      )}
+                    </div>
+                    <span className="text-slate-300">
+                      {activationResult.metadata.thresholdBlocked
+                        ? `Condition matched but blocked — confidence ${activationResult.metadata.confidence} is below your ${activationResult.metadata.confidenceThreshold} threshold. Monitor continues checking.`
+                        : activationResult.conditionMet
+                          ? 'Condition matched — signal created and proof packaged'
+                          : 'Condition not met — no signal this time. Monitor continues checking.'}
                     </span>
                   </div>
                 </div>

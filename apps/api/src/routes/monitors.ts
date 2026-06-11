@@ -34,6 +34,7 @@ monitorsRouter.post('/', validate(createMonitorSchema), async (req, res) => {
     costPerCheck?: number;
     screenshotsEnabled: boolean;
     isPublic?: boolean;
+    confidenceThreshold?: number;
   };
 
   const monitor = await createMonitorSvc({
@@ -44,6 +45,7 @@ monitorsRouter.post('/', validate(createMonitorSchema), async (req, res) => {
     costPerCheck: b.costPerCheck,
     screenshotsEnabled: b.screenshotsEnabled,
     isPublic: b.isPublic,
+    confidenceThreshold: b.confidenceThreshold,
   });
 
   // ── Public feed: announce new monitor to Telegram channel ──

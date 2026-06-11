@@ -138,6 +138,9 @@ export const api = {
         checkMethod: 'tinyfish' | 'scraper-fallback';
         circuitOpen: boolean;
         githubCommitsFetched: number;
+        confidence: number;
+        confidenceThreshold: number;
+        thresholdBlocked: boolean;
       };
     }>(`/monitors/${monitorId}/first-check`, { method: 'POST' }),
 

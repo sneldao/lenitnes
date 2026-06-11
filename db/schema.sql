@@ -29,6 +29,7 @@ CREATE TABLE IF NOT EXISTS monitors (
   screenshots_enabled    BOOLEAN NOT NULL DEFAULT true,
   is_public              BOOLEAN NOT NULL DEFAULT true,
   status                 TEXT NOT NULL DEFAULT 'active',
+  confidence_threshold   INTEGER NOT NULL DEFAULT 50,
   last_check_at          TIMESTAMPTZ,
   last_seen_commit_hash  TEXT,
   created_at             TIMESTAMPTZ NOT NULL DEFAULT now()

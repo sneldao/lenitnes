@@ -52,6 +52,9 @@ export interface CheckMetadata {
   checkMethod: 'tinyfish' | 'scraper-fallback';
   circuitOpen: boolean;
   githubCommitsFetched: number;
+  confidence: number;
+  confidenceThreshold: number;
+  thresholdBlocked: boolean; // true when condition met but confidence below threshold
 }
 
 export async function executeCheck(
@@ -89,7 +92,14 @@ export async function executeCheck(
         conditionMet: false,
         isHeartbeat: false,
         summary: null,
-        metadata: { checkMethod: 'scraper-fallback', circuitOpen: false, githubCommitsFetched: 0 },
+        metadata: {
+          checkMethod: 'scraper-fallback',
+          circuitOpen: false,
+          githubCommitsFetched: 0,
+          confidence: 0,
+          confidenceThreshold: monitor.confidence_threshold,
+          thresholdBlocked: false,
+        },
       };
     }
 
@@ -172,6 +182,9 @@ export async function executeCheck(
         checkMethod,
         circuitOpen,
         githubCommitsFetched: result.githubCommitsFetched ?? 0,
+        confidence: result.confidence,
+        confidenceThreshold: monitor.confidence_threshold,
+        thresholdBlocked: false,
       },
     };
   }
@@ -239,6 +252,10 @@ export async function executeCheck(
       checkMethod,
       circuitOpen,
       githubCommitsFetched: result.githubCommitsFetched ?? 0,
+      confidence: result.confidence,
+      confidenceThreshold: monitor.confidence_threshold ?? 50,
+      thresholdBlocked:
+        result.conditionMet && result.confidence < (monitor.confidence_threshold ?? 50),
     },
   };
 }
@@ -293,6 +310,22 @@ async function executeCheckTransaction(
        VALUES ($1, $2, true, $3)
        RETURNING id`,
       [monitor.id, result.runId, result.summary],
+    );
+    return { signalId: heartbeatRows[0]?.id ?? null, isHeartbeat: true };
+  }
+
+  // Condition met but confidence below threshold -> treat as heartbeat.
+  const threshold = monitor.confidence_threshold ?? 50;
+  if (result.confidence < threshold) {
+    const { rows: heartbeatRows } = await client.query<{ id: string }>(
+      `INSERT INTO signals (monitor_id, tinyfish_run_id, is_heartbeat, condition_summary)
+       VALUES ($1, $2, true, $3)
+       RETURNING id`,
+      [
+        monitor.id,
+        result.runId,
+        `Confidence ${result.confidence} below threshold ${threshold}. ${result.summary}`,
+      ],
     );
     return { signalId: heartbeatRows[0]?.id ?? null, isHeartbeat: true };
   }

@@ -19,6 +19,7 @@ export interface Monitor {
   status: MonitorStatus;
   screenshots_enabled: boolean;
   is_public: boolean;
+  confidence_threshold: number;
   last_check_at: string | null;
   last_seen_commit_hash: string | null;
   created_at: string;
@@ -31,7 +32,8 @@ export interface CreateMonitorInput {
   frequencySeconds?: number; // default 3600
   costPerCheck?: number;
   screenshotsEnabled?: boolean; // default true
-  isPublic?: boolean; // default false
+  isPublic?: boolean; // default true
+  confidenceThreshold?: number; // 0-100, default 50
 }
 
 export interface UpdateMonitorInput {
@@ -39,6 +41,7 @@ export interface UpdateMonitorInput {
   frequencySeconds?: number;
   status?: MonitorStatus;
   stakeHbar?: number; // top-up
+  confidenceThreshold?: number;
 }
 
 // ── Signal ────────────────────────────────────────────────────
@@ -151,6 +154,7 @@ export interface HealthStatus {
 export interface TinyFishResult {
   runId: string;
   conditionMet: boolean;
+  confidence: number; // 0-100
   evidence: string;
   summary: string;
   screenshots: string[];

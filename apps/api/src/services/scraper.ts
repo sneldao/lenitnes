@@ -8,6 +8,7 @@ import { withRetry } from './retry.js';
 export interface ScraperResult {
   runId: 'scraper-fallback';
   conditionMet: boolean;
+  confidence: number;
   evidence: string;
   summary: string;
   screenshots: string[];
@@ -40,10 +41,12 @@ export async function runScraperFallback(url: string, condition: string): Promis
   const textLower = text.toLowerCase();
   const found = keywords.filter((k) => textLower.includes(k));
   const matchRatio = keywords.length > 0 ? found.length / keywords.length : 0;
+  const confidence = Math.round(matchRatio * 100);
 
   return {
     runId: 'scraper-fallback',
     conditionMet: matchRatio >= 0.5,
+    confidence,
     evidence: text.slice(0, 500),
     summary: `Scraper fallback: ${found.length}/${keywords.length} keywords matched.`,
     screenshots: [],
