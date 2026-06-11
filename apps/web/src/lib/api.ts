@@ -134,6 +134,11 @@ export const api = {
       isHeartbeat: boolean;
       summary: string | null;
       publicShareToken: string | null;
+      metadata?: {
+        checkMethod: 'tinyfish' | 'scraper-fallback';
+        circuitOpen: boolean;
+        githubCommitsFetched: number;
+      };
     }>(`/monitors/${monitorId}/first-check`, { method: 'POST' }),
 
   /** Execute a monitor on-demand via the x402-gated endpoint. */

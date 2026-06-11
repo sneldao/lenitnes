@@ -106,6 +106,11 @@ function NewMonitorForm() {
     isHeartbeat: boolean;
     summary: string | null;
     publicShareToken: string | null;
+    metadata?: {
+      checkMethod: 'tinyfish' | 'scraper-fallback';
+      circuitOpen: boolean;
+      githubCommitsFetched: number;
+    };
   } | null>(null);
   const [copiedShareLink, setCopiedShareLink] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -297,6 +302,7 @@ function NewMonitorForm() {
         isHeartbeat: Boolean(data.isHeartbeat),
         summary: data.summary ?? null,
         publicShareToken: data.publicShareToken ?? null,
+        metadata: data.metadata ?? undefined,
       };
 
       setActivationResult(nextResult);
@@ -1113,9 +1119,9 @@ function NewMonitorForm() {
                       </>
                     ) : Number(createdMonitor.hbar_balance) <
                       Number(createdMonitor.cost_per_check) * 5 ? (
-                      'Low balance — consider topping up'
+                      `Low balance — ${topUpAmount} ℏ ≈ ${Math.floor(topUpAmount / Number(createdMonitor.cost_per_check))} checks`
                     ) : (
-                      'Funded and ready'
+                      `Funded and ready — ${topUpAmount} ℏ ≈ ${Math.floor(topUpAmount / Number(createdMonitor.cost_per_check))} extra checks`
                     )}
                   </span>
                 </div>
@@ -1225,6 +1231,65 @@ function NewMonitorForm() {
                     Dismiss
                   </button>
                 </div>
+              </div>
+            )}
+
+            {/* ── How we checked transparency ── */}
+            {activationResult?.metadata && (
+              <div className="card space-y-3">
+                <p className="section-title">How we checked</p>
+                <div className="space-y-2">
+                  <div className="flex items-center gap-2.5 text-xs">
+                    <div className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-signal/10">
+                      <Check className="h-3 w-3 text-signal" />
+                    </div>
+                    <span className="text-slate-300">
+                      {activationResult.metadata.githubCommitsFetched > 0
+                        ? `GitHub API — fetched ${activationResult.metadata.githubCommitsFetched} new commit${activationResult.metadata.githubCommitsFetched === 1 ? '' : 's'}`
+                        : 'GitHub API — no new commits since last check'}
+                    </span>
+                  </div>
+                  <div className="flex items-center gap-2.5 text-xs">
+                    <div className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-signal/10">
+                      <Check className="h-3 w-3 text-signal" />
+                    </div>
+                    <span className="text-slate-300">
+                      {activationResult.metadata.checkMethod === 'tinyfish'
+                        ? 'TinyFish AI — analyzed commit messages against your condition'
+                        : 'Keyword verification — matched condition keywords against page content'}
+                    </span>
+                  </div>
+                  {activationResult.metadata.circuitOpen && (
+                    <div className="flex items-center gap-2.5 text-xs">
+                      <div className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-warn/10">
+                        <Info className="h-3 w-3 text-warn" />
+                      </div>
+                      <span className="text-slate-400">
+                        TinyFish circuit was temporarily open — using scraper fallback
+                      </span>
+                    </div>
+                  )}
+                  <div className="flex items-center gap-2.5 text-xs">
+                    <div className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-signal/10">
+                      <Check className="h-3 w-3 text-signal" />
+                    </div>
+                    <span className="text-slate-300">
+                      {activationResult.conditionMet
+                        ? 'Condition matched — signal created and proof packaged'
+                        : 'Condition not met — no signal this time. Monitor continues checking.'}
+                    </span>
+                  </div>
+                </div>
+                <p className="text-[10px] text-slate-500">
+                  Next check:{' '}
+                  {createdMonitor
+                    ? `every ${
+                        createdMonitor.frequency_seconds >= 3600
+                          ? `${(createdMonitor.frequency_seconds / 3600).toFixed(0)}h`
+                          : `${(createdMonitor.frequency_seconds / 60).toFixed(0)}m`
+                      }`
+                    : 'on schedule'}
+                </p>
               </div>
             )}
 
@@ -1339,38 +1404,32 @@ function ActivationStep({ label, state }: { label: string; state: 'done' | 'acti
 function PostCreateHealth({ monitor }: { monitor: Monitor }) {
   const bal = Number(monitor.hbar_balance);
   const cost = Number(monitor.cost_per_check);
-  const freqSec = monitor.frequency_seconds;
-  const checksPerDay = 86400 / freqSec;
-  const perDay = checksPerDay * cost;
-  const daysLeft = perDay > 0 ? bal / perDay : Infinity;
-  const isFunded = bal > cost * 5;
-  const pct = Math.min(100, Math.max(0, daysLeft > 30 ? 100 : (daysLeft / 30) * 100));
+  const checksRemaining = cost > 0 ? Math.floor(bal / cost) : 0;
+  const canRun = checksRemaining > 0;
+  const pct = Math.min(100, Math.max(0, checksRemaining > 20 ? 100 : (checksRemaining / 20) * 100));
 
   return (
     <div className="space-y-3">
       <div className="flex items-end gap-4">
         <div>
-          <p className="text-[10px] text-slate-500">Current balance</p>
+          <p className="text-[10px] text-slate-500">Checks remaining</p>
+          <p className={`text-2xl font-bold tabular-nums ${canRun ? 'text-signal' : 'text-warn'}`}>
+            {checksRemaining}
+          </p>
+        </div>
+        <div className="flex-1">
+          <p className="text-[10px] text-slate-500">Cost per check</p>
+          <p className="text-sm font-semibold text-slate-200">{cost.toFixed(2)} ℏ</p>
+        </div>
+        <div className="text-right">
+          <p className="text-[10px] text-slate-500">Balance</p>
           <p className={`text-2xl font-bold tabular-nums ${bal > 0 ? 'text-signal' : 'text-warn'}`}>
             {bal.toFixed(1)} ℏ
           </p>
         </div>
-        <div className="flex-1">
-          <p className="text-[10px] text-slate-500">Burn rate</p>
-          <p className="text-sm font-semibold text-slate-200">{perDay.toFixed(2)} ℏ / day</p>
-        </div>
-        <div className="text-right">
-          <p className="text-[10px] text-slate-500">Estimated runtime</p>
-          <p
-            className={`text-2xl font-bold tabular-nums ${daysLeft > 14 ? 'text-signal' : daysLeft > 5 ? 'text-warn' : 'text-danger'}`}
-          >
-            {Number.isFinite(daysLeft) ? daysLeft.toFixed(0) : '∞'}
-          </p>
-          <p className="text-[10px] text-slate-500">days left</p>
-        </div>
       </div>
 
-      {/* Burn bar */}
+      {/* Checks bar */}
       <div className="h-2 w-full overflow-hidden rounded-full bg-edge/40">
         <div
           className={`h-full rounded-full transition-all ${
@@ -1380,14 +1439,25 @@ function PostCreateHealth({ monitor }: { monitor: Monitor }) {
         />
       </div>
 
-      {!isFunded && (
+      {!canRun && (
+        <div className="flex items-center gap-2 rounded-lg border border-warn/20 bg-warn/5 p-2.5 text-xs text-warn">
+          <BatteryWarning className="h-4 w-4 shrink-0" />
+          <span>Balance is 0. Scheduled checks are paused. Top up to re-enable.</span>
+        </div>
+      )}
+      {canRun && checksRemaining < 5 && (
         <div className="flex items-center gap-2 rounded-lg border border-warn/20 bg-warn/5 p-2.5 text-xs text-warn">
           <BatteryWarning className="h-4 w-4 shrink-0" />
           <span>
-            {bal <= 0
-              ? 'Balance is 0. Scheduled checks are paused. Top up to re-enable.'
-              : `Low balance. Monitor will pause in ~${daysLeft.toFixed(0)} days. Top up to keep it running.`}
+            Low balance. Only {checksRemaining} check{checksRemaining === 1 ? '' : 's'} left. Top up
+            soon.
           </span>
+        </div>
+      )}
+      {canRun && checksRemaining >= 5 && (
+        <div className="flex items-center gap-2 rounded-lg border border-signal/20 bg-signal/5 p-2.5 text-xs text-signal">
+          <Check className="h-4 w-4 shrink-0" />
+          <span>Funded and ready. {checksRemaining} checks available.</span>
         </div>
       )}
     </div>

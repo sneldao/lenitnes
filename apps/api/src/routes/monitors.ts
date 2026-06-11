@@ -14,6 +14,8 @@ import {
 import { executeCheck } from '../execution/loop.js';
 import { query } from '../db/pool.js';
 import { createSignalShareToken } from '../services/share-token.js';
+import * as notify from '../services/notify.js';
+import { config } from '../config.js';
 import { logger } from '../logger.js';
 
 export const monitorsRouter = Router();
@@ -43,6 +45,25 @@ monitorsRouter.post('/', validate(createMonitorSchema), async (req, res) => {
     screenshotsEnabled: b.screenshotsEnabled,
     isPublic: b.isPublic,
   });
+
+  // ── Public feed: announce new monitor to Telegram channel ──
+  if (monitor.is_public && config.telegram.publicChannelId) {
+    const freqMin = Math.round(monitor.frequency_seconds / 60);
+    const freqLabel = freqMin < 60 ? `${freqMin}m` : `${Math.round(freqMin / 60)}h`;
+    notify
+      .sendTelegram(
+        config.telegram.publicChannelId,
+        `🛡️ <b>New monitor live</b>\n` +
+          `<b>${monitor.condition_text.slice(0, 80)}${monitor.condition_text.length > 80 ? '…' : ''}</b>\n\n` +
+          `📍 ${monitor.url}\n` +
+          `⏱ Every ${freqLabel}\n` +
+          `🔗 <a href="${config.webOrigin}/monitors/${monitor.id}">View monitor</a>`,
+      )
+      .catch((err) =>
+        logger.warn({ err, monitorId: monitor.id }, 'failed to post monitor creation to Telegram'),
+      );
+  }
+
   res.status(201).json(monitor);
 });
 
@@ -120,12 +141,10 @@ monitorsRouter.post('/:id/first-check', async (req, res) => {
     [monitorId],
   );
   if (Number(countRows[0]?.count ?? 0) > 0) {
-    return res
-      .status(400)
-      .json({
-        error: 'first_check_already_used',
-        message: 'Use on-demand execution for subsequent checks.',
-      });
+    return res.status(400).json({
+      error: 'first_check_already_used',
+      message: 'Use on-demand execution for subsequent checks.',
+    });
   }
 
   try {

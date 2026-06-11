@@ -48,6 +48,12 @@ export async function runDueChecks(): Promise<void> {
   );
 }
 
+export interface CheckMetadata {
+  checkMethod: 'tinyfish' | 'scraper-fallback';
+  circuitOpen: boolean;
+  githubCommitsFetched: number;
+}
+
 export async function executeCheck(
   monitor: Monitor,
   opts: { skipDebit?: boolean } = {},
@@ -56,6 +62,7 @@ export async function executeCheck(
   conditionMet: boolean;
   isHeartbeat: boolean;
   summary: string | null;
+  metadata: CheckMetadata;
 }> {
   const proof = getProofService();
   const cost = Number(monitor.cost_per_check) || config.hedera.defaultCostPerCheck;
@@ -77,7 +84,13 @@ export async function executeCheck(
         monitor.id,
       ]);
       logger.warn({ monitorId: monitor.id }, 'monitor paused: insufficient balance');
-      return { signalId: null, conditionMet: false, isHeartbeat: false, summary: null };
+      return {
+        signalId: null,
+        conditionMet: false,
+        isHeartbeat: false,
+        summary: null,
+        metadata: { checkMethod: 'scraper-fallback', circuitOpen: false, githubCommitsFetched: 0 },
+      };
     }
 
     // External proof call — record the debit on-ledger.
@@ -90,9 +103,12 @@ export async function executeCheck(
 
   // ── 2) Run TinyFish (with circuit breaker + scraper fallback) ─────
   let result: TinyFishResult;
-  if (isCircuitOpen(circuitOpts)) {
+  const circuitOpen = isCircuitOpen(circuitOpts);
+  let checkMethod: 'tinyfish' | 'scraper-fallback' = 'tinyfish';
+  if (circuitOpen) {
     logger.warn({ monitorId: monitor.id }, 'TinyFish circuit open — using scraper fallback');
     result = await scraper.runScraperFallback(monitor.url, monitor.condition_text);
+    checkMethod = 'scraper-fallback';
     incCounter('tinyfish_errors_total', { fallback: 'scraper' });
   } else {
     try {
@@ -108,6 +124,7 @@ export async function executeCheck(
       incCounter('tinyfish_errors_total', { fallback: 'none' });
       logger.warn({ err, monitorId: monitor.id }, 'TinyFish failed, trying scraper fallback');
       result = await scraper.runScraperFallback(monitor.url, monitor.condition_text);
+      checkMethod = 'scraper-fallback';
     }
   }
 
@@ -146,7 +163,17 @@ export async function executeCheck(
       }
     }
 
-    return { signalId: null, conditionMet: false, isHeartbeat: false, summary: null };
+    return {
+      signalId: null,
+      conditionMet: false,
+      isHeartbeat: false,
+      summary: null,
+      metadata: {
+        checkMethod,
+        circuitOpen,
+        githubCommitsFetched: result.githubCommitsFetched ?? 0,
+      },
+    };
   }
 
   // ── 4) Post-commit: IPFS + HCS (best-effort) ──────────────────────
@@ -208,6 +235,11 @@ export async function executeCheck(
     conditionMet: !isHeartbeat,
     isHeartbeat,
     summary,
+    metadata: {
+      checkMethod,
+      circuitOpen,
+      githubCommitsFetched: result.githubCommitsFetched ?? 0,
+    },
   };
 }
 

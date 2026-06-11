@@ -155,4 +155,5 @@ export interface TinyFishResult {
   summary: string;
   screenshots: string[];
   latestCommitHash?: string;
+  githubCommitsFetched?: number;
 }

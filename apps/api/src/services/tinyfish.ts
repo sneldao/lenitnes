@@ -73,10 +73,12 @@ export async function runMonitorCheck(p: RunMonitorCheckParams): Promise<TinyFis
 
   // ── Optional GitHub enrichment: fetch commit data for richer evaluation ──
   let commitContext = '';
+  let githubCommitsFetched = 0;
   if (config.github.token && p.url.includes('github.com')) {
     try {
       const commits = await fetchCommitsSince(p.url, p.lastSeenCommitHash ?? null);
       if (commits && commits.length > 0) {
+        githubCommitsFetched = commits.length;
         commitContext = `
 Recent commits since last check:\n${commits
           .slice(0, 5)
@@ -140,5 +142,6 @@ Recent commits since last check:\n${commits
     summary: parsed.summary,
     screenshots: parsed.screenshots,
     latestCommitHash: parsed.latest_commit_hash,
+    githubCommitsFetched,
   };
 }
