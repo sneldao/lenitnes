@@ -17,6 +17,8 @@ import { logger } from '../logger.js';
 //   • Condition text truncated to MAX_CONDITION_LEN to prevent token bombing.
 //   • Response validated with Zod to catch silent coercion bugs (e.g. "false" → true).
 //   • Screenshots are optional per-monitor to save tokens on text-only checks.
+//   • Latency is observed in a `finally` so timeouts, Zod failures, and HTTP
+//     errors are all recorded — not just the happy path.
 // ─────────────────────────────────────────────────────────────
 
 const MAX_CONDITION_LEN = 500;
@@ -48,13 +50,6 @@ function buildGoalPrompt(p: RunMonitorCheckParams, commitContext = ''): string {
   ].join(' ');
 }
 
-/**
- * Run a single monitor check via TinyFish.
- *
- * NOTE: wire this to the real TinyFish SDK. The shape below documents the
- * contract the rest of the system depends on. Until configured, it throws so
- * the execution loop records a failed check rather than a false negative.
- */
 const tinyFishResponseSchema = z.object({
   condition_met: z
     .union([z.boolean(), z.literal('true'), z.literal('false')])
@@ -72,6 +67,13 @@ export async function runMonitorCheck(p: RunMonitorCheckParams): Promise<TinyFis
   }
 
   const start = performance.now();
+
+  // Hoisted so the `finally` block can label the histogram with the
+  // observed result. Defaults are set in the `try` and remain `null` on
+  // any thrown error (timeout, Zod failure, HTTP non-2xx).
+  let runId = 'unknown';
+  let parsed: z.infer<typeof tinyFishResponseSchema> | null = null;
+  let errorLabel: 'timeout' | 'http' | 'parse' | null = null;
 
   // ── Optional GitHub enrichment: fetch commit data for richer evaluation ──
   let commitContext = '';
@@ -95,56 +97,77 @@ Recent commits since last check:\n${commits
   const goal = buildGoalPrompt(p, commitContext);
 
   const baseUrl = process.env.TINYFISH_API_URL ?? 'https://api.tinyfish.ai/v1';
-  const res = await withRetry(
-    () =>
-      fetch(`${baseUrl}/run`, {
-        method: 'POST',
-        headers: {
-          Authorization: `Bearer ${config.tinyfish.apiKey}`,
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          url: p.url,
-          goal,
-          format: 'json',
-          screenshots: p.screenshots ?? true,
+  try {
+    const res = await withRetry(
+      () =>
+        fetch(`${baseUrl}/run`, {
+          method: 'POST',
+          headers: {
+            Authorization: `Bearer ${config.tinyfish.apiKey}`,
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            url: p.url,
+            goal,
+            format: 'json',
+            screenshots: p.screenshots ?? true,
+          }),
+          signal: AbortSignal.timeout(30_000), // 30s timeout to prevent worker hangs
         }),
-        signal: AbortSignal.timeout(30_000), // 30s timeout to prevent worker hangs
-      }),
-    { retries: 2, baseDelayMs: 1_000 },
-  );
+      { retries: 2, baseDelayMs: 1_000 },
+    );
 
-  if (!res.ok) {
-    const text = await res.text();
-    throw new Error(`TinyFish API error ${res.status}: ${text}`);
+    if (!res.ok) {
+      errorLabel = 'http';
+      const text = await res.text();
+      throw new Error(`TinyFish API error ${res.status}: ${text}`);
+    }
+
+    const json = (await res.json()) as Record<string, unknown>;
+    runId = (json.id ?? json.run_id ?? 'unknown') as string;
+    const rawOutput = (json.output ?? json.result ?? json) as Record<string, unknown>;
+
+    // Zod validation prevents silent coercion bugs (e.g. string "false" → Boolean true).
+    const parseResult = tinyFishResponseSchema.safeParse(rawOutput);
+    if (!parseResult.success) {
+      errorLabel = 'parse';
+      throw new Error(`TinyFish response validation failed: ${parseResult.error.message}`);
+    }
+    parsed = parseResult.data;
+  } catch (err) {
+    // Distinguish timeouts (AbortError) so the histogram gets a useful label.
+    if (errorLabel == null) {
+      const name = (err as { name?: string })?.name;
+      if (name === 'AbortError' || name === 'TimeoutError') errorLabel = 'timeout';
+    }
+    throw err;
+  } finally {
+    // Always record latency — including for timeouts, Zod failures, and HTTP errors —
+    // so the histogram is a true measure of call duration. The `result` label is
+    // `error` for any failure, and `signal` / `heartbeat` for successful parses.
+    const duration = performance.now() - start;
+    let label: string;
+    if (parsed) {
+      label = parsed.condition_met ? 'signal' : 'heartbeat';
+    } else if (errorLabel) {
+      label = `error:${errorLabel}`;
+    } else {
+      label = 'error';
+    }
+    observeHistogram('tinyfish_inference_duration_ms', { result: label }, duration);
   }
 
-  const json = (await res.json()) as Record<string, unknown>;
-  const runId = (json.id ?? json.run_id ?? 'unknown') as string;
-  const rawOutput = (json.output ?? json.result ?? json) as Record<string, unknown>;
-
-  // Zod validation prevents silent coercion bugs (e.g. string "false" → Boolean true).
-  const parseResult = tinyFishResponseSchema.safeParse(rawOutput);
-  if (!parseResult.success) {
-    throw new Error(`TinyFish response validation failed: ${parseResult.error.message}`);
-  }
-  const parsed = parseResult.data;
-
-  const duration = performance.now() - start;
-  observeHistogram(
-    'tinyfish_inference_duration_ms',
-    { result: parsed.condition_met ? 'signal' : 'heartbeat' },
-    duration,
-  );
-
+  // After the try/finally, `parsed` is guaranteed non-null (the only failure
+  // paths throw, which exits the function). The `as` here is a no-op assertion.
+  const ok = parsed as z.infer<typeof tinyFishResponseSchema>;
   return {
     runId,
-    conditionMet: parsed.condition_met,
-    confidence: parsed.confidence,
-    evidence: parsed.evidence,
-    summary: parsed.summary,
-    screenshots: parsed.screenshots,
-    latestCommitHash: parsed.latest_commit_hash,
+    conditionMet: ok.condition_met,
+    confidence: ok.confidence,
+    evidence: ok.evidence,
+    summary: ok.summary,
+    screenshots: ok.screenshots,
+    latestCommitHash: ok.latest_commit_hash,
     githubCommitsFetched,
   };
 }

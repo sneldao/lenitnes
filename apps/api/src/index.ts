@@ -22,10 +22,12 @@ import { requireAuth } from './middleware/auth.js';
 import { auditMiddleware } from './middleware/audit.js';
 import { renderMetrics, metricsMiddleware } from './middleware/metrics.js';
 import { x402Middleware } from './middleware/x402.js';
+import { cacheInvalidate } from './middleware/cache.js';
 import { validateSchema } from './db/validate.js';
 import { logger } from './logger.js';
 import { checkRedisReachable } from './queue/connection.js';
 import { getDlqDepth } from './queue/dlq.js';
+import { startInvalidationSubscriber, stopInvalidationBus } from './middleware/cacheBus.js';
 
 export const app = express();
 app.use(helmet());
@@ -166,6 +168,7 @@ function shutdown(signal: string) {
   logger.info({ signal }, 'shutting down gracefully');
   server.close(async () => {
     try {
+      await stopInvalidationBus();
       await pool.end();
       logger.info('DB pool closed');
     } finally {
@@ -191,6 +194,17 @@ if (isMain) {
         process.exit(1);
       }
       logger.info('schema validation passed');
+
+      // Wire the cross-instance cache invalidation bus. When
+      // REDIS_CACHE_PUPSUB=true, this subscribes to a Redis channel and
+      // drops locally-cached keys that peer instances have invalidated.
+      // Off by default — single-instance deployments don't need it.
+      startInvalidationSubscriber((pattern) => {
+        cacheInvalidate(pattern);
+      }).catch((err) => {
+        logger.warn({ err }, 'cache invalidation subscriber failed to start');
+      });
+
       server.listen(config.port, () => {
         logger.info({ port: config.port, env: config.env }, 'API listening');
       });

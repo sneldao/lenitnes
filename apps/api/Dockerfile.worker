@@ -46,4 +46,10 @@ COPY --from=base /app/apps/api/package.json ./
 # Install it explicitly at the root so ESM resolution from /app/dist works.
 RUN npm install @hashgraph/sdk@2.80.0 --no-save --legacy-peer-deps 2>/dev/null || \
     npm install @hashgraph/sdk@2.80.0 --no-save 2>/dev/null || true
+
+EXPOSE 8741
+# /health/live  → process is up (for k8s liveness probes)
+# /health/ready → DB + Redis reachable (for k8s readiness probes)
+HEALTHCHECK --interval=30s --timeout=5s --start-period=15s --retries=3 \
+  CMD wget -qO- http://localhost:8741/health/ready || exit 1
 CMD ["node", "dist/worker.js"]

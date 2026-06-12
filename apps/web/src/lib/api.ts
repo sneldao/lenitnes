@@ -75,6 +75,16 @@ export const api = {
   listSignals: (monitorId?: string) =>
     req<Signal[]>(`/signals${monitorId ? `?monitorId=${monitorId}` : ''}`),
   getSignal: (id: string) => req<SignalDetail>(`/signals/${id}`),
+  /** Idempotently mark a signal as viewed by the current user. Re-arms the
+   *  parent monitor's `triggered` status back to `active`. */
+  markSignalViewed: (id: string) =>
+    req<{
+      ok: boolean;
+      signalId: string;
+      monitorId: string;
+      monitorRearmed: boolean;
+      wasAlreadyViewed: boolean;
+    }>(`/signals/${id}/viewed`, { method: 'POST' }),
   getPublicProof: (id: string, shareToken?: string) =>
     req<SignalDetail>(
       `/proof/public/${id}${shareToken ? `?share=${encodeURIComponent(shareToken)}` : ''}`,

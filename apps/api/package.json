@@ -12,6 +12,7 @@
     "worker": "tsx src/worker.ts",
     "mcp": "tsx src/mcp/kraken-server.ts",
     "migrate": "tsx src/db/migrate.ts",
+    "migrate:followup": "tsx src/db/migrate-followup.ts",
     "typecheck": "tsc --noEmit",
     "test": "vitest run"
   },

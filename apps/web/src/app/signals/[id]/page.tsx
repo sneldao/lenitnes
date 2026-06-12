@@ -1,7 +1,7 @@
 'use client';
 
-import { use, useMemo, useState } from 'react';
-import { useQuery } from '@tanstack/react-query';
+import { use, useEffect, useMemo, useState } from 'react';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import Link from 'next/link';
 import { usePathname, useSearchParams } from 'next/navigation';
 import { api } from '@/lib/api';
@@ -37,6 +37,7 @@ export default function SignalDetailPage({ params }: { params: Promise<{ id: str
   const searchParams = useSearchParams();
   const isPublic = pathname.startsWith('/public/proof');
   const shareToken = searchParams.get('share') ?? undefined;
+  const queryClient = useQueryClient();
 
   const [copied, setCopied] = useState<'link' | 'receipt' | 'cid' | 'hash' | null>(null);
 
@@ -52,6 +53,26 @@ export default function SignalDetailPage({ params }: { params: Promise<{ id: str
     queryFn,
     retry: 1,
   });
+
+  // Mark the signal as viewed the first time the owner opens it. The endpoint
+  // is idempotent and re-arms the parent monitor's `triggered` status back
+  // to `active` so the dashboard's "Signal caught!" celebration goes away.
+  useEffect(() => {
+    if (isPublic || !signal || signal.viewed_at) return;
+    api
+      .markSignalViewed(signal.id)
+      .then((res) => {
+        if (res.monitorRearmed) {
+          // The parent monitor's status changed; refresh the cached lists
+          // so the dashboard reflects the new state.
+          queryClient.invalidateQueries({ queryKey: ['monitors'] });
+        }
+      })
+      .catch(() => {
+        // Best-effort: a failed mark-as-viewed call shouldn't block the
+        // user from reading their signal.
+      });
+  }, [isPublic, signal, queryClient]);
 
   const proofId = useMemo(() => 'LEN-' + id.slice(0, 8).toUpperCase(), [id]);
   const publicUrl = useMemo(() => {

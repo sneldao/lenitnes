@@ -1,6 +1,14 @@
 -- ─────────────────────────────────────────────────────────────
 -- LENITNES — PostgreSQL schema
 -- Run against your Supabase / Railway database.
+--
+-- Schema evolution policy: this file uses `CREATE TABLE IF NOT EXISTS`
+-- and `CREATE INDEX IF NOT EXISTS`, so re-running it is safe. New
+-- columns should be added with `ALTER TABLE ... ADD COLUMN IF NOT
+-- EXISTS` (a Postgres 9.6+ feature) and paired with a follow-up
+-- migration in `apps/api/src/db/migrate.ts`. The `viewed_at` +
+-- `viewed_by` columns on `signals` were added this way — re-running
+-- the file is still safe because both use `IF NOT EXISTS` guards.
 -- ─────────────────────────────────────────────────────────────
 
 CREATE EXTENSION IF NOT EXISTS "pgcrypto";
@@ -52,11 +60,20 @@ CREATE TABLE IF NOT EXISTS signals (
   evidence_text          TEXT,
   screenshot_urls        JSONB NOT NULL DEFAULT '[]'::jsonb,
   condition_summary      TEXT,
-  is_heartbeat           BOOLEAN NOT NULL DEFAULT false
+  is_heartbeat           BOOLEAN NOT NULL DEFAULT false,
+  -- Set when the owning user opens the signal detail page. Used by the
+  -- dashboard to distinguish a fresh, unread signal from an old one the
+  -- user has already seen. NULL = unviewed.
+  viewed_at              TIMESTAMPTZ,
+  viewed_by              UUID REFERENCES users(id) ON DELETE SET NULL
 );
 
 CREATE INDEX IF NOT EXISTS idx_signals_monitor_id  ON signals(monitor_id);
 CREATE INDEX IF NOT EXISTS idx_signals_detected_at ON signals(detected_at DESC);
+-- Partial index for the dashboard's "unread signal" lookup.
+CREATE INDEX IF NOT EXISTS idx_signals_unviewed
+  ON signals(monitor_id, detected_at DESC)
+  WHERE is_heartbeat = false AND viewed_at IS NULL;
 
 -- Rules -------------------------------------------------------
 -- action_type: trade | webhook | email | telegram

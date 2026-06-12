@@ -1,7 +1,6 @@
 'use client';
 
 import { Suspense, useEffect, useMemo, useRef, useState } from 'react';
-import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useQueryClient } from '@tanstack/react-query';
 import { api, type Monitor } from '@/lib/api';
@@ -16,23 +15,13 @@ import {
   Zap,
   Wallet,
   ChevronLeft,
-  ChevronRight,
   Check,
   Camera,
   AlertTriangle,
   ChevronRight as ChevronRightIcon,
   Sparkles,
-  Play,
-  Shield,
-  Copy,
-  ExternalLink,
-  Battery,
-  BatteryWarning,
-  TrendingDown,
   TrendingUp,
-  CalendarDays,
   Plus,
-  Info,
   Lock,
   Workflow,
   SlidersHorizontal,
@@ -40,6 +29,7 @@ import {
 } from 'lucide-react';
 
 import { TEMPLATES } from '@/data/templates';
+import { ActivationScreen } from './ActivationScreen';
 
 const STEP_META = [
   { icon: Globe, label: COPY.creation.steps.target },
@@ -119,14 +109,11 @@ function NewMonitorForm() {
       thresholdBlocked: boolean;
     };
   } | null>(null);
-  const [copiedShareLink, setCopiedShareLink] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [fieldErrors, setFieldErrors] = useState<{ url?: string; conditionText?: string }>({});
   const [prefilled, setPrefilled] = useState(false);
 
-  // Post-create funding
-  const [topUpAmount, setTopUpAmount] = useState(10);
-  const [toppingUp, setToppingUp] = useState(false);
+  // (Post-create funding and share-link state moved to ActivationScreen.)
 
   const [form, setForm] = useState({
     url: '',
@@ -247,13 +234,6 @@ function NewMonitorForm() {
 
   const [createdMonitor, setCreatedMonitor] = useState<Monitor | null>(null);
 
-  const publicProofUrl =
-    activationResult?.signalId && activationResult.publicShareToken
-      ? `/public/proof/${activationResult.signalId}?share=${encodeURIComponent(
-          activationResult.publicShareToken,
-        )}`
-      : null;
-
   async function submit() {
     if (!user?.id) {
       setError('Connect your wallet and approve sign-in before creating a monitor.');
@@ -290,7 +270,6 @@ function NewMonitorForm() {
       }
       setCreatedMonitor(monitor);
       setActivationResult(null);
-      setCopiedShareLink(false);
       setStep(5); // post-create engagement step
     } catch (e) {
       setError(String(e));
@@ -319,7 +298,6 @@ function NewMonitorForm() {
     setRunningFirstCheck(true);
     setError(null);
     setActivationResult(null);
-    setCopiedShareLink(false);
     toast.info(COPY.creation.firstCheck.running);
 
     try {
@@ -361,31 +339,6 @@ function NewMonitorForm() {
       toast.error(message);
     } finally {
       setRunningFirstCheck(false);
-    }
-  }
-
-  async function copyPublicProofLink() {
-    if (!publicProofUrl) return;
-    const absoluteUrl = window.location.origin + publicProofUrl;
-    await navigator.clipboard.writeText(absoluteUrl);
-    setCopiedShareLink(true);
-    setTimeout(() => setCopiedShareLink(false), 1500);
-    toast.success('Public proof link copied.');
-  }
-
-  async function topUp() {
-    if (!createdMonitor || topUpAmount < 1) return;
-    setToppingUp(true);
-    try {
-      const updated = await api.topUpMonitor(createdMonitor.id, topUpAmount);
-      setCreatedMonitor(updated);
-      queryClient.invalidateQueries({ queryKey: ['monitors'] });
-      toast.success(`Added ${topUpAmount} ℏ. Monitor is now funded.`);
-      setTopUpAmount(10);
-    } catch (e) {
-      toast.error('Top-up failed: ' + String(e));
-    } finally {
-      setToppingUp(false);
     }
   }
 
@@ -1034,573 +987,26 @@ function NewMonitorForm() {
         )}
 
         {step === 5 && createdMonitor && (
-          <div className="space-y-6 animate-slide-up">
-            <div className="flex flex-col items-center gap-4 text-center">
-              <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-signal/15">
-                <Check className="h-7 w-7 text-signal" />
-              </div>
-              <div>
-                <h2 className="text-lg font-semibold text-white">Monitor created successfully</h2>
-                <p className="mt-1 text-sm text-slate-400">
-                  Your monitor for {createdMonitor.url.replace(/^https?:\/\//, '').slice(0, 40)} is
-                  ready.
-                </p>
-              </div>
-            </div>
-
-            <div className="rounded-2xl border border-accent/25 bg-accent/5 p-4">
-              <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-                <div className="space-y-1">
-                  <p className="section-title">Activation loop</p>
-                  <h3 className="text-base font-semibold text-white">
-                    {COPY.creation.firstCheck.title}
-                  </h3>
-                  <p className="text-xs leading-relaxed text-slate-400">
-                    {COPY.creation.firstCheck.subtitle}
-                  </p>
-                </div>
-                <button
-                  type="button"
-                  onClick={runFirstCheck}
-                  disabled={runningFirstCheck}
-                  className="btn shrink-0 text-xs"
-                >
-                  {runningFirstCheck ? (
-                    'Analyzing…'
-                  ) : (
-                    <>
-                      <Play className="h-3.5 w-3.5 fill-ink" />
-                      {COPY.creation.firstCheck.cta}
-                    </>
-                  )}
-                </button>
-              </div>
-
-              <div className="mt-4 grid gap-2 sm:grid-cols-4">
-                <ActivationStep label="Created" state="done" />
-                <ActivationStep
-                  label="Checked"
-                  state={activationResult ? 'done' : runningFirstCheck ? 'active' : 'pending'}
-                />
-                <ActivationStep
-                  label="Proof"
-                  state={
-                    activationResult?.conditionMet
-                      ? 'done'
-                      : runningFirstCheck
-                        ? 'active'
-                        : 'pending'
-                  }
-                />
-                <ActivationStep
-                  label="Share"
-                  state={copiedShareLink ? 'done' : publicProofUrl ? 'active' : 'pending'}
-                />
-              </div>
-            </div>
-
-            {/* ── Monitor Health & Funding ── */}
-            {createdMonitor && (
-              <div className="card space-y-4">
-                <div className="flex items-center gap-2">
-                  <Battery
-                    className={`h-4 w-4 ${Number(createdMonitor.hbar_balance) > 0 ? 'text-signal' : 'text-warn'}`}
-                  />
-                  <h3 className="section-title">Monitor Health & Funding</h3>
-                </div>
-                <PostCreateHealth monitor={createdMonitor} />
-                <div className="grid gap-3 sm:grid-cols-2">
-                  <div className="stat-card space-y-1 p-3">
-                    <div className="flex items-center gap-1.5 text-[10px] text-slate-500">
-                      <TrendingDown className="h-3 w-3" />
-                      Cost per check
-                    </div>
-                    <p className="text-sm font-semibold text-slate-200">
-                      {Number(createdMonitor.cost_per_check).toFixed(2)} ℏ
-                    </p>
-                  </div>
-                  <div className="stat-card space-y-1 p-3">
-                    <div className="flex items-center gap-1.5 text-[10px] text-slate-500">
-                      <CalendarDays className="h-3 w-3" />
-                      Check frequency
-                    </div>
-                    <p className="text-sm font-semibold text-slate-200">
-                      {createdMonitor.frequency_seconds >= 3600
-                        ? `Every ${(createdMonitor.frequency_seconds / 3600).toFixed(0)}h`
-                        : `Every ${(createdMonitor.frequency_seconds / 60).toFixed(0)}m`}
-                    </p>
-                  </div>
-                </div>
-
-                <div className="rounded-xl border border-edge/40 bg-ink-light/30 p-3">
-                  <div className="flex items-center gap-2 text-[10px] text-slate-400">
-                    <Clock className="h-3 w-3" />
-                    Next scheduled check:{' '}
-                    <span className="font-medium text-slate-300">
-                      {createdMonitor.last_check_at
-                        ? new Date(
-                            new Date(createdMonitor.last_check_at).getTime() +
-                              createdMonitor.frequency_seconds * 1000,
-                          ).toLocaleString(undefined, {
-                            month: 'short',
-                            day: 'numeric',
-                            hour: '2-digit',
-                            minute: '2-digit',
-                          })
-                        : 'After preview check runs'}
-                    </span>
-                  </div>
-                </div>
-
-                <div className="flex items-center gap-2 pt-1">
-                  <input
-                    type="number"
-                    min={1}
-                    max={1000}
-                    value={topUpAmount}
-                    onChange={(e) => setTopUpAmount(Math.max(1, Number(e.target.value)))}
-                    className="input w-24 text-xs py-2"
-                    aria-label="Amount to stake in HBAR"
-                  />
-                  <span className="text-xs text-slate-500">ℏ</span>
-                  <button
-                    type="button"
-                    onClick={topUp}
-                    disabled={toppingUp}
-                    className="btn text-xs"
-                  >
-                    {toppingUp ? (
-                      'Adding…'
-                    ) : (
-                      <>
-                        <Plus className="h-3.5 w-3.5" />
-                        {COPY.monitor.actions.topUp}
-                      </>
-                    )}
-                  </button>
-                  <span className="ml-auto flex items-center gap-1.5 text-[10px] text-slate-500">
-                    {Number(createdMonitor.hbar_balance) <= 0 ? (
-                      <>
-                        No funds staked — refill to activate scheduled checks
-                        {(process.env.NEXT_PUBLIC_HEDERA_NETWORK ?? 'testnet').toLowerCase() ===
-                          'testnet' && (
-                          <a
-                            href="https://portal.hedera.com/faucet"
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="inline-flex items-center gap-0.5 text-accent hover:underline"
-                          >
-                            Get free test HBAR
-                            <ExternalLink className="h-2.5 w-2.5" />
-                          </a>
-                        )}
-                      </>
-                    ) : Number(createdMonitor.hbar_balance) <
-                      Number(createdMonitor.cost_per_check) * 5 ? (
-                      `Low balance — ${topUpAmount} ℏ ${COPY.creation.topUp.checksEquivalent(topUpAmount, Number(createdMonitor.cost_per_check))}`
-                    ) : (
-                      `Funded — ${topUpAmount} ℏ ${COPY.creation.topUp.checksEquivalent(topUpAmount, Number(createdMonitor.cost_per_check))}`
-                    )}
-                  </span>
-                </div>
-              </div>
-            )}
-
-            {activationResult && (
-              <div
-                className={`stat-card space-y-4 p-4 ${
-                  activationResult.conditionMet ? 'border-signal/30' : 'border-warn/25'
-                }`}
-              >
-                <div className="flex items-start gap-3">
-                  <div
-                    className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-xl ${
-                      activationResult.conditionMet
-                        ? 'bg-signal/15 text-signal'
-                        : 'bg-warn/15 text-warn'
-                    }`}
-                  >
-                    {activationResult.conditionMet ? (
-                      <Shield className="h-4 w-4" />
-                    ) : (
-                      <Info className="h-4 w-4" />
-                    )}
-                  </div>
-                  <div className="min-w-0 flex-1">
-                    <p className="text-sm font-semibold text-slate-200">
-                      {activationResult.conditionMet
-                        ? 'Match detected. Proof ready.'
-                        : 'No match this time — that is expected.'}
-                    </p>
-                    <p className="mt-1 text-xs leading-relaxed text-slate-500">
-                      {activationResult.summary ??
-                        'The monitor ran successfully and will check again on schedule. You only get notified when the condition actually matches.'}
-                    </p>
-                  </div>
-                </div>
-
-                <div className="flex flex-wrap gap-2">
-                  {activationResult.signalId && (
-                    <Link
-                      href={`/signals/${activationResult.signalId}`}
-                      className="btn-ghost text-xs"
-                    >
-                      <ExternalLink className="h-3.5 w-3.5" />
-                      View Proof
-                    </Link>
-                  )}
-                  {publicProofUrl && activationResult.conditionMet && (
-                    <>
-                      <Link href={publicProofUrl} className="btn-ghost text-xs">
-                        <Shield className="h-3.5 w-3.5" />
-                        Public Proof
-                      </Link>
-                      <button type="button" onClick={copyPublicProofLink} className="btn text-xs">
-                        {copiedShareLink ? (
-                          <>
-                            <Check className="h-3.5 w-3.5" />
-                            Copied
-                          </>
-                        ) : (
-                          <>
-                            <Copy className="h-3.5 w-3.5" />
-                            Copy Share Link
-                          </>
-                        )}
-                      </button>
-                    </>
-                  )}
-                </div>
-              </div>
-            )}
-
-            {error && (
-              <div className="card space-y-3 border-danger/20 bg-danger/5" role="alert">
-                <div className="flex items-start gap-3">
-                  <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-danger/10">
-                    <AlertTriangle className="h-5 w-5 text-danger" />
-                  </div>
-                  <div>
-                    <p className="text-sm font-semibold text-danger">Check failed</p>
-                    <p className="mt-0.5 text-xs leading-relaxed text-danger/80">{error}</p>
-                  </div>
-                </div>
-                <div className="flex gap-2">
-                  <button
-                    type="button"
-                    onClick={runFirstCheck}
-                    disabled={runningFirstCheck}
-                    className="btn-danger text-xs"
-                  >
-                    {runningFirstCheck ? (
-                      'Retrying…'
-                    ) : (
-                      <>
-                        <Play className="h-3.5 w-3.5" />
-                        Retry Check
-                      </>
-                    )}
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setError(null)}
-                    className="btn-ghost text-xs text-slate-400"
-                  >
-                    Dismiss
-                  </button>
-                </div>
-              </div>
-            )}
-
-            {/* ── How we checked transparency ── */}
-            {activationResult?.metadata && (
-              <div className="card space-y-3">
-                <p className="section-title">How we checked</p>
-                <div className="space-y-2">
-                  <div className="flex items-center gap-2.5 text-xs">
-                    <div className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-signal/10">
-                      <Check className="h-3 w-3 text-signal" />
-                    </div>
-                    <span className="text-slate-300">
-                      {activationResult.metadata.githubCommitsFetched > 0
-                        ? `GitHub API — fetched ${activationResult.metadata.githubCommitsFetched} new commit${activationResult.metadata.githubCommitsFetched === 1 ? '' : 's'}`
-                        : 'GitHub API — no new commits since last check'}
-                    </span>
-                  </div>
-                  <div className="flex items-center gap-2.5 text-xs">
-                    <div className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-signal/10">
-                      <Check className="h-3 w-3 text-signal" />
-                    </div>
-                    <span className="text-slate-300">
-                      {activationResult.metadata.checkMethod === 'tinyfish'
-                        ? 'TinyFish AI — analyzed commit messages against your condition'
-                        : 'Keyword verification — matched condition keywords against page content'}
-                    </span>
-                  </div>
-                  {activationResult.metadata.circuitOpen && (
-                    <div className="flex items-center gap-2.5 text-xs">
-                      <div className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-warn/10">
-                        <Info className="h-3 w-3 text-warn" />
-                      </div>
-                      <span className="text-slate-400">
-                        TinyFish circuit was temporarily open — using scraper fallback
-                      </span>
-                    </div>
-                  )}
-                  {/* Confidence score */}
-                  <div className="flex items-center gap-2.5 text-xs">
-                    <div
-                      className={`flex h-5 w-5 shrink-0 items-center justify-center rounded-full ${
-                        activationResult.metadata.confidence >=
-                        activationResult.metadata.confidenceThreshold
-                          ? 'bg-signal/10'
-                          : 'bg-warn/10'
-                      }`}
-                    >
-                      <span
-                        className={`text-[10px] font-bold ${
-                          activationResult.metadata.confidence >=
-                          activationResult.metadata.confidenceThreshold
-                            ? 'text-signal'
-                            : 'text-warn'
-                        }`}
-                      >
-                        {activationResult.metadata.confidence}
-                      </span>
-                    </div>
-                    <span className="text-slate-300">
-                      Confidence score: {activationResult.metadata.confidence}/100
-                      {activationResult.metadata.thresholdBlocked && (
-                        <span className="text-warn">
-                          {' '}
-                          — below your threshold of {activationResult.metadata.confidenceThreshold}
-                        </span>
-                      )}
-                    </span>
-                  </div>
-                  {/* Final outcome */}
-                  <div className="flex items-center gap-2.5 text-xs">
-                    <div
-                      className={`flex h-5 w-5 shrink-0 items-center justify-center rounded-full ${
-                        activationResult.conditionMet ? 'bg-signal/10' : 'bg-warn/10'
-                      }`}
-                    >
-                      {activationResult.conditionMet ? (
-                        <Check className="h-3 w-3 text-signal" />
-                      ) : (
-                        <Info className="h-3 w-3 text-warn" />
-                      )}
-                    </div>
-                    <span className="text-slate-300">
-                      {activationResult.metadata.thresholdBlocked
-                        ? `Condition matched but blocked — confidence ${activationResult.metadata.confidence} is below your ${activationResult.metadata.confidenceThreshold} threshold. Monitor continues checking.`
-                        : activationResult.conditionMet
-                          ? 'Condition matched — signal created and proof packaged'
-                          : 'Condition not met — no signal this time. Monitor continues checking.'}
-                    </span>
-                  </div>
-                </div>
-                <p className="text-[10px] text-slate-500">
-                  Next check:{' '}
-                  {createdMonitor
-                    ? `every ${
-                        createdMonitor.frequency_seconds >= 3600
-                          ? `${(createdMonitor.frequency_seconds / 3600).toFixed(0)}h`
-                          : `${(createdMonitor.frequency_seconds / 60).toFixed(0)}m`
-                      }`
-                    : 'on schedule'}
-                </p>
-              </div>
-            )}
-
-            {/* ── Completion nudge — Zeigarnik effect ── */}
-            {form.actionType !== 'trade' && (
-              <div className="rounded-xl border border-warn/25 bg-warn/5 p-4 space-y-2">
-                <div className="flex items-start gap-3">
-                  <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-warn/10">
-                    <Workflow className="h-4 w-4 text-warn" />
-                  </div>
-                  <div className="flex-1">
-                    <p className="text-sm font-semibold text-slate-200">
-                      Setup incomplete — no auto-response configured
-                    </p>
-                    <p className="mt-0.5 text-xs text-slate-400">
-                      Your monitor is watching, but nothing happens when a signal is detected. Add a
-                      trade rule or alert to complete the loop.
-                    </p>
-                  </div>
-                  <Link href="/rules" className="btn text-xs shrink-0">
-                    <Zap className="h-3.5 w-3.5" />
-                    Complete
-                  </Link>
-                </div>
-              </div>
-            )}
-
-            <div className="space-y-3">
-              <p className="section-title text-center">Keep momentum</p>
-              <div className="grid gap-3 sm:grid-cols-3">
-                <Link
-                  href="/rules"
-                  className="stat-card group flex cursor-pointer items-center gap-3 p-4 transition-all hover:border-accent/30"
-                >
-                  <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-signal/10 text-signal transition-transform group-hover:scale-110">
-                    <Sparkles className="h-4 w-4" />
-                  </div>
-                  <div>
-                    <p className="text-sm font-semibold text-slate-200">Add alert</p>
-                    <p className="text-[10px] text-slate-500">Webhook, Telegram, or email</p>
-                  </div>
-                  <ChevronRightIcon className="ml-auto h-3.5 w-3.5 text-slate-600" />
-                </Link>
-
-                <Link
-                  href="/signals"
-                  className="stat-card group flex cursor-pointer items-center gap-3 p-4 transition-all hover:border-accent/30"
-                >
-                  <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-violet/10 text-violet transition-transform group-hover:scale-110">
-                    <Shield className="h-4 w-4" />
-                  </div>
-                  <div>
-                    <p className="text-sm font-semibold text-slate-200">View signals</p>
-                    <p className="text-[10px] text-slate-500">Timeline and proof chain</p>
-                  </div>
-                  <ChevronRightIcon className="ml-auto h-3.5 w-3.5 text-slate-600" />
-                </Link>
-
-                <Link
-                  href="/"
-                  className="stat-card group flex cursor-pointer items-center gap-3 p-4 transition-all hover:border-accent/30"
-                >
-                  <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-warn/10 text-warn transition-transform group-hover:scale-110">
-                    <Wallet className="h-4 w-4" />
-                  </div>
-                  <div>
-                    <p className="text-sm font-semibold text-slate-200">Dashboard</p>
-                    <p className="text-[10px] text-slate-500">Funding and monitor status</p>
-                  </div>
-                  <ChevronRightIcon className="ml-auto h-3.5 w-3.5 text-slate-600" />
-                </Link>
-              </div>
-            </div>
-
-            <div className="text-center">
-              <button type="button" onClick={() => router.push('/')} className="btn text-xs">
-                Go to Dashboard
-                <ChevronRight className="h-3.5 w-3.5" />
-              </button>
-            </div>
-          </div>
+          <ActivationScreen
+            monitor={createdMonitor}
+            activationResult={activationResult}
+            runningFirstCheck={runningFirstCheck}
+            onRunFirstCheck={runFirstCheck}
+            onCreateAnother={() => {
+              setStep(1);
+              setMode('choose');
+              setCreatedMonitor(null);
+              setActivationResult(null);
+              setForm((f) => ({
+                ...f,
+                url: '',
+                conditionText: '',
+                actionType: 'alert',
+              }));
+            }}
+          />
         )}
-
-        <div className="mt-8 flex justify-between">
-          {step < 5 && (
-            <>
-              <button
-                type="button"
-                className="btn-ghost"
-                disabled={step === 1}
-                onClick={() => setStep((s) => Math.max(1, s - 1))}
-              >
-                <ChevronLeft className="h-4 w-4" />
-                Back
-              </button>
-              {step < 4 ? (
-                <button type="button" className="btn" onClick={goNext}>
-                  Next
-                  <ChevronRight className="h-4 w-4" />
-                </button>
-              ) : (
-                <button
-                  type="button"
-                  className="btn"
-                  disabled={submitting || authLoading || !user?.id}
-                  onClick={submit}
-                  title={!user?.id ? 'Connect your wallet and approve sign-in first' : undefined}
-                >
-                  {submitting ? 'Creating…' : authLoading ? 'Checking sign-in…' : 'Create Monitor'}
-                </button>
-              )}
-            </>
-          )}
-        </div>
       </div>
-    </div>
-  );
-}
-
-function ActivationStep({ label, state }: { label: string; state: 'done' | 'active' | 'pending' }) {
-  return (
-    <div
-      className={`rounded-xl border px-3 py-2 text-center text-[10px] font-semibold transition-colors ${
-        state === 'done'
-          ? 'border-signal/30 bg-signal/10 text-signal'
-          : state === 'active'
-            ? 'border-accent/30 bg-accent/10 text-accent'
-            : 'border-edge/40 bg-ink/30 text-slate-600'
-      }`}
-    >
-      {label}
-    </div>
-  );
-}
-
-function PostCreateHealth({ monitor }: { monitor: Monitor }) {
-  const bal = Number(monitor.hbar_balance);
-  const cost = Number(monitor.cost_per_check);
-  const checksRemaining = cost > 0 ? Math.floor(bal / cost) : 0;
-  const canRun = checksRemaining > 0;
-  const pct = Math.min(100, Math.max(0, checksRemaining > 20 ? 100 : (checksRemaining / 20) * 100));
-
-  return (
-    <div className="space-y-3">
-      <div className="flex items-end gap-4">
-        <div>
-          <p className="text-[10px] text-slate-500">Checks remaining</p>
-          <p className={`text-2xl font-bold tabular-nums ${canRun ? 'text-signal' : 'text-warn'}`}>
-            {checksRemaining}
-          </p>
-        </div>
-        <div className="flex-1">
-          <p className="text-[10px] text-slate-500">Cost per check</p>
-          <p className="text-sm font-semibold text-slate-200">{cost.toFixed(2)} ℏ</p>
-        </div>
-        <div className="text-right">
-          <p className="text-[10px] text-slate-500">Balance</p>
-          <p className={`text-2xl font-bold tabular-nums ${bal > 0 ? 'text-signal' : 'text-warn'}`}>
-            {bal.toFixed(1)} ℏ
-          </p>
-        </div>
-      </div>
-
-      {/* Checks bar */}
-      <div className="h-2 w-full overflow-hidden rounded-full bg-edge/40">
-        <div
-          className={`h-full rounded-full transition-all ${
-            pct > 50 ? 'bg-signal' : pct > 20 ? 'bg-warn' : 'bg-danger'
-          }`}
-          style={{ width: `${pct}%` }}
-        />
-      </div>
-
-      {!canRun && (
-        <div className="flex items-center gap-2 rounded-lg border border-warn/20 bg-warn/5 p-2.5 text-xs text-warn">
-          <BatteryWarning className="h-4 w-4 shrink-0" />
-          <span>{COPY.monitor.inactive(0)}</span>
-        </div>
-      )}
-      {canRun && checksRemaining < 5 && (
-        <div className="flex items-center gap-2 rounded-lg border border-warn/20 bg-warn/5 p-2.5 text-xs text-warn">
-          <BatteryWarning className="h-4 w-4 shrink-0" />
-          <span>{COPY.monitor.lowBalance(checksRemaining)}</span>
-        </div>
-      )}
-      {canRun && checksRemaining >= 5 && (
-        <div className="flex items-center gap-2 rounded-lg border border-signal/20 bg-signal/5 p-2.5 text-xs text-signal">
-          <Check className="h-4 w-4 shrink-0" />
-          <span>{COPY.monitor.checksRemaining(checksRemaining)} — monitor is active.</span>
-        </div>
-      )}
     </div>
   );
 }

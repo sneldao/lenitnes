@@ -102,7 +102,7 @@ function MonitorCard({
   isConnected: boolean;
   onExecute: (id: string) => void;
   onDelete: (id: string) => void;
-  latestSignal?: { id: string; detected_at: string } | null;
+  latestSignal?: { id: string; detected_at: string; viewed_at?: string | null } | null;
   signalCount?: number;
 }) {
   const { perDay, daysLeft, checksRemaining } = burnRate(monitor);
@@ -223,9 +223,18 @@ function MonitorCard({
       {/* Countdown for low-balance monitors — scarcity urgency */}
       {countdown && <p className="text-[10px] text-warn font-medium">{countdown}</p>}
 
-      {/* Signal celebration — peak-end rule */}
-      {monitor.status === 'triggered' && (
-        <div className="rounded-lg border border-accent/30 bg-accent/5 p-3 space-y-1.5">
+      {/* Signal celebration — peak-end rule.
+          Fires on the monitor's `triggered` status, *or* when the most
+          recent signal is unviewed. The two states can briefly diverge:
+          after the user opens the signal detail page, the parent monitor
+          re-arms to `active` (see POST /signals/:id/viewed) but we still
+          want the celebration to surface on dashboards that haven't yet
+          re-fetched. */}
+      {(monitor.status === 'triggered' || (latestSignal && !latestSignal.viewed_at)) && (
+        <Link
+          href={latestSignal ? `/signals/${latestSignal.id}` : '#'}
+          className="block rounded-lg border border-accent/30 bg-accent/5 p-3 space-y-1.5 transition-colors hover:border-accent/50 hover:bg-accent/10"
+        >
           <div className="flex items-center gap-2">
             <Sparkles className="h-3.5 w-3.5 text-accent" />
             <p className="text-sm font-bold text-accent">{COPY.signals.detected(host).headline}</p>
@@ -234,15 +243,12 @@ function MonitorCard({
             {COPY.signals.detected(host).body}
           </p>
           {latestSignal && (
-            <Link
-              href={`/signals/${latestSignal.id}`}
-              className="inline-flex items-center gap-1 text-[10px] font-semibold text-accent hover:text-accent/80 transition-colors"
-            >
+            <span className="inline-flex items-center gap-1 text-[10px] font-semibold text-accent transition-colors">
               {COPY.signals.detected(host).cta}
               <ChevronRight className="h-3 w-3" />
-            </Link>
+            </span>
           )}
-        </div>
+        </Link>
       )}
 
       {/* Expanded details */}
@@ -315,7 +321,14 @@ function MonitorCard({
               onExecute(monitor.id);
             }}
             disabled={executing || !canExecute}
-            title={!isConnected ? COPY.errors.noWallet : COPY.monitor.actions.executeSubtitle}
+            title={
+              !isConnected
+                ? COPY.errors.noWallet
+                : isConnected
+                  ? 'Pays 0.5 ℏ from your wallet for one immediate check. Settles on Hedera in ~5s — no subscription, no platform-held funds.'
+                  : COPY.monitor.actions.executeSubtitle
+            }
+            aria-describedby={`check-now-help-${monitor.id}`}
             className="flex items-center gap-1 rounded-lg bg-accent/10 px-2.5 py-1.5 text-[10px] font-semibold text-accent transition-all hover:bg-accent/20 hover:shadow-glow-sm active:scale-95 disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer select-none"
           >
             {executing ? (
@@ -350,7 +363,13 @@ function DashboardView({
   onDelete,
 }: {
   monitors: Monitor[];
-  signals: { id: string; monitor_id: string; detected_at: string }[];
+  signals: {
+    id: string;
+    monitor_id: string;
+    detected_at: string;
+    viewed_at?: string | null;
+    is_heartbeat?: boolean;
+  }[];
   ordersCount: number;
   isLoading: boolean;
   error: Error | null;
@@ -366,12 +385,26 @@ function DashboardView({
   const [sort, setSort] = useState<SortKey>('newest');
 
   const activeCount = monitors.filter((m) => m.status === 'active').length;
-  const triggeredCount = monitors.filter((m) => m.status === 'triggered').length;
+  // Count monitors with either a `triggered` status *or* an unviewed signal.
+  // The two can briefly diverge after viewing a signal: the monitor re-arms
+  // to `active` but the dashboard may not have re-fetched yet, so we OR
+  // the two sources for a stable count.
+  const triggeredCount = monitors.filter((m) => {
+    if (m.status === 'triggered') return true;
+    return signals.some((s) => s.monitor_id === m.id && !s.is_heartbeat && !s.viewed_at);
+  }).length;
   const totalBalance = monitors.reduce((s, m) => s + Number(m.hbar_balance), 0);
 
   const filtered = useMemo(() => {
     let list = monitors;
-    if (filter !== 'all') {
+    if (filter === 'triggered') {
+      // Match either status='triggered' OR any monitor with an unviewed signal,
+      // so the user can find their unread signal even after re-arm.
+      list = list.filter((m) => {
+        if (m.status === 'triggered') return true;
+        return signals.some((s) => s.monitor_id === m.id && !s.is_heartbeat && !s.viewed_at);
+      });
+    } else if (filter !== 'all') {
       list = list.filter((m) => m.status === filter);
     }
     if (search) {

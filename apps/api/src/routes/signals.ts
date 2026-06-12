@@ -4,8 +4,9 @@ import { query } from '../db/pool.js';
 import { groveGatewayUrl } from '../services/ipfs.js';
 import type { AuthenticatedRequest } from '../middleware/auth.js';
 import type { Signal } from '@lenitnes/types';
-import { cacheGet, cacheSet } from '../middleware/cache.js';
+import { cacheGet, cacheSet, cacheInvalidate } from '../middleware/cache.js';
 import { createSignalShareToken } from '../services/share-token.js';
+import { markSignalViewed } from '../services/domain/signal.service.js';
 
 export const signalsRouter = Router();
 
@@ -157,4 +158,22 @@ signalsRouter.get('/:id', async (req: Request, res: Response) => {
     verification_checklist: checklist,
     public_share_token: createSignalShareToken(pkg.signal.id),
   });
+});
+
+// POST /signals/:id/viewed — mark a signal as viewed by the owning user.
+// Idempotent. Side effect: if the parent monitor is currently in the
+// `triggered` state, it is re-armed to `active` (so the dashboard's
+// "Signal caught!" celebration goes away once the user has actually
+// looked at the proof). Requires auth; only the signal's owner may
+// acknowledge it.
+signalsRouter.post('/:id/viewed', async (req: Request, res: Response) => {
+  const authReq = req as unknown as AuthenticatedRequest;
+  const result = await markSignalViewed(req.params.id, authReq.user.id);
+  if (!result) return res.status(404).json({ error: 'not_found' });
+  if (result.monitorRearmed) {
+    // Drop the user's monitor list cache so the dashboard sees the
+    // re-armed status immediately.
+    cacheInvalidate(`monitors:${authReq.user.id}:`);
+  }
+  return res.json({ ok: true, ...result });
 });

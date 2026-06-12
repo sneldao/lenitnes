@@ -3,8 +3,11 @@
 import Link from 'next/link';
 import { Trophy, Zap, GitCommit, TrendingUp, ArrowLeft, Users, Activity } from 'lucide-react';
 
-// Mock data — seeded for demo / video scaffolding.
-// In production this would come from GET /leaderboard
+// TODO(replace-with-real-data): remove the MOCK_* constants once the
+// `GET /leaderboard` endpoint is implemented. Today this is seeded for
+// demo / video scaffolding and to give the page a non-empty layout in
+// design reviews. Until then, the badge in the page header reads
+// "Demo" rather than "Beta" to set expectations.
 const MOCK_LEADERS = [
   {
     rank: 1,
@@ -81,7 +84,7 @@ export default function LeaderboardPage() {
       <div>
         <div className="flex items-center gap-3">
           <h1 className="text-2xl font-bold tracking-tight text-white">Signal Leaderboard</h1>
-          <span className="badge bg-accent/10 text-accent text-[10px]">Beta — Free</span>
+          <span className="badge bg-warn/10 text-warn text-[10px]">Demo — Mock data</span>
         </div>
         <p className="mt-1 text-sm text-slate-500">
           Top code-signal hunters this week. Public feeds only.

@@ -58,6 +58,9 @@ export interface Signal {
   screenshot_urls: string[];
   condition_summary: string | null;
   is_heartbeat: boolean;
+  /** ISO timestamp; null means the owning user has not opened the signal yet. */
+  viewed_at?: string | null;
+  viewed_by?: string | null;
   orders_count?: number;
 }
 
