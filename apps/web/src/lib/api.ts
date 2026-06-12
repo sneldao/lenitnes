@@ -177,6 +177,42 @@ export const api = {
     req<{ ok: boolean }>(`/dlq/${encodeURIComponent(jobId)}/replay`, { method: 'POST' }),
   discardDlqJob: (jobId: string) =>
     req<{ ok: boolean }>(`/dlq/${encodeURIComponent(jobId)}`, { method: 'DELETE' }),
+
+  getBacktestStats: (filters?: { detectorType?: string; asset?: string }) => {
+    const params = new URLSearchParams();
+    if (filters?.detectorType) params.set('detector', filters.detectorType);
+    if (filters?.asset) params.set('asset', filters.asset);
+    const qs = params.toString();
+    return req<
+      Array<{
+        detector_type: string;
+        asset: string;
+        total_signals: number;
+        correct_count: number;
+        accuracy: string;
+        avg_pct_change: string;
+        median_pct_change: string;
+        avg_abs_return: string;
+        sharpe_estimate: string;
+        best_window: number | null;
+      }>
+    >(`/backtest/stats${qs ? `?${qs}` : ''}`);
+  },
+  getSignalOutcomes: (signalId: string) =>
+    req<
+      Array<{
+        asset: string;
+        window_seconds: number;
+        price_at_signal: string;
+        price_after: string;
+        pct_change: string;
+        direction: string;
+      }>
+    >(`/backtest/signals/${signalId}/outcomes`),
+  triggerBacktest: () =>
+    req<{ ok: boolean; processed: number; errors: number }>('/backtest/process', {
+      method: 'POST',
+    }),
 };
 
 // Helpers — re-exported from @/lib/format for backward compatibility.

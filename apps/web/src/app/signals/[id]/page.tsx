@@ -25,6 +25,7 @@ import {
   Loader2,
   Info,
   AlertTriangle,
+  TrendingUp,
 } from 'lucide-react';
 import ProofChain from '@/components/ProofChain';
 import { getProofChainSteps } from '@/lib/proof-chain';
@@ -312,6 +313,97 @@ export default function SignalDetailPage({ params }: { params: Promise<{ id: str
           <Row icon={Zap} label="Summary" value={signal.condition_summary ?? '\u2014'} />
         </div>
       </div>
+
+      {Array.isArray(signal.classifications) && signal.classifications.length > 0 && (
+        <div className="card">
+          <h2 className="section-title mb-4 flex items-center gap-2">
+            <Fingerprint className="h-3.5 w-3.5 text-accent" />
+            Signal Classification
+          </h2>
+          <div className="flex flex-wrap gap-2">
+            {signal.classifications.map(
+              (c: { detector_type: string; score: number; confidence: number; label: string }) => (
+                <div
+                  key={c.detector_type}
+                  className="rounded-xl border border-accent/20 bg-accent/5 px-3 py-2"
+                >
+                  <div className="flex items-center gap-2">
+                    <span className="text-xs font-semibold text-accent">
+                      {c.detector_type.replace(/_/g, ' ')}
+                    </span>
+                    <span className="rounded-full bg-accent/15 px-1.5 py-0.5 text-[9px] font-bold text-accent">
+                      {c.score}
+                    </span>
+                  </div>
+                  {c.label && (
+                    <p className="mt-1 text-[10px] leading-relaxed text-slate-500">{c.label}</p>
+                  )}
+                  <p className="mt-1 text-[10px] text-slate-600">confidence {c.confidence}%</p>
+                </div>
+              ),
+            )}
+          </div>
+        </div>
+      )}
+
+      {Array.isArray(signal.outcomes) && signal.outcomes.length > 0 && (
+        <div className="card">
+          <h2 className="section-title mb-4 flex items-center gap-2">
+            <TrendingUp className="h-3.5 w-3.5 text-signal" />
+            Price Impact
+          </h2>
+          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+            {signal.outcomes.map(
+              (o: {
+                asset: string;
+                window_seconds: number;
+                price_at_signal: string;
+                price_after: string;
+                pct_change: string;
+                direction: string;
+              }) => {
+                const pct = parseFloat(o.pct_change);
+                const isUp = pct > 0.5;
+                const isDown = pct < -0.5;
+                const windowLabel =
+                  o.window_seconds < 3600
+                    ? `${Math.round(o.window_seconds / 60)}m`
+                    : o.window_seconds < 86400
+                      ? `${Math.round(o.window_seconds / 3600)}h`
+                      : `${Math.round(o.window_seconds / 86400)}d`;
+                return (
+                  <div
+                    key={`${o.asset}-${o.window_seconds}`}
+                    className={`rounded-xl border p-3 ${
+                      isUp
+                        ? 'border-signal/20 bg-signal/5'
+                        : isDown
+                          ? 'border-danger/20 bg-danger/5'
+                          : 'border-edge/40 bg-ink-light/30'
+                    }`}
+                  >
+                    <p className="text-[10px] font-semibold uppercase tracking-wider text-slate-500">
+                      {windowLabel}
+                    </p>
+                    <p
+                      className={`mt-1 text-lg font-bold tabular-nums ${
+                        isUp ? 'text-signal' : isDown ? 'text-danger' : 'text-slate-400'
+                      }`}
+                    >
+                      {isUp ? '+' : ''}
+                      {pct.toFixed(2)}%
+                    </p>
+                    <p className="mt-1 text-[10px] text-slate-500">
+                      ${parseFloat(o.price_at_signal).toFixed(2)} → $
+                      {parseFloat(o.price_after).toFixed(2)}
+                    </p>
+                  </div>
+                );
+              },
+            )}
+          </div>
+        </div>
+      )}
 
       <div className="card">
         <h2 className="section-title mb-4 flex items-center gap-2">

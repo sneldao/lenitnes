@@ -35,6 +35,7 @@ export interface CreateMonitorInput {
   screenshotsEnabled?: boolean; // default true
   isPublic?: boolean; // default true
   confidenceThreshold?: number; // 0-100, default 50
+  assetMapping?: AssetMapping;
 }
 
 export interface UpdateMonitorInput {
@@ -75,6 +76,20 @@ export interface SignalDetail extends Signal {
     ipfsUrl: string | null;
     hashscanUrl: string | null;
   };
+  classifications?: Array<{
+    detector_type: string;
+    score: number;
+    confidence: number;
+    label: string;
+  }>;
+  outcomes?: Array<{
+    asset: string;
+    window_seconds: number;
+    price_at_signal: string;
+    price_after: string;
+    pct_change: string;
+    direction: string;
+  }>;
 }
 
 // ── Rule ─────────────────────────────────────────────────────

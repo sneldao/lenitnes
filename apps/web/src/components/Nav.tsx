@@ -11,6 +11,7 @@ const APP_LINKS = [
   { href: '/signals', label: 'Signals' },
   { href: '/rules', label: 'Rules' },
   { href: '/orders', label: 'Orders' },
+  { href: '/backtest', label: 'Backtest' },
 ];
 
 const LANDING_LINKS = [

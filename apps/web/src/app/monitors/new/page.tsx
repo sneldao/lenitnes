@@ -129,6 +129,9 @@ function NewMonitorForm() {
       ordertype: 'market',
       volume: '0.001',
     },
+    assetMapping: undefined as
+      | { coingeckoId?: string; krakenPair?: string; direction?: 'long' | 'short' | 'both' }
+      | undefined,
   });
 
   // Step 1 view state: choose-screen first, then edit-mode (template or scratch).
@@ -250,6 +253,7 @@ function NewMonitorForm() {
         screenshotsEnabled: form.screenshotsEnabled,
         isPublic: form.isPublic,
         confidenceThreshold: form.confidenceThreshold,
+        assetMapping: form.assetMapping,
       });
       // If trade mode selected, create the rule atomically so the loop is complete.
       if (form.actionType === 'trade' && form.tradeConfig.pair) {
@@ -447,6 +451,7 @@ function NewMonitorForm() {
                         url: t.url,
                         conditionText: t.condition,
                         frequencySeconds: t.frequency,
+                        assetMapping: (t as any).assetMapping,
                       }));
                       setPrefilled(true);
                       setMode('template');
@@ -492,6 +497,7 @@ function NewMonitorForm() {
               onClick={() => {
                 setError(null);
                 setFieldErrors({});
+                setForm((f) => ({ ...f, assetMapping: undefined }));
                 setMode('scratch');
               }}
               className="group flex w-full cursor-pointer items-center gap-3 rounded-xl border border-dashed border-edge-light bg-transparent p-3 text-left transition-all hover:border-accent/40 hover:bg-accent/5"
@@ -644,6 +650,25 @@ function NewMonitorForm() {
                 <option value={300}>{COPY.creation.frequency(300)}</option>
               </select>
             </div>
+
+            {form.assetMapping && (
+              <div className="flex items-center gap-3 rounded-xl border border-accent/20 bg-accent/5 p-3">
+                <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-accent/15">
+                  <TrendingUp className="h-4 w-4 text-accent" />
+                </div>
+                <div className="min-w-0 flex-1">
+                  <p className="text-xs font-semibold text-accent">Asset linked for backtesting</p>
+                  <p className="text-[10px] text-slate-400">
+                    {[form.assetMapping.coingeckoId, form.assetMapping.krakenPair]
+                      .filter(Boolean)
+                      .join(' · ') || 'Custom asset'}
+                    {form.assetMapping.direction && (
+                      <span className="ml-1.5 text-slate-500">({form.assetMapping.direction})</span>
+                    )}
+                  </p>
+                </div>
+              </div>
+            )}
 
             {/* ── Signal Sensitivity ── */}
             <div className="rounded-xl border border-edge/40 bg-ink-light/30 p-4 space-y-3">
