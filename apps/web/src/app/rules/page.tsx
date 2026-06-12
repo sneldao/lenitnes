@@ -99,6 +99,25 @@ const SCRATCH_EXAMPLES = [
   'buy XBTUSD 0.01 on detection',
 ];
 
+const DETECTOR_TYPE_OPTIONS = [
+  { value: 'emergency_patch', label: 'Emergency Patch', color: 'bg-danger/15 text-danger' },
+  { value: 'security_critical_patch', label: 'Security Critical', color: 'bg-warn/15 text-warn' },
+  {
+    value: 'dependency_rotation',
+    label: 'Dependency Rotation',
+    color: 'bg-violet-500/15 text-violet-400',
+  },
+  { value: 'governance_shift', label: 'Governance Shift', color: 'bg-accent/15 text-accent' },
+  {
+    value: 'maintainer_departure',
+    label: 'Maintainer Departure',
+    color: 'bg-signal/15 text-signal',
+  },
+  { value: 'silent_merge', label: 'Silent Merge', color: 'bg-slate-500/15 text-slate-400' },
+  { value: 'protocol_upgrade', label: 'Protocol Upgrade', color: 'bg-cyan-400/15 text-cyan-400' },
+  { value: 'supply_chain_risk', label: 'Supply Chain Risk', color: 'bg-pink-500/15 text-pink-400' },
+];
+
 export default function RulesPage() {
   const { isAuthenticated } = useAuth();
   const queryClient = useQueryClient();
@@ -114,6 +133,7 @@ export default function RulesPage() {
     config: {} as Record<string, unknown>,
     fromHour: '',
     toHour: '',
+    detectorTypes: [] as string[],
   });
 
   const configFocusRef = useRef<HTMLInputElement | null>(null);
@@ -197,10 +217,13 @@ export default function RulesPage() {
       return;
     }
     try {
-      const conditions =
-        form.fromHour && form.toHour
-          ? { utcHours: { from: Number(form.fromHour), to: Number(form.toHour) } }
-          : {};
+      const conditions: Record<string, unknown> = {};
+      if (form.fromHour && form.toHour) {
+        conditions.utcHours = { from: Number(form.fromHour), to: Number(form.toHour) };
+      }
+      if (form.detectorTypes.length > 0) {
+        conditions.detectorTypes = form.detectorTypes;
+      }
       await createRule.mutateAsync({
         monitorId: form.monitorId,
         actionType: form.actionType,
@@ -647,6 +670,45 @@ export default function RulesPage() {
                   UTC to
                 </span>
               </div>
+            </div>
+          </div>
+
+          {/* Detector type filter (optional) */}
+          <div>
+            <label className="label">
+              <Zap className="mr-1 inline h-3 w-3" />
+              Signal types (optional)
+            </label>
+            <p className="mb-2 text-[10px] text-slate-500">
+              Only fire this rule when these signal types are detected. Leave empty to trigger on
+              all signals.
+            </p>
+            <div className="flex flex-wrap gap-1.5">
+              {DETECTOR_TYPE_OPTIONS.map((opt) => {
+                const selected = form.detectorTypes.includes(opt.value);
+                return (
+                  <button
+                    key={opt.value}
+                    type="button"
+                    onClick={() =>
+                      setForm((f) => ({
+                        ...f,
+                        detectorTypes: selected
+                          ? f.detectorTypes.filter((t) => t !== opt.value)
+                          : [...f.detectorTypes, opt.value],
+                      }))
+                    }
+                    className={`rounded-full border px-2.5 py-1 text-[10px] font-medium transition-all ${
+                      selected
+                        ? `${opt.color} border-current`
+                        : 'border-edge/40 text-slate-500 hover:border-edge-light hover:text-slate-300'
+                    }`}
+                  >
+                    {selected && <Check className="mr-1 inline h-2.5 w-2.5" />}
+                    {opt.label}
+                  </button>
+                );
+              })}
             </div>
           </div>
 

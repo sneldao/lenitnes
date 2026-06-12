@@ -143,6 +143,14 @@ app.use('/auth', authLimiter, authRouter);
 // ── Public endpoints (no auth required) ─────────────────────────
 app.use('/proof', proofRouter);
 app.use('/waitlist', waitlistRouter);
+// Public backtest stats for landing page (no auth)
+app.get('/backtest/stats', async (req, res) => {
+  const { getBacktestStats } = await import('./services/domain/backtest.service.js');
+  const detectorType = req.query.detector ? String(req.query.detector) : undefined;
+  const asset = req.query.asset ? String(req.query.asset) : undefined;
+  const stats = await getBacktestStats({ detectorType, asset });
+  res.json(stats);
+});
 app.use('/monitors', requireAuth, monitorsRouter);
 app.use('/signals', requireAuth, signalsRouter);
 app.use('/rules', requireAuth, rulesRouter);

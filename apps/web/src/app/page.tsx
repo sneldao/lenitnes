@@ -43,6 +43,7 @@ import CinematicHero from '@/components/landing/CinematicHero';
 import ProofChainLive from '@/components/landing/ProofChainLive';
 import StoryTimeline from '@/components/landing/StoryTimeline';
 import SocialProof from '@/components/landing/SocialProof';
+import BacktestProof from '@/components/landing/BacktestProof';
 import InteractiveDemo from '@/components/landing/InteractiveDemo';
 import { OnboardingWizard } from '@/components/onboarding/OnboardingWizard';
 
@@ -925,6 +926,9 @@ export default function DashboardPage() {
           <div id="zec-story">
             <StoryTimeline />
           </div>
+
+          {/* Backtest Proof — live accuracy stats */}
+          <BacktestProof />
 
           {/* Interactive Sandbox Demo */}
           <InteractiveDemo onUseTemplate={handleUseTemplate} />

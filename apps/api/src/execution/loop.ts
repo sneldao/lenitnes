@@ -407,7 +407,7 @@ async function executeRules(monitor: Monitor, signalId: string, summary: string)
   );
 
   for (const rule of rules) {
-    if (!passesConditions(rule.conditions)) continue;
+    if (!(await passesConditions(rule.conditions, signalId))) continue;
 
     try {
       switch (rule.action_type) {
@@ -461,13 +461,28 @@ async function executeRules(monitor: Monitor, signalId: string, summary: string)
   }
 }
 
-/** Evaluate optional rule conditions (time-of-day filters, etc.). */
-function passesConditions(conditions: Record<string, unknown>): boolean {
+/** Evaluate optional rule conditions (time-of-day filters, detector type filters, etc.). */
+async function passesConditions(
+  conditions: Record<string, unknown>,
+  signalId: string,
+): Promise<boolean> {
   const window = conditions.utcHours as { from: number; to: number } | undefined;
   if (window) {
     const hour = new Date().getUTCHours();
     if (hour < window.from || hour >= window.to) return false;
   }
+
+  const detectorTypes = conditions.detectorTypes as string[] | undefined;
+  if (detectorTypes && detectorTypes.length > 0) {
+    const { rows } = await query<{ detector_type: string }>(
+      `SELECT detector_type FROM signal_classifications WHERE signal_id = $1`,
+      [signalId],
+    );
+    const matchedTypes = rows.map((r) => r.detector_type);
+    const hasMatch = detectorTypes.some((t) => matchedTypes.includes(t));
+    if (!hasMatch) return false;
+  }
+
   return true;
 }
 
