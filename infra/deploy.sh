@@ -20,12 +20,25 @@ git checkout "$SHA"
 echo "building images..."
 docker compose build --quiet
 
+echo "starting database..."
+docker compose up -d db redis
+echo "waiting for database..."
+for i in $(seq 1 15); do
+  if docker compose exec -T db pg_isready -U "${POSTGRES_USER:-lenitnes}" >/dev/null 2>&1; then
+    break
+  fi
+  sleep 2
+done
+
+echo "running migrations..."
+docker compose exec -T db psql -U "${POSTGRES_USER:-lenitnes}" -d "${POSTGRES_DB:-lenitnes}" < db/schema.sql
+
 echo "starting stack..."
 docker compose up -d
 
 echo "verifying health..."
 for i in $(seq 1 30); do
-  if curl -sf http://localhost:4000/health/ready >/dev/null 2>&1; then
+  if curl -sf http://localhost:8742/health/ready >/dev/null 2>&1; then
     echo "deploy complete ($SHA)"
     exit 0
   fi

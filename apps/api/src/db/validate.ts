@@ -8,6 +8,9 @@ const EXPECTED_TABLES = [
   'orders',
   'audit_logs',
   'waitlist',
+  'signal_classifications',
+  'signal_outcomes',
+  'detector_backtest_stats',
 ];
 
 export async function validateSchema(): Promise<{ ok: boolean; missing: string[] }> {
