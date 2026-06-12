@@ -25,6 +25,12 @@ services:
 
   redis:
     image: redis:7-alpine
+    # Explicit, unique name. Without this the service alias `redis` collides
+    # with Coolify's own `coolify-redis` (also aliased `redis`) on the shared
+    # external `coolify` network that api/worker join for Traefik routing —
+    # causing REDIS_URL to resolve to Coolify's password-protected Redis
+    # (NOAUTH errors, broken BullMQ queue).
+    container_name: lenitnes-redis
     restart: unless-stopped
     healthcheck:
       test: ['CMD', 'redis-cli', 'ping']
@@ -43,7 +49,7 @@ services:
       - API_PORT=8742
       - DATABASE_URL=postgresql://${POSTGRES_USER:-lenitnes}:${POSTGRES_PASSWORD:-lenitnes}@db:5432/${POSTGRES_DB:-lenitnes}
       - PGSSLMODE=disable
-      - REDIS_URL=redis://redis:6379
+      - REDIS_URL=redis://lenitnes-redis:6379
       - WEB_ORIGIN=${WEB_ORIGIN}
       - JWT_SECRET=${JWT_SECRET}
       - ENCRYPTION_KEY=${ENCRYPTION_KEY}
@@ -102,7 +108,7 @@ services:
       - NODE_ENV=production
       - DATABASE_URL=postgresql://${POSTGRES_USER:-lenitnes}:${POSTGRES_PASSWORD:-lenitnes}@db:5432/${POSTGRES_DB:-lenitnes}
       - PGSSLMODE=disable
-      - REDIS_URL=redis://redis:6379
+      - REDIS_URL=redis://lenitnes-redis:6379
       - JWT_SECRET=${JWT_SECRET}
       - ENCRYPTION_KEY=${ENCRYPTION_KEY}
       - HEDERA_NETWORK=${HEDERA_NETWORK:-testnet}
