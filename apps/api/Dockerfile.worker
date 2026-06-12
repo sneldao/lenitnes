@@ -51,5 +51,5 @@ EXPOSE 8741
 # /health/live  → process is up (for k8s liveness probes)
 # /health/ready → DB + Redis reachable (for k8s readiness probes)
 HEALTHCHECK --interval=30s --timeout=5s --start-period=15s --retries=3 \
-  CMD wget -qO- http://localhost:8741/health/ready || exit 1
+  CMD curl -sf http://localhost:8741/health/ready || exit 1
 CMD ["node", "dist/worker.js"]
