@@ -113,6 +113,24 @@ signalsRouter.get('/:id', async (req: Request, res: Response) => {
   const pkg = await getSignalWithProof(req.params.id);
   if (!pkg) return res.status(404).json({ error: 'not found' });
 
+  const [classifications, outcomes] = await Promise.all([
+    query(
+      `SELECT detector_type, score, confidence, label
+         FROM signal_classifications
+        WHERE signal_id = $1
+        ORDER BY score DESC`,
+      [req.params.id],
+    ),
+    query(
+      `SELECT asset, window_seconds, price_at_signal::text, price_after::text,
+              pct_change::text, direction
+         FROM signal_outcomes
+        WHERE signal_id = $1
+        ORDER BY window_seconds`,
+      [req.params.id],
+    ),
+  ]);
+
   const evidenceHash = pkg.signal.evidence_text
     ? createHash('sha256').update(pkg.signal.evidence_text).digest('hex')
     : null;
@@ -157,6 +175,8 @@ signalsRouter.get('/:id', async (req: Request, res: Response) => {
     evidence_hash: evidenceHash,
     verification_checklist: checklist,
     public_share_token: createSignalShareToken(pkg.signal.id),
+    classifications: classifications.rows,
+    outcomes: outcomes.rows,
   });
 });
 

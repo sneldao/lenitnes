@@ -78,13 +78,14 @@ export async function runMonitorCheck(p: RunMonitorCheckParams): Promise<TinyFis
   // ── Optional GitHub enrichment: fetch commit data for richer evaluation ──
   let commitContext = '';
   let githubCommitsFetched = 0;
+  let enrichedCommits: Awaited<ReturnType<typeof fetchCommitsSince>> = null;
   if (config.github.token && p.url.includes('github.com')) {
     try {
-      const commits = await fetchCommitsSince(p.url, p.lastSeenCommitHash ?? null);
-      if (commits && commits.length > 0) {
-        githubCommitsFetched = commits.length;
+      enrichedCommits = await fetchCommitsSince(p.url, p.lastSeenCommitHash ?? null);
+      if (enrichedCommits && enrichedCommits.length > 0) {
+        githubCommitsFetched = enrichedCommits.length;
         commitContext = `
-Recent commits since last check:\n${commits
+Recent commits since last check:\n${enrichedCommits
           .slice(0, 5)
           .map((c) => `- ${c.sha.slice(0, 7)}: ${c.message.split('\n')[0]} (${c.author})`)
           .join('\n')}`;
@@ -169,5 +170,6 @@ Recent commits since last check:\n${commits
     screenshots: ok.screenshots,
     latestCommitHash: ok.latest_commit_hash,
     githubCommitsFetched,
+    commits: enrichedCommits ?? undefined,
   };
 }

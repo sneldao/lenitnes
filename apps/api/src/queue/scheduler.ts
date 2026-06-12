@@ -1,14 +1,17 @@
 import cron from 'node-cron';
 import { query } from '../db/pool.js';
 import { enqueueMonitorCheck } from './producer.js';
+import { processSignalOutcomes } from '../services/domain/backtest.service.js';
 import { logger } from '../logger.js';
 
-let job: cron.ScheduledTask | null = null;
-let running = false;
+let monitorJob: cron.ScheduledTask | null = null;
+let backtestJob: cron.ScheduledTask | null = null;
+let monitorRunning = false;
+let backtestRunning = false;
 
 async function scanAndEnqueue(): Promise<void> {
-  if (running) return;
-  running = true;
+  if (monitorRunning) return;
+  monitorRunning = true;
   try {
     const { rows } = await query<{ id: string }>(
       `SELECT id FROM monitors
@@ -29,18 +32,38 @@ async function scanAndEnqueue(): Promise<void> {
   } catch (err) {
     logger.error({ err }, 'scheduler scan failed');
   } finally {
-    running = false;
+    monitorRunning = false;
+  }
+}
+
+async function runBacktest(): Promise<void> {
+  if (backtestRunning) return;
+  backtestRunning = true;
+  try {
+    const result = await processSignalOutcomes();
+    if (result.processed > 0) {
+      logger.info(result, 'backtest cycle complete');
+    }
+  } catch (err) {
+    logger.error({ err }, 'backtest cycle failed');
+  } finally {
+    backtestRunning = false;
   }
 }
 
 export function startScheduler(): void {
-  logger.info('scheduler started — scanning every 30s');
-  job = cron.schedule('*/30 * * * * *', scanAndEnqueue);
+  logger.info('scheduler started — monitors every 30s, backtest every 6h');
+  monitorJob = cron.schedule('*/30 * * * * *', scanAndEnqueue);
+  backtestJob = cron.schedule('0 */6 * * *', runBacktest);
 }
 
 export function stopScheduler(): void {
-  if (job) {
-    job.stop();
-    job = null;
+  if (monitorJob) {
+    monitorJob.stop();
+    monitorJob = null;
+  }
+  if (backtestJob) {
+    backtestJob.stop();
+    backtestJob = null;
   }
 }

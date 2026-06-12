@@ -18,6 +18,7 @@ import { krakenRouter } from './routes/kraken.js';
 import { proofRouter } from './routes/proof.js';
 import { dlqRouter } from './routes/dlq.js';
 import { waitlistRouter } from './routes/waitlist.js';
+import { backtestRouter } from './routes/backtest.js';
 import { requireAuth } from './middleware/auth.js';
 import { auditMiddleware } from './middleware/audit.js';
 import { renderMetrics, metricsMiddleware } from './middleware/metrics.js';
@@ -25,7 +26,7 @@ import { x402Middleware } from './middleware/x402.js';
 import { cacheInvalidate } from './middleware/cache.js';
 import { validateSchema } from './db/validate.js';
 import { logger } from './logger.js';
-import { checkRedisReachable } from './queue/connection.js';
+import { pingRedis } from './queue/connection.js';
 import { getDlqDepth } from './queue/dlq.js';
 import { startInvalidationSubscriber, stopInvalidationBus } from './middleware/cacheBus.js';
 
@@ -87,8 +88,8 @@ app.get('/metrics', (_req, res) => {
 
 // ── Health endpoints (no auth required) ────────────────────────
 //   /health/live  → 200 always (process is up). For Kubernetes liveness.
-//   /health/ready → 200 only when DB + Redis are reachable. For readiness
-//                    probes and load-balancer health checks.
+//   /health/ready → 200 only when DB responds and Redis PING succeeds.
+//                    For readiness probes and load-balancer health checks.
 //   /health       → verbose snapshot (DB, Redis, DLQ depth, memory, uptime).
 app.get('/health/live', (_req, res) => {
   res.json({ ok: true, service: 'lenitnes-api', version: '0.1.0' });
@@ -105,7 +106,7 @@ app.get('/health/ready', async (_req, res) => {
       .catch(() => {
         /* fail */
       }),
-    checkRedisReachable().then((ok) => {
+    pingRedis().then((ok) => {
       checks.redis = ok ? 'ok' : 'fail';
     }),
   ];
@@ -121,7 +122,7 @@ app.get('/health', async (_req, res) => {
   } catch {
     dbStatus = 'fail';
   }
-  const redisOk = await checkRedisReachable();
+  const redisOk = await pingRedis();
   const dlqDepth = await getDlqDepth();
   const mem = process.memoryUsage();
   res.json({
@@ -149,6 +150,7 @@ app.use('/webhooks', webhooksRouter); // Kraken callbacks — use separate HMAC 
 app.use('/orders', requireAuth, ordersRouter);
 app.use('/kraken', requireAuth, krakenRouter);
 app.use('/dlq', requireAuth, dlqRouter);
+app.use('/backtest', requireAuth, backtestRouter);
 
 // ── x402-gated execution (payment → execution tightly coupled) ─
 app.use('/execute', requireAuth, executeLimiter, x402Middleware, executeRouter);

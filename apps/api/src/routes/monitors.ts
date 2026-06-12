@@ -35,6 +35,12 @@ monitorsRouter.post('/', validate(createMonitorSchema), async (req, res) => {
     screenshotsEnabled: boolean;
     isPublic?: boolean;
     confidenceThreshold?: number;
+    assetMapping?: {
+      coingeckoId?: string;
+      krakenPair?: string;
+      tokenizedStock?: string;
+      direction?: 'long' | 'short' | 'both';
+    };
   };
 
   const monitor = await createMonitorSvc({
@@ -46,6 +52,7 @@ monitorsRouter.post('/', validate(createMonitorSchema), async (req, res) => {
     screenshotsEnabled: b.screenshotsEnabled,
     isPublic: b.isPublic,
     confidenceThreshold: b.confidenceThreshold,
+    assetMapping: b.assetMapping,
   });
 
   // ── Public feed: announce new monitor to Telegram channel ──

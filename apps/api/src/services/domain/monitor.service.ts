@@ -1,7 +1,8 @@
 import { query } from '../../db/pool.js';
 import { config } from '../../config.js';
-import type { Monitor } from '@lenitnes/types';
+import type { AssetMapping, Monitor } from '@lenitnes/types';
 import { cacheInvalidate } from '../../middleware/cache.js';
+import { detectAssetMapping } from '../detectors/asset-lookup.js';
 
 /**
  * Monitor domain service — pure business logic, no Express.
@@ -17,12 +18,14 @@ export interface CreateMonitorParams {
   screenshotsEnabled: boolean;
   isPublic?: boolean;
   confidenceThreshold?: number;
+  assetMapping?: AssetMapping;
 }
 
 export async function createMonitor(params: CreateMonitorParams): Promise<Monitor> {
+  const assetMapping = params.assetMapping ?? detectAssetMapping(params.url) ?? {};
   const { rows } = await query<Monitor>(
-    `INSERT INTO monitors (user_id, url, condition_text, frequency_seconds, hbar_balance, cost_per_check, screenshots_enabled, is_public, confidence_threshold)
-     VALUES ($1, $2, $3, $4, 0, $5, $6, $7, $8) RETURNING *`,
+    `INSERT INTO monitors (user_id, url, condition_text, frequency_seconds, hbar_balance, cost_per_check, screenshots_enabled, is_public, confidence_threshold, asset_mapping)
+     VALUES ($1, $2, $3, $4, 0, $5, $6, $7, $8, $9) RETURNING *`,
     [
       params.userId,
       params.url,
@@ -32,6 +35,7 @@ export async function createMonitor(params: CreateMonitorParams): Promise<Monito
       params.screenshotsEnabled,
       params.isPublic ?? true,
       params.confidenceThreshold ?? 50,
+      JSON.stringify(assetMapping),
     ],
   );
   cacheInvalidate(`monitors:${params.userId}:`);

@@ -69,12 +69,6 @@ lenitnes/
 │   └── types/                  Shared domain types (consumed by both apps)
 ├── db/
 │   └── schema.sql              PostgreSQL schema
-├── infra/
-│   └── azure/
-│       └── main.bicep          Azure infrastructure (Container Apps + PostgreSQL + Static Web Apps)
-├── .github/
-│   └── workflows/
-│       └── azure-deploy.yml    CI/CD: build images + deploy Bicep + publish frontend
 ├── .husky/
 │   └── pre-commit              lint-staged + tsc + gitleaks
 ├── eslint.config.mjs
@@ -226,18 +220,6 @@ sudo docker compose up -d
 sudo systemctl enable lenitnes.service
 ```
 
-### Azure (Microsoft for Startups)
-
-See the [Azure Bicep template](./infra/azure/main.bicep) and CI/CD workflow (`.github/workflows/azure-deploy.yml`).
-
-| Component | Azure Service                                                                 |
-| --------- | ----------------------------------------------------------------------------- |
-| Frontend  | [Static Web Apps](https://azure.microsoft.com/services/app-service/static)    |
-| API       | [Container Apps](https://azure.microsoft.com/services/container-apps)         |
-| Worker    | [Container Apps](https://azure.microsoft.com/services/container-apps)         |
-| Database  | [PostgreSQL Flexible Server](https://azure.microsoft.com/services/postgresql) |
-| Registry  | [Container Registry](https://azure.microsoft.com/services/container-registry) |
-
 ### Railway / Vercel (Alternative)
 
 1. Railway: create project → add PostgreSQL → deploy API (`npm run start`) + Worker (`npm run worker`).
@@ -246,34 +228,34 @@ See the [Azure Bicep template](./infra/azure/main.bicep) and CI/CD workflow (`.g
 
 ### Environment variables
 
-| Variable                               | Description                                         |
-| -------------------------------------- | --------------------------------------------------- |
-| `DATABASE_URL`                         | PostgreSQL connection string                        |
-| `REDIS_URL`                            | Redis connection string (e.g. `redis://localhost:6379`) |
-| `HEDERA_NETWORK`                       | `testnet` or `mainnet`                              |
-| `HEDERA_OPERATOR_ID`                   | Hedera operator account ID                        |
-| `HEDERA_OPERATOR_KEY`                  | Hedera operator private key                         |
-| `HEDERA_TREASURY_ID`                   | Platform treasury account ID                        |
-| `HEDERA_HCS_TOPIC_ID`                  | HCS topic for signal/heartbeat records              |
-| `DEFAULT_COST_PER_CHECK_HBAR`          | Per-check fee (default: 0.5)                        |
-| `TINYFISH_API_KEY`                     | TinyFish SDK API key                                |
-| `GROVE_CHAIN_ID`                       | Lens Protocol Grove chain ID (37111 = testnet)      |
-| `ENCRYPTION_KEY`                       | 32-byte AES-256 key for Kraken key encryption       |
-| `JWT_SECRET`                           | 32+ char random string for JWT signing              |
-| `WEBHOOK_SECRET`                       | HMAC secret for `/webhooks/kraken` verification    |
-| `PROOF_MODE`                           | `hedera` (default) or `none` — proof service backend |
-| `TRADE_COOLDOWN_MINUTES`               | Minimum gap between same-pair trades (default: 15)  |
-| `KRAKEN_CANCEL_AFTER_SECONDS`          | Auto-cancel un-filled orders (default: 300)         |
-| `MAX_OPEN_ORDERS`                      | Max live orders per user (default: 10)            |
-| `TELEGRAM_BOT_TOKEN`                   | Telegram bot token (optional)                       |
-| `SMTP_URL`                             | Email relay URL (optional)                          |
-| `X402_FACILITATOR_URL`                 | x402 facilitator (e.g. `https://blocky402.com`)     |
-| `X402_HEDERA_NETWORK`                  | `testnet` or `mainnet` for x402 verification        |
-| `X402_PAY_TO`                          | Treasury account receiving x402 payments            |
-| `X402_PRICE_HBAR`                      | Price per on-demand check (default: 0.5)            |
-| `NEXT_PUBLIC_API_URL`                  | Public API base URL (frontend)                      |
-| `NEXT_PUBLIC_HASHCONNECT_PROJECT_ID`   | HashConnect project ID (frontend)                   |
-| `NEXT_PUBLIC_HEDERA_NETWORK`           | `testnet` or `mainnet` (frontend wallet network)    |
+| Variable                             | Description                                             |
+| ------------------------------------ | ------------------------------------------------------- |
+| `DATABASE_URL`                       | PostgreSQL connection string                            |
+| `REDIS_URL`                          | Redis connection string (e.g. `redis://localhost:6379`) |
+| `HEDERA_NETWORK`                     | `testnet` or `mainnet`                                  |
+| `HEDERA_OPERATOR_ID`                 | Hedera operator account ID                              |
+| `HEDERA_OPERATOR_KEY`                | Hedera operator private key                             |
+| `HEDERA_TREASURY_ID`                 | Platform treasury account ID                            |
+| `HEDERA_HCS_TOPIC_ID`                | HCS topic for signal/heartbeat records                  |
+| `DEFAULT_COST_PER_CHECK_HBAR`        | Per-check fee (default: 0.5)                            |
+| `TINYFISH_API_KEY`                   | TinyFish SDK API key                                    |
+| `GROVE_CHAIN_ID`                     | Lens Protocol Grove chain ID (37111 = testnet)          |
+| `ENCRYPTION_KEY`                     | 32-byte AES-256 key for Kraken key encryption           |
+| `JWT_SECRET`                         | 32+ char random string for JWT signing                  |
+| `WEBHOOK_SECRET`                     | HMAC secret for `/webhooks/kraken` verification         |
+| `PROOF_MODE`                         | `hedera` (default) or `none` — proof service backend    |
+| `TRADE_COOLDOWN_MINUTES`             | Minimum gap between same-pair trades (default: 15)      |
+| `KRAKEN_CANCEL_AFTER_SECONDS`        | Auto-cancel un-filled orders (default: 300)             |
+| `MAX_OPEN_ORDERS`                    | Max live orders per user (default: 10)                  |
+| `TELEGRAM_BOT_TOKEN`                 | Telegram bot token (optional)                           |
+| `SMTP_URL`                           | Email relay URL (optional)                              |
+| `X402_FACILITATOR_URL`               | x402 facilitator (e.g. `https://blocky402.com`)         |
+| `X402_HEDERA_NETWORK`                | `testnet` or `mainnet` for x402 verification            |
+| `X402_PAY_TO`                        | Treasury account receiving x402 payments                |
+| `X402_PRICE_HBAR`                    | Price per on-demand check (default: 0.5)                |
+| `NEXT_PUBLIC_API_URL`                | Public API base URL (frontend)                          |
+| `NEXT_PUBLIC_HASHCONNECT_PROJECT_ID` | HashConnect project ID (frontend)                       |
+| `NEXT_PUBLIC_HEDERA_NETWORK`         | `testnet` or `mainnet` (frontend wallet network)        |
 
 ## Deployment status
 

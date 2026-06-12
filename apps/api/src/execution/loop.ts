@@ -13,6 +13,7 @@ import { isCircuitOpen, recordSuccess, recordFailure } from '../services/circuit
 import { incCounter } from '../middleware/metrics.js';
 import { logger } from '../logger.js';
 import { tradeConfigSchema } from '../validation/index.js';
+import { runDetectors } from '../services/detectors/registry.js';
 
 // ─────────────────────────────────────────────────────────────
 // Monitor execution loop — the heart of LENITNES.
@@ -54,7 +55,13 @@ export interface CheckMetadata {
   githubCommitsFetched: number;
   confidence: number;
   confidenceThreshold: number;
-  thresholdBlocked: boolean; // true when condition met but confidence below threshold
+  thresholdBlocked: boolean;
+  classifications?: Array<{
+    type: string;
+    score: number;
+    confidence: number;
+    label: string;
+  }>;
 }
 
 export async function executeCheck(
@@ -236,6 +243,40 @@ export async function executeCheck(
     }
   }
 
+  // ── 4b) Run detector pipeline on new signals (best-effort) ─────────
+  let classifications: Array<{ type: string; score: number; confidence: number; label: string }> =
+    [];
+  if (!isHeartbeat && signalId && result.commits && result.commits.length > 0) {
+    try {
+      const detectorResults = runDetectors({
+        result,
+        commits: result.commits,
+        monitorUrl: monitor.url,
+        monitorCondition: monitor.condition_text,
+      });
+      if (detectorResults.length > 0) {
+        classifications = detectorResults.map((c) => ({
+          type: c.type,
+          score: c.score,
+          confidence: c.confidence,
+          label: c.label,
+        }));
+        await Promise.all(
+          detectorResults.map((c) =>
+            query(
+              `INSERT INTO signal_classifications
+               (signal_id, detector_type, score, confidence, label, metadata)
+               VALUES ($1, $2, $3, $4, $5, $6)`,
+              [signalId, c.type, c.score, c.confidence, c.label, JSON.stringify(c.metadata)],
+            ),
+          ),
+        );
+      }
+    } catch (err) {
+      logger.warn({ err, signalId }, 'detector pipeline failed (non-blocking)');
+    }
+  }
+
   // ── 5) Best-effort rule execution ─────────────────────────────────
   if (!isHeartbeat && signalId) {
     executeRules(monitor, signalId, result.summary).catch((err) => {
@@ -256,6 +297,7 @@ export async function executeCheck(
       confidenceThreshold: monitor.confidence_threshold ?? 50,
       thresholdBlocked:
         result.conditionMet && result.confidence < (monitor.confidence_threshold ?? 50),
+      ...(classifications.length > 0 ? { classifications } : {}),
     },
   };
 }
@@ -437,7 +479,8 @@ function validateTradeConfig(raw: Record<string, unknown>): kraken.AddOrderParam
   return parsed.data;
 }
 
-async function executeTrade(monitor: Monitor, rule: Rule, signalId: string): Promise<void> {
+/** @internal exported for concurrency tests */
+export async function executeTrade(monitor: Monitor, rule: Rule, signalId: string): Promise<void> {
   const order = validateTradeConfig(rule.action_config);
   order.cancelAfter = config.trade.cancelAfterSeconds;
 
@@ -458,49 +501,55 @@ async function executeTrade(monitor: Monitor, rule: Rule, signalId: string): Pro
     throw new Error('user has no Kraken credentials');
   }
 
-  // Pair-level cooldown: skip if same user+pair traded within the cooldown window.
-  const cooldownSeconds = config.trade.cooldownMinutes * 60;
-  const { rows: recent } = await query<{ id: string }>(
-    `SELECT o.id FROM orders o
-     JOIN signals s ON s.id = o.signal_id
-     JOIN monitors m ON m.id = s.monitor_id
-     WHERE m.user_id = $1
-       AND o.order_params->>'pair' = $2
-       AND o.status IN ('placed', 'filled', 'partially_filled')
-       AND o.placed_at > now() - make_interval(secs => $3)
-     LIMIT 1`,
-    [monitor.user_id, order.pair, cooldownSeconds],
-  );
-  if (recent.length > 0) {
-    logger.warn(
-      { userId: monitor.user_id, pair: order.pair },
-      'trade skipped: pair cooldown active',
-    );
-    return;
-  }
+  // Atomic guard + insert: lock the user row to serialize concurrent
+  // trade checks, preventing two signals from both passing the cap.
+  const orderId = await withTransaction(async (client) => {
+    await client.query('SELECT 1 FROM users WHERE id = $1 FOR UPDATE', [monitor.user_id]);
 
-  // Max open orders: prevent unbounded accumulation of live orders.
-  const { rows: openCount } = await query<{ count: string }>(
-    `SELECT count(*)::text AS count FROM orders o
-     JOIN signals s ON s.id = o.signal_id
-     JOIN monitors m ON m.id = s.monitor_id
-     WHERE m.user_id = $1 AND o.status = 'placed'`,
-    [monitor.user_id],
-  );
-  if (Number(openCount[0]?.count ?? 0) >= config.trade.maxOpenOrders) {
-    logger.warn(
-      { userId: monitor.user_id, openOrders: openCount[0].count },
-      'trade skipped: max open orders reached',
+    const cooldownSeconds = config.trade.cooldownMinutes * 60;
+    const { rows: recent } = await client.query<{ id: string }>(
+      `SELECT o.id FROM orders o
+       JOIN signals s ON s.id = o.signal_id
+       JOIN monitors m ON m.id = s.monitor_id
+       WHERE m.user_id = $1
+         AND o.order_params->>'pair' = $2
+         AND o.status IN ('placed', 'filled', 'partially_filled')
+         AND o.placed_at > now() - make_interval(secs => $3)
+       LIMIT 1`,
+      [monitor.user_id, order.pair, cooldownSeconds],
     );
-    return;
-  }
+    if (recent.length > 0) {
+      logger.warn(
+        { userId: monitor.user_id, pair: order.pair },
+        'trade skipped: pair cooldown active',
+      );
+      return null;
+    }
 
-  const { rows: orderRows } = await query<{ id: string }>(
-    `INSERT INTO orders (signal_id, rule_id, order_params, status)
-     VALUES ($1, $2, $3, 'pending') RETURNING id`,
-    [signalId, rule.id, JSON.stringify(order)],
-  );
-  const orderId = orderRows[0].id;
+    const { rows: openCount } = await client.query<{ count: string }>(
+      `SELECT count(*)::text AS count FROM orders o
+       JOIN signals s ON s.id = o.signal_id
+       JOIN monitors m ON m.id = s.monitor_id
+       WHERE m.user_id = $1 AND o.status = 'placed'`,
+      [monitor.user_id],
+    );
+    if (Number(openCount[0]?.count ?? 0) >= config.trade.maxOpenOrders) {
+      logger.warn(
+        { userId: monitor.user_id, openOrders: openCount[0].count },
+        'trade skipped: max open orders reached',
+      );
+      return null;
+    }
+
+    const { rows: orderRows } = await client.query<{ id: string }>(
+      `INSERT INTO orders (signal_id, rule_id, order_params, status)
+       VALUES ($1, $2, $3, 'pending') RETURNING id`,
+      [signalId, rule.id, JSON.stringify(order)],
+    );
+    return orderRows[0].id;
+  });
+
+  if (!orderId) return;
 
   try {
     let res: { krakenOrderId: string | null; raw: unknown };

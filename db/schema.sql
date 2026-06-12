@@ -134,3 +134,60 @@ CREATE TABLE IF NOT EXISTS waitlist (
 );
 
 CREATE INDEX IF NOT EXISTS idx_waitlist_email ON waitlist(email);
+
+-- Signal Classifications ──────────────────────────────────────
+-- Structured classifications from the detector pipeline.
+-- One row per (signal, detector_type). Multiple detectors can fire
+-- on the same signal (e.g. emergency_patch + security_critical).
+ALTER TABLE monitors ADD COLUMN IF NOT EXISTS asset_mapping JSONB NOT NULL DEFAULT '{}'::jsonb;
+
+CREATE TABLE IF NOT EXISTS signal_classifications (
+  id              UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  signal_id       UUID NOT NULL REFERENCES signals(id) ON DELETE CASCADE,
+  detector_type   TEXT NOT NULL,
+  score           INTEGER NOT NULL DEFAULT 0,
+  confidence      INTEGER NOT NULL DEFAULT 0,
+  label           TEXT NOT NULL DEFAULT '',
+  metadata        JSONB NOT NULL DEFAULT '{}'::jsonb,
+  created_at      TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+CREATE INDEX IF NOT EXISTS idx_signal_class_signal_id ON signal_classifications(signal_id);
+CREATE INDEX IF NOT EXISTS idx_signal_class_type ON signal_classifications(detector_type);
+
+-- Signal Outcomes ─────────────────────────────────────────────
+-- Price outcome per signal per time window, filled by the backtest
+-- engine after fetching historical price data.
+CREATE TABLE IF NOT EXISTS signal_outcomes (
+  id              UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  signal_id       UUID NOT NULL REFERENCES signals(id) ON DELETE CASCADE,
+  asset           TEXT NOT NULL,
+  window_seconds  INTEGER NOT NULL,
+  price_at_signal NUMERIC(20, 8),
+  price_after     NUMERIC(20, 8),
+  pct_change      NUMERIC(10, 4),
+  direction       TEXT,
+  created_at      TIMESTAMPTZ NOT NULL DEFAULT now(),
+  UNIQUE(signal_id, asset, window_seconds)
+);
+
+CREATE INDEX IF NOT EXISTS idx_signal_outcomes_signal ON signal_outcomes(signal_id);
+CREATE INDEX IF NOT EXISTS idx_signal_outcomes_asset ON signal_outcomes(asset, created_at DESC);
+
+-- Detector Backtest Stats ────────────────────────────────────
+-- Aggregated backtest results per detector type + asset.
+-- Refreshed by the backtest engine after processing new outcomes.
+CREATE TABLE IF NOT EXISTS detector_backtest_stats (
+  detector_type     TEXT NOT NULL,
+  asset             TEXT NOT NULL,
+  total_signals     INTEGER NOT NULL DEFAULT 0,
+  correct_count     INTEGER NOT NULL DEFAULT 0,
+  accuracy          NUMERIC(5, 2),
+  avg_pct_change    NUMERIC(10, 4),
+  median_pct_change NUMERIC(10, 4),
+  avg_abs_return    NUMERIC(10, 4),
+  sharpe_estimate   NUMERIC(8, 4),
+  best_window       INTEGER,
+  updated_at        TIMESTAMPTZ NOT NULL DEFAULT now(),
+  PRIMARY KEY(detector_type, asset)
+);

@@ -22,6 +22,7 @@ export interface Monitor {
   confidence_threshold: number;
   last_check_at: string | null;
   last_seen_commit_hash: string | null;
+  asset_mapping: AssetMapping;
   created_at: string;
 }
 
@@ -130,6 +131,63 @@ export interface User {
   created_at: string;
 }
 
+// ── Signal Types (typed detectors) ──────────────────────────
+
+export type SignalType =
+  | 'emergency_patch'
+  | 'security_critical_patch'
+  | 'dependency_rotation'
+  | 'governance_shift'
+  | 'maintainer_departure'
+  | 'silent_merge'
+  | 'protocol_upgrade'
+  | 'supply_chain_risk'
+  | 'generic';
+
+export interface SignalClassification {
+  type: SignalType;
+  score: number;
+  confidence: number;
+  label: string;
+  metadata: Record<string, unknown>;
+}
+
+// ── Asset Mapping ────────────────────────────────────────────
+
+export interface AssetMapping {
+  coingeckoId?: string;
+  krakenPair?: string;
+  tokenizedStock?: string;
+  direction?: 'long' | 'short' | 'both';
+}
+
+// ── Signal Outcome (backtest) ────────────────────────────────
+
+export interface SignalOutcome {
+  signal_id: string;
+  asset: string;
+  window_seconds: number;
+  price_at_signal: string;
+  price_after: string;
+  pct_change: string;
+  direction: 'up' | 'down' | 'flat';
+}
+
+// ── Detector Backtest Stats ──────────────────────────────────
+
+export interface DetectorBacktestStats {
+  detector_type: string;
+  asset: string;
+  total_signals: number;
+  correct_count: number;
+  accuracy: string;
+  avg_pct_change: string;
+  median_pct_change: string;
+  avg_abs_return: string;
+  sharpe_estimate: string;
+  best_window: number | null;
+}
+
 // ── API response helpers ──────────────────────────────────────
 
 export interface ApiError {
@@ -163,4 +221,14 @@ export interface TinyFishResult {
   screenshots: string[];
   latestCommitHash?: string;
   githubCommitsFetched?: number;
+  commits?: Array<{
+    sha: string;
+    message: string;
+    author: string;
+    date: string;
+    url: string;
+    additions: number;
+    deletions: number;
+    total: number;
+  }>;
 }

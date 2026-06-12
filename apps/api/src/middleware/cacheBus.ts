@@ -9,7 +9,7 @@
  * authoritative path; the pubsub layer is purely additive.
  */
 
-import { config } from '../config.js';
+import { createRedisClient } from '../queue/connection.js';
 
 const CHANNEL = 'lenitnes:cache:invalidate';
 
@@ -29,9 +29,7 @@ function isEnabled(): boolean {
 
 async function getPublisher() {
   if (_publisher) return _publisher;
-  // Lazy import so this module is cheap to load when the feature is off.
-  const { createClient } = await import('redis');
-  const client = createClient({ url: config.redis.url });
+  const client = await createRedisClient();
   client.on('error', () => {
     /* swallow — we never want logging here to take down a request */
   });
@@ -42,8 +40,7 @@ async function getPublisher() {
 
 async function getSubscriber() {
   if (_subscriber) return _subscriber;
-  const { createClient } = await import('redis');
-  const client = createClient({ url: config.redis.url });
+  const client = await createRedisClient();
   client.on('error', () => {
     /* swallow */
   });

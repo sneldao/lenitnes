@@ -15,6 +15,14 @@ export const createMonitorSchema = z.object({
   screenshotsEnabled: z.boolean().optional().default(true),
   isPublic: z.boolean().optional().default(true),
   confidenceThreshold: z.number().int().min(0).max(100).optional().default(50),
+  assetMapping: z
+    .object({
+      coingeckoId: z.string().optional(),
+      krakenPair: z.string().optional(),
+      tokenizedStock: z.string().optional(),
+      direction: z.enum(['long', 'short', 'both']).optional(),
+    })
+    .optional(),
 });
 
 export const patchMonitorSchema = z.object({

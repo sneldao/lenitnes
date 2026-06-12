@@ -1,12 +1,15 @@
 import { logger } from '../logger.js';
 import { config } from '../config.js';
 
-interface GitHubCommit {
+export interface GitHubCommit {
   sha: string;
   message: string;
   author: string;
   date: string;
   url: string;
+  additions: number;
+  deletions: number;
+  total: number;
 }
 
 const GITHUB_API_BASE = 'https://api.github.com';
@@ -48,17 +51,24 @@ export async function fetchCommitsSince(
     const data = await res.json();
     if (!Array.isArray(data)) return null;
 
-    const commits: GitHubCommit[] = data.map((c: Record<string, unknown>) => ({
-      sha: String(c.sha ?? ''),
-      message: String((c.commit as Record<string, unknown>)?.message ?? ''),
-      author: String(
-        ((c.commit as Record<string, unknown>)?.author as Record<string, unknown>)?.name ?? '',
-      ),
-      date: String(
-        ((c.commit as Record<string, unknown>)?.author as Record<string, unknown>)?.date ?? '',
-      ),
-      url: String(c.html_url ?? ''),
-    }));
+    const commits: GitHubCommit[] = data.map((c: Record<string, unknown>) => {
+      const commit = c.commit as Record<string, unknown>;
+      const stats = (c.stats ?? {}) as { additions?: number; deletions?: number; total?: number };
+      return {
+        sha: String(c.sha ?? ''),
+        message: String((commit as Record<string, unknown>)?.message ?? ''),
+        author: String(
+          ((commit as Record<string, unknown>)?.author as Record<string, unknown>)?.name ?? '',
+        ),
+        date: String(
+          ((commit as Record<string, unknown>)?.author as Record<string, unknown>)?.date ?? '',
+        ),
+        url: String(c.html_url ?? ''),
+        additions: stats.additions ?? 0,
+        deletions: stats.deletions ?? 0,
+        total: stats.total ?? 0,
+      };
+    });
 
     if (sinceHash) {
       const idx = commits.findIndex((c) => c.sha === sinceHash);
