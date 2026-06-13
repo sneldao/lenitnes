@@ -229,6 +229,11 @@ function NewMonitorForm() {
     return Object.keys(nextErrors).length === 0;
   }
 
+  function goBack() {
+    setError(null);
+    setStep((s) => Math.max(1, s - 1));
+  }
+
   function goNext() {
     setError(null);
     if (step === 1 && !validateTargetStep()) return;
@@ -537,6 +542,9 @@ function NewMonitorForm() {
               <label htmlFor="url" className="label">
                 <Globe className="mr-1 inline h-3 w-3" />
                 Target URL
+                <span className="ml-1.5 rounded bg-danger/20 px-1.5 py-0.5 text-[9px] font-semibold uppercase tracking-wider text-danger">
+                  Required
+                </span>
               </label>
               <input
                 id="url"
@@ -575,6 +583,9 @@ function NewMonitorForm() {
               <label htmlFor="condition" className="label">
                 <MessageSquare className="mr-1 inline h-3 w-3" />
                 Detection condition
+                <span className="ml-1.5 rounded bg-danger/20 px-1.5 py-0.5 text-[9px] font-semibold uppercase tracking-wider text-danger">
+                  Required
+                </span>
               </label>
               <textarea
                 id="condition"
@@ -626,6 +637,13 @@ function NewMonitorForm() {
                   ))}
                 </div>
               )}
+            </div>
+
+            <div className="flex items-center justify-end gap-3 border-t border-edge/40 pt-5">
+              <button type="button" onClick={goNext} className="btn px-5 py-2 text-sm">
+                Continue
+                <ChevronRightIcon className="ml-1.5 h-4 w-4" />
+              </button>
             </div>
           </div>
         )}
@@ -864,6 +882,21 @@ function NewMonitorForm() {
                 <span className="text-[10px] text-accent">(premium — free during beta)</span>
               </label>
             </div>
+
+            <div className="flex items-center justify-between gap-3 border-t border-edge/40 pt-5">
+              <button
+                type="button"
+                onClick={goBack}
+                className="inline-flex items-center gap-1 text-xs font-medium text-slate-500 transition-colors hover:text-slate-200"
+              >
+                <ChevronLeft className="h-3.5 w-3.5" />
+                Back
+              </button>
+              <button type="button" onClick={goNext} className="btn px-5 py-2 text-sm">
+                Continue
+                <ChevronRightIcon className="ml-1.5 h-4 w-4" />
+              </button>
+            </div>
           </div>
         )}
 
@@ -941,6 +974,21 @@ function NewMonitorForm() {
                 </div>
               )}
             </div>
+
+            <div className="flex items-center justify-between gap-3 border-t border-edge/40 pt-5">
+              <button
+                type="button"
+                onClick={goBack}
+                className="inline-flex items-center gap-1 text-xs font-medium text-slate-500 transition-colors hover:text-slate-200"
+              >
+                <ChevronLeft className="h-3.5 w-3.5" />
+                Back
+              </button>
+              <button type="button" onClick={goNext} className="btn px-5 py-2 text-sm">
+                Continue
+                <ChevronRightIcon className="ml-1.5 h-4 w-4" />
+              </button>
+            </div>
           </div>
         )}
 
@@ -1008,6 +1056,35 @@ function NewMonitorForm() {
                 {error}
               </div>
             )}
+
+            <div className="flex items-center justify-between gap-3 border-t border-edge/40 pt-5">
+              <button
+                type="button"
+                onClick={goBack}
+                className="inline-flex items-center gap-1 text-xs font-medium text-slate-500 transition-colors hover:text-slate-200"
+              >
+                <ChevronLeft className="h-3.5 w-3.5" />
+                Back
+              </button>
+              <button
+                type="button"
+                onClick={submit}
+                disabled={submitting}
+                className="btn px-5 py-2 text-sm disabled:opacity-50"
+              >
+                {submitting ? (
+                  <>
+                    <span className="mr-2 inline-block h-3.5 w-3.5 animate-spin rounded-full border-2 border-white/30 border-t-white" />
+                    Creating…
+                  </>
+                ) : (
+                  <>
+                    Create Monitor
+                    <ChevronRightIcon className="ml-1.5 h-4 w-4" />
+                  </>
+                )}
+              </button>
+            </div>
           </div>
         )}
 

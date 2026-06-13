@@ -12,6 +12,7 @@ const APP_LINKS = [
   { href: '/rules', label: 'Rules' },
   { href: '/orders', label: 'Orders' },
   { href: '/backtest', label: 'Backtest' },
+  { href: '/leaderboard', label: 'Leaderboard' },
 ];
 
 const LANDING_LINKS = [
@@ -23,7 +24,17 @@ const LANDING_LINKS = [
 export function Nav() {
   const pathname = usePathname();
   const [open, setOpen] = useState(false);
-  const { isAuthenticated } = useAuth();
+  const { isAuthenticated, isLoading } = useAuth();
+
+  // Prevent flash of unauthenticated content while auth resolves
+  if (isLoading) {
+    return (
+      <div className="flex items-center gap-3">
+        <div className="h-5 w-20 animate-pulse rounded bg-edge/40" />
+      </div>
+    );
+  }
+
   const links = isAuthenticated ? APP_LINKS : LANDING_LINKS;
   const cta = isAuthenticated
     ? { href: '/monitors/new', label: '+ Monitor' }

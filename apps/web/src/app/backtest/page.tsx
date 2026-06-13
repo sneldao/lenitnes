@@ -20,7 +20,11 @@ function formatPct(value: string): string {
 
 export default function BacktestPage() {
   const { isAuthenticated } = useAuth();
-  const { data: stats, isLoading } = useQuery({
+  const {
+    data: stats,
+    isLoading,
+    error,
+  } = useQuery({
     queryKey: ['backtest-stats'],
     queryFn: () => api.getBacktestStats(),
     enabled: isAuthenticated,
@@ -37,8 +41,37 @@ export default function BacktestPage() {
 
   if (isLoading) {
     return (
-      <div className="flex items-center justify-center py-20">
-        <div className="h-8 w-8 animate-pulse rounded-xl bg-accent/20" />
+      <div className="mx-auto max-w-4xl animate-fade-in space-y-6">
+        <div>
+          <h1 className="text-2xl font-bold tracking-tight text-white">Backtest Engine</h1>
+          <p className="mt-1 text-sm text-slate-500">
+            Correlation between code-level signals and subsequent price movement.
+          </p>
+        </div>
+        <div className="flex items-center justify-center py-20">
+          <div className="flex items-center gap-3">
+            <div className="h-8 w-8 animate-pulse rounded-xl bg-accent/20" />
+            <p className="text-sm text-slate-500">Loading backtest data…</p>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="mx-auto max-w-4xl animate-fade-in space-y-6">
+        <div>
+          <h1 className="text-2xl font-bold tracking-tight text-white">Backtest Engine</h1>
+          <p className="mt-1 text-sm text-slate-500">
+            Correlation between code-level signals and subsequent price movement.
+          </p>
+        </div>
+        <div className="card border-danger/30 bg-danger/5 p-6 text-center">
+          <BarChart3 className="mx-auto h-10 w-10 text-danger" />
+          <p className="mt-3 text-sm font-medium text-danger">Failed to load backtest data</p>
+          <p className="mt-1 text-xs text-slate-500">{error.message}</p>
+        </div>
       </div>
     );
   }

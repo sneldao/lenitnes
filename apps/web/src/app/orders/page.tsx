@@ -79,6 +79,7 @@ export default function OrdersPage() {
   const toast = useToast();
   const queryClient = useQueryClient();
   const [testing, setTesting] = useState(false);
+  const [syncing, setSyncing] = useState(false);
   const [testResult, setTestResult] = useState<{
     ok: boolean;
     krakenOrderId: string | null;
@@ -103,7 +104,7 @@ export default function OrdersPage() {
     refetchInterval: 15_000,
     staleTime: 10_000,
   });
-  const { data: krakenStatus } = useQuery({
+  const { data: krakenStatus, isLoading: krakenLoading } = useQuery({
     queryKey: ['krakenStatus'],
     queryFn: () => api.krakenStatus(),
     retry: 1,
@@ -229,7 +230,11 @@ export default function OrdersPage() {
           </p>
         </div>
         <div className="flex items-center gap-3">
-          {krakenStatus && (
+          {krakenLoading ? (
+            <span className="badge bg-slate-500/15 text-slate-400">
+              <Loader className="h-3 w-3 animate-spin" /> Checking…
+            </span>
+          ) : krakenStatus ? (
             <span
               className={`badge ${
                 krakenStatus.configured ? 'bg-signal/15 text-signal' : 'bg-danger/15 text-danger'
@@ -245,13 +250,25 @@ export default function OrdersPage() {
                 </>
               )}
             </span>
-          )}
+          ) : null}
           <button
-            onClick={() => queryClient.invalidateQueries({ queryKey: ['orders'] })}
+            onClick={async () => {
+              setSyncing(true);
+              try {
+                await queryClient.refetchQueries({ queryKey: ['orders'] });
+                toast.success('Orders synced from Kraken');
+              } catch {
+                toast.error('Sync failed. Check your Kraken connection.');
+              } finally {
+                setSyncing(false);
+              }
+            }}
             className="btn text-xs"
+            disabled={syncing}
             title="Sync order statuses from Kraken"
           >
-            <RefreshCw className="h-3.5 w-3.5" /> Sync
+            <RefreshCw className={`h-3.5 w-3.5 ${syncing ? 'animate-spin' : ''}`} />
+            {syncing ? 'Syncing…' : 'Sync'}
           </button>
           <button onClick={runPaperTrade} disabled={testing} className="btn text-xs">
             {testing ? (

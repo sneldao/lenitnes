@@ -532,7 +532,7 @@ export default function SignalDetailPage({ params }: { params: Promise<{ id: str
         <ProofChain
           steps={getProofChainSteps(signal)}
           title="Proof Chain"
-          subtitle="Four steps. Fully automated."
+          subtitle="Five steps. Fully automated."
         />
       </div>
 

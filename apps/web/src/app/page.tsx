@@ -82,7 +82,11 @@ function BurnBar({ balance, daysLeft }: { balance: number; daysLeft: number }) {
       <div className="flex items-center justify-between text-[10px]">
         <span className="text-slate-500">{COPY.funding.staked(balance)}</span>
         <span className="font-medium text-slate-400">
-          {Number.isFinite(daysLeft) ? `${daysLeft.toFixed(0)}d remaining` : '∞'}
+          {Number.isFinite(daysLeft)
+            ? daysLeft < 1
+              ? `${(daysLeft * 24).toFixed(1)}h remaining`
+              : `${daysLeft.toFixed(0)}d remaining`
+            : '∞'}
         </span>
       </div>
     </div>
@@ -233,9 +237,9 @@ function MonitorCard({
           re-arms to `active` (see POST /signals/:id/viewed) but we still
           want the celebration to surface on dashboards that haven't yet
           re-fetched. */}
-      {(monitor.status === 'triggered' || (latestSignal && !latestSignal.viewed_at)) && (
+      {latestSignal && !latestSignal.viewed_at && (
         <Link
-          href={latestSignal ? `/signals/${latestSignal.id}` : '#'}
+          href={`/signals/${latestSignal.id}`}
           className="block rounded-lg border border-accent/30 bg-accent/5 p-3 space-y-1.5 transition-colors hover:border-accent/50 hover:bg-accent/10"
         >
           <div className="flex items-center gap-2">
@@ -245,12 +249,10 @@ function MonitorCard({
           <p className="text-xs text-slate-300 leading-relaxed">
             {COPY.signals.detected(host).body}
           </p>
-          {latestSignal && (
-            <span className="inline-flex items-center gap-1 text-[10px] font-semibold text-accent transition-colors">
-              {COPY.signals.detected(host).cta}
-              <ChevronRight className="h-3 w-3" />
-            </span>
-          )}
+          <span className="inline-flex items-center gap-1 text-[10px] font-semibold text-accent transition-colors">
+            {COPY.signals.detected(host).cta}
+            <ChevronRight className="h-3 w-3" />
+          </span>
         </Link>
       )}
 
@@ -364,6 +366,7 @@ function DashboardView({
   setSearch,
   onExecute,
   onDelete,
+  onConnect,
 }: {
   monitors: Monitor[];
   signals: {
@@ -383,7 +386,9 @@ function DashboardView({
   setSearch: (s: string) => void;
   onExecute: (id: string) => void;
   onDelete: (id: string) => void;
+  onConnect: () => void;
 }) {
+  const queryClient = useQueryClient();
   const [filter, setFilter] = useState<FilterStatus>('all');
   const [sort, setSort] = useState<SortKey>('newest');
 
@@ -499,41 +504,47 @@ function DashboardView({
       </div>
 
       <div className="grid gap-4 sm:grid-cols-4">
-        <div className="stat-card space-y-1">
-          <div className="flex items-center gap-2">
-            <Activity className="h-3.5 w-3.5 text-accent" />
-            <span className="section-title">Active</span>
-          </div>
-          <p className="text-2xl font-bold text-white">{activeCount}</p>
-        </div>
-        <div className="stat-card space-y-1">
-          <div className="flex items-center gap-2">
-            <Zap className="h-3.5 w-3.5 text-signal" />
-            <span className="section-title">Triggered</span>
-          </div>
-          <p className="text-2xl font-bold text-white">{triggeredCount}</p>
-        </div>
-        <div className="stat-card space-y-1">
-          <div className="flex items-center gap-2">
-            <Wallet className="h-3.5 w-3.5 text-warn" />
-            <span className="section-title">Total Staked</span>
-          </div>
-          <p className="text-2xl font-bold text-white">{COPY.funding.staked(totalBalance)}</p>
-        </div>
-        <div className="stat-card space-y-1">
-          <div className="flex items-center gap-2">
-            <Zap className="h-3.5 w-3.5 text-warn" />
-            <span className="section-title">Paper Trades</span>
-          </div>
-          <p className="text-2xl font-bold text-white">{ordersCount}</p>
-        </div>
-        <div className="stat-card space-y-1">
-          <div className="flex items-center gap-2">
-            <Eye className="h-3.5 w-3.5 text-slate-400" />
-            <span className="section-title">Monitors</span>
-          </div>
-          <p className="text-2xl font-bold text-white">{monitors.length}</p>
-        </div>
+        {isLoading ? (
+          <>
+            {Array.from({ length: 4 }).map((_, i) => (
+              <div key={i} className="stat-card space-y-1 animate-pulse">
+                <div className="h-4 w-16 rounded bg-edge/60" />
+                <div className="h-7 w-12 rounded bg-edge/40" />
+              </div>
+            ))}
+          </>
+        ) : (
+          <>
+            <div className="stat-card space-y-1">
+              <div className="flex items-center gap-2">
+                <Activity className="h-3.5 w-3.5 text-accent" />
+                <span className="section-title">Active</span>
+              </div>
+              <p className="text-2xl font-bold text-white">{activeCount}</p>
+            </div>
+            <div className="stat-card space-y-1">
+              <div className="flex items-center gap-2">
+                <Eye className="h-3.5 w-3.5 text-signal" />
+                <span className="section-title">Triggered</span>
+              </div>
+              <p className="text-2xl font-bold text-white">{triggeredCount}</p>
+            </div>
+            <div className="stat-card space-y-1">
+              <div className="flex items-center gap-2">
+                <Wallet className="h-3.5 w-3.5 text-warn" />
+                <span className="section-title">Total Staked</span>
+              </div>
+              <p className="text-2xl font-bold text-white">{COPY.funding.staked(totalBalance)}</p>
+            </div>
+            <div className="stat-card space-y-1">
+              <div className="flex items-center gap-2">
+                <BarChart3 className="h-3.5 w-3.5 text-accent" />
+                <span className="section-title">Paper Trades</span>
+              </div>
+              <p className="text-2xl font-bold text-white">{ordersCount}</p>
+            </div>
+          </>
+        )}
       </div>
 
       {/* Global Live Counter — system-wide stats */}
@@ -665,16 +676,39 @@ function DashboardView({
         </div>
       )}
 
-      {error && error.message !== 'session_expired' && (
+      {error && (
         <div className="card border-danger/30 bg-danger/5">
           <div className="flex items-center gap-3">
             <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-danger/10">
-              <Zap className="h-4 w-4 text-danger" />
+              {error.message === 'session_expired' ? (
+                <Shield className="h-4 w-4 text-warn" />
+              ) : (
+                <Zap className="h-4 w-4 text-danger" />
+              )}
             </div>
-            <div>
-              <p className="text-sm font-medium text-danger">Connection Error</p>
-              <p className="text-xs text-slate-500">{error.message}</p>
+            <div className="flex-1">
+              <p className="text-sm font-medium text-danger">
+                {error.message === 'session_expired' ? 'Session Expired' : 'Connection Error'}
+              </p>
+              <p className="text-xs text-slate-500">
+                {error.message === 'session_expired'
+                  ? 'Your session has expired. Connect your wallet to sign in again.'
+                  : error.message}
+              </p>
             </div>
+            {error.message === 'session_expired' ? (
+              <button type="button" onClick={onConnect} className="btn shrink-0 py-1.5 text-[11px]">
+                Reconnect
+              </button>
+            ) : (
+              <button
+                type="button"
+                onClick={() => queryClient.refetchQueries({ queryKey: ['monitors'] })}
+                className="btn-ghost shrink-0 py-1.5 text-[11px]"
+              >
+                Retry
+              </button>
+            )}
           </div>
         </div>
       )}
@@ -821,7 +855,7 @@ export default function DashboardPage() {
     monitorUrl?: string;
     monitorBalance?: number;
   } | null>(null);
-  const { isAuthenticated } = useAuth();
+  const { isAuthenticated, isLoading: authLoading } = useAuth();
   const landingRef = useReveal();
   const router = useRouter();
   const queryClient = useQueryClient();
@@ -929,6 +963,15 @@ export default function DashboardPage() {
     }
   }
 
+  // Show a loading state while auth resolves to prevent flash of landing content
+  if (authLoading) {
+    return (
+      <div className="flex items-center justify-center py-40">
+        <div className="h-8 w-8 animate-pulse rounded-xl bg-accent/20" />
+      </div>
+    );
+  }
+
   if (!isAuthenticated) {
     return (
       <>
@@ -1029,6 +1072,7 @@ export default function DashboardPage() {
         setSearch={setSearch}
         onExecute={handleExecute}
         onDelete={handleDelete}
+        onConnect={connect}
       />
       <ConfirmDialog
         isOpen={!!confirmDialog}

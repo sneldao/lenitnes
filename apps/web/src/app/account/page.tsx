@@ -5,7 +5,19 @@ import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { api } from '@/lib/api';
 import { useAuth } from '@/lib/useAuth';
 import { useToast } from '@/components/Toast';
-import { Shield, Key, Eye, EyeOff, Check, X, AlertTriangle, Loader, User } from 'lucide-react';
+import {
+  Shield,
+  Key,
+  Eye,
+  EyeOff,
+  Check,
+  X,
+  AlertTriangle,
+  Loader,
+  User,
+  Trash2,
+} from 'lucide-react';
+import { ConfirmDialog } from '@/components/ConfirmDialog';
 
 export default function AccountPage() {
   const { user, isAuthenticated } = useAuth();
@@ -20,6 +32,8 @@ export default function AccountPage() {
   const [profileEmail, setProfileEmail] = useState('');
   const [profileSaving, setProfileSaving] = useState(false);
   const [profileDirty, setProfileDirty] = useState(false);
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const [deleting, setDeleting] = useState(false);
 
   const { data: profile } = useQuery({
     queryKey: ['profile'],
@@ -76,7 +90,7 @@ export default function AccountPage() {
   }
 
   async function handleDeleteKeys() {
-    if (!confirm('Remove your Kraken API keys? They will be permanently deleted.')) return;
+    setDeleting(true);
     try {
       await api.krakenDeleteConfigure();
       toast.success('Kraken API keys removed');
@@ -85,6 +99,9 @@ export default function AccountPage() {
       queryClient.invalidateQueries({ queryKey: ['krakenStatus'] });
     } catch (e) {
       setError(String(e));
+    } finally {
+      setDeleting(false);
+      setShowDeleteConfirm(false);
     }
   }
 
@@ -192,7 +209,8 @@ export default function AccountPage() {
             {saving ? 'Saving…' : 'Save Keys'}
           </button>
           {krakenStatus?.configured && (
-            <button className="btn-danger" onClick={handleDeleteKeys}>
+            <button className="btn-danger" onClick={() => setShowDeleteConfirm(true)}>
+              <Trash2 className="h-3.5 w-3.5" />
               Remove Keys
             </button>
           )}
@@ -211,7 +229,10 @@ export default function AccountPage() {
             className="input"
             placeholder="Your name on the leaderboard"
             value={displayName}
-            onChange={(e) => setDisplayName(e.target.value)}
+            onChange={(e) => {
+              setDisplayName(e.target.value);
+              setProfileDirty(true);
+            }}
             maxLength={32}
           />
           <p className="mt-1 text-[10px] text-slate-500">
@@ -225,11 +246,18 @@ export default function AccountPage() {
             type="email"
             placeholder="For signal notifications"
             value={profileEmail}
-            onChange={(e) => setProfileEmail(e.target.value)}
+            onChange={(e) => {
+              setProfileEmail(e.target.value);
+              setProfileDirty(true);
+            }}
           />
         </div>
         <div className="flex gap-3">
-          <button className="btn" disabled={profileSaving} onClick={handleProfileSave}>
+          <button
+            className="btn"
+            disabled={!profileDirty || profileSaving}
+            onClick={handleProfileSave}
+          >
             {profileSaving ? 'Saving…' : 'Save Profile'}
           </button>
           {profileDirty && (
@@ -272,6 +300,16 @@ export default function AccountPage() {
           safety. Always test with a paper trade first.
         </p>
       </div>
+
+      <ConfirmDialog
+        isOpen={showDeleteConfirm}
+        onClose={() => setShowDeleteConfirm(false)}
+        onConfirm={handleDeleteKeys}
+        title="Remove Kraken API Keys"
+        description="Your Kraken API keys will be permanently deleted. You can add new keys at any time."
+        confirmLabel={deleting ? 'Removing…' : 'Remove Keys'}
+        isLoading={deleting}
+      />
     </div>
   );
 }

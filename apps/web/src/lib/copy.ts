@@ -32,7 +32,7 @@ export function formatTimeLeft(totalSeconds: number): string {
   const m = Math.floor((totalSeconds % 3600) / 60);
   if (h > 0) return `${h}h ${m}m`;
   if (m > 0) return `${m}m`;
-  return '< 1m';
+  return 'Less than a minute';
 }
 
 /** Strip protocol and path from URL for display. */
@@ -50,7 +50,7 @@ export const COPY = {
     inactive: (missedCount: number) =>
       missedCount > 0
         ? `Monitor paused — ${missedCount} potential ${missedCount === 1 ? 'signal' : 'signals'} missed while inactive`
-        : 'Monitor paused — no funds staked. Top up to resume watching.',
+        : 'Monitor paused — top up to keep watching.',
 
     /** Checks remaining with urgency. */
     checksRemaining: (n: number) => `${n} check${n === 1 ? '' : 's'} remaining`,
@@ -74,7 +74,7 @@ export const COPY = {
       execute: 'Check Now',
       executeSubtitle: 'Instantly verify if the condition is met',
       delete: 'Remove',
-      deleteSubtitle: 'Release remaining escrow',
+      deleteSubtitle: 'Refund unused balance to your wallet',
       topUp: 'Refill',
       topUpSubtitle: 'Add ℏ to keep your monitor running',
     },
@@ -177,14 +177,14 @@ export const COPY = {
       title: 'Remove monitor',
       description: (host: string, remainingHbar: number) => {
         const usd = (remainingHbar * HBAR_USD_RATE).toFixed(2);
-        return `Remove ${host} and forfeit ${remainingHbar.toFixed(2)} ℏ (~$${usd}) in staked balance?\n\nThis cannot be undone. Signal history remains on the public proof chain.`;
+        return `Remove ${host} and release ${remainingHbar.toFixed(2)} ℏ (~$${usd}) from your staked balance?\n\nThis cannot be undone. Signal history remains on the public proof chain.`;
       },
       confirmLabel: 'Remove & Release',
     },
   },
 
   errors: {
-    noWallet: 'Connect your Hedera wallet to pay via x402.',
+    noWallet: 'Connect your Hedera wallet to get started.',
     paymentRejected: 'Payment rejected in wallet. You were not charged.',
     paymentFailed: 'x402 payment setup failed. Check your wallet balance and try again.',
     timeout: 'Request timed out. The network may be congested — try again.',
