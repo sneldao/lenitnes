@@ -864,49 +864,52 @@ export default function RulesPage() {
           Active Rules ({rules.length})
         </h2>
         {rules.length === 0 && (
-          <div className="stat-card p-6 text-center">
-            <p className="text-sm text-slate-500">No rules configured yet</p>
+          <p className="font-mono text-sm text-slate-600 py-4">no rules configured yet</p>
+        )}
+        {rules.length > 0 && (
+          <div className="divide-y divide-edge/30 overflow-hidden rounded-xl border border-edge/50 bg-ink-light/30">
+            {rules.map((r) => {
+              const meta = ACTION_META[r.action_type as TemplateId] ?? ACTION_META.webhook;
+              return (
+                <div key={r.id} className="flex items-center justify-between px-5 py-4">
+                  <div className="flex items-center gap-3">
+                    <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-edge/40">
+                      <meta.icon className={`h-3.5 w-3.5 ${meta.color}`} />
+                    </div>
+                    <div>
+                      <p className="text-sm font-medium text-slate-200">{meta.label}</p>
+                      <p className="font-mono text-[10px] text-slate-600">
+                        {r.created_at ? new Date(r.created_at).toLocaleDateString() : '—'}
+                      </p>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-3">
+                    <span
+                      className={`badge ${
+                        r.is_active ? 'bg-signal/15 text-signal' : 'bg-slate-500/15 text-slate-500'
+                      }`}
+                    >
+                      {r.is_active ? (
+                        <>
+                          <span className="h-1.5 w-1.5 rounded-full bg-signal animate-pulse" />{' '}
+                          Active
+                        </>
+                      ) : (
+                        'Disabled'
+                      )}
+                    </span>
+                    <button
+                      onClick={() => deleteRule(r.id)}
+                      className="text-[10px] font-medium text-slate-600 transition-colors hover:text-danger"
+                    >
+                      <X className="h-3.5 w-3.5" />
+                    </button>
+                  </div>
+                </div>
+              );
+            })}
           </div>
         )}
-        {rules.map((r) => {
-          const meta = ACTION_META[r.action_type as TemplateId] ?? ACTION_META.webhook;
-          return (
-            <div key={r.id} className="card flex items-center justify-between py-4">
-              <div className="flex items-center gap-3">
-                <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-edge/40">
-                  <meta.icon className={`h-4 w-4 ${meta.color}`} />
-                </div>
-                <div>
-                  <p className="text-sm font-medium text-slate-200">{meta.label}</p>
-                  <p className="text-[10px] text-slate-500">
-                    {r.created_at ? new Date(r.created_at).toLocaleDateString() : '—'}
-                  </p>
-                </div>
-              </div>
-              <div className="flex items-center gap-3">
-                <span
-                  className={`badge ${
-                    r.is_active ? 'bg-signal/15 text-signal' : 'bg-slate-500/15 text-slate-500'
-                  }`}
-                >
-                  {r.is_active ? (
-                    <>
-                      <span className="h-1.5 w-1.5 rounded-full bg-signal animate-pulse" /> Active
-                    </>
-                  ) : (
-                    'Disabled'
-                  )}
-                </span>
-                <button
-                  onClick={() => deleteRule(r.id)}
-                  className="text-[10px] font-medium text-slate-500 transition-colors hover:text-danger"
-                >
-                  <X className="h-3.5 w-3.5" />
-                </button>
-              </div>
-            </div>
-          );
-        })}
       </div>
 
       {/* ── Webhook Delivery Log ── */}
@@ -996,70 +999,64 @@ function WebhookDeliveryLog() {
   });
 
   if (isLoading) {
-    return (
-      <div className="stat-card p-6 text-center">
-        <p className="text-sm text-slate-500">Loading deliveries…</p>
-      </div>
-    );
+    return <p className="font-mono text-sm text-slate-600 py-2">loading deliveries…</p>;
   }
 
   if (deliveries.length === 0) {
     return (
-      <div className="stat-card p-6 text-center">
-        <p className="text-sm text-slate-500">No webhook deliveries recorded yet</p>
-        <p className="mt-1 text-[10px] text-slate-600">
-          Deliveries appear here when a signal triggers a webhook rule
-        </p>
-      </div>
+      <p className="font-mono text-sm text-slate-600 py-2">no webhook deliveries recorded yet</p>
     );
   }
 
   return (
-    <div className="space-y-2">
+    <div className="divide-y divide-edge/30 overflow-hidden rounded-xl border border-edge/50 bg-ink-light/30">
       {deliveries.map((d) => {
         const isSuccess = d.status_code !== null && d.status_code >= 200 && d.status_code < 300;
-        const isError = d.status_code !== null && d.status_code >= 300;
         const isTimeout = d.status_code === null && d.error !== null;
         return (
-          <div key={d.id} className="card flex items-center justify-between py-3">
+          <div key={d.id} className="flex items-center justify-between px-5 py-3.5">
             <div className="flex items-center gap-3 min-w-0 flex-1">
               <div
-                className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-lg ${
+                className={`flex h-6 w-6 shrink-0 items-center justify-center rounded-md ${
                   isSuccess ? 'bg-signal/15' : 'bg-danger/15'
                 }`}
               >
                 {isSuccess ? (
-                  <Check className="h-3.5 w-3.5 text-signal" />
+                  <Check className="h-3 w-3 text-signal" />
                 ) : (
-                  <X className="h-3.5 w-3.5 text-danger" />
+                  <X className="h-3 w-3 text-danger" />
                 )}
               </div>
               <div className="min-w-0 flex-1">
-                <div className="flex items-center gap-2">
-                  <span className="truncate max-w-[280px] text-xs font-mono text-slate-300">
-                    {d.url.replace(/^https?:\/\//, '')}
-                  </span>
-                  {d.rule_url && (
-                    <a
-                      href={d.rule_url}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="shrink-0 text-slate-500 hover:text-accent transition-colors"
-                    >
-                      <ExternalLink className="h-3 w-3" />
-                    </a>
-                  )}
-                </div>
-                <p className="mt-0.5 text-[10px] text-slate-500">
+                <span className="truncate max-w-[280px] font-mono text-xs text-slate-400">
+                  {d.url.replace(/^https?:\/\//, '')}
+                </span>
+                <p className="font-mono text-[10px] text-slate-600">
                   {new Date(d.created_at).toLocaleString()} · {d.duration_ms}ms
                   {d.status_code !== null && ` · HTTP ${d.status_code}`}
                 </p>
               </div>
             </div>
             <div className="flex items-center gap-2 shrink-0">
-              {isTimeout && <span className="badge bg-danger/15 text-danger">Timeout</span>}
-              {isError && <span className="badge bg-danger/15 text-danger">{d.status_code}</span>}
-              {isSuccess && <span className="badge bg-signal/15 text-signal">{d.status_code}</span>}
+              {isTimeout && (
+                <span className="badge bg-danger/15 text-danger text-[9px]">timeout</span>
+              )}
+              {!isSuccess && !isTimeout && d.status_code !== null && (
+                <span className="badge bg-danger/15 text-danger text-[9px]">{d.status_code}</span>
+              )}
+              {isSuccess && (
+                <span className="badge bg-signal/15 text-signal text-[9px]">{d.status_code}</span>
+              )}
+              {d.rule_url && (
+                <a
+                  href={d.rule_url}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-slate-600 hover:text-accent transition-colors"
+                >
+                  <ExternalLink className="h-3 w-3" />
+                </a>
+              )}
             </div>
           </div>
         );

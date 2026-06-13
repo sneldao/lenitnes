@@ -34,81 +34,55 @@ function SignalsSummaryBar({ signals }: { signals: Signal[] }) {
     return { total, proofsAnchored, proofsStored, traded, arbProofs, unviewed };
   }, [signals]);
 
-  return (
-    <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
-      <SummaryCard
-        icon={Activity}
-        label="Total Signals"
-        value={stats.total}
-        color="text-accent"
-        bg="bg-accent/10"
-      />
-      <SummaryCard
-        icon={Shield}
-        label="Hedera Proofs"
-        value={stats.proofsAnchored}
-        color="text-signal"
-        bg="bg-signal/10"
-        sub={`${stats.total > 0 ? ((stats.proofsAnchored / stats.total) * 100).toFixed(0) : 0}%`}
-      />
-      <SummaryCard
-        icon={Database}
-        label="IPFS Stored"
-        value={stats.proofsStored}
-        color="text-cyan-400"
-        bg="bg-cyan-400/10"
-        sub={`${stats.total > 0 ? ((stats.proofsStored / stats.total) * 100).toFixed(0) : 0}%`}
-      />
-      <SummaryCard
-        icon={FileCheck}
-        label="Arbitrum Proofs"
-        value={stats.arbProofs}
-        color="text-violet"
-        bg="bg-violet/10"
-      />
-      <SummaryCard
-        icon={TrendingUp}
-        label="Traded"
-        value={stats.traded}
-        color="text-warn"
-        bg="bg-warn/10"
-      />
-      <SummaryCard
-        icon={AlertTriangle}
-        label="Unviewed"
-        value={stats.unviewed}
-        color={stats.unviewed > 0 ? 'text-danger' : 'text-slate-500'}
-        bg={stats.unviewed > 0 ? 'bg-danger/10' : 'bg-slate-500/10'}
-      />
-    </div>
-  );
-}
+  const items = [
+    { label: 'Signals', value: stats.total, color: 'text-accent', pulse: false },
+    {
+      label: 'Hedera',
+      value: `${stats.proofsAnchored}`,
+      sub: stats.total > 0 ? `${((stats.proofsAnchored / stats.total) * 100).toFixed(0)}%` : null,
+      color: 'text-signal',
+      pulse: false,
+    },
+    {
+      label: 'IPFS',
+      value: `${stats.proofsStored}`,
+      sub: stats.total > 0 ? `${((stats.proofsStored / stats.total) * 100).toFixed(0)}%` : null,
+      color: 'text-cyan-400',
+      pulse: false,
+    },
+    { label: 'Arbitrum', value: stats.arbProofs, color: 'text-violet', pulse: false },
+    { label: 'Traded', value: stats.traded, color: 'text-warn', pulse: false },
+    {
+      label: 'Unviewed',
+      value: stats.unviewed,
+      color: stats.unviewed > 0 ? 'text-danger' : 'text-slate-600',
+      pulse: stats.unviewed > 0,
+    },
+  ];
 
-function SummaryCard({
-  icon: Icon,
-  label,
-  value,
-  color,
-  bg,
-  sub,
-}: {
-  icon: typeof Activity;
-  label: string;
-  value: number;
-  color: string;
-  bg: string;
-  sub?: string;
-}) {
   return (
-    <div className="stat-card flex items-center gap-3 px-3 py-3">
-      <div className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-lg ${bg}`}>
-        <Icon className={`h-4 w-4 ${color}`} />
-      </div>
-      <div className="min-w-0">
-        <p className={`text-base font-bold tabular-nums ${color}`}>{value}</p>
-        <p className="text-[10px] text-slate-500 truncate">{label}</p>
-        {sub && <p className="text-[9px] text-slate-600 font-mono">{sub}</p>}
-      </div>
+    <div className="flex flex-wrap items-center rounded-2xl border border-edge/50 bg-ink-light/40 px-1 backdrop-blur-sm">
+      {items.map((s, i, arr) => (
+        <div key={s.label} className="flex items-stretch">
+          <div className="flex items-center gap-3 px-4 py-3.5">
+            <div className="relative">
+              {s.pulse && (
+                <span className="absolute -right-0.5 -top-0.5 h-1.5 w-1.5 rounded-full bg-danger animate-pulse" />
+              )}
+            </div>
+            <div>
+              <p className="text-[10px] font-medium uppercase tracking-widest text-slate-600">
+                {s.label}
+              </p>
+              <p className={`font-mono text-lg font-semibold tabular-nums leading-none ${s.color}`}>
+                {s.value}
+                {s.sub && <span className="ml-1 text-[10px] opacity-60">{s.sub}</span>}
+              </p>
+            </div>
+          </div>
+          {i < arr.length - 1 && <div className="w-px self-stretch bg-edge/60 my-2" />}
+        </div>
+      ))}
     </div>
   );
 }
@@ -337,14 +311,12 @@ export default function SignalsPage() {
       )}
 
       {isLoading && (
-        <div className="space-y-3">
-          {Array.from({ length: 6 }).map((_, i) => (
-            <div key={i} className="card animate-pulse py-4">
-              <div className="flex gap-4">
-                <div className="h-4 w-1/3 rounded bg-edge" />
-                <div className="h-4 w-1/4 rounded bg-edge/60" />
-                <div className="h-4 w-1/6 rounded bg-edge/40" />
-              </div>
+        <div className="divide-y divide-edge/30 overflow-hidden rounded-xl border border-edge/50 bg-ink-light/30">
+          {Array.from({ length: 5 }).map((_, i) => (
+            <div key={i} className="flex gap-4 animate-pulse px-5 py-4">
+              <div className="h-4 w-1/3 rounded bg-edge" />
+              <div className="h-4 w-1/4 rounded bg-edge/60" />
+              <div className="h-4 w-1/6 rounded bg-edge/40" />
             </div>
           ))}
         </div>
@@ -357,58 +329,61 @@ export default function SignalsPage() {
       )}
 
       {!isLoading && !error && signals.length === 0 && (
-        <div className="card space-y-4 p-10 text-center">
-          <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl bg-accent/10">
-            <Activity className="h-7 w-7 text-accent" />
+        <div className="relative overflow-hidden rounded-2xl border border-edge/40 bg-ink-light/30 px-8 py-12">
+          <div className="pointer-events-none absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-accent/30 to-transparent" />
+          <div className="flex items-start gap-6">
+            <div className="shrink-0 pt-1">
+              <div className="flex h-10 w-10 items-center justify-center rounded-xl border border-accent/20 bg-accent/5">
+                <Activity className="h-4 w-4 text-accent/60" />
+              </div>
+            </div>
+            <div className="space-y-1">
+              <p className="font-semibold text-slate-200">No signals yet</p>
+              <p className="text-sm text-slate-500">
+                Signals appear when a monitor detects a condition match.
+              </p>
+              <div className="pt-2">
+                <a
+                  href="https://t.me/lenitnesapp"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="btn-ghost inline-flex text-xs"
+                >
+                  <MessageCircle className="h-3.5 w-3.5" />
+                  See live public signals on Telegram
+                </a>
+              </div>
+            </div>
           </div>
-          <div className="space-y-2">
-            <p className="text-lg font-semibold text-white">No signals yet</p>
-            <p className="text-sm text-slate-400">
-              Signals appear when a monitor detects a condition match.
-            </p>
-          </div>
-          <a
-            href="https://t.me/lenitnesapp"
-            target="_blank"
-            rel="noopener noreferrer"
-            className="btn-ghost inline-flex text-xs text-slate-400"
-          >
-            <MessageCircle className="h-3.5 w-3.5" />
-            See live public signals on Telegram
-          </a>
         </div>
       )}
 
       {filtered.length === 0 && hasActiveFilter && (
-        <div className="stat-card p-8 text-center">
-          <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-xl bg-warn/10">
-            <AlertTriangle className="h-6 w-6 text-warn/60" />
-          </div>
-          <p className="mt-3 text-sm font-medium text-slate-300">No signals match these filters</p>
+        <p className="py-6 text-center font-mono text-sm text-slate-600">
+          no signals match these filters —{' '}
           <button
             onClick={() => {
               setProofFilter('all');
               setTimeFilter('all');
             }}
-            className="btn-ghost mt-3 inline-flex text-xs"
+            className="text-accent underline-offset-2 hover:underline"
           >
-            Clear filters
+            clear
           </button>
-        </div>
+        </p>
       )}
 
       {filtered.length > 0 && (
-        <div className="space-y-2">
+        <div className="divide-y divide-edge/30 overflow-hidden rounded-xl border border-edge/50 bg-ink-light/30">
           {filtered.map((s: Signal) => (
             <Link
               key={s.id}
               href={`/signals/${s.id}`}
-              className="card group flex items-center justify-between py-4 transition-all hover:border-accent/30"
+              className="group flex items-center justify-between px-5 py-4 transition-colors hover:bg-panel-hover/50"
             >
               <div className="flex items-center gap-4 min-w-0 flex-1">
-                {/* Icon with viewed/unviewed state */}
                 <div
-                  className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-xl transition-all ${
+                  className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-lg transition-all ${
                     s.is_heartbeat
                       ? 'bg-slate-500/10'
                       : s.viewed_at
@@ -417,16 +392,15 @@ export default function SignalsPage() {
                   }`}
                 >
                   {s.is_heartbeat ? (
-                    <Activity className="h-4 w-4 text-slate-500" />
+                    <Activity className="h-3.5 w-3.5 text-slate-500" />
                   ) : !s.viewed_at ? (
-                    <Eye className="h-4 w-4 text-accent" />
+                    <Eye className="h-3.5 w-3.5 text-accent" />
                   ) : (
-                    <Zap className="h-4 w-4 text-signal" />
+                    <Zap className="h-3.5 w-3.5 text-signal" />
                   )}
                 </div>
 
-                <div className="min-w-0 flex-1 space-y-1.5">
-                  {/* Title and condition summary */}
+                <div className="min-w-0 flex-1 space-y-1">
                   <div className="flex items-center gap-2">
                     <p className="truncate text-sm font-medium text-slate-200 group-hover:text-white">
                       {s.condition_summary ?? 'Signal detected'}
@@ -437,10 +411,8 @@ export default function SignalsPage() {
                       </span>
                     )}
                   </div>
-
-                  {/* Bottom row: timestamp + proof chain progress */}
                   <div className="flex items-center gap-3 flex-wrap">
-                    <span className="flex items-center gap-1 text-[10px] text-slate-500">
+                    <span className="flex items-center gap-1 font-mono text-[10px] text-slate-600">
                       <Clock className="h-3 w-3" />
                       {new Date(s.detected_at).toLocaleString(undefined, {
                         month: 'short',
@@ -449,34 +421,27 @@ export default function SignalsPage() {
                         minute: '2-digit',
                       })}
                     </span>
-
-                    {/* Proof chain progress dots */}
                     <ProofChainProgress signal={s} />
-
-                    {/* Detailed status pills — only show active ones */}
                     <div className="flex items-center gap-1.5">
                       {s.hedera_tx_id && (
                         <span className="inline-flex items-center gap-1 rounded-full bg-signal/10 px-2 py-0.5 text-[9px] font-medium text-signal">
-                          <Shield className="h-2.5 w-2.5" />
-                          HCS
+                          <Shield className="h-2.5 w-2.5" /> HCS
                         </span>
                       )}
                       {s.ipfs_cid && (
                         <span className="inline-flex items-center gap-1 rounded-full bg-cyan-400/10 px-2 py-0.5 text-[9px] font-medium text-cyan-400">
-                          <Database className="h-2.5 w-2.5" />
-                          IPFS
+                          <Database className="h-2.5 w-2.5" /> IPFS
                         </span>
                       )}
                       {s.arb_tx_hash && (
                         <span className="inline-flex items-center gap-1 rounded-full bg-violet/10 px-2 py-0.5 text-[9px] font-medium text-violet">
-                          <FileCheck className="h-2.5 w-2.5" />
-                          Arb
+                          <FileCheck className="h-2.5 w-2.5" /> Arb
                         </span>
                       )}
                       {(s.orders_count ?? 0) > 0 && (
                         <span className="inline-flex items-center gap-1 rounded-full bg-warn/10 px-2 py-0.5 text-[9px] font-medium text-warn">
-                          <TrendingUp className="h-2.5 w-2.5" />
-                          {s.orders_count} Trade{s.orders_count !== 1 ? 's' : ''}
+                          <TrendingUp className="h-2.5 w-2.5" /> {s.orders_count} Trade
+                          {s.orders_count !== 1 ? 's' : ''}
                         </span>
                       )}
                     </div>

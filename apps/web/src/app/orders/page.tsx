@@ -309,46 +309,42 @@ export default function OrdersPage() {
         </div>
       )}
 
-      <div className="grid gap-4 sm:grid-cols-5">
-        <div className="stat-card space-y-1">
-          <div className="flex items-center gap-2">
-            <TrendingUp className="h-3.5 w-3.5 text-accent" />
-            <span className="section-title">Total</span>
+      <div className="flex flex-wrap items-center rounded-2xl border border-edge/50 bg-ink-light/40 px-1 backdrop-blur-sm">
+        {[
+          { label: 'Total', value: orders.length, color: 'text-slate-300' },
+          { label: 'Open', value: placedCount, color: 'text-accent', pulse: placedCount > 0 },
+          { label: 'Filled', value: filledCount, color: 'text-signal' },
+          {
+            label: 'Failed',
+            value: failedCount,
+            color: failedCount > 0 ? 'text-danger' : 'text-slate-600',
+          },
+          {
+            label: 'Cost',
+            value:
+              totalCost > 0
+                ? `$${totalCost.toLocaleString(undefined, { maximumFractionDigits: 2 })}`
+                : '—',
+            color: 'text-warn',
+          },
+        ].map((s, i, arr) => (
+          <div key={s.label} className="flex items-stretch">
+            <div className="flex items-center gap-3 px-5 py-3.5">
+              {s.pulse && <span className="h-1.5 w-1.5 rounded-full bg-accent animate-pulse" />}
+              <div>
+                <p className="text-[10px] font-medium uppercase tracking-widest text-slate-600">
+                  {s.label}
+                </p>
+                <p
+                  className={`font-mono text-lg font-semibold tabular-nums leading-none ${s.color}`}
+                >
+                  {s.value}
+                </p>
+              </div>
+            </div>
+            {i < arr.length - 1 && <div className="w-px self-stretch bg-edge/60 my-2" />}
           </div>
-          <p className="text-2xl font-bold text-white">{orders.length}</p>
-        </div>
-        <div className="stat-card space-y-1">
-          <div className="flex items-center gap-2">
-            <ArrowUpRight className="h-3.5 w-3.5 text-accent" />
-            <span className="section-title">Open</span>
-          </div>
-          <p className="text-2xl font-bold text-white">{placedCount}</p>
-        </div>
-        <div className="stat-card space-y-1">
-          <div className="flex items-center gap-2">
-            <Check className="h-3.5 w-3.5 text-signal" />
-            <span className="section-title">Filled</span>
-          </div>
-          <p className="text-2xl font-bold text-white">{filledCount}</p>
-        </div>
-        <div className="stat-card space-y-1">
-          <div className="flex items-center gap-2">
-            <X className="h-3.5 w-3.5 text-danger" />
-            <span className="section-title">Failed</span>
-          </div>
-          <p className="text-2xl font-bold text-white">{failedCount}</p>
-        </div>
-        <div className="stat-card space-y-1">
-          <div className="flex items-center gap-2">
-            <TrendingUp className="h-3.5 w-3.5 text-slate-400" />
-            <span className="section-title">Cost</span>
-          </div>
-          <p className="text-2xl font-bold text-white">
-            {totalCost > 0
-              ? `$${totalCost.toLocaleString(undefined, { maximumFractionDigits: 2 })}`
-              : '—'}
-          </p>
-        </div>
+        ))}
       </div>
 
       {/* Filter Bar */}
@@ -441,14 +437,12 @@ export default function OrdersPage() {
       )}
 
       {isLoading && (
-        <div className="space-y-2">
+        <div className="divide-y divide-edge/30 overflow-hidden rounded-xl border border-edge/50 bg-ink-light/30">
           {Array.from({ length: 5 }).map((_, i) => (
-            <div key={i} className="card animate-pulse py-4">
-              <div className="flex gap-4">
-                <div className="h-4 w-1/4 rounded bg-edge" />
-                <div className="h-4 w-1/6 rounded bg-edge/60" />
-                <div className="h-4 w-1/6 rounded bg-edge/40" />
-              </div>
+            <div key={i} className="flex gap-4 animate-pulse px-5 py-4">
+              <div className="h-4 w-1/4 rounded bg-edge" />
+              <div className="h-4 w-1/6 rounded bg-edge/60" />
+              <div className="h-4 w-1/6 rounded bg-edge/40" />
             </div>
           ))}
         </div>
@@ -460,23 +454,27 @@ export default function OrdersPage() {
       )}
 
       {!isLoading && !error && orders.length === 0 && (
-        <div className="card space-y-3 p-10 text-center">
-          <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl bg-accent/10">
-            <TrendingUp className="h-7 w-7 text-accent" />
+        <div className="relative overflow-hidden rounded-2xl border border-edge/40 bg-ink-light/30 px-8 py-12">
+          <div className="pointer-events-none absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-accent/30 to-transparent" />
+          <div className="flex items-start gap-6">
+            <div className="shrink-0 pt-1">
+              <div className="flex h-10 w-10 items-center justify-center rounded-xl border border-accent/20 bg-accent/5">
+                <TrendingUp className="h-4 w-4 text-accent/60" />
+              </div>
+            </div>
+            <div className="space-y-1">
+              <p className="font-semibold text-slate-200">No orders yet</p>
+              <p className="text-sm text-slate-500">
+                Orders appear when a signal triggers a rule with trade execution.
+              </p>
+            </div>
           </div>
-          <p className="text-lg font-semibold text-white">No orders yet</p>
-          <p className="text-sm text-slate-400">
-            Orders appear when a signal triggers a rule with trade execution.
-          </p>
         </div>
       )}
 
       {filtered.length === 0 && hasActiveFilter && (
-        <div className="stat-card p-8 text-center">
-          <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-xl bg-warn/10">
-            <TrendingUp className="h-6 w-6 text-warn/60" />
-          </div>
-          <p className="mt-3 text-sm font-medium text-slate-300">No orders match these filters</p>
+        <p className="py-6 text-center font-mono text-sm text-slate-600">
+          no orders match these filters —{' '}
           <button
             onClick={() => {
               setStatusFilter('all');
@@ -484,11 +482,11 @@ export default function OrdersPage() {
               setTypeFilter('all');
               setSearchPair('');
             }}
-            className="btn-ghost mt-3 inline-flex text-xs"
+            className="text-accent underline-offset-2 hover:underline"
           >
-            Clear filters
+            clear
           </button>
-        </div>
+        </p>
       )}
 
       {filtered.length > 0 && (
