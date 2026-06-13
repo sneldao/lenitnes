@@ -9,6 +9,7 @@ import type {
   CreateMonitorInput,
   CreateRuleInput,
   LeaderboardResponse,
+  HunterDetailResponse,
 } from '@lenitnes/types';
 
 const BASE = process.env.NEXT_PUBLIC_API_URL || '/api';
@@ -37,6 +38,7 @@ export {
   type SignalDetail,
   type Rule,
   type LeaderboardResponse,
+  type HunterDetailResponse,
 };
 
 export interface AuthUser {
@@ -228,6 +230,14 @@ export const api = {
     if (params?.offset) qs.set('offset', String(params.offset));
     const suffix = qs.toString();
     return req<LeaderboardResponse>(`/leaderboard${suffix ? `?${suffix}` : ''}`);
+  },
+
+  getHunterDetail: (userId: string, params?: { limit?: number; offset?: number }) => {
+    const qs = new URLSearchParams();
+    if (params?.limit) qs.set('limit', String(params.limit));
+    if (params?.offset) qs.set('offset', String(params.offset));
+    const suffix = qs.toString();
+    return req<HunterDetailResponse>(`/leaderboard/${userId}${suffix ? `?${suffix}` : ''}`);
   },
 };
 

@@ -46,6 +46,7 @@ import SocialProof from '@/components/landing/SocialProof';
 import BacktestProof from '@/components/landing/BacktestProof';
 import InteractiveDemo from '@/components/landing/InteractiveDemo';
 import LiveCounterBar from '@/components/landing/LiveCounterBar';
+import LandingLeaderboard from '@/components/landing/LandingLeaderboard';
 import { OnboardingWizard } from '@/components/onboarding/OnboardingWizard';
 
 type TemplateSelection = {
@@ -976,6 +977,12 @@ export default function DashboardPage() {
 
           {/* Section Divider */}
           <SectionDivider />
+
+          {/* Top Signal Hunters — live leaderboard */}
+          <LandingLeaderboard />
+
+          {/* Section Divider */}
+          <SectionDivider variant="accent" />
 
           {/* Interactive Sandbox Demo */}
           <InteractiveDemo onUseTemplate={handleUseTemplate} />

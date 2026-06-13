@@ -2,7 +2,12 @@ import { Router, type Request, type Response } from 'express';
 import { query } from '../db/pool.js';
 import { cacheGet, cacheSet } from '../middleware/cache.js';
 import { logger } from '../logger.js';
-import type { LeaderboardEntry, LeaderboardResponse } from '@lenitnes/types';
+import type {
+  LeaderboardEntry,
+  LeaderboardResponse,
+  HunterDetailResponse,
+  Signal,
+} from '@lenitnes/types';
 
 export const leaderboardRouter = Router();
 
@@ -180,5 +185,153 @@ leaderboardRouter.get('/', async (req: Request, res: Response) => {
   } catch (err) {
     logger.error({ err }, 'failed to fetch leaderboard');
     res.status(500).json({ error: 'failed to fetch leaderboard' });
+  }
+});
+
+// ── GET /leaderboard/:userId — single hunter detail + signals ───
+// Fully public, cached for 30s. Returns the hunter's aggregate stats
+// and their signals from public monitors with pagination.
+leaderboardRouter.get('/:userId', async (req: Request, res: Response) => {
+  const { userId } = req.params;
+  const signalLimit = Math.min(Number(req.query.limit ?? 25), 50);
+  const signalOffset = Math.max(Number(req.query.offset ?? 0), 0);
+  const cacheKey = `leaderboard:user:${userId}:${signalLimit}:${signalOffset}`;
+  const cached = cacheGet<HunterDetailResponse>(cacheKey);
+  if (cached) {
+    res.setHeader('X-Cache', 'HIT');
+    res.json(cached);
+    return;
+  }
+
+  try {
+    // ── Check the user exists and has public signals ───────────
+    const userCheck = await query<{ id: string; wallet_address: string; email: string | null }>(
+      `SELECT id, wallet_address, email FROM users WHERE id = $1`,
+      [userId],
+    );
+    if (!userCheck.rows.length) {
+      return res.status(404).json({ error: 'user_not_found' });
+    }
+
+    // ── Hunter aggregate stats ─────────────────────────────────
+    const hunterResult = await query<{
+      total_signals: string;
+      chain_completed: string;
+      hit_rate: string | null;
+      top_pair: string | null;
+      last_signal_at: string | null;
+      current_streak: string;
+    }>(
+      `WITH hunter_signals AS (
+         SELECT
+           COUNT(s.id)::int AS total_signals,
+           COUNT(s.id) FILTER (
+             WHERE s.hedera_tx_id IS NOT NULL
+               AND s.ipfs_cid IS NOT NULL
+               AND s.arb_tx_hash IS NOT NULL
+           )::int AS chain_completed,
+           MAX(s.detected_at) AS last_signal_at
+         FROM monitors m
+         JOIN signals s ON s.monitor_id = m.id AND s.is_heartbeat = false
+         WHERE m.is_public = true AND m.user_id = $1
+         GROUP BY m.user_id
+       ),
+       top_pairs AS (
+         SELECT
+           o.order_params->>'pair' AS pair,
+           COUNT(*) AS pair_count
+         FROM orders o
+         JOIN signals s ON s.id = o.signal_id
+         JOIN monitors m ON m.id = s.monitor_id AND m.is_public = true
+         WHERE m.user_id = $1 AND o.order_params->>'pair' IS NOT NULL
+         GROUP BY o.order_params->>'pair'
+         ORDER BY pair_count DESC
+         LIMIT 1
+       ),
+       user_accuracy AS (
+         SELECT
+           COUNT(*) FILTER (
+             WHERE (so.pct_change::numeric > 0 AND so.direction = 'up')
+                OR (so.pct_change::numeric < 0 AND so.direction = 'down')
+           )::int AS correct,
+           COUNT(*)::int AS total
+         FROM signal_outcomes so
+         JOIN signals s ON s.id = so.signal_id
+         JOIN monitors m ON m.id = s.monitor_id AND m.is_public = true
+         WHERE m.user_id = $1
+       ),
+       active_dates AS (
+         SELECT DISTINCT s.detected_at::date AS active_date
+         FROM monitors m
+         JOIN signals s ON s.monitor_id = m.id AND s.is_heartbeat = false
+         WHERE m.is_public = true AND m.user_id = $1
+       ),
+       date_groups AS (
+         SELECT active_date,
+           active_date - (ROW_NUMBER() OVER (ORDER BY active_date))::int AS grp
+         FROM active_dates
+       ),
+       current_streaks AS (
+         SELECT streak_days AS current_streak
+         FROM (
+           SELECT COUNT(*) AS streak_days,
+             ROW_NUMBER() OVER (ORDER BY grp DESC) AS rn
+           FROM date_groups
+           GROUP BY grp
+         ) ranked
+         WHERE rn = 1
+       )
+       SELECT
+         COALESCE(hs.total_signals, 0)::text AS total_signals,
+         COALESCE(hs.chain_completed, 0)::text AS chain_completed,
+         (ua.correct::numeric / NULLIF(ua.total, 0))::text AS hit_rate,
+         tp.pair AS top_pair,
+         hs.last_signal_at,
+         COALESCE(cs.current_streak, 0)::text AS current_streak
+       FROM hunter_signals hs
+       CROSS JOIN user_accuracy ua
+       LEFT JOIN top_pairs tp ON TRUE
+       LEFT JOIN current_streaks cs ON TRUE`,
+      [userId],
+    );
+
+    const h = hunterResult.rows[0];
+    const userRow = userCheck.rows[0];
+    const hunter = {
+      user_id: userId,
+      wallet_address: userRow.wallet_address,
+      email: userRow.email,
+      total_signals: Number(h?.total_signals ?? 0),
+      chain_completed: Number(h?.chain_completed ?? 0),
+      accuracy: h?.hit_rate ? `${(Number(h.hit_rate) * 100).toFixed(0)}%` : null,
+      streak: Number(h?.current_streak ?? 0),
+      top_pair: h?.top_pair ?? null,
+      last_signal_at: h?.last_signal_at ?? null,
+    };
+
+    // ── Hunter's signals (paginated) ──────────────────────────
+    const signalsResult = await query(
+      `SELECT s.*, COALESCE(o.orders_count, 0) AS orders_count FROM signals s
+       JOIN monitors m ON m.id = s.monitor_id
+       LEFT JOIN (
+         SELECT signal_id, COUNT(*) AS orders_count FROM orders GROUP BY signal_id
+       ) o ON o.signal_id = s.id
+       WHERE m.is_public = true AND m.user_id = $1 AND s.is_heartbeat = false
+       ORDER BY s.detected_at DESC
+       LIMIT $2 OFFSET $3`,
+      [userId, signalLimit, signalOffset],
+    );
+
+    const response: HunterDetailResponse = {
+      hunter,
+      signals: signalsResult.rows as unknown as Signal[],
+    };
+
+    cacheSet(cacheKey, response, 30_000);
+    res.setHeader('X-Cache', 'MISS');
+    res.json(response);
+  } catch (err) {
+    logger.error({ err }, 'failed to fetch hunter detail');
+    res.status(500).json({ error: 'failed to fetch hunter detail' });
   }
 });

@@ -12,7 +12,9 @@ import {
   Users,
   Activity,
   Shield,
+  Search,
   Loader2,
+  ChevronRight,
 } from 'lucide-react';
 import { api, type LeaderboardResponse } from '@/lib/api';
 
@@ -75,6 +77,8 @@ function StatCard({
 
 export default function LeaderboardPage() {
   const [limit, setLimit] = useState(PAGE_SIZE);
+  const [pairSearch, setPairSearch] = useState('');
+  const [minSignals, setMinSignals] = useState(0);
 
   const {
     data: leaderboard,
@@ -88,12 +92,22 @@ export default function LeaderboardPage() {
     placeholderData: (prev) => prev,
   });
 
-  const entries = leaderboard?.entries ?? [];
+  let entries = leaderboard?.entries ?? [];
   const stats = leaderboard?.stats;
+
+  // Client-side filtering for pair search and min signals
+  if (pairSearch) {
+    entries = entries.filter(
+      (e) => e.top_pair && e.top_pair.toLowerCase().includes(pairSearch.toLowerCase()),
+    );
+  }
+  if (minSignals > 0) {
+    entries = entries.filter((e) => e.total_signals >= minSignals);
+  }
 
   // If we got back fewer entries than a full page, there are no more to load.
   // Uses PAGE_SIZE (not limit) so the button stays visible during pagination load.
-  const hasMore = entries.length >= PAGE_SIZE;
+  const hasMore = (leaderboard?.entries.length ?? 0) >= PAGE_SIZE;
 
   return (
     <div className="space-y-8 animate-fade-in">
@@ -113,6 +127,48 @@ export default function LeaderboardPage() {
           Top code-signal hunters. Public feeds only. Updated every 30s.
         </p>
       </div>
+
+      {/* Filter bar — visibility tied to unfiltered entries so it stays visible when filters match zero */}
+      {!isLoading && (leaderboard?.entries.length ?? 0) > 0 && (
+        <div className="flex flex-wrap items-center gap-3">
+          <div className="relative flex-1 min-w-[160px] max-w-[240px]">
+            <Search className="absolute left-2.5 top-1/2 h-3 w-3 -translate-y-1/2 text-slate-600" />
+            <input
+              className="w-full rounded-lg border border-edge/40 bg-ink-light/50 py-1.5 pl-7 pr-2.5 text-[11px] outline-none transition-colors placeholder:text-slate-600 focus:border-accent/40"
+              placeholder="Filter by pair…"
+              value={pairSearch}
+              onChange={(e) => setPairSearch(e.target.value)}
+            />
+          </div>
+          <div className="flex items-center gap-2 text-[11px] text-slate-500">
+            <span>Min signals:</span>
+            {[0, 5, 10, 25, 50].map((n) => (
+              <button
+                key={n}
+                onClick={() => setMinSignals(n)}
+                className={`rounded-lg px-2 py-1 font-semibold transition-all cursor-pointer select-none ${
+                  minSignals === n
+                    ? 'bg-accent/10 text-accent shadow-glow-sm'
+                    : 'text-slate-500 hover:text-slate-300 hover:bg-edge/40'
+                }`}
+              >
+                {n === 0 ? 'All' : `${n}+`}
+              </button>
+            ))}
+          </div>
+          {(pairSearch || minSignals > 0) && (
+            <button
+              onClick={() => {
+                setPairSearch('');
+                setMinSignals(0);
+              }}
+              className="rounded-lg px-2 py-1 text-[11px] font-semibold text-slate-600 hover:text-slate-300 hover:bg-edge/40 transition-all cursor-pointer select-none"
+            >
+              Clear filters
+            </button>
+          )}
+        </div>
+      )}
 
       {/* Stats bar */}
       {stats && (
@@ -197,9 +253,10 @@ export default function LeaderboardPage() {
               const name = formatAddress(hunter.wallet_address);
               const avatar = avatarInitials(hunter.wallet_address);
               return (
-                <div
+                <Link
                   key={hunter.user_id}
-                  className="flex items-center gap-4 px-5 py-4 hover:bg-ink-light/30 transition-colors"
+                  href={`/hunters/${hunter.user_id}`}
+                  className="flex items-center gap-4 px-5 py-4 hover:bg-ink-light/30 transition-colors group"
                 >
                   <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-ink-light text-sm font-bold text-slate-400">
                     {rank <= 3 ? (
@@ -216,14 +273,14 @@ export default function LeaderboardPage() {
                       <span className="text-xs">{rank}</span>
                     )}
                   </div>
-
                   <div className="flex h-9 w-9 items-center justify-center rounded-full bg-accent/10 text-xs font-medium text-accent">
                     {avatar}
                   </div>
-
                   <div className="min-w-0 flex-1">
                     <div className="flex items-center gap-2">
-                      <p className="text-sm font-medium text-white truncate">{name}</p>
+                      <p className="text-sm font-medium text-white truncate group-hover:text-accent transition-colors">
+                        {name}
+                      </p>
                       {/* Mobile chain completion — inline with name */}
                       <span className="sm:hidden flex items-center gap-1 text-[10px]">
                         <span className="tabular-nums font-semibold text-signal">
@@ -238,7 +295,6 @@ export default function LeaderboardPage() {
                       Last signal {timeAgo(hunter.last_signal_at)}
                     </p>
                   </div>
-
                   {/* Per-hunter chain completion */}
                   <div className="hidden sm:flex items-center gap-2">
                     <div className="flex flex-col items-center">
@@ -257,12 +313,17 @@ export default function LeaderboardPage() {
                         />
                       </div>
                     </div>
-                  </div>
-
+                  </div>{' '}
                   <div className="hidden sm:flex items-center gap-6 text-xs text-slate-400">
                     <div className="text-center">
                       <p className="font-semibold text-white">{hunter.total_signals}</p>
                       <p className="text-[10px] text-slate-500">signals</p>
+                    </div>
+                    <div className="text-center">
+                      <p className="font-semibold text-white tabular-nums">
+                        {hunter.streak > 0 ? `${hunter.streak}d` : '—'}
+                      </p>
+                      <p className="text-[10px] text-slate-500">streak</p>
                     </div>
                     <div className="text-center">
                       <p
@@ -277,9 +338,8 @@ export default function LeaderboardPage() {
                       <p className="text-[10px] text-slate-500">last signal</p>
                     </div>
                   </div>
-
-                  <TrendingUp className="h-4 w-4 text-signal hidden sm:block" />
-                </div>
+                  <ChevronRight className="h-4 w-4 shrink-0 text-slate-600 transition-transform group-hover:translate-x-0.5 group-hover:text-accent" />
+                </Link>
               );
             })}
           </div>
