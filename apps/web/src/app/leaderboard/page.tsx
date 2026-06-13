@@ -79,6 +79,7 @@ export default function LeaderboardPage() {
   const [limit, setLimit] = useState(PAGE_SIZE);
   const [pairSearch, setPairSearch] = useState('');
   const [minSignals, setMinSignals] = useState(0);
+  const [sort, setSort] = useState<'signals' | 'accuracy' | 'streak' | 'recent'>('signals');
 
   const {
     data: leaderboard,
@@ -86,8 +87,8 @@ export default function LeaderboardPage() {
     isFetching,
     error,
   } = useQuery<LeaderboardResponse>({
-    queryKey: ['leaderboard', limit],
-    queryFn: () => api.getLeaderboard({ limit }),
+    queryKey: ['leaderboard', limit, sort],
+    queryFn: () => api.getLeaderboard({ limit, sort }),
     refetchInterval: 30_000,
     placeholderData: (prev) => prev,
   });
@@ -167,6 +168,32 @@ export default function LeaderboardPage() {
               Clear filters
             </button>
           )}
+          {/* Sort controls */}
+          <div className="flex items-center gap-1 ml-auto">
+            <span className="text-[10px] text-slate-600 mr-1">Sort:</span>
+            {(['signals', 'accuracy', 'streak', 'recent'] as const).map((s) => (
+              <button
+                key={s}
+                onClick={() => {
+                  setSort(s);
+                  setLimit(PAGE_SIZE);
+                }}
+                className={`rounded-lg px-2 py-1 text-[11px] font-semibold transition-all cursor-pointer select-none ${
+                  sort === s
+                    ? 'bg-accent/10 text-accent shadow-glow-sm'
+                    : 'text-slate-500 hover:text-slate-300 hover:bg-edge/40'
+                }`}
+              >
+                {s === 'signals'
+                  ? 'Signals'
+                  : s === 'accuracy'
+                    ? 'Accuracy'
+                    : s === 'streak'
+                      ? 'Streak'
+                      : 'Recent'}
+              </button>
+            ))}
+          </div>
         </div>
       )}
 

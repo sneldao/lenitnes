@@ -242,10 +242,15 @@ export const api = {
       method: 'POST',
     }),
 
-  getLeaderboard: (params?: { limit?: number; offset?: number }) => {
+  getLeaderboard: (params?: {
+    limit?: number;
+    offset?: number;
+    sort?: 'signals' | 'accuracy' | 'streak' | 'recent';
+  }) => {
     const qs = new URLSearchParams();
     if (params?.limit) qs.set('limit', String(params.limit));
     if (params?.offset) qs.set('offset', String(params.offset));
+    if (params?.sort) qs.set('sort', params.sort);
     const suffix = qs.toString();
     return req<LeaderboardResponse>(`/leaderboard${suffix ? `?${suffix}` : ''}`);
   },
