@@ -4,6 +4,7 @@ pragma solidity ^0.8.24;
 import {Test} from "forge-std/Test.sol";
 import {SignalRegistry} from "../src/SignalRegistry.sol";
 import {TradeExecutor} from "../src/TradeExecutor.sol";
+import {StockMarket, ISwapRouter} from "../src/StockMarket.sol";
 
 contract SignalRegistryTest is Test {
     SignalRegistry registry;
@@ -145,5 +146,130 @@ contract TradeExecutorTest is Test {
         (bool ok, ) = address(executor).call{value: 0.1 ether}("");
         assertTrue(ok);
         assertEq(address(executor).balance, 0.1 ether);
+    }
+}
+
+contract MockERC20 {
+    string public name;
+    mapping(address => uint256) public balanceOf;
+    mapping(address => mapping(address => uint256)) public allowance;
+
+    constructor(string memory _name) { name = _name; }
+
+    function mint(address to, uint256 amount) external {
+        balanceOf[to] += amount;
+    }
+
+    function approve(address spender, uint256 amount) external returns (bool) {
+        allowance[msg.sender][spender] = amount;
+        return true;
+    }
+
+    function transfer(address to, uint256 amount) external returns (bool) {
+        balanceOf[msg.sender] -= amount;
+        balanceOf[to] += amount;
+        return true;
+    }
+
+    function transferFrom(address from, address to, uint256 amount) external returns (bool) {
+        allowance[from][msg.sender] -= amount;
+        balanceOf[from] -= amount;
+        balanceOf[to] += amount;
+        return true;
+    }
+}
+
+contract StockMarketTest is Test {
+    StockMarket market;
+    MockERC20 usdg;
+    MockERC20 tsla;
+    address deployer = address(0x1);
+    address trader = address(0x2);
+
+    function setUp() public {
+        vm.startPrank(deployer);
+        market = new StockMarket();
+        usdg = new MockERC20("USDG");
+        tsla = new MockERC20("TSLA");
+        // TSLA at $250/share
+        market.setStockPrice(address(tsla), 250e18);
+        // Fund the market with stock tokens
+        tsla.mint(address(market), 100e18);
+        usdg.mint(address(market), 100000e18);
+        // Give trader some USDG
+        usdg.mint(trader, 10000e18);
+        vm.stopPrank();
+    }
+
+    function test_buyStock() public {
+        // Trader buys 1 TSLA for 250 USDG
+        vm.prank(trader);
+        usdg.approve(address(market), 250e18);
+
+        vm.prank(trader);
+        uint256 amountOut = market.exactInputSingle(
+            ISwapRouter.ExactInputSingleParams({
+                tokenIn: address(usdg),
+                tokenOut: address(tsla),
+                fee: 0,
+                recipient: trader,
+                amountIn: 250e18,
+                amountOutMinimum: 0,
+                sqrtPriceLimitX96: 0
+            })
+        );
+
+        assertEq(amountOut, 1e18);
+        assertEq(tsla.balanceOf(trader), 1e18);
+        assertEq(usdg.balanceOf(trader), 9750e18);
+    }
+
+    function test_sellStock() public {
+        vm.prank(deployer);
+        tsla.mint(trader, 2e18);
+
+        vm.prank(trader);
+        tsla.approve(address(market), 2e18);
+
+        vm.prank(trader);
+        uint256 amountOut = market.exactInputSingle(
+            ISwapRouter.ExactInputSingleParams({
+                tokenIn: address(tsla),
+                tokenOut: address(usdg),
+                fee: 0,
+                recipient: trader,
+                amountIn: 2e18,
+                amountOutMinimum: 0,
+                sqrtPriceLimitX96: 0
+            })
+        );
+
+        assertEq(amountOut, 500e18);
+    }
+
+    function test_noPriceReverts() public {
+        MockERC20 unknown = new MockERC20("UNKNOWN");
+        vm.prank(trader);
+        unknown.approve(address(market), 100e18);
+
+        vm.prank(trader);
+        vm.expectRevert("no price set for token pair");
+        market.exactInputSingle(
+            ISwapRouter.ExactInputSingleParams({
+                tokenIn: address(unknown),
+                tokenOut: address(usdg),
+                fee: 0,
+                recipient: trader,
+                amountIn: 100e18,
+                amountOutMinimum: 0,
+                sqrtPriceLimitX96: 0
+            })
+        );
+    }
+
+    function test_onlyOwnerSetPrice() public {
+        vm.prank(trader);
+        vm.expectRevert("not owner");
+        market.setStockPrice(address(tsla), 999e18);
     }
 }
