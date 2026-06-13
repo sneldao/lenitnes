@@ -6,7 +6,7 @@ SSH_HOST="${SSH_HOST:-nuncio-vultr}"
 REMOTE_DIR="${REMOTE_DIR:-~/lenitnes}"
 
 echo "→ pulling on $SSH_HOST"
-ssh "$SSH_HOST" "cd $REMOTE_DIR && git pull"
+ssh "$SSH_HOST" "cd $REMOTE_DIR && git fetch origin && git checkout main && git reset --hard origin/main"
 
 echo "→ rebuilding api + worker"
 ssh "$SSH_HOST" "cd $REMOTE_DIR && sudo docker compose build api worker"
