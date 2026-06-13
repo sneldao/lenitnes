@@ -18,6 +18,7 @@ CREATE TABLE IF NOT EXISTS users (
   id                          UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   wallet_address              TEXT UNIQUE NOT NULL,
   email                       TEXT,
+  display_name                TEXT,
   kraken_api_key_encrypted    TEXT,
   kraken_api_secret_encrypted TEXT,
   created_at                  TIMESTAMPTZ NOT NULL DEFAULT now()
@@ -145,6 +146,7 @@ ALTER TABLE signals ADD COLUMN IF NOT EXISTS search_results JSONB NOT NULL DEFAU
 ALTER TABLE orders ADD COLUMN IF NOT EXISTS chain TEXT;
 ALTER TABLE orders ADD COLUMN IF NOT EXISTS chain_tx_hash TEXT;
 ALTER TABLE signals ADD COLUMN IF NOT EXISTS arb_tx_hash TEXT;
+ALTER TABLE users ADD COLUMN IF NOT EXISTS display_name TEXT;
 
 CREATE TABLE IF NOT EXISTS signal_classifications (
   id              UUID PRIMARY KEY DEFAULT gen_random_uuid(),

@@ -145,6 +145,7 @@ export interface User {
   id: string;
   wallet_address: string;
   email: string | null;
+  display_name: string | null;
   created_at: string;
 }
 
@@ -221,6 +222,7 @@ export interface ApiOk {
 export interface LeaderboardEntry {
   user_id: string;
   wallet_address: string;
+  display_name: string | null;
   total_signals: number;
   chain_completed: number;
   accuracy: string | null;
@@ -237,6 +239,24 @@ export interface LeaderboardResponse {
     public_monitors: number;
     anchor_coverage: string;
   };
+}
+
+export interface HunterDetail {
+  user_id: string;
+  wallet_address: string;
+  email: string | null;
+  display_name: string | null;
+  total_signals: number;
+  chain_completed: number;
+  accuracy: string | null;
+  streak: number;
+  top_pair: string | null;
+  last_signal_at: string | null;
+}
+
+export interface HunterDetailResponse {
+  hunter: HunterDetail;
+  signals: Signal[];
 }
 
 // ── Health check ────────────────────────────────────────────

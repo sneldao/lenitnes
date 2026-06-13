@@ -21,6 +21,7 @@ import { waitlistRouter } from './routes/waitlist.js';
 import { backtestRouter } from './routes/backtest.js';
 import { statsRouter } from './routes/stats.js';
 import { leaderboardRouter } from './routes/leaderboard.js';
+import { profileRouter } from './routes/profile.js';
 import { requireAuth } from './middleware/auth.js';
 import { auditMiddleware } from './middleware/audit.js';
 import { renderMetrics, metricsMiddleware } from './middleware/metrics.js';
@@ -160,6 +161,7 @@ app.use('/signals', requireAuth, signalsRouter);
 app.use('/rules', requireAuth, rulesRouter);
 app.use('/webhooks', webhooksRouter); // Kraken callbacks — use separate HMAC auth
 app.use('/orders', requireAuth, ordersRouter);
+app.use('/account/profile', requireAuth, profileRouter);
 app.use('/kraken', requireAuth, krakenRouter);
 app.use('/dlq', requireAuth, dlqRouter);
 app.use('/backtest', requireAuth, backtestRouter);

@@ -86,7 +86,7 @@ export default function LandingLeaderboard() {
                 </div>
 
                 <p className="text-sm font-medium text-slate-200 group-hover:text-accent transition-colors">
-                  {formatAddress(hunter.wallet_address)}
+                  {hunter.display_name ?? formatAddress(hunter.wallet_address)}
                 </p>
 
                 {/* Stats */}

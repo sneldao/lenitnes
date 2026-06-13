@@ -16,6 +16,7 @@ interface HunterDetail {
   user_id: string;
   wallet_address: string;
   email: string | null;
+  display_name: string | null;
   total_signals: number;
   chain_completed: number;
   accuracy: string | null;
@@ -254,6 +255,30 @@ export const api = {
     const suffix = qs.toString();
     return req<LeaderboardResponse>(`/leaderboard${suffix ? `?${suffix}` : ''}`);
   },
+
+  getProfile: () =>
+    req<{
+      id: string;
+      wallet_address: string;
+      email: string | null;
+      display_name: string | null;
+      created_at: string;
+    }>('/account/profile'),
+  updateProfile: (body: { display_name?: string; email?: string }) =>
+    req<{ id: string; wallet_address: string; email: string | null; display_name: string | null }>(
+      '/account/profile',
+      {
+        method: 'PUT',
+        body: JSON.stringify(body),
+      },
+    ),
+
+  /** Test a webhook URL by sending a sample signal payload. */
+  testWebhook: (url: string) =>
+    req<{ ok: boolean; status: number; durationMs: number }>('/webhooks/test', {
+      method: 'POST',
+      body: JSON.stringify({ url }),
+    }),
 
   getHunterDetail: (userId: string, params?: { limit?: number; offset?: number }) => {
     const qs = new URLSearchParams();

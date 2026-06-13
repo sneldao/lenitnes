@@ -6,6 +6,7 @@ export interface HunterAggregate {
   user_id: string;
   wallet_address: string;
   email: string | null;
+  display_name: string | null;
   total_signals: number;
   chain_completed: number;
   accuracy: string | null;
@@ -124,6 +125,7 @@ export async function getLeaderboard(filters: LeaderboardFilters): Promise<Leade
     user_id: string;
     wallet_address: string;
     email: string | null;
+    display_name: string | null;
     total_signals: string;
     chain_completed: string;
     hit_rate: string | null;
@@ -140,6 +142,7 @@ export async function getLeaderboard(filters: LeaderboardFilters): Promise<Leade
        u.id AS user_id,
        u.wallet_address,
        u.email,
+       u.display_name,
        hs.total_signals,
        hs.chain_completed,
        (ua.correct::numeric / NULLIF(ua.total, 0))::text AS hit_rate,
@@ -159,6 +162,7 @@ export async function getLeaderboard(filters: LeaderboardFilters): Promise<Leade
   const entries: LeaderboardEntry[] = hunterResult.rows.map((row) => ({
     user_id: row.user_id,
     wallet_address: row.wallet_address,
+    display_name: row.display_name ?? null,
     total_signals: Number(row.total_signals),
     chain_completed: Number(row.chain_completed),
     accuracy: row.hit_rate ? `${(Number(row.hit_rate) * 100).toFixed(0)}%` : null,
@@ -219,10 +223,12 @@ export async function getHunterDetail(
   const { limit, offset } = filters;
 
   // ── Check the user exists ─────────────────────────────────────
-  const userCheck = await query<{ id: string; wallet_address: string; email: string | null }>(
-    `SELECT id, wallet_address, email FROM users WHERE id = $1`,
-    [userId],
-  );
+  const userCheck = await query<{
+    id: string;
+    wallet_address: string;
+    email: string | null;
+    display_name: string | null;
+  }>(`SELECT id, wallet_address, email, display_name FROM users WHERE id = $1`, [userId]);
   if (!userCheck.rows.length) return null;
 
   // ── Hunter aggregate stats ────────────────────────────────────
@@ -315,6 +321,7 @@ export async function getHunterDetail(
     user_id: userId,
     wallet_address: userRow.wallet_address,
     email: userRow.email,
+    display_name: userRow.display_name ?? null,
     total_signals: Number(h?.total_signals ?? 0),
     chain_completed: Number(h?.chain_completed ?? 0),
     accuracy: h?.hit_rate ? `${(Number(h.hit_rate) * 100).toFixed(0)}%` : null,

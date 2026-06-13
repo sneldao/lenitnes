@@ -277,8 +277,8 @@ export default function LeaderboardPage() {
           <div className="divide-y divide-edge/30">
             {entries.map((hunter, idx) => {
               const rank = idx + 1;
-              const name = formatAddress(hunter.wallet_address);
-              const avatar = avatarInitials(hunter.wallet_address);
+              const name = hunter.display_name ?? formatAddress(hunter.wallet_address);
+              const avatar = avatarInitials(hunter.display_name ?? hunter.wallet_address);
               return (
                 <Link
                   key={hunter.user_id}

@@ -68,6 +68,109 @@ function ProofChainProgress({ signal }: { signal: Signal }) {
   );
 }
 
+/* ── Activity Heatmap ──────────────────────────────────── */
+
+function ActivityHeatmap({ signals }: { signals: Signal[] }) {
+  // Compute daily signal counts for the last 12 weeks
+  const today = new Date();
+  const twelveWeeksAgo = new Date(today);
+  twelveWeeksAgo.setDate(twelveWeeksAgo.getDate() - 84);
+
+  const dayCounts = new Map<string, number>();
+  for (const s of signals) {
+    if (!s.detected_at || s.is_heartbeat) continue;
+    const d = new Date(s.detected_at);
+    if (d < twelveWeeksAgo) continue;
+    const key = d.toISOString().slice(0, 10);
+    dayCounts.set(key, (dayCounts.get(key) ?? 0) + 1);
+  }
+
+  // Generate the grid: 12 weeks x 7 days, starting from Monday
+  const cells: { date: string; count: number }[] = [];
+  const cursor = new Date(twelveWeeksAgo);
+  // Align to Monday
+  const dayOfWeek = cursor.getDay();
+  cursor.setDate(cursor.getDate() - ((dayOfWeek + 6) % 7));
+
+  while (cursor <= today) {
+    const key = cursor.toISOString().slice(0, 10);
+    cells.push({ date: key, count: dayCounts.get(key) ?? 0 });
+    cursor.setDate(cursor.getDate() + 1);
+  }
+
+  const maxCount = Math.max(...cells.map((c) => c.count), 1);
+
+  function intensity(count: number): string {
+    if (count === 0) return 'bg-edge/20';
+    const ratio = count / maxCount;
+    if (ratio > 0.66) return 'bg-signal';
+    if (ratio > 0.33) return 'bg-signal/70';
+    return 'bg-signal/30';
+  }
+
+  // Month labels
+  const monthLabels: { index: number; label: string }[] = [];
+  let lastMonth = -1;
+  cells.forEach((c, i) => {
+    const month = new Date(c.date).getMonth();
+    if (month !== lastMonth) {
+      monthLabels.push({
+        index: Math.floor(i / 7),
+        label: new Date(c.date).toLocaleString('default', { month: 'short' }),
+      });
+      lastMonth = month;
+    }
+  });
+
+  return (
+    <div className="card overflow-hidden">
+      <div className="flex items-center gap-2 border-b border-edge/40 px-5 py-3">
+        <Activity className="h-4 w-4 text-accent" />
+        <h2 className="text-sm font-semibold text-white">Activity</h2>
+        <span className="text-[10px] text-slate-500">last 12 weeks</span>
+      </div>
+      <div className="px-5 py-4 overflow-x-auto">
+        <div className="inline-flex gap-0.5">
+          <div className="flex flex-col gap-0.5 mr-1 pt-5">
+            {['Mon', '', 'Wed', '', 'Fri', '', ''].map((d, i) => (
+              <div key={i} className="h-3 text-[8px] text-slate-600 leading-3">
+                {d}
+              </div>
+            ))}
+          </div>
+          <div className="flex gap-0.5">
+            {Array.from({ length: Math.ceil(cells.length / 7) }, (_, week) => (
+              <div key={week} className="flex flex-col gap-0.5">
+                {Array.from({ length: 7 }, (_, day) => {
+                  const idx = week * 7 + day;
+                  const cell = cells[idx];
+                  if (!cell) return <div key={day} className="h-3 w-3" />;
+                  return (
+                    <div
+                      key={day}
+                      className={`h-3 w-3 rounded-sm ${intensity(cell.count)}`}
+                      title={`${cell.date}: ${cell.count} signal${cell.count !== 1 ? 's' : ''}`}
+                    />
+                  );
+                })}
+              </div>
+            ))}
+          </div>
+        </div>
+        {/* Legend */}
+        <div className="mt-2 flex items-center gap-1.5 text-[9px] text-slate-600">
+          <span>Less</span>
+          <div className="h-2.5 w-2.5 rounded-sm bg-edge/20" />
+          <div className="h-2.5 w-2.5 rounded-sm bg-signal/30" />
+          <div className="h-2.5 w-2.5 rounded-sm bg-signal/70" />
+          <div className="h-2.5 w-2.5 rounded-sm bg-signal" />
+          <span>More</span>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 /* ── Stat Pill ──────────────────────────────────────────── */
 
 function StatPill({
@@ -139,18 +242,26 @@ export default function HunterDetailPage({ params }: { params: Promise<{ userId:
           {/* Header */}
           <div className="flex items-center gap-3">
             <div className="flex h-10 w-10 items-center justify-center rounded-full bg-accent/10 text-sm font-medium text-accent">
-              {formatAddress(hunter.wallet_address).slice(0, 2)}
+              {(hunter.display_name ?? formatAddress(hunter.wallet_address)).slice(0, 2)}
             </div>
             <div>
               <h1 className="text-2xl font-bold tracking-tight text-white">
-                {formatAddress(hunter.wallet_address)}
+                {hunter.display_name ?? formatAddress(hunter.wallet_address)}
               </h1>
+              {hunter.display_name && (
+                <p className="text-[10px] text-slate-600 font-mono">
+                  {formatAddress(hunter.wallet_address)}
+                </p>
+              )}
               <p className="mt-1 text-sm text-slate-500">
                 {hunter.streak > 0 ? `${hunter.streak}d streak • ` : ''}
                 Last signal {timeAgo(hunter.last_signal_at)}
               </p>
             </div>
           </div>
+
+          {/* Activity Heatmap */}
+          <ActivityHeatmap signals={signals} />
 
           {/* Stats grid */}
           <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">

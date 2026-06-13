@@ -22,6 +22,8 @@ import {
   Sparkles,
   ArrowLeftRight,
   TrendingUp,
+  Loader2,
+  Send,
 } from 'lucide-react';
 
 type TemplateId = 'trade' | 'trade_dex' | 'trade_stock' | 'webhook' | 'telegram' | 'email';
@@ -145,6 +147,12 @@ export default function RulesPage() {
   const queryClient = useQueryClient();
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
+  const [webhookTesting, setWebhookTesting] = useState(false);
+  const [webhookTestResult, setWebhookTestResult] = useState<{
+    ok: boolean;
+    status: number;
+    durationMs: number;
+  } | null>(null);
 
   const [mode, setMode] = useState<'choose' | 'template' | 'scratch'>('choose');
   const [activeCategory, setActiveCategory] = useState<Category>('execution');
@@ -227,6 +235,21 @@ export default function RulesPage() {
         break;
     }
     return null;
+  }
+
+  async function handleTestWebhook() {
+    const url = form.config.url as string;
+    if (!url) return;
+    setWebhookTesting(true);
+    setWebhookTestResult(null);
+    try {
+      const result = await api.testWebhook(url);
+      setWebhookTestResult(result);
+    } catch (e) {
+      setWebhookTestResult({ ok: false, status: 0, durationMs: 0 });
+    } finally {
+      setWebhookTesting(false);
+    }
   }
 
   async function save() {
@@ -392,13 +415,51 @@ export default function RulesPage() {
               <Webhook className="mr-1 inline h-3 w-3" />
               Webhook URL
             </label>
-            <input
-              ref={configFocusRef as React.Ref<HTMLInputElement>}
-              className="input font-mono text-xs"
-              placeholder="https://example.com/hook"
-              value={(form.config.url as string) ?? ''}
-              onChange={(e) => setConfig('url', e.target.value)}
-            />
+            <div className="flex gap-2">
+              <input
+                ref={configFocusRef as React.Ref<HTMLInputElement>}
+                className="input flex-1 font-mono text-xs"
+                placeholder="https://example.com/hook"
+                value={(form.config.url as string) ?? ''}
+                onChange={(e) => setConfig('url', e.target.value)}
+              />
+              <button
+                type="button"
+                disabled={!form.config.url || webhookTesting}
+                onClick={handleTestWebhook}
+                className="flex items-center gap-1.5 rounded-lg border border-edge/40 px-3 py-2 text-[11px] font-medium text-slate-400 transition-all hover:border-accent/30 hover:text-accent disabled:opacity-40"
+                title="Send a test payload to this URL"
+              >
+                {webhookTesting ? (
+                  <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                ) : (
+                  <Send className="h-3.5 w-3.5" />
+                )}
+                Test
+              </button>
+            </div>
+            {webhookTestResult && (
+              <div
+                className={`mt-1.5 flex items-center gap-1.5 text-[10px] ${webhookTestResult.ok ? 'text-signal' : 'text-danger'}`}
+              >
+                {webhookTestResult.ok ? (
+                  <>
+                    <Check className="h-3 w-3" /> Delivered in {webhookTestResult.durationMs}ms
+                    (HTTP {webhookTestResult.status})
+                  </>
+                ) : webhookTestResult.status === 0 ? (
+                  <>
+                    <AlertTriangle className="h-3 w-3" /> Connection failed (
+                    {webhookTestResult.durationMs}ms)
+                  </>
+                ) : (
+                  <>
+                    <AlertTriangle className="h-3 w-3" /> HTTP {webhookTestResult.status} (
+                    {webhookTestResult.durationMs}ms)
+                  </>
+                )}
+              </div>
+            )}
           </div>
         )}
 

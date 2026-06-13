@@ -1,11 +1,11 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { api } from '@/lib/api';
 import { useAuth } from '@/lib/useAuth';
 import { useToast } from '@/components/Toast';
-import { Shield, Key, Eye, EyeOff, Check, X, AlertTriangle, Loader } from 'lucide-react';
+import { Shield, Key, Eye, EyeOff, Check, X, AlertTriangle, Loader, User } from 'lucide-react';
 
 export default function AccountPage() {
   const { user, isAuthenticated } = useAuth();
@@ -16,6 +16,41 @@ export default function AccountPage() {
   const [showSecret, setShowSecret] = useState(false);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [displayName, setDisplayName] = useState('');
+  const [profileEmail, setProfileEmail] = useState('');
+  const [profileSaving, setProfileSaving] = useState(false);
+  const [profileDirty, setProfileDirty] = useState(false);
+
+  const { data: profile } = useQuery({
+    queryKey: ['profile'],
+    queryFn: () => api.getProfile(),
+    enabled: isAuthenticated,
+  });
+
+  useEffect(() => {
+    if (profile) {
+      setDisplayName(profile.display_name ?? '');
+      setProfileEmail(profile.email ?? '');
+      setProfileDirty(false);
+    }
+  }, [profile]);
+
+  async function handleProfileSave() {
+    setProfileSaving(true);
+    try {
+      await api.updateProfile({
+        display_name: displayName || undefined,
+        email: profileEmail || undefined,
+      });
+      toast.success('Profile updated');
+      setProfileDirty(false);
+      queryClient.invalidateQueries({ queryKey: ['profile'] });
+    } catch (e) {
+      toast.error('Failed to save profile: ' + String(e));
+    } finally {
+      setProfileSaving(false);
+    }
+  }
 
   const { data: krakenStatus, isLoading: statusLoading } = useQuery({
     queryKey: ['krakenStatus'],
@@ -160,6 +195,45 @@ export default function AccountPage() {
             <button className="btn-danger" onClick={handleDeleteKeys}>
               Remove Keys
             </button>
+          )}
+        </div>
+      </div>
+
+      {/* ── Display Name ── */}
+      <div className="card space-y-4">
+        <div className="flex items-center gap-2 border-b border-edge/40 pb-4">
+          <User className="h-4 w-4 text-accent" />
+          <h2 className="text-sm font-semibold text-slate-200">Profile</h2>
+        </div>
+        <div>
+          <label className="label">Display Name</label>
+          <input
+            className="input"
+            placeholder="Your name on the leaderboard"
+            value={displayName}
+            onChange={(e) => setDisplayName(e.target.value)}
+            maxLength={32}
+          />
+          <p className="mt-1 text-[10px] text-slate-500">
+            Shown on the leaderboard and hunter detail page in place of your wallet address.
+          </p>
+        </div>
+        <div>
+          <label className="label">Email</label>
+          <input
+            className="input"
+            type="email"
+            placeholder="For signal notifications"
+            value={profileEmail}
+            onChange={(e) => setProfileEmail(e.target.value)}
+          />
+        </div>
+        <div className="flex gap-3">
+          <button className="btn" disabled={profileSaving} onClick={handleProfileSave}>
+            {profileSaving ? 'Saving…' : 'Save Profile'}
+          </button>
+          {profileDirty && (
+            <span className="flex items-center text-[10px] text-slate-500">Unsaved changes</span>
           )}
         </div>
       </div>
