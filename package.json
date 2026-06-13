@@ -17,7 +17,10 @@
     "test": "npm run test --workspace=@lenitnes/api",
     "test:watch": "vitest",
     "secrets": "gitleaks git --pre-commit --staged --redact --verbose",
-    "prepare": "husky"
+    "prepare": "husky",
+    "deploy": "bash scripts/deploy.sh",
+    "health": "bash scripts/health.sh",
+    "logs": "bash scripts/logs.sh"
   },
   "lint-staged": {
     "*.{ts,tsx}": [
