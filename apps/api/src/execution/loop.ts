@@ -268,7 +268,13 @@ export async function executeCheck(
         query(`UPDATE signals SET arb_tx_hash = $1 WHERE id = $2`, [txHash, signalId]),
       )
       .catch((err) => {
-        logger.warn({ err, signalId }, 'Arbitrum proof recording failed (non-blocking)');
+        const errMsg = err instanceof Error ? err.message : String(err);
+        logger.warn({ err, signalId }, 'Arbitrum proof recording failed — queued for retry');
+        query(
+          `INSERT INTO failed_proofs (signal_id, chain, error, next_retry)
+           VALUES ($1, 'arbitrum', $2, now() + interval '2 minutes')`,
+          [signalId, errMsg],
+        ).catch((e) => logger.error({ err: e, signalId }, 'failed to write to failed_proofs'));
       });
   }
 

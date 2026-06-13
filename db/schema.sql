@@ -196,3 +196,21 @@ CREATE TABLE IF NOT EXISTS detector_backtest_stats (
   updated_at        TIMESTAMPTZ NOT NULL DEFAULT now(),
   PRIMARY KEY(detector_type, asset)
 );
+
+-- Failed Proofs ───────────────────────────────────────
+-- Dead-letter queue for failed on-chain proof recordings.
+-- A periodic retry job (or manual replay) picks these up with
+-- exponential backoff. Keeps the database and chain in sync.
+CREATE TABLE IF NOT EXISTS failed_proofs (
+  id           UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  signal_id    UUID NOT NULL REFERENCES signals(id) ON DELETE CASCADE,
+  chain        TEXT NOT NULL,
+  error        TEXT,
+  attempt      INTEGER NOT NULL DEFAULT 1,
+  next_retry   TIMESTAMPTZ NOT NULL DEFAULT now(),
+  created_at   TIMESTAMPTZ NOT NULL DEFAULT now(),
+  resolved_at  TIMESTAMPTZ
+);
+
+CREATE INDEX IF NOT EXISTS idx_failed_proofs_pending
+  ON failed_proofs(next_retry) WHERE resolved_at IS NULL;

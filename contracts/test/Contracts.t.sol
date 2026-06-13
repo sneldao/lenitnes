@@ -62,6 +62,33 @@ contract SignalRegistryTest is Test {
         vm.expectRevert("not owner");
         registry.transferOwnership(address(0x3));
     }
+
+    function test_duplicateHashReverts() public {
+        bytes32 hash = keccak256("test-signal");
+        vm.prank(user);
+        registry.recordSignal(hash, "lenitnes://signal/1");
+
+        vm.prank(user);
+        vm.expectRevert("duplicate hash");
+        registry.recordSignal(hash, "lenitnes://signal/1-retry");
+    }
+
+    function test_duplicateInBatchReverts() public {
+        bytes32 hash = keccak256("already-recorded");
+        vm.prank(user);
+        registry.recordSignal(hash, "lenitnes://signal/0");
+
+        bytes32[] memory hashes = new bytes32[](2);
+        string[] memory uris = new string[](2);
+        hashes[0] = keccak256("new-signal");
+        hashes[1] = hash;
+        uris[0] = "lenitnes://signal/1";
+        uris[1] = "lenitnes://signal/0-dup";
+
+        vm.prank(user);
+        vm.expectRevert("duplicate hash");
+        registry.recordSignalBatch(hashes, uris);
+    }
 }
 
 contract TradeExecutorTest is Test {

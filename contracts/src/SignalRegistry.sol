@@ -14,6 +14,7 @@ contract SignalRegistry {
 
     SignalRecord[] public signals;
     address public owner;
+    mapping(bytes32 => bool) public recordedHashes;
 
     event SignalRecorded(
         uint256 indexed id,
@@ -35,6 +36,8 @@ contract SignalRegistry {
         bytes32 signalHash,
         string calldata metadataURI
     ) external returns (uint256 id) {
+        require(!recordedHashes[signalHash], "duplicate hash");
+        recordedHashes[signalHash] = true;
         id = signals.length;
         signals.push(SignalRecord(signalHash, msg.sender, block.timestamp, metadataURI));
         emit SignalRecorded(id, signalHash, msg.sender, block.timestamp);
@@ -47,6 +50,8 @@ contract SignalRegistry {
         require(signalHashes.length == metadataURIs.length, "length mismatch");
         ids = new uint256[](signalHashes.length);
         for (uint256 i = 0; i < signalHashes.length; i++) {
+            require(!recordedHashes[signalHashes[i]], "duplicate hash");
+            recordedHashes[signalHashes[i]] = true;
             ids[i] = signals.length;
             signals.push(SignalRecord(signalHashes[i], msg.sender, block.timestamp, metadataURIs[i]));
             emit SignalRecorded(ids[i], signalHashes[i], msg.sender, block.timestamp);
