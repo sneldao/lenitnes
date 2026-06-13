@@ -9,8 +9,25 @@ import type {
   CreateMonitorInput,
   CreateRuleInput,
   LeaderboardResponse,
-  HunterDetailResponse,
 } from '@lenitnes/types';
+
+/** Inlined to avoid Docker workspace resolution issues with @lenitnes/types */
+interface HunterDetail {
+  user_id: string;
+  wallet_address: string;
+  email: string | null;
+  total_signals: number;
+  chain_completed: number;
+  accuracy: string | null;
+  streak: number;
+  top_pair: string | null;
+  last_signal_at: string | null;
+}
+
+interface HunterDetailResponse {
+  hunter: HunterDetail;
+  signals: Signal[];
+}
 
 const BASE = process.env.NEXT_PUBLIC_API_URL || '/api';
 
@@ -38,8 +55,9 @@ export {
   type SignalDetail,
   type Rule,
   type LeaderboardResponse,
-  type HunterDetailResponse,
 };
+
+export type { HunterDetail, HunterDetailResponse };
 
 export interface AuthUser {
   id: string;
