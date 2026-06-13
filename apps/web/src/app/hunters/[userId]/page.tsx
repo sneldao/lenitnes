@@ -97,7 +97,7 @@ export default function HunterDetailPage({ params }: { params: Promise<{ userId:
     queryKey: ['hunter', userId, limit],
     queryFn: () => api.getHunterDetail(userId, { limit }),
     refetchInterval: 30_000,
-    placeholderData: (prev) => prev,
+    placeholderData: (prev: HunterDetailResponse | undefined) => prev,
   });
 
   const hunter = data?.hunter;
