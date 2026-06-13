@@ -151,8 +151,16 @@ function MonitorCard({
   }, [isFunded, monitor.last_check_at]);
 
   return (
-    <div className={`card group space-y-3 border-l-2 ${cat} !pl-5`}>
-      {/* Header — clickable to expand */}
+    <div
+      className={`group relative overflow-hidden rounded-xl border border-edge/50 bg-ink-light/60 p-5 transition-all duration-300 border-l-2 ${cat}
+        hover:border-edge-light/60 hover:bg-ink-light/80`}
+    >
+      {/* Scan-line shimmer on hover */}
+      <div className="pointer-events-none absolute inset-0 opacity-0 group-hover:opacity-100 transition-opacity duration-500">
+        <div className="absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-accent/30 to-transparent" />
+      </div>
+
+      {/* Terminal header row */}
       <button
         onClick={() => setExpanded((v) => !v)}
         className="w-full text-left"
@@ -161,144 +169,126 @@ function MonitorCard({
         <div className="flex items-start justify-between gap-3">
           <div className="min-w-0 flex-1">
             <div className="flex items-center gap-2">
-              <p className="truncate text-sm font-semibold text-slate-100 group-hover:text-white">
+              {monitor.status === 'active' && (
+                <span className="relative flex h-2 w-2 shrink-0">
+                  <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-signal opacity-60" />
+                  <span className="relative inline-flex h-2 w-2 rounded-full bg-signal" />
+                </span>
+              )}
+              <p className="truncate font-mono text-xs font-medium text-slate-400 group-hover:text-slate-300">
                 {monitor.url.replace(/^https?:\/\//, '')}
               </p>
               {isCodeSignal && (
-                <span className="badge shrink-0 bg-violet-500/15 text-violet-400">
-                  <GitCommit className="h-2.5 w-2.5" /> Code Signal
+                <span className="badge shrink-0 bg-violet-500/10 text-violet-400">
+                  <GitCommit className="h-2.5 w-2.5" /> Code
                 </span>
               )}
             </div>
-            <p className="mt-0.5 line-clamp-1 text-xs text-slate-500">{monitor.condition_text}</p>
+            <p className="mt-1.5 line-clamp-2 text-sm font-medium text-slate-200 leading-snug">
+              {monitor.condition_text}
+            </p>
           </div>
           <span className={`badge shrink-0 ${statusColor(monitor.status)}`}>
-            {monitor.status === 'active' && (
-              <span className="h-1.5 w-1.5 rounded-full bg-signal animate-pulse" />
-            )}
             {COPY.monitor.statusLabel(monitor.status)}
           </span>
         </div>
       </button>
 
-      {/* Funding row — checks-remaining framing */}
-      <div className="flex items-end gap-3">
+      {/* Funding strip */}
+      <div className="mt-4 flex items-end gap-4">
         {!isFunded ? (
-          <div className="flex-1 space-y-0.5">
-            <p className="text-xl font-bold text-danger tabular-nums">Inactive</p>
-            <p className="text-[10px] text-danger/80">{COPY.monitor.inactive(0)}</p>
-            {darkFor && <p className="text-[10px] text-slate-600">{darkFor}</p>}
+          <div className="flex-1">
+            <p className="font-mono text-2xl font-bold text-danger">DARK</p>
+            <p className="text-[10px] text-danger/70 mt-0.5">
+              {darkFor || COPY.monitor.inactive(0)}
+            </p>
           </div>
         ) : (
           <>
-            <div>
+            <div className="shrink-0">
               <p
-                className={`text-3xl font-bold tabular-nums ${isLowFunds ? 'text-warn' : 'text-signal'}`}
+                className={`font-mono text-4xl font-bold tabular-nums leading-none ${isLowFunds ? 'text-warn' : 'text-signal'}`}
               >
                 {checksRemaining}
               </p>
-              <p className={`text-[10px] ${isLowFunds ? 'text-warn' : 'text-slate-500'}`}>
-                {isLowFunds
-                  ? COPY.monitor.lowBalance(checksRemaining)
-                  : COPY.monitor.checksRemaining(checksRemaining)}
+              <p className="mt-1 text-[10px] text-slate-600 uppercase tracking-wider">
+                {isLowFunds ? 'checks left ⚠' : 'checks left'}
               </p>
             </div>
-            <div className="mb-1 grid flex-1 grid-cols-3 gap-2">
-              <div className="text-center">
-                <p className="text-xs font-semibold text-slate-200">{bal.toFixed(1)}</p>
-                <p className="text-[10px] text-slate-500">ℏ staked</p>
+            <div className="flex-1 space-y-1">
+              {/* Burn progress */}
+              <div className="h-0.5 w-full overflow-hidden rounded-full bg-edge/60">
+                <div
+                  className={`h-full rounded-full transition-all duration-500 ${
+                    (daysLeft / 30) * 100 > 50
+                      ? 'bg-signal'
+                      : (daysLeft / 30) * 100 > 20
+                        ? 'bg-warn'
+                        : 'bg-danger'
+                  }`}
+                  style={{ width: `${Math.min(100, Math.max(0, (daysLeft / 30) * 100))}%` }}
+                />
               </div>
-              <div className="text-center">
-                <p className="text-xs font-semibold text-slate-200">{perDay.toFixed(2)}</p>
-                <p className="text-[10px] text-slate-500">ℏ/day</p>
-              </div>
-              <div className="text-center">
-                <p className="text-xs font-semibold text-slate-200">
-                  {monitor.frequency_seconds >= 3600
-                    ? `${(monitor.frequency_seconds / 3600).toFixed(0)}h`
-                    : `${(monitor.frequency_seconds / 60).toFixed(0)}m`}
-                </p>
-                <p className="text-[10px] text-slate-500">freq</p>
+              <div className="grid grid-cols-3 gap-1 pt-1">
+                {[
+                  { v: `${Number(monitor.hbar_balance).toFixed(1)} ℏ`, l: 'staked' },
+                  { v: `${perDay.toFixed(2)}/d`, l: 'burn' },
+                  {
+                    v:
+                      monitor.frequency_seconds >= 3600
+                        ? `${(monitor.frequency_seconds / 3600).toFixed(0)}h`
+                        : `${(monitor.frequency_seconds / 60).toFixed(0)}m`,
+                    l: 'interval',
+                  },
+                ].map(({ v, l }) => (
+                  <div key={l}>
+                    <p className="font-mono text-xs font-semibold text-slate-300">{v}</p>
+                    <p className="text-[9px] uppercase tracking-widest text-slate-600">{l}</p>
+                  </div>
+                ))}
               </div>
             </div>
           </>
         )}
       </div>
 
-      {isFunded && <BurnBar balance={bal} daysLeft={daysLeft} />}
+      {countdown && <p className="mt-2 font-mono text-[10px] text-warn">{countdown}</p>}
 
-      {/* Countdown for low-balance monitors — scarcity urgency */}
-      {countdown && <p className="text-[10px] text-warn font-medium">{countdown}</p>}
-
-      {/* Signal celebration — peak-end rule.
-          Fires on the monitor's `triggered` status, *or* when the most
-          recent signal is unviewed. The two states can briefly diverge:
-          after the user opens the signal detail page, the parent monitor
-          re-arms to `active` (see POST /signals/:id/viewed) but we still
-          want the celebration to surface on dashboards that haven't yet
-          re-fetched. */}
       {latestSignal && !latestSignal.viewed_at && (
         <Link
           href={`/signals/${latestSignal.id}`}
-          className="block rounded-lg border border-accent/30 bg-accent/5 p-3 space-y-1.5 transition-colors hover:border-accent/50 hover:bg-accent/10"
+          className="mt-4 flex items-center gap-2 rounded-lg border border-accent/25 bg-accent/5 px-3 py-2.5 text-xs transition-all hover:border-accent/40 hover:bg-accent/10"
         >
-          <div className="flex items-center gap-2">
-            <Sparkles className="h-3.5 w-3.5 text-accent" />
-            <p className="text-sm font-bold text-accent">{COPY.signals.detected(host).headline}</p>
+          <Sparkles className="h-3.5 w-3.5 shrink-0 text-accent" />
+          <div className="min-w-0 flex-1">
+            <p className="font-semibold text-accent">{COPY.signals.detected(host).headline}</p>
+            <p className="truncate text-slate-400">{COPY.signals.detected(host).cta}</p>
           </div>
-          <p className="text-xs text-slate-300 leading-relaxed">
-            {COPY.signals.detected(host).body}
-          </p>
-          <span className="inline-flex items-center gap-1 text-[10px] font-semibold text-accent transition-colors">
-            {COPY.signals.detected(host).cta}
-            <ChevronRight className="h-3 w-3" />
-          </span>
+          <ChevronRight className="h-3.5 w-3.5 shrink-0 text-accent/50" />
         </Link>
       )}
 
-      {/* Expanded details */}
       {expanded && (
-        <div className="space-y-2 border-t border-edge/40 pt-3">
-          <div className="space-y-1">
-            <p className="text-[10px] font-semibold uppercase tracking-wider text-slate-500">
-              Condition
-            </p>
-            <p className="text-xs text-slate-300 leading-relaxed">{monitor.condition_text}</p>
-          </div>
-          <div className="grid grid-cols-2 gap-2 text-xs text-slate-400">
-            <div>
-              <span className="text-[10px] text-slate-600">Sensitivity</span>
-              <p className="font-medium text-slate-300">{monitor.confidence_threshold}/100</p>
-            </div>
-            <div>
-              <span className="text-[10px] text-slate-600">Cost per check</span>
-              <p className="font-medium text-slate-300">{COPY.funding.perCheck(cost)}</p>
-            </div>
-            <div>
-              <span className="text-[10px] text-slate-600">Public</span>
-              <p className="font-medium text-slate-300">{monitor.is_public ? 'Yes' : 'No'}</p>
-            </div>
-            <div>
-              <span className="text-[10px] text-slate-600">Signals caught</span>
-              <p className="font-medium text-slate-300">{signalCount ?? 0}</p>
-            </div>
-            <div>
-              <span className="text-[10px] text-slate-600">Created</span>
-              <p className="font-medium text-slate-300">
-                {monitor.created_at
-                  ? new Date(monitor.created_at).toLocaleDateString(undefined, {
-                      month: 'short',
-                      day: 'numeric',
-                    })
-                  : '—'}
-              </p>
-            </div>
+        <div className="mt-4 space-y-3 border-t border-edge/40 pt-4">
+          <p className="text-xs leading-relaxed text-slate-400">{monitor.condition_text}</p>
+          <div className="grid grid-cols-2 gap-x-4 gap-y-2 font-mono text-[11px]">
+            {[
+              ['Sensitivity', `${monitor.confidence_threshold}/100`],
+              ['Cost/check', COPY.funding.perCheck(Number(monitor.cost_per_check))],
+              ['Public', monitor.is_public ? 'Yes' : 'No'],
+              ['Signals', String(signalCount ?? 0)],
+            ].map(([l, v]) => (
+              <div key={l}>
+                <span className="text-slate-600">{l} </span>
+                <span className="text-slate-300">{v}</span>
+              </div>
+            ))}
           </div>
         </div>
       )}
 
-      <div className="flex items-center justify-between pt-1">
-        <div className="flex items-center gap-1.5 text-[10px] text-slate-600">
+      <div className="mt-4 flex items-center justify-between">
+        <div className="flex items-center gap-1.5 font-mono text-[10px] text-slate-600">
           <Clock className="h-3 w-3" />
           {monitor.last_check_at
             ? new Date(monitor.last_check_at).toLocaleString(undefined, {
@@ -307,7 +297,7 @@ function MonitorCard({
                 hour: '2-digit',
                 minute: '2-digit',
               })
-            : 'No checks yet'}
+            : 'no checks yet'}
         </div>
         <div className="flex items-center gap-1">
           <button
@@ -315,10 +305,9 @@ function MonitorCard({
               e.stopPropagation();
               onDelete(monitor.id);
             }}
-            className="flex items-center gap-1 rounded-lg px-2 py-1.5 text-[10px] font-medium text-slate-500 transition-colors hover:text-danger cursor-pointer select-none"
+            className="rounded px-2 py-1.5 text-[10px] text-slate-600 transition-colors hover:text-danger cursor-pointer"
           >
-            <X className="h-3 w-3" />
-            {COPY.monitor.actions.delete}
+            <X className="h-3.5 w-3.5" />
           </button>
           <button
             onClick={(e) => {
@@ -326,22 +315,14 @@ function MonitorCard({
               onExecute(monitor.id);
             }}
             disabled={executing || !canExecute}
-            title={
-              !isConnected
-                ? COPY.errors.noWallet
-                : isConnected
-                  ? 'Pays 0.5 ℏ from your wallet for one immediate check. Settles on Hedera in ~5s — no subscription, no platform-held funds.'
-                  : COPY.monitor.actions.executeSubtitle
-            }
-            aria-describedby={`check-now-help-${monitor.id}`}
-            className="flex items-center gap-1 rounded-lg bg-accent/10 px-2.5 py-1.5 text-[10px] font-semibold text-accent transition-all hover:bg-accent/20 hover:shadow-glow-sm active:scale-95 disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer select-none"
+            title={!isConnected ? COPY.errors.noWallet : COPY.monitor.actions.executeSubtitle}
+            className="flex items-center gap-1.5 rounded-lg border border-accent/20 bg-accent/8 px-3 py-1.5 font-mono text-[10px] font-semibold text-accent transition-all hover:border-accent/40 hover:bg-accent/15 active:scale-95 disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer"
           >
             {executing ? (
-              <span className="animate-pulse">Checking…</span>
+              <span className="animate-pulse">running…</span>
             ) : (
               <>
-                <Play className="h-3 w-3" />
-                {COPY.monitor.actions.execute}
+                <Play className="h-3 w-3" /> run
               </>
             )}
           </button>
@@ -472,15 +453,15 @@ function DashboardView({
         <div>
           <div className="flex items-center gap-3">
             <h1 className="text-2xl font-bold tracking-tight text-white">Dashboard</h1>
-            <span className="badge bg-accent/10 text-accent text-[10px]">Beta — Free</span>
+            <span className="badge bg-violet/10 text-violet text-[10px]">Beta</span>
             <Link
               href="/leaderboard"
-              className="badge bg-ink-light/50 text-slate-400 hover:text-white text-[10px] transition-colors"
+              className="badge bg-ink-light/50 text-slate-500 hover:text-slate-300 text-[10px] transition-colors"
             >
               🏆 Leaderboard
             </Link>
           </div>
-          <p className="mt-1 text-sm text-slate-500">
+          <p className="mt-1 font-mono text-xs text-slate-600">
             {monitors.length} monitor{monitors.length !== 1 ? 's' : ''} configured
           </p>
         </div>
@@ -503,46 +484,68 @@ function DashboardView({
         </div>
       </div>
 
-      <div className="grid gap-4 sm:grid-cols-4">
+      <div className="flex flex-wrap items-center gap-x-0 gap-y-3 rounded-2xl border border-edge/50 bg-ink-light/40 px-1 backdrop-blur-sm">
         {isLoading ? (
-          <>
+          <div className="flex gap-8 px-6 py-4 animate-pulse">
             {Array.from({ length: 4 }).map((_, i) => (
-              <div key={i} className="stat-card space-y-1 animate-pulse">
-                <div className="h-4 w-16 rounded bg-edge/60" />
-                <div className="h-7 w-12 rounded bg-edge/40" />
+              <div key={i} className="space-y-1">
+                <div className="h-3 w-14 rounded bg-edge/60" />
+                <div className="h-6 w-8 rounded bg-edge/40" />
               </div>
             ))}
-          </>
+          </div>
         ) : (
           <>
-            <div className="stat-card space-y-1">
-              <div className="flex items-center gap-2">
-                <Activity className="h-3.5 w-3.5 text-accent" />
-                <span className="section-title">Active</span>
+            {[
+              {
+                icon: <Activity className="h-3 w-3 text-signal" />,
+                label: 'Active',
+                value: activeCount,
+                color: 'text-signal',
+                pulse: activeCount > 0,
+              },
+              {
+                icon: <Eye className="h-3 w-3 text-accent" />,
+                label: 'Triggered',
+                value: triggeredCount,
+                color: triggeredCount > 0 ? 'text-warn' : 'text-slate-400',
+                pulse: triggeredCount > 0,
+              },
+              {
+                icon: <Wallet className="h-3 w-3 text-violet" />,
+                label: 'Staked',
+                value: COPY.funding.staked(totalBalance),
+                color: 'text-slate-200',
+              },
+              {
+                icon: <BarChart3 className="h-3 w-3 text-accent/70" />,
+                label: 'Trades',
+                value: ordersCount,
+                color: 'text-slate-400',
+              },
+            ].map((stat, i, arr) => (
+              <div key={stat.label} className="flex items-stretch">
+                <div className="flex items-center gap-3 px-5 py-3.5">
+                  <div className="relative">
+                    {stat.pulse && (
+                      <span className="absolute -right-0.5 -top-0.5 h-1.5 w-1.5 rounded-full bg-signal animate-pulse" />
+                    )}
+                    {stat.icon}
+                  </div>
+                  <div>
+                    <p className="text-[10px] font-medium uppercase tracking-widest text-slate-600">
+                      {stat.label}
+                    </p>
+                    <p
+                      className={`font-mono text-lg font-semibold tabular-nums leading-none ${stat.color}`}
+                    >
+                      {stat.value}
+                    </p>
+                  </div>
+                </div>
+                {i < arr.length - 1 && <div className="w-px self-stretch bg-edge/60 my-2" />}
               </div>
-              <p className="text-2xl font-bold text-white">{activeCount}</p>
-            </div>
-            <div className="stat-card space-y-1">
-              <div className="flex items-center gap-2">
-                <Eye className="h-3.5 w-3.5 text-signal" />
-                <span className="section-title">Triggered</span>
-              </div>
-              <p className="text-2xl font-bold text-white">{triggeredCount}</p>
-            </div>
-            <div className="stat-card space-y-1">
-              <div className="flex items-center gap-2">
-                <Wallet className="h-3.5 w-3.5 text-warn" />
-                <span className="section-title">Total Staked</span>
-              </div>
-              <p className="text-2xl font-bold text-white">{COPY.funding.staked(totalBalance)}</p>
-            </div>
-            <div className="stat-card space-y-1">
-              <div className="flex items-center gap-2">
-                <BarChart3 className="h-3.5 w-3.5 text-accent" />
-                <span className="section-title">Paper Trades</span>
-              </div>
-              <p className="text-2xl font-bold text-white">{ordersCount}</p>
-            </div>
+            ))}
           </>
         )}
       </div>
@@ -665,13 +668,12 @@ function DashboardView({
       )}
 
       {isLoading && (
-        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-          {Array.from({ length: 6 }).map((_, i) => (
-            <div key={i} className="card animate-pulse space-y-3">
-              <div className="h-4 w-2/3 rounded bg-edge" />
-              <div className="h-3 w-full rounded bg-edge/60" />
-              <div className="h-1 w-full rounded-full bg-edge/40" />
-            </div>
+        <div className="grid gap-3 sm:grid-cols-2">
+          {Array.from({ length: 4 }).map((_, i) => (
+            <div
+              key={i}
+              className="h-40 animate-pulse rounded-xl border border-edge/40 bg-ink-light/40"
+            />
           ))}
         </div>
       )}
@@ -721,73 +723,87 @@ function DashboardView({
 
       {!isLoading && !error && monitors.length === 0 && (
         <div className="space-y-6">
-          <div className="card space-y-4 p-10 text-center">
-            <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl bg-accent/10">
-              <Eye className="h-7 w-7 text-accent" />
+          {/* Intentional empty state — feels like an ops console waiting for targets */}
+          <div className="relative overflow-hidden rounded-2xl border border-edge/40 bg-ink-light/30 px-8 py-12">
+            <div className="pointer-events-none absolute inset-0 opacity-30">
+              <div className="absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-accent/40 to-transparent" />
             </div>
-            <div className="space-y-2">
-              <p className="text-lg font-semibold text-white">Nothing watching yet</p>
-              <p className="text-sm text-slate-400">
-                Pick a target below and start detecting signals in under a minute.
-              </p>
+            <div className="relative flex items-start gap-8">
+              <div className="shrink-0 pt-1">
+                <div className="relative flex h-12 w-12 items-center justify-center rounded-xl border border-accent/20 bg-accent/5">
+                  <Eye className="h-5 w-5 text-accent/60" />
+                  <span className="absolute -right-1 -top-1 h-2.5 w-2.5 rounded-full border border-ink bg-slate-700" />
+                </div>
+              </div>
+              <div className="space-y-1">
+                <p className="text-base font-semibold text-slate-200">No targets configured</p>
+                <p className="max-w-md text-sm leading-relaxed text-slate-500">
+                  Point LENITNES at any URL — a GitHub repo, exchange status page, or SEC filing —
+                  and describe what to watch for in plain English. Signals fire in under 60s.
+                </p>
+                <div className="pt-3">
+                  <Link href="/monitors/new" className="btn text-sm">
+                    + Watch New Target
+                  </Link>
+                </div>
+              </div>
             </div>
           </div>
-          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+          <p className="text-[11px] font-medium uppercase tracking-widest text-slate-600">
+            Quick start
+          </p>
+          <div className="grid gap-3 sm:grid-cols-3">
             {[
               {
-                title: 'Zcash halo2 — Code Alpha',
+                title: 'Zcash halo2',
                 url: 'https://github.com/zcash/halo2/commits/main',
                 condition:
                   'A new commit fixes a critical cryptography bug, soundness issue, or verifying key change in the halo2 circuit — something that could affect ZEC token confidence or require immediate network attention.',
                 freq: 1800,
                 icon: Shield,
-                color: 'text-danger',
-                bg: 'bg-danger/10',
+                accent: 'text-danger border-danger/20 bg-danger/5',
+                label: 'Code alpha',
               },
               {
-                title: 'GitHub Security Watch',
+                title: 'go-ethereum',
                 url: 'https://github.com/ethereum/go-ethereum/commits/master',
                 condition:
                   'A new commit mentions security, vulnerability, CVE, fix, or critical patch.',
                 freq: 3600,
                 icon: GitCommit,
-                color: 'text-accent',
-                bg: 'bg-accent/10',
+                accent: 'text-accent border-accent/20 bg-accent/5',
+                label: 'Security watch',
               },
               {
-                title: 'Exchange Status Monitor',
+                title: 'Kraken Status',
                 url: 'https://status.kraken.com',
                 condition:
                   'Any service shows degraded performance, partial outage, or maintenance.',
                 freq: 300,
                 icon: Bell,
-                color: 'text-warn',
-                bg: 'bg-warn/10',
+                accent: 'text-warn border-warn/20 bg-warn/5',
+                label: 'Exchange uptime',
               },
             ].map((t) => (
-              <div key={t.title} className="card space-y-3 p-4">
-                <div className="flex items-center gap-2">
-                  <div className={`flex h-8 w-8 items-center justify-center rounded-lg ${t.bg}`}>
-                    <t.icon className={`h-4 w-4 ${t.color}`} />
-                  </div>
-                  <p className="text-sm font-semibold text-slate-200">{t.title}</p>
+              <Link
+                key={t.title}
+                href={`/monitors/new?url=${encodeURIComponent(t.url)}&condition=${encodeURIComponent(t.condition)}&frequency=${t.freq}`}
+                className={`group flex items-start gap-3 rounded-xl border px-4 py-3.5 transition-all hover:scale-[1.01] ${t.accent}`}
+              >
+                <t.icon className="mt-0.5 h-4 w-4 shrink-0" />
+                <div className="min-w-0">
+                  <p className="text-sm font-semibold">{t.title}</p>
+                  <p className="text-[10px] uppercase tracking-wider opacity-60">{t.label}</p>
+                  <p className="mt-1 line-clamp-2 text-[11px] text-slate-500">{t.condition}</p>
                 </div>
-                <p className="text-xs text-slate-500 line-clamp-2">{t.condition}</p>
-                <Link
-                  href={`/monitors/new?url=${encodeURIComponent(t.url)}&condition=${encodeURIComponent(t.condition)}&frequency=${t.freq}`}
-                  className="btn inline-flex w-full justify-center text-xs"
-                >
-                  <Play className="h-3 w-3 fill-ink" />
-                  Create Monitor
-                </Link>
-              </div>
+              </Link>
             ))}
           </div>
         </div>
       )}
 
       {filtered.length > 0 && (
-        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+        <div className="grid gap-3 sm:grid-cols-2">
           {filtered.map((m) => {
             const monitorSignals = signals.filter((s) => s.monitor_id === m.id);
             const latest = monitorSignals.sort(
