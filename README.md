@@ -312,19 +312,28 @@ Install gitleaks: `brew install gitleaks` (macOS) or see https://github.com/gitl
 
 ## Hackathon notes
 
-- **Multi-chain execution:** Kraken (CEX) + Arbitrum Sepolia (DEX via Uniswap V3) + Robinhood Chain (tokenized stocks). Auto-routing by asset type.
-- **Smart contracts:** `SignalRegistry.sol` (on-chain signal hash storage, dual-chain) + `TradeExecutor.sol` (Uniswap-compatible swaps). Foundry-built, MIT licensed.
+- **Multi-chain execution:** Kraken (CEX) + Arbitrum Sepolia (DEX via Uniswap V3) + Robinhood Chain (tokenized stocks via OTC market maker). Auto-routing by asset type.
+- **Smart contracts:** `SignalRegistry.sol` (on-chain signal hash storage, dual-chain, replay-protected) + `TradeExecutor.sol` (Uniswap-compatible swaps) + `StockMarket.sol` (ISwapRouter-compatible OTC market maker for tokenized stocks on Robinhood Chain). Foundry-built, 18 tests passing, MIT licensed.
+- **Deployed contracts:**
+
+  | Contract       | Arbitrum Sepolia (421614)                    | Robinhood Chain (46630)                      |
+  | -------------- | -------------------------------------------- | -------------------------------------------- |
+  | SignalRegistry | `0x05177fa11543cEB73cb18883DFb49B17dc23C862` | `0x5AB797bfd29a2eedD839F60E2a191b426F45c523` |
+  | TradeExecutor  | `0xE2Ac333ad2BCD6A0389bf95a059fF576d13EbE8F` | `0x3a8d805fba50Dbd752d4c868FA7d3B4633A73d02` |
+  | StockMarket    | —                                            | `0xF29E915F95e12d7fa174a84087395789C1C55669` |
+
+- **Live on-chain trade proof:** Sold 0.1 TSLA → 25 USDG on Robinhood Chain testnet via TradeExecutor → StockMarket ([tx `0x1f5060...`](https://explorer.testnet.chain.robinhood.com/tx/0x1f506044e7022ef59e3f83318a8c7609fa625c799e3321b01ce6dfd1c2003c6e)).
 - **Typed signal detectors:** 8 pure-function detectors classify code changes (emergency_patch, security_critical, governance_shift, etc.). Backtest engine correlates signals with price outcomes.
-- **Proof chain:** TinyFish detection → Hedera HCS + Arbitrum SignalRegistry → Grove storage → Kraken / Arbitrum DEX / Robinhood Chain execution. Every link verifiable.
+- **Proof chain:** TinyFish detection → Hedera HCS + Arbitrum SignalRegistry (dual-chain, replay-protected) → Grove storage → Kraken / Arbitrum DEX / Robinhood Chain execution. Every link verifiable. Failed on-chain writes queue to `failed_proofs` with exponential backoff retry.
 - **x402** micropayment protocol for pay-per-request on-demand execution (Blocky402 facilitator).
 - **HashConnect** wallet connection with `NEXT_PUBLIC_HEDERA_NETWORK` env var for testnet/mainnet switching.
 - **Kraken integration:** CLI preferred, REST fallback. Supports 6 order types (market, limit, stop-loss, take-profit, stop-loss-limit, take-profit-limit) with auto-cancel dead-man's switch.
 - **Trade safety:** pair cooldown (15 min), max open orders (10), Zod schema validation before any Kraken call.
 - **Kraken key validation:** `/kraken/configure` pre-validates keys with a balance check + validate-mode trade before saving encrypted credentials.
-- **TinyFish** natural-language web intelligence for signal detection with screenshot evidence.
+- **TinyFish** natural-language web intelligence for signal detection with screenshot evidence. Three-tier cost optimization: Fetch API (free) → Agent API (credits) → raw scraper (fallback).
 - **Queue architecture:** BullMQ + Redis 7 for reliable, concurrent monitor execution (5 workers, 2 retries, exponential backoff).
 - **Auth:** Ed25519 signature verification → httpOnly JWT cookie → all API calls use `credentials: 'include'`.
 - **Frontend:** Toast system (success/error/warn/info), auth-gated queries (no 401 spam), print-to-PDF proof pages, template picker, P&L on orders page, signal activity chart.
 - **Public repo + live demo:** [lenitnes.persidian.com](https://lenitnes.persidian.com)
-- Demo flow: connect wallet → pick a template (e.g. Zcash halo2 watch) → create monitor → background checks every 30 min → on signal: Hedera timestamp + Grove proof + Kraken alert, in < 60s.
+- Demo flow: connect wallet → pick a template (e.g. Zcash halo2 watch) → create monitor → background checks every 30 min → on signal: Hedera timestamp + Arbitrum proof + Grove proof + Kraken alert, in < 60s.
 - On-demand flow: click **Execute** on any monitor → x402 HBAR micropayment → real-time check → results.
