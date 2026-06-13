@@ -148,6 +148,19 @@ ALTER TABLE orders ADD COLUMN IF NOT EXISTS chain_tx_hash TEXT;
 ALTER TABLE signals ADD COLUMN IF NOT EXISTS arb_tx_hash TEXT;
 ALTER TABLE users ADD COLUMN IF NOT EXISTS display_name TEXT;
 
+-- Signal Comments ────────────────────────────────────────────
+-- User-attached notes on signals for collaboration and context.
+CREATE TABLE IF NOT EXISTS signal_comments (
+  id              UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  signal_id       UUID NOT NULL REFERENCES signals(id) ON DELETE CASCADE,
+  user_id         UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  content         TEXT NOT NULL,
+  created_at      TIMESTAMPTZ NOT NULL DEFAULT now(),
+  updated_at      TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+CREATE INDEX IF NOT EXISTS idx_signal_comments_signal ON signal_comments(signal_id, created_at);
+
 -- Webhook Deliveries ─────────────────────────────────────────
 -- Log of every webhook rule execution with status and timing.
 CREATE TABLE IF NOT EXISTS webhook_deliveries (

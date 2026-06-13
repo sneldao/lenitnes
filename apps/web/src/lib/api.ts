@@ -299,6 +299,35 @@ export const api = {
       }>
     >(`/webhooks/deliveries?limit=${limit}`),
 
+  /** Add a comment to a signal. */
+  addComment: (signalId: string, content: string) =>
+    req<{
+      id: string;
+      signal_id: string;
+      user_id: string;
+      content: string;
+      created_at: string;
+      updated_at: string;
+      author_name: string | null;
+    }>(`/signals/${signalId}/comments`, {
+      method: 'POST',
+      body: JSON.stringify({ content }),
+    }),
+
+  /** List comments on a signal. */
+  getComments: (signalId: string) =>
+    req<
+      Array<{
+        id: string;
+        signal_id: string;
+        user_id: string;
+        content: string;
+        created_at: string;
+        updated_at: string;
+        author_name: string | null;
+      }>
+    >(`/signals/${signalId}/comments`),
+
   getHunterDetail: (userId: string, params?: { limit?: number; offset?: number }) => {
     const qs = new URLSearchParams();
     if (params?.limit) qs.set('limit', String(params.limit));

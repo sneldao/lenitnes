@@ -197,3 +197,73 @@ signalsRouter.post('/:id/viewed', async (req: Request, res: Response) => {
   }
   return res.json({ ok: true, ...result });
 });
+
+// ── Signal Comments ───────────────────────────────────────────
+
+export interface SignalComment {
+  id: string;
+  signal_id: string;
+  user_id: string;
+  content: string;
+  created_at: string;
+  updated_at: string;
+  author_name: string | null;
+}
+
+// GET /signals/:id/comments — list comments for a signal (own monitors only).
+signalsRouter.get('/:id/comments', async (req: Request, res: Response) => {
+  const authReq = req as unknown as AuthenticatedRequest;
+
+  const { rows: owned } = await query(
+    `SELECT 1 FROM signals s
+     JOIN monitors m ON m.id = s.monitor_id
+     WHERE s.id = $1 AND m.user_id = $2`,
+    [req.params.id, authReq.user.id],
+  );
+  if (!owned.length) return res.status(404).json({ error: 'not found' });
+
+  const { rows } = await query(
+    `SELECT sc.*, u.display_name AS author_name
+     FROM signal_comments sc
+     LEFT JOIN users u ON u.id = sc.user_id
+     WHERE sc.signal_id = $1
+     ORDER BY sc.created_at ASC`,
+    [req.params.id],
+  );
+  res.json(rows);
+});
+
+// POST /signals/:id/comments — attach a note to a signal (own monitors only).
+signalsRouter.post('/:id/comments', async (req: Request, res: Response) => {
+  const authReq = req as unknown as AuthenticatedRequest;
+  const { content } = req.body as { content?: string };
+
+  if (!content || typeof content !== 'string' || content.trim().length === 0) {
+    return res.status(400).json({ error: 'content_required' });
+  }
+
+  const { rows: owned } = await query(
+    `SELECT 1 FROM signals s
+     JOIN monitors m ON m.id = s.monitor_id
+     WHERE s.id = $1 AND m.user_id = $2`,
+    [req.params.id, authReq.user.id],
+  );
+  if (!owned.length) return res.status(404).json({ error: 'not found' });
+
+  const { rows } = await query(
+    `INSERT INTO signal_comments (signal_id, user_id, content)
+     VALUES ($1, $2, $3)
+     RETURNING id, signal_id, user_id, content, created_at, updated_at`,
+    [req.params.id, authReq.user.id, content.trim()],
+  );
+
+  const { rows: userRows } = await query<{ display_name: string | null }>(
+    `SELECT display_name FROM users WHERE id = $1`,
+    [authReq.user.id],
+  );
+
+  res.status(201).json({
+    ...rows[0],
+    author_name: userRows[0]?.display_name ?? null,
+  });
+});

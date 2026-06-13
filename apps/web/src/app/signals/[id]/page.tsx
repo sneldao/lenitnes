@@ -1,7 +1,7 @@
 'use client';
 
 import { use, useEffect, useMemo, useState } from 'react';
-import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import Link from 'next/link';
 import { usePathname, useSearchParams } from 'next/navigation';
 import { api, type Signal } from '@/lib/api';
@@ -26,6 +26,8 @@ import {
   Info,
   AlertTriangle,
   TrendingUp,
+  MessageSquarePlus,
+  Send,
 } from 'lucide-react';
 import ProofChain from '@/components/ProofChain';
 import { getProofChainSteps } from '@/lib/proof-chain';
@@ -653,6 +655,9 @@ export default function SignalDetailPage({ params }: { params: Promise<{ id: str
         </div>
       )}
 
+      {/* ── Comments section (authenticated only) ── */}
+      {!isPublic && <SignalComments signalId={id} />}
+
       {/* Public proof footer — CTA to create own monitor */}
       {isPublic && (
         <div className="card border-accent/20 bg-accent/5 text-center">
@@ -751,6 +756,87 @@ function ProofChainProgress({ signal }: { signal: Signal }) {
       <span className="ml-1 text-[9px] font-mono text-slate-600">
         {completed}/{total}
       </span>
+    </div>
+  );
+}
+
+// ── Signal Comments ──────────────────────────────────────
+
+function SignalComments({ signalId }: { signalId: string }) {
+  const [newComment, setNewComment] = useState('');
+  const queryClient = useQueryClient();
+
+  const { data: comments = [], isLoading } = useQuery({
+    queryKey: ['signalComments', signalId],
+    queryFn: () => api.getComments(signalId),
+    refetchInterval: 30_000,
+  });
+
+  const addComment = useMutation({
+    mutationFn: (content: string) => api.addComment(signalId, content),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['signalComments', signalId] });
+      setNewComment('');
+    },
+  });
+
+  function handleSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    const trimmed = newComment.trim();
+    if (!trimmed) return;
+    addComment.mutate(trimmed);
+  }
+
+  return (
+    <div className="card">
+      <h2 className="section-title mb-4 flex items-center gap-2">
+        <MessageSquarePlus className="h-3.5 w-3.5 text-accent" />
+        Notes ({isLoading ? '…' : comments.length})
+      </h2>
+
+      <form onSubmit={handleSubmit} className="mb-4 flex gap-2">
+        <input
+          className="input flex-1 text-xs"
+          placeholder="Add a note to this signal…"
+          value={newComment}
+          onChange={(e) => setNewComment(e.target.value)}
+          disabled={addComment.isPending}
+        />
+        <button
+          type="submit"
+          disabled={!newComment.trim() || addComment.isPending}
+          className="flex items-center gap-1.5 rounded-lg bg-accent px-3 py-2 text-[11px] font-semibold text-ink transition-all hover:bg-accent-glow disabled:opacity-40"
+        >
+          {addComment.isPending ? (
+            <Loader2 className="h-3.5 w-3.5 animate-spin" />
+          ) : (
+            <Send className="h-3.5 w-3.5" />
+          )}
+          Add
+        </button>
+      </form>
+
+      {addComment.isError && (
+        <p className="mb-3 text-[10px] text-danger">Failed to save note. Try again.</p>
+      )}
+
+      <div className="space-y-3">
+        {comments.length === 0 && !isLoading && (
+          <p className="text-center text-xs text-slate-500">No notes yet</p>
+        )}
+        {comments.map((c) => (
+          <div key={c.id} className="rounded-xl border border-edge/40 bg-ink-light/30 p-3">
+            <div className="flex items-start justify-between gap-3">
+              <p className="text-sm leading-relaxed text-slate-200">{c.content}</p>
+            </div>
+            <div className="mt-1.5 flex items-center gap-2 text-[10px] text-slate-500">
+              <span className="font-medium text-slate-400">{c.author_name ?? 'Anonymous'}</span>
+              <span>&middot;</span>
+              <span>{new Date(c.created_at).toLocaleString()}</span>
+            </div>
+          </div>
+        ))}
+      </div>
     </div>
   );
 }
