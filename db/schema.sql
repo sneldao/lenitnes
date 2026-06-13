@@ -65,7 +65,8 @@ CREATE TABLE IF NOT EXISTS signals (
   -- dashboard to distinguish a fresh, unread signal from an old one the
   -- user has already seen. NULL = unviewed.
   viewed_at              TIMESTAMPTZ,
-  viewed_by              UUID REFERENCES users(id) ON DELETE SET NULL
+  viewed_by              UUID REFERENCES users(id) ON DELETE SET NULL,
+  search_results         JSONB NOT NULL DEFAULT '[]'::jsonb
 );
 
 CREATE INDEX IF NOT EXISTS idx_signals_monitor_id  ON signals(monitor_id);
@@ -140,6 +141,7 @@ CREATE INDEX IF NOT EXISTS idx_waitlist_email ON waitlist(email);
 -- One row per (signal, detector_type). Multiple detectors can fire
 -- on the same signal (e.g. emergency_patch + security_critical).
 ALTER TABLE monitors ADD COLUMN IF NOT EXISTS asset_mapping JSONB NOT NULL DEFAULT '{}'::jsonb;
+ALTER TABLE signals ADD COLUMN IF NOT EXISTS search_results JSONB NOT NULL DEFAULT '[]'::jsonb;
 
 CREATE TABLE IF NOT EXISTS signal_classifications (
   id              UUID PRIMARY KEY DEFAULT gen_random_uuid(),

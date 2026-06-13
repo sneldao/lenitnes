@@ -50,7 +50,7 @@ export async function runDueChecks(): Promise<void> {
 }
 
 export interface CheckMetadata {
-  checkMethod: 'tinyfish' | 'scraper-fallback';
+  checkMethod: 'tinyfish' | 'tinyfish-fetch' | 'scraper-fallback';
   circuitOpen: boolean;
   githubCommitsFetched: number;
   confidence: number;
@@ -118,30 +118,44 @@ export async function executeCheck(
     debitTxId = debit.hederaTxId;
   }
 
-  // ── 2) Run TinyFish (with circuit breaker + scraper fallback) ─────
+  // ── 2) Three-tier scraping: Fetch (free) → Agent (credits) → scraper ─────
   let result: TinyFishResult;
-  const circuitOpen = isCircuitOpen(circuitOpts);
-  let checkMethod: 'tinyfish' | 'scraper-fallback' = 'tinyfish';
-  if (circuitOpen) {
-    logger.warn({ monitorId: monitor.id }, 'TinyFish circuit open — using scraper fallback');
-    result = await scraper.runScraperFallback(monitor.url, monitor.condition_text);
-    checkMethod = 'scraper-fallback';
-    incCounter('tinyfish_errors_total', { fallback: 'scraper' });
-  } else {
-    try {
-      result = await tinyfish.runMonitorCheck({
-        url: monitor.url,
-        condition: monitor.condition_text,
-        lastSeenCommitHash: monitor.last_seen_commit_hash,
-        screenshots: monitor.screenshots_enabled,
-      });
-      recordSuccess(circuitOpts);
-    } catch (err) {
-      recordFailure(circuitOpts);
-      incCounter('tinyfish_errors_total', { fallback: 'none' });
-      logger.warn({ err, monitorId: monitor.id }, 'TinyFish failed, trying scraper fallback');
+  const agentCircuitOpen = isCircuitOpen(circuitOpts);
+  let checkMethod: 'tinyfish' | 'tinyfish-fetch' | 'scraper-fallback' = 'tinyfish-fetch';
+
+  // Tier 1: Fetch API (free, Chromium-rendered page content)
+  try {
+    const fetchedPage = await tinyfish.fetchPage(monitor.url);
+    result = scraper.analyzeContent(fetchedPage.content, monitor.condition_text, 'tinyfish-fetch');
+    recordSuccess(circuitOpts);
+    logger.debug({ monitorId: monitor.id, confidence: result.confidence }, 'Fetch API succeeded');
+  } catch (err) {
+    logger.warn({ err, monitorId: monitor.id }, 'Fetch API failed, trying Agent fallback');
+
+    // Tier 2: Agent API (credits, full NL evaluation)
+    if (agentCircuitOpen) {
+      logger.warn({ monitorId: monitor.id }, 'Agent circuit open — using scraper fallback');
       result = await scraper.runScraperFallback(monitor.url, monitor.condition_text);
       checkMethod = 'scraper-fallback';
+      incCounter('tinyfish_errors_total', { fallback: 'scraper' });
+    } else {
+      try {
+        result = await tinyfish.runMonitorCheck({
+          url: monitor.url,
+          condition: monitor.condition_text,
+          lastSeenCommitHash: monitor.last_seen_commit_hash,
+          screenshots: monitor.screenshots_enabled,
+        });
+        checkMethod = 'tinyfish';
+        recordSuccess(circuitOpts);
+        logger.debug({ monitorId: monitor.id }, 'Agent API succeeded after Fetch failure');
+      } catch (agentErr) {
+        recordFailure(circuitOpts);
+        incCounter('tinyfish_errors_total', { fallback: 'scraper' });
+        logger.warn({ err: agentErr, monitorId: monitor.id }, 'Agent failed — scraper fallback');
+        result = await scraper.runScraperFallback(monitor.url, monitor.condition_text);
+        checkMethod = 'scraper-fallback';
+      }
     }
   }
 
@@ -187,7 +201,7 @@ export async function executeCheck(
       summary: null,
       metadata: {
         checkMethod,
-        circuitOpen,
+        circuitOpen: agentCircuitOpen,
         githubCommitsFetched: result.githubCommitsFetched ?? 0,
         confidence: result.confidence,
         confidenceThreshold: monitor.confidence_threshold,
@@ -277,6 +291,23 @@ export async function executeCheck(
     }
   }
 
+  // ── 4c) Search enrichment: find related context (free, best-effort) ───────
+  if (!isHeartbeat && signalId && result.summary) {
+    tinyfish
+      .searchWeb(`${monitor.url} ${result.summary}`)
+      .then((results) => {
+        if (results.length > 0) {
+          return query(`UPDATE signals SET search_results = $1 WHERE id = $2`, [
+            JSON.stringify(results),
+            signalId,
+          ]);
+        }
+      })
+      .catch((err) => {
+        logger.warn({ err, signalId }, 'search enrichment failed (non-blocking)');
+      });
+  }
+
   // ── 5) Best-effort rule execution ─────────────────────────────────
   if (!isHeartbeat && signalId) {
     executeRules(monitor, signalId, result.summary).catch((err) => {
@@ -291,7 +322,7 @@ export async function executeCheck(
     summary,
     metadata: {
       checkMethod,
-      circuitOpen,
+      circuitOpen: agentCircuitOpen,
       githubCommitsFetched: result.githubCommitsFetched ?? 0,
       confidence: result.confidence,
       confidenceThreshold: monitor.confidence_threshold ?? 50,

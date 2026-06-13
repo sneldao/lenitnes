@@ -6,7 +6,7 @@
 import { withRetry } from './retry.js';
 
 export interface ScraperResult {
-  runId: 'scraper-fallback';
+  runId: string;
   conditionMet: boolean;
   confidence: number;
   evidence: string;
@@ -30,9 +30,11 @@ export async function runScraperFallback(url: string, condition: string): Promis
   }
 
   const html = await res.text();
-  const text = stripHtml(html);
+  return analyzeContent(stripHtml(html), condition, 'scraper-fallback');
+}
 
-  // Extract keywords from condition (naive: words > 3 chars).
+/** Analyze pre-fetched content (markdown or plain text) against a condition. */
+export function analyzeContent(text: string, condition: string, source: string): ScraperResult {
   const keywords = condition
     .toLowerCase()
     .split(/\s+/)
@@ -44,11 +46,11 @@ export async function runScraperFallback(url: string, condition: string): Promis
   const confidence = Math.round(matchRatio * 100);
 
   return {
-    runId: 'scraper-fallback',
+    runId: source,
     conditionMet: matchRatio >= 0.5,
     confidence,
     evidence: text.slice(0, 500),
-    summary: `Scraper fallback: ${found.length}/${keywords.length} keywords matched.`,
+    summary: `${source}: ${found.length}/${keywords.length} keywords matched.`,
     screenshots: [],
   };
 }

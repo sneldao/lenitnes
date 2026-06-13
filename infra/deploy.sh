@@ -11,6 +11,12 @@ if ! git rev-parse --verify "$REF" >/dev/null 2>&1; then
   exit 1
 fi
 
+# Use sudo for docker if the current user is not in the docker group.
+DC="docker compose"
+if ! docker info >/dev/null 2>&1; then
+  DC="sudo docker compose"
+fi
+
 SHA=$(git rev-parse "$REF")
 echo "deploying $SHA"
 
@@ -18,23 +24,23 @@ git fetch origin
 git checkout "$SHA"
 
 echo "building images..."
-docker compose build --quiet
+$DC build --quiet
 
 echo "starting database..."
-docker compose up -d db redis
+$DC up -d db redis
 echo "waiting for database..."
 for i in $(seq 1 15); do
-  if docker compose exec -T db pg_isready -U "${POSTGRES_USER:-lenitnes}" >/dev/null 2>&1; then
+  if $DC exec -T db pg_isready -U "${POSTGRES_USER:-lenitnes}" >/dev/null 2>&1; then
     break
   fi
   sleep 2
 done
 
 echo "running migrations..."
-docker compose exec -T db psql -U "${POSTGRES_USER:-lenitnes}" -d "${POSTGRES_DB:-lenitnes}" < db/schema.sql
+$DC exec -T db psql -U "${POSTGRES_USER:-lenitnes}" -d "${POSTGRES_DB:-lenitnes}" < db/schema.sql
 
 echo "starting stack..."
-docker compose up -d
+$DC up -d
 
 echo "verifying health..."
 for i in $(seq 1 30); do

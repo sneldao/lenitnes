@@ -97,7 +97,7 @@ Recent commits since last check:\n${enrichedCommits
 
   const goal = buildGoalPrompt(p, commitContext);
 
-  const baseUrl = process.env.TINYFISH_API_URL ?? 'https://api.tinyfish.ai/v1';
+  const baseUrl = process.env.TINYFISH_API_URL ?? 'https://agent.tinyfish.ai/v1/automation';
   try {
     const res = await withRetry(
       () =>
@@ -172,4 +172,91 @@ Recent commits since last check:\n${enrichedCommits
     githubCommitsFetched,
     commits: enrichedCommits ?? undefined,
   };
+}
+
+// ─────────────────────────────────────────────────────────────
+// Fetch API — free Chromium-rendered page extraction.
+// Returns clean markdown with metadata. Up to 10 URLs per request.
+// No credits consumed — ideal for GitHub commits, SEC filings, docs.
+// ─────────────────────────────────────────────────────────────
+
+export interface FetchedPage {
+  url: string;
+  content: string;
+  title?: string;
+  description?: string;
+  error?: string;
+}
+
+export async function fetchPage(url: string): Promise<FetchedPage> {
+  if (!config.tinyfish.apiKey) {
+    throw new Error('TINYFISH_API_KEY not configured');
+  }
+
+  const res = await withRetry(
+    () =>
+      fetch('https://api.fetch.tinyfish.ai', {
+        method: 'POST',
+        headers: {
+          'X-API-Key': config.tinyfish.apiKey,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ urls: [url] }),
+        signal: AbortSignal.timeout(20_000),
+      }),
+    { retries: 1, baseDelayMs: 500 },
+  );
+
+  if (!res.ok) {
+    throw new Error(`TinyFish Fetch error ${res.status}: ${await res.text()}`);
+  }
+
+  const json = (await res.json()) as Record<string, unknown>;
+  const results = (json.results ?? [json]) as Array<Record<string, unknown>>;
+  const page = results[0];
+
+  if (!page) throw new Error('TinyFish Fetch returned no results');
+  if (page.error) throw new Error(`TinyFish Fetch: ${page.error}`);
+
+  return {
+    url: (page.url ?? url) as string,
+    content: (page.content ?? page.markdown ?? page.text ?? '') as string,
+    title: page.title as string | undefined,
+    description: page.description as string | undefined,
+  };
+}
+
+// ─────────────────────────────────────────────────────────────
+// Search API — free ranked web results.
+// Useful for enriching signals with related news/context.
+// ─────────────────────────────────────────────────────────────
+
+export interface SearchResult {
+  title: string;
+  url: string;
+  snippet: string;
+  siteName?: string;
+}
+
+export async function searchWeb(query: string): Promise<SearchResult[]> {
+  if (!config.tinyfish.apiKey) return [];
+
+  const params = new URLSearchParams({ query });
+  const res = await fetch(`https://api.search.tinyfish.ai?${params}`, {
+    headers: { 'X-API-Key': config.tinyfish.apiKey },
+    signal: AbortSignal.timeout(10_000),
+  });
+
+  if (!res.ok) {
+    logger.warn({ status: res.status }, 'TinyFish Search failed');
+    return [];
+  }
+
+  const json = (await res.json()) as { results?: Array<Record<string, unknown>> };
+  return (json.results ?? []).slice(0, 5).map((r) => ({
+    title: (r.title ?? '') as string,
+    url: (r.url ?? '') as string,
+    snippet: (r.snippet ?? '') as string,
+    siteName: r.site_name as string | undefined,
+  }));
 }
