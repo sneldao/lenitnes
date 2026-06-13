@@ -89,43 +89,45 @@ export function Nav() {
       </nav>
 
       {open && (
-        <div className="absolute left-0 right-0 top-full z-50 mt-1 rounded-2xl border border-edge/40 bg-panel/95 p-3 shadow-card backdrop-blur-xl sm:hidden">
-          {links.map((l) => (
-            <Link
-              key={l.href}
-              href={l.href}
-              onClick={() => setOpen(false)}
-              className={`flex items-center rounded-xl px-4 py-3 text-sm font-medium transition-colors ${
-                isActive(l.href)
-                  ? 'bg-accent/10 text-accent'
-                  : 'text-slate-400 hover:bg-ink-light hover:text-slate-100'
-              }`}
-            >
-              {l.label}
-            </Link>
-          ))}
-          {isAuthenticated && (
-            <Link
-              href="/account"
-              onClick={() => setOpen(false)}
-              className={`flex items-center gap-2 rounded-xl px-4 py-3 text-sm font-medium transition-colors ${
-                isActive('/account')
-                  ? 'bg-accent/10 text-accent'
-                  : 'text-slate-400 hover:bg-ink-light hover:text-slate-100'
-              }`}
-            >
-              <Settings className="h-3.5 w-3.5" />
-              Account
-            </Link>
-          )}
-          <div className="mt-1 border-t border-edge/40 pt-2">
-            <Link
-              href={cta.href}
-              onClick={() => setOpen(false)}
-              className="btn w-full justify-center py-2.5 text-xs"
-            >
-              {cta.label}
-            </Link>
+        <div className="fixed inset-x-0 top-[57px] z-50 border-b border-edge/40 bg-panel/98 p-4 shadow-card backdrop-blur-xl sm:hidden">
+          <div className="mx-auto max-w-4xl space-y-0.5">
+            {links.map((l) => (
+              <Link
+                key={l.href}
+                href={l.href}
+                onClick={() => setOpen(false)}
+                className={`flex items-center rounded-xl px-4 py-3 text-sm font-medium transition-colors ${
+                  isActive(l.href)
+                    ? 'bg-accent/10 text-accent'
+                    : 'text-slate-400 hover:bg-ink-light hover:text-slate-100'
+                }`}
+              >
+                {l.label}
+              </Link>
+            ))}
+            {isAuthenticated && (
+              <Link
+                href="/account"
+                onClick={() => setOpen(false)}
+                className={`flex items-center gap-2 rounded-xl px-4 py-3 text-sm font-medium transition-colors ${
+                  isActive('/account')
+                    ? 'bg-accent/10 text-accent'
+                    : 'text-slate-400 hover:bg-ink-light hover:text-slate-100'
+                }`}
+              >
+                <Settings className="h-3.5 w-3.5" />
+                Account
+              </Link>
+            )}
+            <div className="border-t border-edge/40 pt-3">
+              <Link
+                href={cta.href}
+                onClick={() => setOpen(false)}
+                className="btn w-full justify-center py-2.5 text-xs"
+              >
+                {cta.label}
+              </Link>
+            </div>
           </div>
         </div>
       )}

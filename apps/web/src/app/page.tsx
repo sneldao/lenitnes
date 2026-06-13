@@ -449,7 +449,7 @@ function DashboardView({
 
   return (
     <div className="space-y-8">
-      <div className="flex items-end justify-between">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
         <div>
           <div className="flex items-center gap-3">
             <h1 className="text-2xl font-bold tracking-tight text-white">Dashboard</h1>
@@ -465,28 +465,28 @@ function DashboardView({
             {monitors.length} monitor{monitors.length !== 1 ? 's' : ''} configured
           </p>
         </div>
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-2">
           {isRefetching && !isLoading && (
             <span className="text-[10px] text-slate-500 animate-pulse">Refreshing…</span>
           )}
-          <div className="relative hidden sm:block">
+          <div className="relative flex-1 sm:flex-none">
             <input
-              className="input py-2 pl-8 pr-3 text-xs"
+              className="input w-full py-2 pl-8 pr-3 text-xs sm:w-auto"
               placeholder="Search monitors…"
               value={search}
               onChange={(e) => setSearch(e.target.value)}
             />
             <Eye className="absolute left-2.5 top-1/2 h-3 w-3 -translate-y-1/2 text-slate-600" />
           </div>
-          <Link href="/monitors/new" className="btn text-xs">
-            + Watch New Target
+          <Link href="/monitors/new" className="btn shrink-0 text-xs">
+            + Watch
           </Link>
         </div>
       </div>
 
-      <div className="flex flex-wrap items-center gap-x-0 gap-y-3 rounded-2xl border border-edge/50 bg-ink-light/40 px-1 backdrop-blur-sm">
+      <div className="grid grid-cols-2 rounded-2xl border border-edge/50 bg-ink-light/40 backdrop-blur-sm sm:flex sm:flex-wrap sm:items-center">
         {isLoading ? (
-          <div className="flex gap-8 px-6 py-4 animate-pulse">
+          <div className="col-span-2 flex gap-6 px-5 py-4 animate-pulse">
             {Array.from({ length: 4 }).map((_, i) => (
               <div key={i} className="space-y-1">
                 <div className="h-3 w-14 rounded bg-edge/60" />
@@ -525,7 +525,7 @@ function DashboardView({
               },
             ].map((stat, i, arr) => (
               <div key={stat.label} className="flex items-stretch">
-                <div className="flex items-center gap-3 px-5 py-3.5">
+                <div className="flex items-center gap-2.5 px-4 py-3 sm:px-5 sm:py-3.5">
                   <div className="relative">
                     {stat.pulse && (
                       <span className="absolute -right-0.5 -top-0.5 h-1.5 w-1.5 rounded-full bg-signal animate-pulse" />
@@ -537,7 +537,7 @@ function DashboardView({
                       {stat.label}
                     </p>
                     <p
-                      className={`font-mono text-lg font-semibold tabular-nums leading-none ${stat.color}`}
+                      className={`font-mono text-base font-semibold tabular-nums leading-none sm:text-lg ${stat.color}`}
                     >
                       {stat.value}
                     </p>

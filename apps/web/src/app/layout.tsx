@@ -29,10 +29,10 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         <Providers>
           <WalletProvider>
             <ToastProvider>
-              <div className="mx-auto flex min-h-screen max-w-7xl flex-col px-6 lg:px-8">
-                <header className="glass sticky top-0 z-40 -mx-6 flex items-center justify-between rounded-b-2xl px-6 py-4 lg:-mx-8 lg:px-8">
-                  <Link href="/" className="group flex items-center gap-3">
-                    <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-gradient-to-br from-accent to-signal text-sm font-black text-ink shadow-glow-sm transition-shadow group-hover:shadow-glow">
+              <div className="mx-auto flex min-h-screen max-w-4xl flex-col px-4 sm:px-6">
+                <header className="glass sticky top-0 z-40 -mx-4 flex items-center justify-between rounded-b-2xl px-4 py-3 sm:-mx-6 sm:px-6">
+                  <Link href="/" className="group flex items-center gap-2.5">
+                    <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-gradient-to-br from-accent to-signal text-sm font-black text-ink shadow-glow-sm transition-shadow group-hover:shadow-glow">
                       L
                     </div>
                     <div className="flex flex-col">
@@ -49,20 +49,24 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
                     <WalletConnectButton />
                   </div>
                 </header>
-                <main id="main-content" className="animate-fade-in flex-1 py-10" tabIndex={-1}>
+                <main
+                  id="main-content"
+                  className="animate-fade-in flex-1 py-6 sm:py-10"
+                  tabIndex={-1}
+                >
                   <ErrorBoundary>{children}</ErrorBoundary>
                 </main>
-                <footer className="border-t border-edge/40 py-8">
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-3">
-                      <div className="flex h-6 w-6 items-center justify-center rounded-md bg-gradient-to-br from-accent/20 to-signal/20 text-[10px] font-bold text-accent">
+                <footer className="border-t border-edge/40 py-6">
+                  <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                    <div className="flex items-center gap-2">
+                      <div className="flex h-5 w-5 items-center justify-center rounded-md bg-gradient-to-br from-accent/20 to-signal/20 text-[9px] font-bold text-accent">
                         L
                       </div>
                       <span className="text-xs text-slate-500">
                         Every signal carries a cryptographic proof chain
                       </span>
                     </div>
-                    <div className="flex items-center gap-4 text-[10px] font-medium uppercase tracking-wider text-slate-600">
+                    <div className="flex items-center gap-3 text-[10px] font-medium uppercase tracking-wider text-slate-600">
                       <span>Hedera</span>
                       <span className="h-1 w-1 rounded-full bg-edge-light" />
                       <span>TinyFish</span>

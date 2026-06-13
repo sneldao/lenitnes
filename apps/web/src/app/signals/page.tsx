@@ -61,10 +61,10 @@ function SignalsSummaryBar({ signals }: { signals: Signal[] }) {
   ];
 
   return (
-    <div className="flex flex-wrap items-center rounded-2xl border border-edge/50 bg-ink-light/40 px-1 backdrop-blur-sm">
+    <div className="grid grid-cols-3 rounded-2xl border border-edge/50 bg-ink-light/40 backdrop-blur-sm sm:flex sm:flex-wrap sm:items-center">
       {items.map((s, i, arr) => (
         <div key={s.label} className="flex items-stretch">
-          <div className="flex items-center gap-3 px-4 py-3.5">
+          <div className="flex items-center gap-2.5 px-3 py-3 sm:px-4 sm:py-3.5">
             <div className="relative">
               {s.pulse && (
                 <span className="absolute -right-0.5 -top-0.5 h-1.5 w-1.5 rounded-full bg-danger animate-pulse" />
@@ -224,7 +224,7 @@ export default function SignalsPage() {
 
   return (
     <div className="space-y-8 animate-fade-in">
-      <div className="flex items-end justify-between">
+      <div className="flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
         <div>
           <h1 className="text-2xl font-bold tracking-tight text-white">Signals</h1>
           <p className="mt-1 text-sm text-slate-500">Detection timeline with proof chain records</p>

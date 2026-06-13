@@ -222,7 +222,7 @@ export default function OrdersPage() {
 
   return (
     <div className="space-y-8 animate-fade-in">
-      <div className="flex items-end justify-between">
+      <div className="flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
         <div>
           <h1 className="text-2xl font-bold tracking-tight text-white">Orders</h1>
           <p className="mt-1 text-sm text-slate-500">
@@ -309,7 +309,7 @@ export default function OrdersPage() {
         </div>
       )}
 
-      <div className="flex flex-wrap items-center rounded-2xl border border-edge/50 bg-ink-light/40 px-1 backdrop-blur-sm">
+      <div className="grid grid-cols-3 rounded-2xl border border-edge/50 bg-ink-light/40 backdrop-blur-sm sm:flex sm:flex-wrap sm:items-center">
         {[
           { label: 'Total', value: orders.length, color: 'text-slate-300' },
           { label: 'Open', value: placedCount, color: 'text-accent', pulse: placedCount > 0 },
@@ -329,14 +329,14 @@ export default function OrdersPage() {
           },
         ].map((s, i, arr) => (
           <div key={s.label} className="flex items-stretch">
-            <div className="flex items-center gap-3 px-5 py-3.5">
+            <div className="flex items-center gap-2.5 px-4 py-3 sm:px-5 sm:py-3.5">
               {s.pulse && <span className="h-1.5 w-1.5 rounded-full bg-accent animate-pulse" />}
               <div>
                 <p className="text-[10px] font-medium uppercase tracking-widest text-slate-600">
                   {s.label}
                 </p>
                 <p
-                  className={`font-mono text-lg font-semibold tabular-nums leading-none ${s.color}`}
+                  className={`font-mono text-base font-semibold tabular-nums leading-none sm:text-lg ${s.color}`}
                 >
                   {s.value}
                 </p>
@@ -490,8 +490,8 @@ export default function OrdersPage() {
       )}
 
       {filtered.length > 0 && (
-        <div className="overflow-x-auto rounded-2xl border border-edge/40 shadow-card">
-          <table className="w-full text-left text-sm">
+        <div className="overflow-x-auto rounded-2xl border border-edge/40 shadow-card -mx-4 sm:mx-0">
+          <table className="w-full min-w-[640px] text-left text-sm">
             <thead className="bg-ink-light/80">
               <tr className="text-[10px] uppercase tracking-wider text-slate-500">
                 <th className="px-5 py-3 font-semibold">Monitor</th>
