@@ -101,7 +101,7 @@ export default function HunterDetailPage({ params }: { params: Promise<{ userId:
   });
 
   const hunter = data?.hunter;
-  const signals = data?.signals ?? [];
+  const signals: Signal[] = data?.signals ?? [];
   const hasMore = signals.length >= PAGE_SIZE;
 
   return (
