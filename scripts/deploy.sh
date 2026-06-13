@@ -8,11 +8,11 @@ REMOTE_DIR="${REMOTE_DIR:-~/lenitnes}"
 echo "→ pulling on $SSH_HOST"
 ssh "$SSH_HOST" "cd $REMOTE_DIR && git fetch origin && git checkout main && git reset --hard origin/main"
 
-echo "→ rebuilding api + worker"
-ssh "$SSH_HOST" "cd $REMOTE_DIR && sudo docker compose build api worker"
+echo "→ rebuilding api + worker + web"
+ssh "$SSH_HOST" "cd $REMOTE_DIR && sudo docker compose build api worker web"
 
 echo "→ restarting containers"
-ssh "$SSH_HOST" "cd $REMOTE_DIR && sudo docker compose up -d api worker"
+ssh "$SSH_HOST" "cd $REMOTE_DIR && sudo docker compose up -d api worker web"
 
 echo "→ health check"
 sleep 3
