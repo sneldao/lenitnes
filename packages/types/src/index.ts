@@ -63,6 +63,8 @@ export interface Signal {
   /** ISO timestamp; null means the owning user has not opened the signal yet. */
   viewed_at?: string | null;
   viewed_by?: string | null;
+  arb_tx_hash?: string | null;
+  search_results?: Array<{ title: string; url: string; snippet: string; siteName?: string }>;
   orders_count?: number;
 }
 
@@ -94,7 +96,7 @@ export interface SignalDetail extends Signal {
 
 // ── Rule ─────────────────────────────────────────────────────
 
-export type ActionType = 'trade' | 'webhook' | 'email' | 'telegram';
+export type ActionType = 'trade' | 'trade_dex' | 'trade_stock' | 'webhook' | 'email' | 'telegram';
 
 export interface Rule {
   id: string;

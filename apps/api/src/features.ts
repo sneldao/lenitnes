@@ -30,6 +30,19 @@ export const FEATURES = {
 
   /** GitHub API commit enrichment */
   githubApi: (process.env.GITHUB_TOKEN ?? '') !== '',
+
+  /** Arbitrum DEX trading (requires EVM key + deployed TradeExecutor) */
+  arbitrumTrading:
+    (process.env.EVM_PRIVATE_KEY ?? '') !== '' &&
+    (process.env.ARB_TRADE_EXECUTOR_ADDRESS ?? '') !== '',
+
+  /** Robinhood Chain stock trading (requires EVM key + deployed TradeExecutor) */
+  robinhoodChain:
+    (process.env.EVM_PRIVATE_KEY ?? '') !== '' &&
+    (process.env.RH_TRADE_EXECUTOR_ADDRESS ?? '') !== '',
+
+  /** Arbitrum on-chain proof (requires deployed SignalRegistry) */
+  evmProof: (process.env.ARB_SIGNAL_REGISTRY_ADDRESS ?? '') !== '',
 } as const;
 
 export type FeatureName = keyof typeof FEATURES;

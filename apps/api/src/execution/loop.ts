@@ -14,6 +14,10 @@ import { incCounter } from '../middleware/metrics.js';
 import { logger } from '../logger.js';
 import { tradeConfigSchema } from '../validation/index.js';
 import { runDetectors } from '../services/detectors/registry.js';
+import { executeEvmTrade } from '../services/evm/trade.js';
+import { recordSignalOnChain } from '../services/evm/signal-registry.js';
+import { resolveTokenAddress } from '../services/evm/tokens.js';
+import { FEATURES } from '../features.js';
 
 // ─────────────────────────────────────────────────────────────
 // Monitor execution loop — the heart of LENITNES.
@@ -257,6 +261,17 @@ export async function executeCheck(
     }
   }
 
+  // ── 4a) Record signal on Arbitrum (dual-chain proof, best-effort) ────────
+  if (!isHeartbeat && signalId && FEATURES.evmProof) {
+    recordSignalOnChain('arbitrum', signalId, result.evidence, result.summary)
+      .then(({ txHash }) =>
+        query(`UPDATE signals SET arb_tx_hash = $1 WHERE id = $2`, [txHash, signalId]),
+      )
+      .catch((err) => {
+        logger.warn({ err, signalId }, 'Arbitrum proof recording failed (non-blocking)');
+      });
+  }
+
   // ── 4b) Run detector pipeline on new signals (best-effort) ─────────
   let classifications: Array<{ type: string; score: number; confidence: number; label: string }> =
     [];
@@ -465,6 +480,40 @@ async function executeRules(monitor: Monitor, signalId: string, summary: string)
         case 'email':
           await notify.sendEmail(String(rule.action_config.to), 'LENITNES signal', summary);
           break;
+        case 'trade_dex': {
+          const chain = (rule.action_config.chain as string) ?? 'arbitrum';
+          const evmResult = await executeEvmTrade({
+            chain,
+            tokenIn: rule.action_config.tokenIn as string,
+            tokenOut: rule.action_config.tokenOut as string,
+            amountIn: rule.action_config.amountIn as string,
+            slippageBps: rule.action_config.slippageBps as number | undefined,
+          });
+          await query(
+            `INSERT INTO orders (signal_id, rule_id, order_params, status, chain, chain_tx_hash)
+             VALUES ($1, $2, $3, 'filled', $4, $5)`,
+            [signalId, rule.id, JSON.stringify(rule.action_config), chain, evmResult.txHash],
+          );
+          break;
+        }
+        case 'trade_stock': {
+          const stockToken = rule.action_config.tokenOut as string;
+          const stockAmount = rule.action_config.amountIn as string;
+          const usdg = resolveTokenAddress('USDG', 'robinhood');
+          if (!usdg) throw new Error('USDG not configured for Robinhood Chain');
+          const stockResult = await executeEvmTrade({
+            chain: 'robinhood',
+            tokenIn: usdg,
+            tokenOut: stockToken,
+            amountIn: stockAmount,
+          });
+          await query(
+            `INSERT INTO orders (signal_id, rule_id, order_params, status, chain, chain_tx_hash)
+             VALUES ($1, $2, $3, 'filled', 'robinhood', $4)`,
+            [signalId, rule.id, JSON.stringify(rule.action_config), stockResult.txHash],
+          );
+          break;
+        }
       }
     } catch (err) {
       logger.error({ err, ruleId: rule.id, actionType: rule.action_type }, 'rule action failed');

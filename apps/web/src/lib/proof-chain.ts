@@ -1,5 +1,5 @@
 import type { SignalDetail } from '@lenitnes/types';
-import { Eye, Shield, Link, Zap } from 'lucide-react';
+import { Eye, Shield, ShieldCheck, Link, Zap } from 'lucide-react';
 import type { ProofChainStep } from '@/components/ProofChain';
 
 /**
@@ -42,6 +42,19 @@ export function getProofChainSteps(signal: SignalDetail | null): ProofChainStep[
     },
     {
       id: 2,
+      label: 'Arbitrum',
+      icon: ShieldCheck,
+      color: '#3b82f6',
+      glowColor: 'rgba(59,130,246,0.15)',
+      borderColor: 'rgba(59,130,246,0.5)',
+      detail: signal.arb_tx_hash
+        ? 'Signal hash recorded on Arbitrum Sepolia. Verifiable on-chain proof.'
+        : 'No Arbitrum proof recorded. Enable evmProof feature.',
+      href: signal.arb_tx_hash ? `https://sepolia.arbiscan.io/tx/${signal.arb_tx_hash}` : undefined,
+      completed: !!signal.arb_tx_hash,
+    },
+    {
+      id: 3,
       label: 'Store',
       icon: Link,
       color: '#22d3ee',
@@ -54,7 +67,7 @@ export function getProofChainSteps(signal: SignalDetail | null): ProofChainStep[
       completed: !!signal.ipfs_cid,
     },
     {
-      id: 3,
+      id: 4,
       label: 'Act',
       icon: Zap,
       color: '#f59e0b',

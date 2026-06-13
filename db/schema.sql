@@ -142,6 +142,9 @@ CREATE INDEX IF NOT EXISTS idx_waitlist_email ON waitlist(email);
 -- on the same signal (e.g. emergency_patch + security_critical).
 ALTER TABLE monitors ADD COLUMN IF NOT EXISTS asset_mapping JSONB NOT NULL DEFAULT '{}'::jsonb;
 ALTER TABLE signals ADD COLUMN IF NOT EXISTS search_results JSONB NOT NULL DEFAULT '[]'::jsonb;
+ALTER TABLE orders ADD COLUMN IF NOT EXISTS chain TEXT;
+ALTER TABLE orders ADD COLUMN IF NOT EXISTS chain_tx_hash TEXT;
+ALTER TABLE signals ADD COLUMN IF NOT EXISTS arb_tx_hash TEXT;
 
 CREATE TABLE IF NOT EXISTS signal_classifications (
   id              UUID PRIMARY KEY DEFAULT gen_random_uuid(),

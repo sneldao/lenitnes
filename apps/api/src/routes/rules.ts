@@ -1,6 +1,6 @@
 import { Router, type Request, type Response } from 'express';
 import type { AuthenticatedRequest } from '../middleware/auth.js';
-import type { Rule } from '@lenitnes/types';
+import type { Rule, ActionType } from '@lenitnes/types';
 import { createRuleSchema } from '../validation/index.js';
 import { validate } from '../middleware/validate.js';
 import {
@@ -15,7 +15,7 @@ rulesRouter.post('/', validate(createRuleSchema), async (req: Request, res: Resp
   const authReq = req as unknown as AuthenticatedRequest;
   const b = req.body as {
     monitorId: string;
-    actionType: 'trade' | 'webhook' | 'email' | 'telegram';
+    actionType: ActionType;
     actionConfig: Record<string, unknown>;
     conditions: Record<string, unknown>;
     isActive: boolean;

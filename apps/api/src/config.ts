@@ -37,6 +37,17 @@ export const config = {
     chainId: Number(process.env.GROVE_CHAIN_ID ?? 37111),
   },
 
+  evm: {
+    privateKey: process.env.EVM_PRIVATE_KEY ?? '',
+    arbitrumRpcUrl: process.env.ARBITRUM_RPC_URL ?? 'https://sepolia-rollup.arbitrum.io/rpc',
+    robinhoodRpcUrl: process.env.ROBINHOOD_RPC_URL ?? 'https://rpc.testnet.chain.robinhood.com',
+    arbSignalRegistry: process.env.ARB_SIGNAL_REGISTRY_ADDRESS ?? '',
+    arbTradeExecutor: process.env.ARB_TRADE_EXECUTOR_ADDRESS ?? '',
+    rhSignalRegistry: process.env.RH_SIGNAL_REGISTRY_ADDRESS ?? '',
+    rhTradeExecutor: process.env.RH_TRADE_EXECUTOR_ADDRESS ?? '',
+    robinhoodSwapRouter: process.env.ROBINHOOD_SWAP_ROUTER ?? '',
+  },
+
   encryptionKey: required('ENCRYPTION_KEY'),
 
   jwtSecret: required('JWT_SECRET'),

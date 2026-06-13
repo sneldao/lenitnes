@@ -1,5 +1,5 @@
 import { query } from '../../db/pool.js';
-import type { Rule } from '@lenitnes/types';
+import type { Rule, ActionType } from '@lenitnes/types';
 
 /**
  * Rule domain service — pure business logic, no Express.
@@ -7,7 +7,7 @@ import type { Rule } from '@lenitnes/types';
 
 export interface CreateRuleParams {
   monitorId: string;
-  actionType: 'trade' | 'webhook' | 'email' | 'telegram';
+  actionType: ActionType;
   actionConfig: Record<string, unknown>;
   conditions: Record<string, unknown>;
   isActive: boolean;

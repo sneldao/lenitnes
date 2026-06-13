@@ -1,17 +1,17 @@
 # LENITNES
 
-**Proof-chained web monitoring that detects market signals and executes trades — powered by Hedera, x402 micropayments, and AI.**
+**Proof-chained web monitoring that detects code-level signals and executes trades across Kraken, Arbitrum, and Robinhood Chain — powered by AI, Hedera, and EVM smart contracts.**
 
 LENITNES (a.k.a. _Sentinel_) watches GitHub repositories and other web sources for
-signals that precede crypto market moves, then alerts or executes trades on Kraken.
+signals that precede market moves, then routes trades to the optimal venue.
 Every signal carries a tamper-evident **proof chain**:
 
 ```
-╭───────────────╮   ╭──────────────╮   ╭────────────────╮   ╭──────────────╮
-│   TinyFish    │──▶│    Hedera     │──▶│     Grove       │──▶│    Kraken     │
-│ detect signal │   │ HCS timestamp │   │  proof storage │   │ alert / trade │
-│  + screenshot │   │ + micropay    │   │  (Lens Proto)  │   │   (receipt)   │
-╰───────────────╯   ╰──────────────╯   ╰────────────────╯   ╰──────────────╯
+╭───────────────╮   ╭──────────────╮   ╭────────────────╮   ╭──────────────────────────╮
+│   TinyFish    │──▶│  Hedera HCS  │──▶│   Arbitrum     │──▶│  Execute:                │
+│ detect signal │   │  + Grove     │   │  SignalRegistry│   │  Kraken / Arb DEX /      │
+│  + classify   │   │  timestamp   │   │  (dual-chain)  │   │  Robinhood Chain stocks  │
+╰───────────────╯   ╰──────────────╯   ╰────────────────╯   ╰──────────────────────────╯
 ```
 
 The defensibility is the receipt: a Hedera consensus timestamp + TinyFish run ID +
@@ -256,6 +256,14 @@ sudo systemctl enable lenitnes.service
 | `NEXT_PUBLIC_API_URL`                | Public API base URL (frontend)                          |
 | `NEXT_PUBLIC_HASHCONNECT_PROJECT_ID` | HashConnect project ID (frontend)                       |
 | `NEXT_PUBLIC_HEDERA_NETWORK`         | `testnet` or `mainnet` (frontend wallet network)        |
+| `EVM_PRIVATE_KEY`                    | Private key for Arbitrum + Robinhood Chain deployments  |
+| `ARBITRUM_RPC_URL`                   | Arbitrum Sepolia RPC (default: public endpoint)         |
+| `ROBINHOOD_RPC_URL`                  | Robinhood Chain testnet RPC (default: public endpoint)  |
+| `ARB_SIGNAL_REGISTRY_ADDRESS`        | Deployed SignalRegistry on Arbitrum Sepolia             |
+| `ARB_TRADE_EXECUTOR_ADDRESS`         | Deployed TradeExecutor on Arbitrum Sepolia              |
+| `RH_SIGNAL_REGISTRY_ADDRESS`         | Deployed SignalRegistry on Robinhood Chain              |
+| `RH_TRADE_EXECUTOR_ADDRESS`          | Deployed TradeExecutor on Robinhood Chain               |
+| `ROBINHOOD_SWAP_ROUTER`              | Swap router address on Robinhood Chain                  |
 
 ## Deployment status
 
@@ -304,7 +312,10 @@ Install gitleaks: `brew install gitleaks` (macOS) or see https://github.com/gitl
 
 ## Hackathon notes
 
-- **Proof chain:** TinyFish detection → Hedera HCS timestamp → Grove proof storage → Kraken trade/receipt. Every link is verifiable.
+- **Multi-chain execution:** Kraken (CEX) + Arbitrum Sepolia (DEX via Uniswap V3) + Robinhood Chain (tokenized stocks). Auto-routing by asset type.
+- **Smart contracts:** `SignalRegistry.sol` (on-chain signal hash storage, dual-chain) + `TradeExecutor.sol` (Uniswap-compatible swaps). Foundry-built, MIT licensed.
+- **Typed signal detectors:** 8 pure-function detectors classify code changes (emergency_patch, security_critical, governance_shift, etc.). Backtest engine correlates signals with price outcomes.
+- **Proof chain:** TinyFish detection → Hedera HCS + Arbitrum SignalRegistry → Grove storage → Kraken / Arbitrum DEX / Robinhood Chain execution. Every link verifiable.
 - **x402** micropayment protocol for pay-per-request on-demand execution (Blocky402 facilitator).
 - **HashConnect** wallet connection with `NEXT_PUBLIC_HEDERA_NETWORK` env var for testnet/mainnet switching.
 - **Kraken integration:** CLI preferred, REST fallback. Supports 6 order types (market, limit, stop-loss, take-profit, stop-loss-limit, take-profit-limit) with auto-cancel dead-man's switch.

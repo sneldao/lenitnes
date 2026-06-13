@@ -20,9 +20,11 @@ import {
   ChevronLeft,
   ChevronRight,
   Sparkles,
+  ArrowLeftRight,
+  TrendingUp,
 } from 'lucide-react';
 
-type TemplateId = 'trade' | 'webhook' | 'telegram' | 'email';
+type TemplateId = 'trade' | 'trade_dex' | 'trade_stock' | 'webhook' | 'telegram' | 'email';
 
 interface ActionTemplate {
   id: TemplateId;
@@ -43,6 +45,24 @@ const ACTION_TEMPLATES: ActionTemplate[] = [
     color: 'text-warn',
     bg: 'bg-warn/10',
     defaultConfig: { validate: true, type: 'buy', ordertype: 'market', volume: '0.001' },
+  },
+  {
+    id: 'trade_dex',
+    title: 'Arbitrum DEX Trade',
+    desc: 'Swap tokens on Arbitrum via Uniswap',
+    icon: ArrowLeftRight,
+    color: 'text-blue-400',
+    bg: 'bg-blue-400/10',
+    defaultConfig: { chain: 'arbitrum', tokenIn: '', tokenOut: '', amountIn: '0.01' },
+  },
+  {
+    id: 'trade_stock',
+    title: 'Robinhood Stock Trade',
+    desc: 'Buy tokenized stocks on Robinhood Chain',
+    icon: TrendingUp,
+    color: 'text-green-400',
+    bg: 'bg-green-400/10',
+    defaultConfig: { chain: 'robinhood', tokenOut: '', amountIn: '1.00' },
   },
   {
     id: 'webhook',
@@ -75,6 +95,8 @@ const ACTION_TEMPLATES: ActionTemplate[] = [
 
 const ACTION_META: Record<TemplateId, { icon: typeof Zap; label: string; color: string }> = {
   trade: { icon: Zap, label: 'Kraken Trade', color: 'text-warn' },
+  trade_dex: { icon: ArrowLeftRight, label: 'Arbitrum DEX', color: 'text-blue-400' },
+  trade_stock: { icon: TrendingUp, label: 'Robinhood Stock', color: 'text-green-400' },
   webhook: { icon: Webhook, label: 'Webhook', color: 'text-accent' },
   telegram: { icon: MessageCircle, label: 'Telegram', color: 'text-cyan-400' },
   email: { icon: Mail, label: 'Email', color: 'text-signal' },
