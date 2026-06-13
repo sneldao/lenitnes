@@ -3,8 +3,27 @@ import { Router } from 'express';
 import { config } from '../config.js';
 import { query } from '../db/pool.js';
 import { logger } from '../logger.js';
+import type { AuthenticatedRequest } from '../middleware/auth.js';
+import { requireAuth } from '../middleware/auth.js';
 
 export const webhooksRouter = Router();
+
+// GET /webhooks/deliveries — recent webhook delivery log for the current user.
+webhooksRouter.get('/deliveries', requireAuth, async (req, res) => {
+  const authReq = req as unknown as AuthenticatedRequest;
+  const limit = Math.min(Math.max(Number(req.query.limit) || 20, 1), 100);
+  const { rows } = await query(
+    `SELECT wd.*, r.action_type, r.action_config->>'url' AS rule_url
+     FROM webhook_deliveries wd
+     JOIN rules r ON r.id = wd.rule_id
+     JOIN monitors m ON m.id = r.monitor_id
+     WHERE m.user_id = $1
+     ORDER BY wd.created_at DESC
+     LIMIT $2`,
+    [authReq.user.id, limit],
+  );
+  res.json(rows);
+});
 
 // POST /webhooks/test — test a webhook URL by sending a sample payload.
 webhooksRouter.post('/test', async (req, res) => {

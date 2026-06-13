@@ -24,6 +24,8 @@ import {
   TrendingUp,
   Loader2,
   Send,
+  ExternalLink,
+  History,
 } from 'lucide-react';
 
 type TemplateId = 'trade' | 'trade_dex' | 'trade_stock' | 'webhook' | 'telegram' | 'email';
@@ -907,6 +909,15 @@ export default function RulesPage() {
         })}
       </div>
 
+      {/* ── Webhook Delivery Log ── */}
+      <div className="space-y-3">
+        <h2 className="section-title flex items-center gap-2 cursor-pointer" onClick={() => {}}>
+          <History className="h-3.5 w-3.5" />
+          Recent Webhook Deliveries
+        </h2>
+        <WebhookDeliveryLog />
+      </div>
+
       {/* ── Fund Monitor ── */}
       <details className="group">
         <summary className="flex cursor-pointer items-center gap-2 text-xs text-slate-500 transition-colors hover:text-slate-300">
@@ -969,6 +980,90 @@ export default function RulesPage() {
           </button>
         </div>
       </details>
+    </div>
+  );
+}
+
+// ── Webhook Delivery Log ─────────────────────────────────────
+
+function WebhookDeliveryLog() {
+  const { isAuthenticated } = useAuth();
+  const { data: deliveries = [], isLoading } = useQuery({
+    queryKey: ['webhookDeliveries'],
+    queryFn: () => api.getWebhookDeliveries(20),
+    enabled: isAuthenticated,
+    refetchInterval: 30_000,
+  });
+
+  if (isLoading) {
+    return (
+      <div className="stat-card p-6 text-center">
+        <p className="text-sm text-slate-500">Loading deliveries…</p>
+      </div>
+    );
+  }
+
+  if (deliveries.length === 0) {
+    return (
+      <div className="stat-card p-6 text-center">
+        <p className="text-sm text-slate-500">No webhook deliveries recorded yet</p>
+        <p className="mt-1 text-[10px] text-slate-600">
+          Deliveries appear here when a signal triggers a webhook rule
+        </p>
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-2">
+      {deliveries.map((d) => {
+        const isSuccess = d.status_code !== null && d.status_code >= 200 && d.status_code < 300;
+        const isError = d.status_code !== null && d.status_code >= 300;
+        const isTimeout = d.status_code === null && d.error !== null;
+        return (
+          <div key={d.id} className="card flex items-center justify-between py-3">
+            <div className="flex items-center gap-3 min-w-0 flex-1">
+              <div
+                className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-lg ${
+                  isSuccess ? 'bg-signal/15' : 'bg-danger/15'
+                }`}
+              >
+                {isSuccess ? (
+                  <Check className="h-3.5 w-3.5 text-signal" />
+                ) : (
+                  <X className="h-3.5 w-3.5 text-danger" />
+                )}
+              </div>
+              <div className="min-w-0 flex-1">
+                <div className="flex items-center gap-2">
+                  <span className="truncate max-w-[280px] text-xs font-mono text-slate-300">
+                    {d.url.replace(/^https?:\/\//, '')}
+                  </span>
+                  {d.rule_url && (
+                    <a
+                      href={d.rule_url}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="shrink-0 text-slate-500 hover:text-accent transition-colors"
+                    >
+                      <ExternalLink className="h-3 w-3" />
+                    </a>
+                  )}
+                </div>
+                <p className="mt-0.5 text-[10px] text-slate-500">
+                  {new Date(d.created_at).toLocaleString()} · {d.duration_ms}ms
+                  {d.status_code !== null && ` · HTTP ${d.status_code}`}
+                </p>
+              </div>
+            </div>
+            <div className="flex items-center gap-2 shrink-0">
+              {isTimeout && <span className="badge bg-danger/15 text-danger">Timeout</span>}
+              {isError && <span className="badge bg-danger/15 text-danger">{d.status_code}</span>}
+              {isSuccess && <span className="badge bg-signal/15 text-signal">{d.status_code}</span>}
+            </div>
+          </div>
+        );
+      })}
     </div>
   );
 }

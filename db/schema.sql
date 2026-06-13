@@ -148,6 +148,22 @@ ALTER TABLE orders ADD COLUMN IF NOT EXISTS chain_tx_hash TEXT;
 ALTER TABLE signals ADD COLUMN IF NOT EXISTS arb_tx_hash TEXT;
 ALTER TABLE users ADD COLUMN IF NOT EXISTS display_name TEXT;
 
+-- Webhook Deliveries ─────────────────────────────────────────
+-- Log of every webhook rule execution with status and timing.
+CREATE TABLE IF NOT EXISTS webhook_deliveries (
+  id              UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  rule_id         UUID NOT NULL REFERENCES rules(id) ON DELETE CASCADE,
+  signal_id       UUID NOT NULL REFERENCES signals(id) ON DELETE CASCADE,
+  url             TEXT NOT NULL,
+  status_code     INTEGER,
+  duration_ms     INTEGER,
+  error           TEXT,
+  created_at      TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+CREATE INDEX IF NOT EXISTS idx_webhook_deliveries_rule ON webhook_deliveries(rule_id, created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_webhook_deliveries_created ON webhook_deliveries(created_at DESC);
+
 CREATE TABLE IF NOT EXISTS signal_classifications (
   id              UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   signal_id       UUID NOT NULL REFERENCES signals(id) ON DELETE CASCADE,

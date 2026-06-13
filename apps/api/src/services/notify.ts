@@ -5,14 +5,35 @@ import { logger } from '../logger.js';
 // Non-trade actions: webhook, telegram, email.
 // ─────────────────────────────────────────────────────────────
 
-export async function sendWebhook(url: string, payload: unknown): Promise<void> {
-  const res = await fetch(url, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(payload),
-    signal: AbortSignal.timeout(10_000),
-  });
-  if (!res.ok) throw new Error(`Webhook failed: ${res.status}`);
+/** Result from a webhook delivery attempt. */
+export interface WebhookDeliveryResult {
+  statusCode: number | null;
+  durationMs: number;
+  error: string | null;
+}
+
+export async function sendWebhook(url: string, payload: unknown): Promise<WebhookDeliveryResult> {
+  const start = Date.now();
+  try {
+    const res = await fetch(url, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload),
+      signal: AbortSignal.timeout(10_000),
+    });
+    const durationMs = Date.now() - start;
+    if (!res.ok) {
+      return { statusCode: res.status, durationMs, error: `Webhook failed: ${res.status}` };
+    }
+    return { statusCode: res.status, durationMs, error: null };
+  } catch (err) {
+    const durationMs = Date.now() - start;
+    return {
+      statusCode: null,
+      durationMs,
+      error: err instanceof Error ? err.message : String(err),
+    };
+  }
 }
 
 export async function sendTelegram(chatId: string, text: string): Promise<void> {

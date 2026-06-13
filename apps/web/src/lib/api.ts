@@ -280,6 +280,25 @@ export const api = {
       body: JSON.stringify({ url }),
     }),
 
+  /** Recent webhook delivery log for the current user. */
+  getWebhookDeliveries: (limit = 20) =>
+    req<
+      Array<{
+        id: string;
+        rule_id: string;
+        signal_id: string;
+        url: string;
+        status_code: number | null;
+        duration_ms: number;
+        error: string | null;
+        created_at: string;
+        action_type: string;
+        rule_url: string | null;
+        // Note: the backend also returns durationMs in camelCase — this field
+        // is named duration_ms in the type to match the PG column convention.
+      }>
+    >(`/webhooks/deliveries?limit=${limit}`),
+
   getHunterDetail: (userId: string, params?: { limit?: number; offset?: number }) => {
     const qs = new URLSearchParams();
     if (params?.limit) qs.set('limit', String(params.limit));

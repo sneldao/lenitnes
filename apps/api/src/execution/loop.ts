@@ -466,13 +466,24 @@ async function executeRules(monitor: Monitor, signalId: string, summary: string)
         case 'trade':
           await executeTrade(monitor, rule, signalId);
           break;
-        case 'webhook':
-          await notify.sendWebhook(String(rule.action_config.url), {
+        case 'webhook': {
+          const url = String(rule.action_config.url);
+          const result = await notify.sendWebhook(url, {
             signalId,
             monitorId: monitor.id,
             summary,
           });
+          // Record the delivery for the audit log.
+          query(
+            `INSERT INTO webhook_deliveries (rule_id, signal_id, url, status_code, duration_ms, error)
+             VALUES ($1, $2, $3, $4, $5, $6)`,
+            [rule.id, signalId, url, result.statusCode, result.durationMs, result.error],
+          ).catch((e) =>
+            logger.error({ err: e, ruleId: rule.id }, 'failed to persist webhook delivery'),
+          );
+          if (result.error) throw new Error(result.error);
           break;
+        }
         case 'telegram':
           await notify.sendTelegram(
             String(rule.action_config.chatId),
