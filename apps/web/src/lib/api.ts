@@ -8,6 +8,7 @@ import type {
   Rule,
   CreateMonitorInput,
   CreateRuleInput,
+  LeaderboardResponse,
 } from '@lenitnes/types';
 
 const BASE = process.env.NEXT_PUBLIC_API_URL || '/api';
@@ -29,7 +30,14 @@ async function req<T>(path: string, init?: RequestInit): Promise<T> {
   return res.json() as Promise<T>;
 }
 
-export { type Monitor, type MonitorStatus, type Signal, type SignalDetail, type Rule };
+export {
+  type Monitor,
+  type MonitorStatus,
+  type Signal,
+  type SignalDetail,
+  type Rule,
+  type LeaderboardResponse,
+};
 
 export interface AuthUser {
   id: string;
@@ -213,6 +221,14 @@ export const api = {
     req<{ ok: boolean; processed: number; errors: number }>('/backtest/process', {
       method: 'POST',
     }),
+
+  getLeaderboard: (params?: { limit?: number; offset?: number }) => {
+    const qs = new URLSearchParams();
+    if (params?.limit) qs.set('limit', String(params.limit));
+    if (params?.offset) qs.set('offset', String(params.offset));
+    const suffix = qs.toString();
+    return req<LeaderboardResponse>(`/leaderboard${suffix ? `?${suffix}` : ''}`);
+  },
 };
 
 // Helpers — re-exported from @/lib/format for backward compatibility.

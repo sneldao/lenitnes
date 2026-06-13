@@ -4,7 +4,7 @@ import { use, useEffect, useMemo, useState } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import Link from 'next/link';
 import { usePathname, useSearchParams } from 'next/navigation';
-import { api } from '@/lib/api';
+import { api, type Signal } from '@/lib/api';
 import {
   Shield,
   Clock,
@@ -406,10 +406,13 @@ export default function SignalDetailPage({ params }: { params: Promise<{ id: str
       )}
 
       <div className="card">
-        <h2 className="section-title mb-4 flex items-center gap-2">
-          <Shield className="h-3.5 w-3.5 text-signal" />
-          Proof Chain
-        </h2>
+        <div className="mb-4 flex items-center justify-between">
+          <h2 className="section-title flex items-center gap-2">
+            <Shield className="h-3.5 w-3.5 text-signal" />
+            Proof Chain
+          </h2>
+          <ProofChainProgress signal={signal as Signal} />
+        </div>
         <div className="space-y-3">
           {/* HCS transaction status */}
           <div className="flex items-center gap-3 rounded-xl border border-edge/40 bg-ink-light/30 p-3">
@@ -709,6 +712,45 @@ function Row({
         {label}
       </span>
       <span className={'text-sm text-slate-200 ' + (mono ? 'font-mono text-xs' : '')}>{value}</span>
+    </div>
+  );
+}
+
+/* ── Compact proof chain progress dots ─────────────────────── */
+
+function ProofChainProgress({ signal }: { signal: Signal }) {
+  const steps = [
+    { label: 'Hedera', done: Boolean(signal.hedera_tx_id), color: 'bg-signal' },
+    { label: 'IPFS', done: Boolean(signal.ipfs_cid), color: 'bg-cyan-400' },
+    { label: 'Arbitrum', done: Boolean(signal.arb_tx_hash), color: 'bg-violet' },
+    { label: 'Trade', done: (signal.orders_count ?? 0) > 0, color: 'bg-warn' },
+  ];
+
+  const completed = steps.filter((s) => s.done).length;
+  const total = steps.length;
+
+  return (
+    <div className="flex items-center gap-1.5">
+      {steps.map((step, i) => (
+        <div key={step.label} className="flex items-center gap-0">
+          <div
+            className={`h-1.5 w-1.5 rounded-full transition-all duration-300 ${
+              step.done ? step.color : 'bg-edge'
+            } ${step.done ? 'shadow-glow-sm' : ''}`}
+            title={`${step.label}: ${step.done ? 'Done' : 'Pending'}`}
+          />
+          {i < steps.length - 1 && (
+            <div
+              className={`h-px w-2 transition-all duration-300 ${
+                step.done ? 'bg-edge-light' : 'bg-edge/50'
+              }`}
+            />
+          )}
+        </div>
+      ))}
+      <span className="ml-1 text-[9px] font-mono text-slate-600">
+        {completed}/{total}
+      </span>
     </div>
   );
 }

@@ -216,6 +216,29 @@ export interface ApiOk {
   ok: true;
 }
 
+// ── Leaderboard ────────────────────────────────────────────
+
+export interface LeaderboardEntry {
+  user_id: string;
+  wallet_address: string;
+  total_signals: number;
+  chain_completed: number;
+  accuracy: string | null;
+  streak: number;
+  top_pair: string | null;
+  last_signal_at: string | null;
+}
+
+export interface LeaderboardResponse {
+  entries: LeaderboardEntry[];
+  stats: {
+    total_signals: number;
+    active_hunters: number;
+    public_monitors: number;
+    anchor_coverage: string;
+  };
+}
+
 // ── Health check ────────────────────────────────────────────
 
 export interface HealthStatus {

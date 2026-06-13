@@ -20,6 +20,7 @@ import { dlqRouter } from './routes/dlq.js';
 import { waitlistRouter } from './routes/waitlist.js';
 import { backtestRouter } from './routes/backtest.js';
 import { statsRouter } from './routes/stats.js';
+import { leaderboardRouter } from './routes/leaderboard.js';
 import { requireAuth } from './middleware/auth.js';
 import { auditMiddleware } from './middleware/audit.js';
 import { renderMetrics, metricsMiddleware } from './middleware/metrics.js';
@@ -145,6 +146,7 @@ app.use('/auth', authLimiter, authRouter);
 // ── Public endpoints (no auth required) ─────────────────────────
 app.use('/proof', proofRouter);
 app.use('/waitlist', waitlistRouter);
+app.use('/leaderboard', leaderboardRouter);
 // Public backtest stats for landing page (no auth)
 app.get('/backtest/stats', async (req, res) => {
   const { getBacktestStats } = await import('./services/domain/backtest.service.js');
