@@ -483,9 +483,16 @@ async function executeRules(monitor: Monitor, signalId: string, summary: string)
             }),
           );
           break;
-        case 'email':
-          await notify.sendEmail(String(rule.action_config.to), 'LENITNES signal', summary);
+        case 'email': {
+          const proofUrl = signalId ? `${config.webOrigin}/proof/public/${signalId}` : null;
+          const { subject, body } = notify.formatSignalEmail({
+            summary,
+            monitorUrl: monitor.url,
+            proofUrl,
+          });
+          await notify.sendEmail(String(rule.action_config.to), subject, body);
           break;
+        }
         case 'trade_dex': {
           const chain = (rule.action_config.chain as string) ?? 'arbitrum';
           const evmResult = await executeEvmTrade({
