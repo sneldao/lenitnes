@@ -2,12 +2,24 @@ import { Router, type Request, type Response } from 'express';
 import { query } from '../db/pool.js';
 import { cacheGet, cacheSet } from '../middleware/cache.js';
 import { logger } from '../logger.js';
-import type {
-  LeaderboardEntry,
-  LeaderboardResponse,
-  HunterDetailResponse,
-  Signal,
-} from '@lenitnes/types';
+import type { LeaderboardEntry, LeaderboardResponse } from '@lenitnes/types';
+import type { Signal } from '@lenitnes/types';
+
+// Local response type for hunter detail (avoids workspace resolution issues in Docker).
+interface HunterDetailResponse {
+  hunter: {
+    user_id: string;
+    wallet_address: string;
+    email: string | null;
+    total_signals: number;
+    chain_completed: number;
+    accuracy: string | null;
+    streak: number;
+    top_pair: string | null;
+    last_signal_at: string | null;
+  };
+  signals: Signal[];
+}
 
 export const leaderboardRouter = Router();
 
