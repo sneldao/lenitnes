@@ -267,3 +267,45 @@ signalsRouter.post('/:id/comments', async (req: Request, res: Response) => {
     author_name: userRows[0]?.display_name ?? null,
   });
 });
+
+// PUT /signals/:id/comments/:commentId — edit a comment (own comment only).
+signalsRouter.put('/:id/comments/:commentId', async (req: Request, res: Response) => {
+  const authReq = req as unknown as AuthenticatedRequest;
+  const { content } = req.body as { content?: string };
+
+  if (!content || typeof content !== 'string' || content.trim().length === 0) {
+    return res.status(400).json({ error: 'content_required' });
+  }
+
+  const { rows } = await query(
+    `UPDATE signal_comments
+     SET content = $1, updated_at = now()
+     WHERE id = $2 AND user_id = $3
+     RETURNING id, signal_id, user_id, content, created_at, updated_at`,
+    [content.trim(), req.params.commentId, authReq.user.id],
+  );
+  if (!rows.length) return res.status(404).json({ error: 'not found' });
+
+  const { rows: userRows } = await query<{ display_name: string | null }>(
+    `SELECT display_name FROM users WHERE id = $1`,
+    [authReq.user.id],
+  );
+
+  res.json({
+    ...rows[0],
+    author_name: userRows[0]?.display_name ?? null,
+  });
+});
+
+// DELETE /signals/:id/comments/:commentId — delete a comment (own comment only).
+signalsRouter.delete('/:id/comments/:commentId', async (req: Request, res: Response) => {
+  const authReq = req as unknown as AuthenticatedRequest;
+
+  const { rowCount } = await query(`DELETE FROM signal_comments WHERE id = $1 AND user_id = $2`, [
+    req.params.commentId,
+    authReq.user.id,
+  ]);
+  if (!rowCount) return res.status(404).json({ error: 'not found' });
+
+  res.json({ ok: true });
+});

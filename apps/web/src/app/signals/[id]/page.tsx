@@ -28,6 +28,10 @@ import {
   TrendingUp,
   MessageSquarePlus,
   Send,
+  Pencil,
+  Trash2,
+  X as XIcon,
+  Check as CheckIcon,
 } from 'lucide-react';
 import ProofChain from '@/components/ProofChain';
 import { getProofChainSteps } from '@/lib/proof-chain';
@@ -764,6 +768,8 @@ function ProofChainProgress({ signal }: { signal: Signal }) {
 
 function SignalComments({ signalId }: { signalId: string }) {
   const [newComment, setNewComment] = useState('');
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [editContent, setEditContent] = useState('');
   const queryClient = useQueryClient();
 
   const { data: comments = [], isLoading } = useQuery({
@@ -780,11 +786,49 @@ function SignalComments({ signalId }: { signalId: string }) {
     },
   });
 
+  const updateComment = useMutation({
+    mutationFn: ({ commentId, content }: { commentId: string; content: string }) =>
+      api.updateComment(signalId, commentId, content),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['signalComments', signalId] });
+      setEditingId(null);
+      setEditContent('');
+    },
+  });
+
+  const deleteComment = useMutation({
+    mutationFn: (commentId: string) => api.deleteComment(signalId, commentId),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['signalComments', signalId] });
+    },
+  });
+
   function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     const trimmed = newComment.trim();
     if (!trimmed) return;
     addComment.mutate(trimmed);
+  }
+
+  function startEditing(c: { id: string; content: string }) {
+    setEditingId(c.id);
+    setEditContent(c.content);
+  }
+
+  function cancelEditing() {
+    setEditingId(null);
+    setEditContent('');
+  }
+
+  function saveEdit() {
+    const trimmed = editContent.trim();
+    if (!trimmed || !editingId) return;
+    updateComment.mutate({ commentId: editingId, content: trimmed });
+  }
+
+  function handleDelete(commentId: string) {
+    if (!confirm('Delete this note?')) return;
+    deleteComment.mutate(commentId);
   }
 
   return (
@@ -816,26 +860,88 @@ function SignalComments({ signalId }: { signalId: string }) {
         </button>
       </form>
 
-      {addComment.isError && (
-        <p className="mb-3 text-[10px] text-danger">Failed to save note. Try again.</p>
+      {(addComment.isError || updateComment.isError || deleteComment.isError) && (
+        <p className="mb-3 text-[10px] text-danger">Something went wrong. Try again.</p>
       )}
 
       <div className="space-y-3">
         {comments.length === 0 && !isLoading && (
           <p className="text-center text-xs text-slate-500">No notes yet</p>
         )}
-        {comments.map((c) => (
-          <div key={c.id} className="rounded-xl border border-edge/40 bg-ink-light/30 p-3">
-            <div className="flex items-start justify-between gap-3">
-              <p className="text-sm leading-relaxed text-slate-200">{c.content}</p>
+        {comments.map((c) =>
+          editingId === c.id ? (
+            /* ── Inline edit mode ── */
+            <div key={c.id} className="rounded-xl border border-accent/30 bg-accent/5 p-3">
+              <input
+                className="input mb-2 text-xs"
+                value={editContent}
+                onChange={(e) => setEditContent(e.target.value)}
+                disabled={updateComment.isPending}
+                autoFocus
+              />
+              <div className="flex items-center justify-end gap-2">
+                <button
+                  type="button"
+                  onClick={cancelEditing}
+                  disabled={updateComment.isPending}
+                  className="flex items-center gap-1 rounded-lg border border-edge/40 px-2.5 py-1.5 text-[10px] font-medium text-slate-400 transition-colors hover:border-edge-light hover:text-slate-200"
+                >
+                  <XIcon className="h-3 w-3" />
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  onClick={saveEdit}
+                  disabled={!editContent.trim() || updateComment.isPending}
+                  className="flex items-center gap-1 rounded-lg bg-accent px-2.5 py-1.5 text-[10px] font-semibold text-ink transition-all hover:bg-accent-glow disabled:opacity-40"
+                >
+                  {updateComment.isPending ? (
+                    <Loader2 className="h-3 w-3 animate-spin" />
+                  ) : (
+                    <CheckIcon className="h-3 w-3" />
+                  )}
+                  Save
+                </button>
+              </div>
             </div>
-            <div className="mt-1.5 flex items-center gap-2 text-[10px] text-slate-500">
-              <span className="font-medium text-slate-400">{c.author_name ?? 'Anonymous'}</span>
-              <span>&middot;</span>
-              <span>{new Date(c.created_at).toLocaleString()}</span>
+          ) : (
+            /* ── Display mode ── */
+            <div key={c.id} className="rounded-xl border border-edge/40 bg-ink-light/30 p-3 group">
+              <div className="flex items-start justify-between gap-3">
+                <p className="text-sm leading-relaxed text-slate-200 flex-1">{c.content}</p>
+                <div className="flex shrink-0 gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                  <button
+                    type="button"
+                    onClick={() => startEditing(c)}
+                    className="flex h-6 w-6 items-center justify-center rounded-md text-slate-500 transition-colors hover:bg-accent/10 hover:text-accent"
+                    title="Edit note"
+                  >
+                    <Pencil className="h-3 w-3" />
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => handleDelete(c.id)}
+                    className="flex h-6 w-6 items-center justify-center rounded-md text-slate-500 transition-colors hover:bg-danger/10 hover:text-danger"
+                    title="Delete note"
+                  >
+                    <Trash2 className="h-3 w-3" />
+                  </button>
+                </div>
+              </div>
+              <div className="mt-1.5 flex items-center gap-2 text-[10px] text-slate-500">
+                <span className="font-medium text-slate-400">{c.author_name ?? 'Anonymous'}</span>
+                <span>&middot;</span>
+                <span>{new Date(c.created_at).toLocaleString()}</span>
+                {c.updated_at !== c.created_at && (
+                  <>
+                    <span>&middot;</span>
+                    <span className="italic">edited</span>
+                  </>
+                )}
+              </div>
             </div>
-          </div>
-        ))}
+          ),
+        )}
       </div>
     </div>
   );

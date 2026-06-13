@@ -314,6 +314,27 @@ export const api = {
       body: JSON.stringify({ content }),
     }),
 
+  /** Edit a comment on a signal. */
+  updateComment: (signalId: string, commentId: string, content: string) =>
+    req<{
+      id: string;
+      signal_id: string;
+      user_id: string;
+      content: string;
+      created_at: string;
+      updated_at: string;
+      author_name: string | null;
+    }>(`/signals/${signalId}/comments/${commentId}`, {
+      method: 'PUT',
+      body: JSON.stringify({ content }),
+    }),
+
+  /** Delete a comment on a signal. */
+  deleteComment: (signalId: string, commentId: string) =>
+    req<{ ok: boolean }>(`/signals/${signalId}/comments/${commentId}`, {
+      method: 'DELETE',
+    }),
+
   /** List comments on a signal. */
   getComments: (signalId: string) =>
     req<
