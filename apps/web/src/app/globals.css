@@ -118,6 +118,152 @@ body {
 
 /* ─── Landing Page Cinematic Animations ─── */
 
+/* ── Matrix-style code rain ── */
+@keyframes matrix-code {
+  0% {
+    transform: translateY(-10vh);
+    opacity: 0;
+  }
+  10% {
+    opacity: 1;
+  }
+  90% {
+    opacity: 0.6;
+  }
+  100% {
+    transform: translateY(110vh);
+    opacity: 0;
+  }
+}
+
+/* ── Scan-line CRT effect ── */
+@keyframes scan-line {
+  0% {
+    top: -10%;
+  }
+  100% {
+    top: 110%;
+  }
+}
+
+/* ── Glitch text ── */
+@keyframes glitch-text {
+  0%,
+  90%,
+  100% {
+    transform: translate(0);
+    opacity: 1;
+  }
+  92% {
+    transform: translate(-2px, 1px);
+    opacity: 0.8;
+  }
+  94% {
+    transform: translate(2px, -1px);
+    opacity: 0.9;
+  }
+  96% {
+    transform: translate(-1px, -1px);
+    opacity: 0.85;
+  }
+  98% {
+    transform: translate(1px, 1px);
+    opacity: 0.95;
+  }
+}
+
+/* ── Shimmer sweep ── */
+@keyframes shimmer {
+  0% {
+    transform: translateX(-100%) skewX(-15deg);
+  }
+  60% {
+    transform: translateX(200%) skewX(-15deg);
+  }
+  100% {
+    transform: translateX(200%) skewX(-15deg);
+  }
+}
+
+/* ── Gradient text shift ── */
+@keyframes gradient-shift {
+  0% {
+    background-position: 0% 50%;
+  }
+  50% {
+    background-position: 100% 50%;
+  }
+  100% {
+    background-position: 0% 50%;
+  }
+}
+
+/* ── Typing cursor blink ── */
+@keyframes typing-cursor {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0;
+  }
+}
+
+/* ── Pulsing ring expand ── */
+@keyframes ring-expand {
+  0% {
+    transform: scale(1);
+    opacity: 0.6;
+  }
+  100% {
+    transform: scale(2);
+    opacity: 0;
+  }
+}
+
+/* ── Floating geometric shapes ── */
+@keyframes float-shape {
+  0%,
+  100% {
+    transform: translateY(0) rotate(0deg);
+  }
+  33% {
+    transform: translateY(-20px) rotate(120deg);
+  }
+  66% {
+    transform: translateY(-10px) rotate(240deg);
+  }
+}
+
+/* ── Data pulse line ── */
+@keyframes data-pulse {
+  0% {
+    stroke-dashoffset: 100;
+    opacity: 0.2;
+  }
+  50% {
+    stroke-dashoffset: 0;
+    opacity: 1;
+  }
+  100% {
+    stroke-dashoffset: -100;
+    opacity: 0.2;
+  }
+}
+
+/* ── Hexagon border glow ── */
+@keyframes hex-glow {
+  0%,
+  100% {
+    stroke-opacity: 0.3;
+    filter: drop-shadow(0 0 4px rgba(6, 182, 212, 0.2));
+  }
+  50% {
+    stroke-opacity: 0.8;
+    filter: drop-shadow(0 0 12px rgba(6, 182, 212, 0.5));
+  }
+}
+
 @keyframes float-particle {
   0%,
   100% {
@@ -275,6 +421,49 @@ body {
     left: 100%;
     opacity: 0;
   }
+}
+
+.animate-matrix-code {
+  animation: matrix-code var(--duration, 8s) linear infinite;
+  animation-delay: var(--delay, 0s);
+}
+
+.animate-scan-line {
+  animation: scan-line var(--duration, 4s) linear infinite;
+}
+
+.animate-glitch-text {
+  animation: glitch-text var(--duration, 3s) ease-in-out infinite;
+}
+
+.animate-shimmer {
+  animation: shimmer 3s ease-in-out infinite;
+}
+
+.animate-gradient-shift {
+  background-size: 200% 200%;
+  animation: gradient-shift 4s ease infinite;
+}
+
+.animate-typing-cursor {
+  animation: typing-cursor 0.8s step-end infinite;
+}
+
+.animate-ring-expand {
+  animation: ring-expand 2s ease-out infinite;
+}
+
+.animate-float-shape {
+  animation: float-shape var(--duration, 12s) ease-in-out infinite;
+  animation-delay: var(--delay, 0s);
+}
+
+.animate-data-pulse {
+  animation: data-pulse 2s ease-in-out infinite;
+}
+
+.animate-hex-glow {
+  animation: hex-glow 3s ease-in-out infinite;
 }
 
 .animate-float-particle {

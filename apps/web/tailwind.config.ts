@@ -57,6 +57,14 @@ const config: Config = {
         'cinematic-entrance': 'cinematicEntrance 0.8s cubic-bezier(0.16, 1, 0.3, 1) both',
         'bounce-down': 'bounceDown 2s ease-in-out infinite',
         'timeline-glow': 'timelineGlow 2s ease-in-out infinite',
+        'glitch-text': 'glitchText 3s ease-in-out infinite',
+        shimmer: 'shimmer 3s ease-in-out infinite',
+        'gradient-shift': 'gradientShift 4s ease infinite',
+        'typing-cursor': 'typingCursor 0.8s step-end infinite',
+        'ring-expand': 'ringExpand 2s ease-out infinite',
+        'data-pulse': 'dataPulse 2s ease-in-out infinite',
+        'scan-line': 'scanLine 4s linear infinite',
+        'hex-glow': 'hexGlow 3s ease-in-out infinite',
       },
       keyframes: {
         fadeIn: {
@@ -93,6 +101,50 @@ const config: Config = {
           },
           '50%': {
             boxShadow: '0 0 20px rgba(16,185,129,0.4), 0 0 60px rgba(16,185,129,0.2)',
+          },
+        },
+        glitchText: {
+          '0%, 90%, 100%': { transform: 'translate(0)', opacity: '1' },
+          '92%': { transform: 'translate(-2px, 1px)', opacity: '0.8' },
+          '94%': { transform: 'translate(2px, -1px)', opacity: '0.9' },
+          '96%': { transform: 'translate(-1px, -1px)', opacity: '0.85' },
+          '98%': { transform: 'translate(1px, 1px)', opacity: '0.95' },
+        },
+        shimmer: {
+          '0%': { transform: 'translateX(-100%) skewX(-15deg)' },
+          '60%': { transform: 'translateX(200%) skewX(-15deg)' },
+          '100%': { transform: 'translateX(200%) skewX(-15deg)' },
+        },
+        gradientShift: {
+          '0%': { backgroundPosition: '0% 50%' },
+          '50%': { backgroundPosition: '100% 50%' },
+          '100%': { backgroundPosition: '0% 50%' },
+        },
+        typingCursor: {
+          '0%, 100%': { opacity: '1' },
+          '50%': { opacity: '0' },
+        },
+        ringExpand: {
+          '0%': { transform: 'scale(1)', opacity: '0.6' },
+          '100%': { transform: 'scale(2)', opacity: '0' },
+        },
+        dataPulse: {
+          '0%': { strokeDashoffset: '100', opacity: '0.2' },
+          '50%': { strokeDashoffset: '0', opacity: '1' },
+          '100%': { strokeDashoffset: '-100', opacity: '0.2' },
+        },
+        scanLine: {
+          '0%': { top: '-10%' },
+          '100%': { top: '110%' },
+        },
+        hexGlow: {
+          '0%, 100%': {
+            strokeOpacity: '0.3',
+            filter: 'drop-shadow(0 0 4px rgba(6, 182, 212, 0.2))',
+          },
+          '50%': {
+            strokeOpacity: '0.8',
+            filter: 'drop-shadow(0 0 12px rgba(6, 182, 212, 0.5))',
           },
         },
       },

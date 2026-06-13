@@ -60,7 +60,10 @@ export default function ProofChain({ steps, title, subtitle, className = '' }: P
         <h2 className="mb-8 text-center text-2xl font-bold tracking-tight text-slate-100 sm:text-3xl">
           {title}
           {subtitle && (
-            <span className="bg-gradient-to-r from-accent to-signal bg-clip-text text-transparent">
+            <span
+              className="bg-gradient-to-r from-accent via-violet to-signal bg-clip-text text-transparent animate-gradient-shift"
+              style={{ backgroundSize: '200% 200%' }}
+            >
               {' '}
               {subtitle}
             </span>
@@ -157,7 +160,7 @@ export default function ProofChain({ steps, title, subtitle, className = '' }: P
         })}
       </div>
 
-      <p className="mt-6 text-center text-xs text-slate-600">
+      <p className="mt-6 text-center text-xs text-slate-500">
         Click each step to explore the proof chain
       </p>
     </section>

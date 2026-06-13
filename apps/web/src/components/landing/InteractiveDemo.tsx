@@ -1,7 +1,7 @@
 'use client';
 
-import { useState, useEffect } from 'react';
-import { Terminal, Shield, Play, AlertCircle, Database } from 'lucide-react';
+import { useState, useEffect, useRef } from 'react';
+import { Terminal, Shield, Play, AlertCircle, Database, CircuitBoard } from 'lucide-react';
 import SentinelMascot from './SentinelMascot';
 import { useReveal } from '@/lib/useReveal';
 
@@ -102,11 +102,20 @@ export default function InteractiveDemo({ onUseTemplate }: InteractiveDemoProps)
   const [scanProgress, setScanProgress] = useState(0);
   const [currentLogs, setCurrentLogs] = useState<string[]>([]);
   const [showResult, setShowResult] = useState(false);
+  const [glitchActive, setGlitchActive] = useState(false);
+  const terminalRef = useRef<HTMLDivElement>(null);
 
   const selectedTarget = CURATED_TARGETS[selectedIndex];
 
-  // Mascot mood selector based on current scanning state
+  // Mascot mood selector
   const mascotMood = showResult ? 'alert' : isScanning ? 'scanning' : 'idle';
+
+  // Auto-scroll terminal logs
+  useEffect(() => {
+    if (terminalRef.current) {
+      terminalRef.current.scrollTop = terminalRef.current.scrollHeight;
+    }
+  }, [currentLogs]);
 
   const startScan = () => {
     setIsScanning(true);
@@ -119,17 +128,30 @@ export default function InteractiveDemo({ onUseTemplate }: InteractiveDemoProps)
     if (!isScanning) return;
 
     let logIndex = 0;
-    const interval = setInterval(() => {
-      if (logIndex < selectedTarget.mockLogs.length) {
-        setCurrentLogs((prev) => [...prev, selectedTarget.mockLogs[logIndex]]);
-        setScanProgress((prev) => Math.min(100, prev + 100 / selectedTarget.mockLogs.length));
-        logIndex++;
-      } else {
-        clearInterval(interval);
-        setIsScanning(false);
-        setShowResult(true);
-      }
-    }, 450);
+    const interval = setInterval(
+      () => {
+        if (logIndex < selectedTarget.mockLogs.length) {
+          setCurrentLogs((prev) => [...prev, selectedTarget.mockLogs[logIndex]]);
+          setScanProgress((prev) => Math.min(100, prev + 100 / selectedTarget.mockLogs.length));
+
+          // Trigger glitch effect near the end
+          if (logIndex === selectedTarget.mockLogs.length - 2) {
+            setGlitchActive(true);
+            setTimeout(() => setGlitchActive(false), 400);
+          }
+
+          logIndex++;
+        } else {
+          clearInterval(interval);
+          // Brief pause, then show result
+          setTimeout(() => {
+            setIsScanning(false);
+            setShowResult(true);
+          }, 300);
+        }
+      },
+      350 + Math.random() * 200,
+    ); // Variable speed for realism
 
     return () => clearInterval(interval);
   }, [isScanning, selectedTarget]);
@@ -145,7 +167,7 @@ export default function InteractiveDemo({ onUseTemplate }: InteractiveDemoProps)
   return (
     <section ref={containerRef} className="reveal scroll-mt-24 py-16" id="demo">
       <div className="mx-auto max-w-4xl px-4 text-center">
-        <span className="badge bg-accent/10 text-accent">Simulated Sandbox</span>
+        <span className="badge bg-accent/10 text-accent">Live Simulation</span>
         <h2 className="mt-2 text-2xl font-extrabold text-white sm:text-3xl">
           See Sentinel in Action
         </h2>
@@ -186,7 +208,8 @@ export default function InteractiveDemo({ onUseTemplate }: InteractiveDemoProps)
                 <label className="text-[10px] font-bold uppercase tracking-wider text-slate-500">
                   Target URL
                 </label>
-                <div className="mt-1.5 flex items-center rounded-xl border border-edge bg-ink/60 px-3 py-2.5 font-mono text-xs text-slate-300">
+                <div className="mt-1.5 flex items-center gap-2 rounded-xl border border-edge bg-ink/60 px-3 py-2.5 font-mono text-xs text-slate-300">
+                  <CircuitBoard className="h-3 w-3 shrink-0 text-accent/60" />
                   <span className="truncate">{selectedTarget.url}</span>
                 </div>
               </div>
@@ -195,7 +218,13 @@ export default function InteractiveDemo({ onUseTemplate }: InteractiveDemoProps)
                 <label className="text-[10px] font-bold uppercase tracking-wider text-slate-500">
                   Sentinel Scan Condition
                 </label>
-                <div className="mt-1.5 rounded-xl border border-edge bg-ink/60 px-3 py-2.5 text-xs leading-relaxed text-slate-300">
+                <div
+                  className={`mt-1.5 rounded-xl border px-3 py-2.5 text-xs leading-relaxed text-slate-300 transition-all ${
+                    glitchActive
+                      ? 'border-danger/40 bg-danger/5 animate-glitch-text'
+                      : 'border-edge bg-ink/60'
+                  }`}
+                >
                   {selectedTarget.condition}
                 </div>
               </div>
@@ -203,21 +232,44 @@ export default function InteractiveDemo({ onUseTemplate }: InteractiveDemoProps)
 
             {/* Mascot interaction */}
             <div className="flex flex-col items-center py-4">
-              <SentinelMascot size={130} mood={mascotMood} />
+              <SentinelMascot size={140} mood={mascotMood} />
               <p className="mt-2 text-center text-xs font-medium text-slate-400">
                 {isScanning ? (
-                  <span className="text-accent animate-pulse">Running simulation...</span>
+                  <span className="text-accent animate-pulse inline-flex items-center gap-1.5">
+                    <span className="h-1.5 w-1.5 rounded-full bg-accent animate-pulse" />
+                    Running simulation...
+                  </span>
                 ) : showResult ? (
-                  <span className="text-danger font-semibold">Simulated match found.</span>
+                  <span className="text-danger font-semibold inline-flex items-center gap-1.5">
+                    <AlertCircle className="h-3 w-3" />
+                    Simulated match found.
+                  </span>
                 ) : (
                   <span>Ready to simulate target</span>
                 )}
               </p>
             </div>
 
-            <button onClick={startScan} disabled={isScanning} className="btn w-full py-3 text-xs">
+            <button
+              onClick={startScan}
+              disabled={isScanning}
+              className="btn relative w-full overflow-hidden py-3 text-xs group"
+            >
+              {/* Shimmer on hover */}
+              {!isScanning && (
+                <div
+                  className="pointer-events-none absolute inset-0 animate-shimmer opacity-0 group-hover:opacity-100"
+                  style={{
+                    background:
+                      'linear-gradient(90deg, transparent, rgba(255,255,255,0.08), transparent)',
+                  }}
+                />
+              )}
               {isScanning ? (
-                <>Running Simulation...</>
+                <span className="inline-flex items-center gap-2">
+                  <span className="h-1.5 w-1.5 rounded-full bg-ink animate-pulse" />
+                  Running Simulation...
+                </span>
               ) : (
                 <>
                   <Play className="h-3.5 w-3.5 fill-ink" />
@@ -228,14 +280,14 @@ export default function InteractiveDemo({ onUseTemplate }: InteractiveDemoProps)
           </div>
 
           {/* Terminal / Output */}
-          <div className="md:col-span-7 flex flex-col min-h-[360px] border border-edge/60 bg-ink/80 rounded-xl overflow-hidden">
+          <div className="md:col-span-7 flex flex-col border border-edge/60 bg-ink/90 rounded-xl overflow-hidden min-h-[420px]">
             {/* Terminal Header */}
-            <div className="flex items-center justify-between border-b border-edge/60 bg-ink-light/80 px-4 py-2 text-xs text-slate-400">
+            <div className="flex items-center justify-between border-b border-edge/60 bg-ink-light/80 px-4 py-2 text-xs text-slate-400 flex-shrink-0">
               <span className="flex items-center gap-1.5 font-mono">
                 <Terminal className="h-3.5 w-3.5" />
                 sentinel-eval-engine
               </span>
-              <span className="flex items-center gap-1">
+              <span className="flex items-center gap-1.5">
                 <span className="h-2 w-2 rounded-full bg-red-500/80" />
                 <span className="h-2 w-2 rounded-full bg-yellow-500/80" />
                 <span className="h-2 w-2 rounded-full bg-green-500/80" />
@@ -243,80 +295,148 @@ export default function InteractiveDemo({ onUseTemplate }: InteractiveDemoProps)
             </div>
 
             {/* Terminal Log Output */}
-            <div className="flex-1 p-4 font-mono text-[11px] leading-relaxed overflow-y-auto space-y-1.5 min-h-[180px]">
-              {currentLogs.length === 0 && !isScanning && (
-                <div className="flex h-full items-center justify-center text-slate-600 text-center">
-                  <p>Click &quot;Evaluate Condition Now&quot; to begin evaluation.</p>
+            <div
+              ref={terminalRef}
+              className="flex-1 overflow-y-auto p-4 font-mono text-[11px] leading-relaxed space-y-1"
+            >
+              {currentLogs.length === 0 && !isScanning && !showResult && (
+                <div className="flex h-full min-h-[180px] items-center justify-center text-slate-600 text-center">
+                  <div className="space-y-2">
+                    <Terminal className="mx-auto h-5 w-5 opacity-30" />
+                    <p className="text-xs">Click &quot;Run Simulated Evaluation&quot; to begin.</p>
+                  </div>
                 </div>
               )}
               {currentLogs.map((log, index) => {
                 const isMatch =
                   log.includes('MATCH') || log.includes('MET') || log.includes('CRITICAL');
+                const isAction = log.includes('SIMULATED ACTION');
+                const isWarning = log.includes('Warning') || log.includes('warning');
+
+                // Glitch effect on the last few logs during scan
+                const showGlitch = glitchActive && index >= currentLogs.length - 2;
+
                 return (
                   <div
                     key={index}
-                    className={`transition-opacity duration-300 ${
-                      isMatch ? 'text-danger font-semibold' : 'text-slate-300'
-                    }`}
+                    className={`transition-all duration-200 ${
+                      showGlitch ? 'animate-glitch-text' : ''
+                    } ${isMatch ? 'text-danger font-semibold' : isAction ? 'text-signal font-medium' : isWarning ? 'text-warn' : 'text-slate-300'}`}
+                    style={{ animationDelay: showGlitch ? '0s' : undefined }}
                   >
-                    <span className="text-slate-500 select-none">&gt; </span>
+                    {/* Timestamp */}
+                    <span className="text-slate-600 select-none mr-2">
+                      [{String(index + 1).padStart(2, '0')}]
+                    </span>
                     {log}
                   </div>
                 );
               })}
               {isScanning && (
-                <div className="h-1.5 w-full bg-edge/40 overflow-hidden rounded-full mt-2">
-                  <div
-                    className="h-full bg-accent transition-all duration-300 ease-out"
-                    style={{ width: `${scanProgress}%` }}
-                  />
+                <div className="pt-2 space-y-1.5">
+                  {/* Animated dots */}
+                  <div className="flex items-center gap-1 text-slate-500">
+                    <span className="h-1 w-1 rounded-full bg-accent animate-pulse" />
+                    <span
+                      className="h-1 w-1 rounded-full bg-accent animate-pulse"
+                      style={{ animationDelay: '0.2s' }}
+                    />
+                    <span
+                      className="h-1 w-1 rounded-full bg-accent animate-pulse"
+                      style={{ animationDelay: '0.4s' }}
+                    />
+                    <span className="ml-1 text-[10px]">Processing...</span>
+                  </div>
+                  {/* Progress bar */}
+                  <div className="h-1 w-full bg-edge/40 overflow-hidden rounded-full">
+                    <div
+                      className="h-full rounded-full transition-all duration-200 ease-out"
+                      style={{
+                        width: `${scanProgress}%`,
+                        background: 'linear-gradient(90deg, #06b6d4, #22d3ee, #10b981)',
+                      }}
+                    />
+                  </div>
                 </div>
               )}
             </div>
 
             {/* Results block */}
             {showResult && (
-              <div className="border-t border-edge bg-panel/30 p-4 space-y-3 animate-fade-in">
+              <div className="animate-fade-slide-up border-t border-edge bg-panel/40 p-4 space-y-3 flex-shrink-0">
+                {/* Alert header */}
                 <div className="flex items-center gap-2">
-                  <AlertCircle className="h-4 w-4 text-danger" />
+                  <div className="flex h-6 w-6 items-center justify-center rounded-full bg-danger/10">
+                    <AlertCircle className="h-3.5 w-3.5 text-danger" />
+                  </div>
                   <span className="text-xs font-bold text-slate-200">
                     {selectedTarget.mockResult.title}
                   </span>
                 </div>
-                <div className="rounded border border-edge bg-ink/90 p-2 font-mono text-[10px] text-red-400 overflow-x-auto whitespace-pre">
-                  {selectedTarget.mockResult.diff}
+
+                {/* Diff display */}
+                <div className="relative rounded border border-danger/20 bg-ink/90 p-2.5">
+                  {/* Scan line overlay */}
+                  <div
+                    className="pointer-events-none absolute left-0 right-0 h-px animate-scan-line"
+                    style={{
+                      background:
+                        'linear-gradient(90deg, transparent, rgba(239,68,68,0.3), transparent)',
+                    }}
+                  />
+                  <pre className="font-mono text-[10px] text-red-400 overflow-x-auto whitespace-pre leading-relaxed">
+                    {selectedTarget.mockResult.diff}
+                  </pre>
                 </div>
-                <div className="grid grid-cols-2 gap-2 text-[10px] border-t border-edge/60 pt-2 text-slate-400">
-                  <div className="flex items-center gap-1">
-                    <Shield className="h-3 w-3 text-signal" />
-                    <span>Example HCS timestamp:</span>
+
+                {/* Proof metadata */}
+                <div className="grid grid-cols-2 gap-3 text-[10px] border-t border-edge/60 pt-2">
+                  <div className="space-y-1">
+                    <div className="flex items-center gap-1 text-slate-500">
+                      <Shield className="h-3 w-3 text-signal" />
+                      <span>HCS Timestamp</span>
+                    </div>
+                    <span className="text-slate-200 font-mono text-[9px] block truncate">
+                      {selectedTarget.mockResult.timestamp}
+                    </span>
                   </div>
-                  <div className="text-slate-200 text-right font-mono text-[9px] truncate">
-                    {selectedTarget.mockResult.timestamp}
-                  </div>
-                  <div className="flex items-center gap-1">
-                    <Database className="h-3 w-3 text-accent" />
-                    <span>Example Grove CID:</span>
-                  </div>
-                  <div className="text-accent text-right font-mono text-[9px] truncate">
-                    {selectedTarget.mockResult.cid.slice(0, 24)}...
+                  <div className="space-y-1">
+                    <div className="flex items-center gap-1 text-slate-500">
+                      <Database className="h-3 w-3 text-accent" />
+                      <span>Grove CID</span>
+                    </div>
+                    <span className="text-accent font-mono text-[9px] block truncate">
+                      {selectedTarget.mockResult.cid.slice(0, 32)}...
+                    </span>
                   </div>
                 </div>
-                {/* Real commit link for the ZEC demo case */}
+
+                {/* Real commit link */}
                 {selectedIndex === 0 && (
                   <a
                     href="https://github.com/zcash/halo2/commit/d8e48efddbe4746d76eb2c8a843a6ddc2b9a727a"
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="flex items-center gap-1.5 text-[10px] text-accent/70 hover:text-accent justify-center pt-1"
+                    className="flex items-center gap-1.5 text-[10px] text-accent/70 hover:text-accent justify-center pt-1 transition-colors"
                   >
+                    <svg viewBox="0 0 16 16" className="h-3 w-3" fill="currentColor">
+                      <path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0016 8c0-4.42-3.58-8-8-8z" />
+                    </svg>
                     View the real commit on GitHub {'\u2192'}
                   </a>
                 )}
+
                 <button
                   onClick={handleActivate}
-                  className="btn w-full bg-signal text-ink hover:bg-signal-glow font-bold py-2 text-[11px]"
+                  className="btn relative w-full overflow-hidden bg-signal text-ink hover:bg-signal-glow font-bold py-2 text-[11px] group"
                 >
+                  <div
+                    className="pointer-events-none absolute inset-0 animate-shimmer opacity-0 group-hover:opacity-100"
+                    style={{
+                      background:
+                        'linear-gradient(90deg, transparent, rgba(255,255,255,0.15), transparent)',
+                    }}
+                  />
                   Create Sentinel Monitor for this target
                 </button>
               </div>

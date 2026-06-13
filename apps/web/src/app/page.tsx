@@ -45,6 +45,7 @@ import StoryTimeline from '@/components/landing/StoryTimeline';
 import SocialProof from '@/components/landing/SocialProof';
 import BacktestProof from '@/components/landing/BacktestProof';
 import InteractiveDemo from '@/components/landing/InteractiveDemo';
+import LiveCounterBar from '@/components/landing/LiveCounterBar';
 import { OnboardingWizard } from '@/components/onboarding/OnboardingWizard';
 
 type TemplateSelection = {
@@ -534,6 +535,9 @@ function DashboardView({
         </div>
       </div>
 
+      {/* Global Live Counter — system-wide stats */}
+      <LiveCounterBar />
+
       <details className="group cursor-pointer rounded-xl border border-edge/40 bg-ink-light/30 px-5 py-3 transition-colors hover:border-edge-light">
         <summary className="flex items-center gap-2 text-xs font-semibold text-slate-400">
           <Shield className="h-3.5 w-3.5 text-accent" />
@@ -773,6 +777,34 @@ function DashboardView({
   );
 }
 
+// ─── Section Divider ───
+
+function SectionDivider({ variant = 'default' }: { variant?: 'default' | 'accent' | 'signal' }) {
+  const colors = {
+    default: 'from-edge/40 via-edge-light/20 to-edge/40',
+    accent: 'from-edge/40 via-accent/20 to-edge/40',
+    signal: 'from-edge/40 via-signal/20 to-edge/40',
+  };
+  return (
+    <div className="relative py-8">
+      <div className="mx-auto max-w-xs">
+        <div className={`h-px bg-gradient-to-r ${colors[variant]}`} />
+      </div>
+      {/* Orbs on edges */}
+      <div
+        className={`absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 h-1.5 w-1.5 rounded-full ${
+          variant === 'accent'
+            ? 'bg-accent/40'
+            : variant === 'signal'
+              ? 'bg-signal/40'
+              : 'bg-edge-light'
+        }`}
+        aria-hidden="true"
+      />
+    </div>
+  );
+}
+
 // ─── Main Page Export ───
 
 export default function DashboardPage() {
@@ -914,21 +946,36 @@ export default function DashboardPage() {
             }}
           />
 
+          {/* Section Divider */}
+          <SectionDivider />
+
           {/* Social Proof Stats */}
           <SocialProof />
+
+          {/* Section Divider */}
+          <SectionDivider variant="accent" />
 
           {/* Proof Chain Live Animation */}
           <div id="how-it-works">
             <ProofChainLive />
           </div>
 
+          {/* Section Divider */}
+          <SectionDivider />
+
           {/* Story Timeline (ZEC narrative) */}
           <div id="zec-story">
             <StoryTimeline />
           </div>
 
+          {/* Section Divider */}
+          <SectionDivider variant="signal" />
+
           {/* Backtest Proof — live accuracy stats */}
           <BacktestProof />
+
+          {/* Section Divider */}
+          <SectionDivider />
 
           {/* Interactive Sandbox Demo */}
           <InteractiveDemo onUseTemplate={handleUseTemplate} />
