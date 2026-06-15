@@ -879,7 +879,7 @@ export default function DashboardPage() {
     monitorUrl?: string;
     monitorBalance?: number;
   } | null>(null);
-  const { isAuthenticated, isLoading: authLoading } = useAuth();
+  const { isAuthenticated, isLoading: authLoading, user } = useAuth();
   const landingRef = useReveal();
   const router = useRouter();
   const queryClient = useQueryClient();
@@ -897,6 +897,51 @@ export default function DashboardPage() {
     enabled: isAuthenticated,
     retry: false,
   });
+
+  // ── First-run auto-demo ───────────────────────────────────────────────
+  // When a user lands on the dashboard with zero monitors, auto-create the
+  // Zcash halo2 demo monitor so the empty state is replaced with a working
+  // product example within ~2s. The localStorage flag prevents re-creating
+  // on refresh; the user can delete the demo at any time.
+  const [autoDemoState, setAutoDemoState] = useState<'idle' | 'creating' | 'done' | 'failed'>(
+    'idle',
+  );
+  useEffect(() => {
+    if (!isAuthenticated || authLoading || isLoading) return;
+    if (monitors.length > 0) return;
+    if (typeof window === 'undefined') return;
+    if (localStorage.getItem('lenitnes:autodemo:v1') === 'done') return;
+    if (autoDemoState !== 'idle') return;
+    if (!user?.id) return;
+
+    setAutoDemoState('creating');
+    api
+      .createMonitor({
+        userId: user.id,
+        url: 'https://github.com/zcash/halo2/commits/main',
+        conditionText:
+          'A new commit fixes a critical cryptography bug, soundness issue, or verifying key change in the halo2 circuit — something that could affect ZEC token confidence or require immediate network attention.',
+        frequencySeconds: 3600,
+        screenshotsEnabled: false,
+        isPublic: true,
+        confidenceThreshold: 50,
+        assetMapping: { coingeckoId: 'zcash', direction: 'both' },
+      })
+      .then(() => {
+        localStorage.setItem('lenitnes:autodemo:v1', 'done');
+        setAutoDemoState('done');
+        queryClient.invalidateQueries({ queryKey: ['monitors'] });
+        toast.success(
+          'Demo monitor created. We pre-loaded the Zcash halo2 target so you can see a real check in action. Delete it anytime.',
+        );
+      })
+      .catch((err) => {
+        // Silent failure — the user can still create monitors manually.
+        console.warn('auto-demo create failed', err);
+        localStorage.setItem('lenitnes:autodemo:v1', 'failed');
+        setAutoDemoState('failed');
+      });
+  }, [isAuthenticated, authLoading, isLoading, monitors.length, user?.id]);
 
   const { data: signals = [] } = useQuery({
     queryKey: ['signals'],

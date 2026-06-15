@@ -129,6 +129,8 @@ export default function SignalDetailPage({ params }: { params: Promise<{ id: str
       'Condition: ' + (signal.monitor?.condition_text ?? 'unknown'),
       'Summary: ' + (signal.condition_summary ?? 'Signal detected'),
       'Hedera: ' + (signal.proof?.hashscanUrl ?? 'pending'),
+      'Arbitrum: ' +
+        (signal.arb_tx_hash ? `https://sepolia.arbiscan.io/tx/${signal.arb_tx_hash}` : 'pending'),
       'Grove: ' + (signal.proof?.ipfsUrl ?? 'pending'),
       'Receipt URL: ' + publicUrl,
     ].join('\n');

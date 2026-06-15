@@ -18,7 +18,6 @@ import { executeEvmTrade } from '../services/evm/trade.js';
 import { recordSignalOnChain } from '../services/evm/signal-registry.js';
 import { resolveTokenAddress } from '../services/evm/tokens.js';
 import { FEATURES } from '../features.js';
-import { processSignalOutcomes } from '../services/domain/backtest.service.js';
 
 // ─────────────────────────────────────────────────────────────
 // Monitor execution loop — the heart of LENITNES.
@@ -307,25 +306,10 @@ export async function executeCheck(
             ),
           ),
         );
-
-        // Fire-and-forget backtest so price outcomes populate shortly after the
-        // signal classifies. Best-effort: failures are logged, not raised, so
-        // they never block the rest of the execution loop.
-        processSignalOutcomes()
-          .then((r) => {
-            if (r.processed > 0) {
-              logger.info(
-                { signalId, processed: r.processed, errors: r.errors },
-                'backtest outcomes computed after signal classification',
-              );
-            }
-          })
-          .catch((err) => {
-            logger.warn(
-              { err, signalId },
-              'auto-backtest after classification failed (non-blocking)',
-            );
-          });
+        // Note: backtest outcomes (price_at_signal, pct_change, etc.) are
+        // computed by `processSignalOutcomes()` on the 6h cron in scheduler.ts.
+        // No need to trigger per-classify — the cron picks up everything that's
+        // missing outcomes within minutes anyway.
       }
     } catch (err) {
       logger.warn({ err, signalId }, 'detector pipeline failed (non-blocking)');

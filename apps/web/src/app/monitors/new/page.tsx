@@ -325,6 +325,35 @@ function NewMonitorForm() {
       queryClient.invalidateQueries({ queryKey: ['signals'] });
       queryClient.invalidateQueries({ queryKey: ['monitors'] });
 
+      // If the first check produced a signal, fire backtest immediately so
+      // the HistoricalContext card on this same screen shows fresh accuracy
+      // data within seconds rather than waiting for the 6h cron. Also
+      // invalidate any cached backtest-stats for the matched asset so the
+      // activation screen re-fetches right away.
+      if (nextResult.signalId) {
+        api
+          .triggerBacktest()
+          .catch((err) => console.warn('post-firstcheck backtest trigger failed', err));
+        const url = (createdMonitor.url ?? '').toLowerCase();
+        const asset =
+          url.includes('zcash') || url.includes('halo2')
+            ? 'ZEC'
+            : url.includes('solana') || url.includes('solana-labs')
+              ? 'SOL'
+              : url.includes('ethereum') || url.includes('go-ethereum')
+                ? 'ETH'
+                : url.includes('bitcoin') || url.includes('btc')
+                  ? 'BTC'
+                  : url.includes('polygon')
+                    ? 'MATIC'
+                    : url.includes('arbitrum')
+                      ? 'ARB'
+                      : null;
+        if (asset) {
+          queryClient.invalidateQueries({ queryKey: ['backtest-stats', asset] });
+        }
+      }
+
       if (nextResult.conditionMet) {
         toast.success('Preview check found a match. Your monitor is ready to go.');
       } else {

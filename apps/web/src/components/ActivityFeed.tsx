@@ -44,6 +44,7 @@ export function ActivityFeed({ signals, monitors }: ActivityFeedProps) {
         summary: s.condition_summary ?? 'Signal detected',
         detectedAt: s.detected_at,
         hedera: Boolean(s.hedera_tx_id),
+        arb: Boolean(s.arb_tx_hash),
         isNew: !s.viewed_at,
         type: 'signal' as const,
       }));
@@ -59,6 +60,7 @@ export function ActivityFeed({ signals, monitors }: ActivityFeedProps) {
         summary: 'Heartbeat check — no signal',
         detectedAt: s.detected_at,
         hedera: Boolean(s.hedera_tx_id),
+        arb: Boolean(s.arb_tx_hash),
         isNew: false,
         type: 'heartbeat' as const,
       }));
@@ -120,6 +122,11 @@ export function ActivityFeed({ signals, monitors }: ActivityFeedProps) {
                 {ev.hedera && isSignal && (
                   <span className="shrink-0 rounded-full bg-signal/10 px-1.5 py-px font-mono text-[9px] text-signal">
                     HCS
+                  </span>
+                )}
+                {ev.arb && isSignal && (
+                  <span className="shrink-0 rounded-full bg-violet/10 px-1.5 py-px font-mono text-[9px] text-violet">
+                    ARB
                   </span>
                 )}
               </div>
