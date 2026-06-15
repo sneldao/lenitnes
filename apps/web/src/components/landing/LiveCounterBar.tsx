@@ -154,11 +154,16 @@ export default function LiveCounterBar() {
     return () => clearInterval(interval);
   }, [fetchStats]);
 
-  if (loading || error || !stats) return null;
+  if (loading) return null;
 
-  // Only show if there's actual data
-  const hasData = COUNTERS.some((c) => (stats[c.key] ?? 0) > 0);
-  if (!hasData) return null;
+  // Always render — show zeros if no data yet rather than blank gap
+  const displayStats: PublicStats = stats ?? {
+    total_signals: 0,
+    active_monitors: 0,
+    total_orders: 0,
+    total_proofs: 0,
+    total_waitlist: 0,
+  };
 
   return (
     <div
@@ -170,7 +175,6 @@ export default function LiveCounterBar() {
         <div className="grid grid-cols-2 divide-x divide-y divide-edge/40 sm:grid-cols-4 sm:divide-y-0">
           {COUNTERS.map((counter) => {
             const Icon = counter.icon;
-            const val = stats[counter.key] ?? 0;
             return (
               <Link
                 key={counter.key}
@@ -179,7 +183,7 @@ export default function LiveCounterBar() {
               >
                 <Icon className={`h-3.5 w-3.5 ${counter.color} mb-1`} />
                 <p className={`text-lg font-bold tabular-nums ${counter.color}`}>
-                  <AnimatedNumber value={val} suffix={counter.suffix} />
+                  <AnimatedNumber value={displayStats[counter.key] ?? 0} suffix={counter.suffix} />
                 </p>
                 <p className="text-[9px] font-medium text-slate-500 uppercase tracking-wider mt-0.5 group-hover:text-slate-300 transition-colors">
                   {counter.label}

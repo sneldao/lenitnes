@@ -139,6 +139,30 @@ function MonitorCard({
     return () => clearInterval(id);
   }, [isFunded, checksRemaining, monitor.frequency_seconds]);
 
+  // ── Next check countdown (active monitors) ──
+  const [nextCheckIn, setNextCheckIn] = useState('');
+  useEffect(() => {
+    if (!isFunded || monitor.status !== 'active' || !monitor.last_check_at) {
+      setNextCheckIn('');
+      return;
+    }
+    function tick() {
+      const lastMs = new Date(monitor.last_check_at!).getTime();
+      const nextMs = lastMs + monitor.frequency_seconds * 1000;
+      const diffSec = Math.max(0, Math.round((nextMs - Date.now()) / 1000));
+      if (diffSec === 0) {
+        setNextCheckIn('checking now…');
+        return;
+      }
+      const m = Math.floor(diffSec / 60);
+      const s = diffSec % 60;
+      setNextCheckIn(m > 0 ? `next check ~${m}m` : `next check ~${s}s`);
+    }
+    tick();
+    const id = setInterval(tick, 10_000);
+    return () => clearInterval(id);
+  }, [isFunded, monitor.status, monitor.last_check_at, monitor.frequency_seconds]);
+
   // ── Time since inactive (loss aversion) ──
   const darkFor = useMemo(() => {
     if (isFunded || !monitor.last_check_at) return '';
@@ -288,8 +312,8 @@ function MonitorCard({
       )}
 
       <div className="mt-4 flex items-center justify-between">
-        <div className="flex items-center gap-1.5 font-mono text-[10px] text-slate-600">
-          <Clock className="h-3 w-3" />
+        <div className="flex items-center gap-2 font-mono text-[10px] text-slate-600">
+          <Clock className="h-3 w-3 shrink-0" />
           {monitor.last_check_at
             ? new Date(monitor.last_check_at).toLocaleString(undefined, {
                 month: 'short',
@@ -298,6 +322,7 @@ function MonitorCard({
                 minute: '2-digit',
               })
             : 'no checks yet'}
+          {nextCheckIn && <span className="text-signal/70">· {nextCheckIn}</span>}
         </div>
         <div className="flex items-center gap-1">
           <button
@@ -448,7 +473,7 @@ function DashboardView({
   ];
 
   return (
-    <div className="space-y-8">
+    <div className="space-y-6">
       <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
         <div>
           <div className="flex items-center gap-3">
@@ -552,34 +577,6 @@ function DashboardView({
 
       {/* Global Live Counter — system-wide stats */}
       <LiveCounterBar />
-
-      <details className="group cursor-pointer rounded-xl border border-edge/40 bg-ink-light/30 px-5 py-3 transition-colors hover:border-edge-light">
-        <summary className="flex items-center gap-2 text-xs font-semibold text-slate-400">
-          <Shield className="h-3.5 w-3.5 text-accent" />
-          Why Hedera + x402?
-          <ChevronRight className="ml-auto h-3.5 w-3.5 transition-transform group-open:rotate-90 text-slate-600" />
-        </summary>
-        <div className="mt-3 space-y-2 border-t border-edge/40 pt-3 text-xs leading-relaxed text-slate-500">
-          <p>
-            <strong className="text-slate-300">Hedera Consensus Service (HCS)</strong> timestamps
-            every signal in 3-5 seconds for ~$0.0001 — fast and cheap enough to timestamp every
-            check, not just signals. The carbon-negative network means proof chains are
-            environmentally auditable too.
-          </p>
-          <p>
-            <strong className="text-slate-300">x402 micropayments</strong> let you pay per check via
-            HBAR directly from your wallet — no subscription, no credit card, no platform holding
-            your funds. When you click &quot;Check Now,&quot; your wallet signs a micro-transaction
-            that&apos;s settled on Hedera before the check runs. Payment and execution are
-            inseparable.
-          </p>
-          <p>
-            <strong className="text-slate-300">HBAR staking</strong> for scheduled checks sits in
-            per-monitor escrow. Each check debits ~0.5 ℏ. You can withdraw remaining funds anytime
-            by removing the monitor.
-          </p>
-        </div>
-      </details>
 
       {signalChartData.length > 0 && (
         <div className="card">
@@ -803,7 +800,7 @@ function DashboardView({
       )}
 
       {filtered.length > 0 && (
-        <div className="grid gap-3 sm:grid-cols-2">
+        <div className={`grid gap-3 ${filtered.length > 1 ? 'sm:grid-cols-2' : ''}`}>
           {filtered.map((m) => {
             const monitorSignals = signals.filter((s) => s.monitor_id === m.id);
             const latest = monitorSignals.sort(
