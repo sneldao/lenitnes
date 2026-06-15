@@ -75,14 +75,20 @@ function topClassificationLabel(summary: string | null | undefined): {
 }
 
 export default async function Image({
+  id,
   params,
   searchParams,
 }: {
-  params: { id: string };
+  // Next.js 16 passes the resolved dynamic param as `id` directly (alongside
+  // `params` for completeness). Older versions only had `params.id`, so we
+  // accept both to be safe across the App Router variants.
+  id?: string;
+  params?: { id: string };
   searchParams?: { [k: string]: string | string[] | undefined };
 }) {
+  const signalId = id ?? params?.id ?? '';
   const share = typeof searchParams?.share === 'string' ? searchParams.share : undefined;
-  const idShort = params.id.slice(0, 8);
+  const idShort = signalId ? signalId.slice(0, 8) : '';
 
   // Fetch the public proof payload server-side. Fall back to a generic
   // "LENITNES proof" card if the share token is missing or the API errors.
@@ -92,7 +98,7 @@ export default async function Image({
       process.env.API_INTERNAL_URL ||
       (process.env.NODE_ENV === 'production' ? 'http://api:8742' : 'http://localhost:4000');
     const qs = share ? `?share=${encodeURIComponent(share)}` : '';
-    const res = await fetch(`${apiBase}/proof/public/${params.id}${qs}`, {
+    const res = await fetch(`${apiBase}/proof/public/${signalId}${qs}`, {
       cache: 'no-store',
     });
     if (res.ok) {
