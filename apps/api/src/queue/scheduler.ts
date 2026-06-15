@@ -2,12 +2,17 @@ import cron from 'node-cron';
 import { query } from '../db/pool.js';
 import { enqueueMonitorCheck } from './producer.js';
 import { processSignalOutcomes } from '../services/domain/backtest.service.js';
+import { recordSignalOnChain } from '../services/evm/signal-registry.js';
 import { logger } from '../logger.js';
 
 let monitorJob: cron.ScheduledTask | null = null;
 let backtestJob: cron.ScheduledTask | null = null;
+let proofRetryJob: cron.ScheduledTask | null = null;
 let monitorRunning = false;
 let backtestRunning = false;
+let proofRetryRunning = false;
+
+const PROOF_RETRY_MAX_ATTEMPTS = 10;
 
 async function scanAndEnqueue(): Promise<void> {
   if (monitorRunning) return;
@@ -51,10 +56,110 @@ async function runBacktest(): Promise<void> {
   }
 }
 
+// ── Retry queue for on-chain proofs (failed_proofs) ────────────────────
+// The execution loop inserts into `failed_proofs` when the fire-and-forget
+// EVM write throws (RPC blip, gas spike, etc.). Without a consumer, those
+// rows are stranded forever and the "dual-chain" claim silently degrades.
+// This worker picks up due rows every 2 minutes and replays the write.
+// Idempotency: we re-check the signal's arb_tx_hash before retrying, so a
+// successful write that races with a retry just resolves the row.
+async function retryFailedProofs(): Promise<void> {
+  if (proofRetryRunning) return;
+  proofRetryRunning = true;
+  try {
+    const { rows } = await query<{
+      id: string;
+      signal_id: string;
+      chain: string;
+      attempt: number;
+      evidence: string | null;
+      summary: string | null;
+    }>(
+      `SELECT fp.id, fp.signal_id, fp.chain, fp.attempt,
+              s.evidence_text AS evidence, s.condition_summary AS summary
+         FROM failed_proofs fp
+         JOIN signals s ON s.id = fp.signal_id
+        WHERE fp.resolved_at IS NULL
+          AND fp.next_retry <= now()
+          AND fp.attempt < $1
+        ORDER BY fp.next_retry
+        LIMIT 10`,
+      [PROOF_RETRY_MAX_ATTEMPTS],
+    );
+
+    if (rows.length === 0) return;
+
+    let succeeded = 0;
+    let failed = 0;
+    let deadLettered = 0;
+
+    for (const row of rows) {
+      try {
+        // If the signal already has an arb_tx_hash (e.g. another path
+        // succeeded), just resolve the row and move on.
+        const { rows: sigRows } = await query<{ arb_tx_hash: string | null }>(
+          `SELECT arb_tx_hash FROM signals WHERE id = $1`,
+          [row.signal_id],
+        );
+        if (sigRows[0]?.arb_tx_hash) {
+          await query(`UPDATE failed_proofs SET resolved_at = now() WHERE id = $1`, [row.id]);
+          succeeded++;
+          continue;
+        }
+
+        const { txHash } = await recordSignalOnChain(
+          row.chain,
+          row.signal_id,
+          row.evidence ?? '',
+          row.summary ?? '',
+        );
+        await query(`UPDATE signals SET arb_tx_hash = $1 WHERE id = $2`, [txHash, row.signal_id]);
+        await query(`UPDATE failed_proofs SET resolved_at = now() WHERE id = $1`, [row.id]);
+        succeeded++;
+        logger.info(
+          { signalId: row.signal_id, chain: row.chain, txHash, attempt: row.attempt },
+          'failed proof retry succeeded',
+        );
+      } catch (err) {
+        const errMsg = err instanceof Error ? err.message : String(err);
+        const newAttempt = row.attempt + 1;
+        // If we just hit the cap, mark the row as dead-letter (resolved_at
+        // set so it stops being picked up, but error preserved for ops).
+        const isDead = newAttempt >= PROOF_RETRY_MAX_ATTEMPTS;
+        await query(
+          `UPDATE failed_proofs
+              SET attempt = $2,
+                  error = $3,
+                  next_retry = now() + interval '2 minutes',
+                  resolved_at = CASE WHEN $4 THEN now() ELSE NULL END
+            WHERE id = $1`,
+          [row.id, newAttempt, errMsg, isDead],
+        );
+        failed++;
+        if (isDead) deadLettered++;
+        logger.warn(
+          { err, signalId: row.signal_id, chain: row.chain, attempt: newAttempt, isDead },
+          'failed proof retry failed',
+        );
+      }
+    }
+
+    logger.info(
+      { picked: rows.length, succeeded, failed, deadLettered },
+      'failed proof retry cycle complete',
+    );
+  } catch (err) {
+    logger.error({ err }, 'failed proof retry scan failed');
+  } finally {
+    proofRetryRunning = false;
+  }
+}
+
 export function startScheduler(): void {
-  logger.info('scheduler started — monitors every 30s, backtest every 6h');
+  logger.info('scheduler started — monitors every 30s, backtest every 6h, proof retries every 2m');
   monitorJob = cron.schedule('*/30 * * * * *', scanAndEnqueue);
   backtestJob = cron.schedule('0 */6 * * *', runBacktest);
+  proofRetryJob = cron.schedule('*/2 * * * *', retryFailedProofs);
 }
 
 export function stopScheduler(): void {
@@ -65,5 +170,9 @@ export function stopScheduler(): void {
   if (backtestJob) {
     backtestJob.stop();
     backtestJob = null;
+  }
+  if (proofRetryJob) {
+    proofRetryJob.stop();
+    proofRetryJob = null;
   }
 }

@@ -12,6 +12,7 @@ export interface PublicStats {
   active_monitors: number;
   total_orders: number;
   total_proofs: number;
+  total_arb_proofs: number;
   total_waitlist: number;
 }
 
@@ -26,7 +27,7 @@ statsRouter.get('/public', async (_req: Request, res: Response) => {
   }
 
   try {
-    const [signals, monitors, orders, proofs, waitlist] = await Promise.all([
+    const [signals, monitors, orders, proofs, arbProofs, waitlist] = await Promise.all([
       // Non-heartbeat signals only — heartbeats are just liveness checks.
       query<{ count: string }>(
         `SELECT count(*)::text AS count FROM signals WHERE is_heartbeat = false`,
@@ -41,6 +42,11 @@ statsRouter.get('/public', async (_req: Request, res: Response) => {
       query<{ count: string }>(
         `SELECT count(*)::text AS count FROM signals WHERE hedera_tx_id IS NOT NULL AND is_heartbeat = false`,
       ),
+      // Signals that actually made it to Arbitrum (have a valid arb_tx_hash).
+      // Powers the dual-chain counter on the landing page.
+      query<{ count: string }>(
+        `SELECT count(*)::text AS count FROM signals WHERE arb_tx_hash IS NOT NULL AND is_heartbeat = false`,
+      ),
       // Waitlist signups for social proof.
       query<{ count: string }>(`SELECT count(*)::text AS count FROM waitlist`),
     ]);
@@ -50,6 +56,7 @@ statsRouter.get('/public', async (_req: Request, res: Response) => {
       active_monitors: Number(monitors.rows[0]?.count ?? 0),
       total_orders: Number(orders.rows[0]?.count ?? 0),
       total_proofs: Number(proofs.rows[0]?.count ?? 0),
+      total_arb_proofs: Number(arbProofs.rows[0]?.count ?? 0),
       total_waitlist: Number(waitlist.rows[0]?.count ?? 0),
     };
 

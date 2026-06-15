@@ -559,6 +559,44 @@ export default function SignalDetailPage({ params }: { params: Promise<{ id: str
             </div>
           )}
 
+          {/* Arbitrum on-chain proof */}
+          <div className="flex items-center gap-3 rounded-xl border border-edge/40 bg-ink-light/30 p-3">
+            <div
+              className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-lg ${signal.arb_tx_hash ? 'bg-violet/10 text-violet' : 'bg-edge/40 text-slate-600'}`}
+            >
+              <LinkIcon className="h-4 w-4" />
+            </div>
+            <div className="min-w-0 flex-1">
+              <p className="text-xs font-semibold text-slate-200">Arbitrum Sepolia</p>
+              <p className="text-[10px] text-slate-500">
+                {signal.arb_tx_hash
+                  ? 'Signal hash recorded on SignalRegistry'
+                  : 'Pending on-chain submission'}
+              </p>
+              {signal.arb_tx_hash && (
+                <p className="truncate font-mono text-[10px] text-slate-600">
+                  {signal.arb_tx_hash.slice(0, 20)}…
+                </p>
+              )}
+            </div>
+            {signal.arb_tx_hash ? (
+              <a
+                href={`https://sepolia.arbiscan.io/tx/${signal.arb_tx_hash}`}
+                target="_blank"
+                rel="noreferrer"
+                className="flex items-center gap-1 rounded-lg bg-violet/10 px-2.5 py-1.5 text-[10px] font-semibold text-violet transition-colors hover:bg-violet/20"
+              >
+                <ExternalLink className="h-3 w-3" />
+                Arbiscan
+              </a>
+            ) : (
+              <span className="flex items-center gap-1 rounded-lg bg-edge/40 px-2.5 py-1.5 text-[10px] text-slate-500">
+                <Loader2 className="h-3 w-3 animate-spin" />
+                Pending
+              </span>
+            )}
+          </div>
+
           {/* Evidence hash */}
           {signal.evidence_hash && (
             <div className="flex items-center gap-3 rounded-xl border border-edge/40 bg-ink-light/30 p-3">

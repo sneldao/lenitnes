@@ -14,6 +14,7 @@ interface PublicStats {
   active_monitors: number;
   total_orders: number;
   total_proofs: number;
+  total_arb_proofs: number;
   total_waitlist: number;
 }
 
@@ -162,6 +163,7 @@ export default function LiveCounterBar() {
     active_monitors: 0,
     total_orders: 0,
     total_proofs: 0,
+    total_arb_proofs: 0,
     total_waitlist: 0,
   };
 
@@ -175,6 +177,35 @@ export default function LiveCounterBar() {
         <div className="grid grid-cols-2 divide-x divide-y divide-edge/40 sm:grid-cols-4 sm:divide-y-0">
           {COUNTERS.map((counter) => {
             const Icon = counter.icon;
+            // Special render for the dual-chain proof tile: shows Hedera +
+            // Arbitrum counts inline so the "Live on Hedera + Arbitrum"
+            // footer claim is literally visible in the numbers.
+            if (counter.key === 'total_proofs') {
+              return (
+                <Link
+                  key={counter.key}
+                  href={counter.href}
+                  className="group relative flex flex-col items-center justify-center px-3 py-3.5 transition-all hover:bg-ink-light/40"
+                >
+                  <Icon className={`h-3.5 w-3.5 ${counter.color} mb-1`} />
+                  <div className="flex items-baseline gap-1.5">
+                    <span className="text-lg font-bold tabular-nums text-signal">
+                      <AnimatedNumber value={displayStats.total_proofs ?? 0} />
+                    </span>
+                    <span className="text-[9px] font-medium text-slate-600">H</span>
+                    <span className="text-slate-700">/</span>
+                    <span className="text-lg font-bold tabular-nums text-violet">
+                      <AnimatedNumber value={displayStats.total_arb_proofs ?? 0} />
+                    </span>
+                    <span className="text-[9px] font-medium text-slate-600">A</span>
+                  </div>
+                  <p className="text-[9px] font-medium text-slate-500 uppercase tracking-wider mt-0.5 group-hover:text-slate-300 transition-colors">
+                    On-Chain Proofs
+                  </p>
+                  <ArrowUpRight className="absolute right-1.5 top-1.5 h-2.5 w-2.5 text-slate-600 opacity-0 transition-all group-hover:opacity-100 group-hover:text-accent" />
+                </Link>
+              );
+            }
             return (
               <Link
                 key={counter.key}
