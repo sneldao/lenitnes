@@ -4,7 +4,7 @@ import { useState, useMemo, useEffect } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { api, type Monitor } from '@/lib/api';
+import { api, type Monitor, type Signal } from '@/lib/api';
 import { useWallet } from '@/components/WalletConnect';
 import { useToast } from '@/components/Toast';
 import { useAuth } from '@/lib/useAuth';
@@ -48,6 +48,8 @@ import InteractiveDemo from '@/components/landing/InteractiveDemo';
 import LiveCounterBar from '@/components/landing/LiveCounterBar';
 import LandingLeaderboard from '@/components/landing/LandingLeaderboard';
 import { OnboardingWizard } from '@/components/onboarding/OnboardingWizard';
+import { ActivityFeed } from '@/components/ActivityFeed';
+import { MonitorSparkline } from '@/components/MonitorSparkline';
 
 type TemplateSelection = {
   url: string;
@@ -103,6 +105,7 @@ function MonitorCard({
   onDelete,
   latestSignal,
   signalCount,
+  allSignals,
 }: {
   monitor: Monitor;
   executing: boolean;
@@ -111,6 +114,7 @@ function MonitorCard({
   onDelete: (id: string) => void;
   latestSignal?: { id: string; detected_at: string; viewed_at?: string | null } | null;
   signalCount?: number;
+  allSignals: Signal[];
 }) {
   const { perDay, daysLeft, checksRemaining } = burnRate(monitor);
   const bal = Number(monitor.hbar_balance);
@@ -239,7 +243,9 @@ function MonitorCard({
                 {isLowFunds ? 'checks left ⚠' : 'checks left'}
               </p>
             </div>
-            <div className="flex-1 space-y-1">
+            <div className="flex-1 space-y-2">
+              {/* Sparkline */}
+              <MonitorSparkline monitorId={monitor.id} signals={allSignals} />
               {/* Burn progress */}
               <div className="h-0.5 w-full overflow-hidden rounded-full bg-edge/60">
                 <div
@@ -253,7 +259,7 @@ function MonitorCard({
                   style={{ width: `${Math.min(100, Math.max(0, (daysLeft / 30) * 100))}%` }}
                 />
               </div>
-              <div className="grid grid-cols-3 gap-1 pt-1">
+              <div className="grid grid-cols-3 gap-1">
                 {[
                   { v: `${Number(monitor.hbar_balance).toFixed(1)} ℏ`, l: 'staked' },
                   { v: `${perDay.toFixed(2)}/d`, l: 'burn' },
@@ -375,13 +381,7 @@ function DashboardView({
   onConnect,
 }: {
   monitors: Monitor[];
-  signals: {
-    id: string;
-    monitor_id: string;
-    detected_at: string;
-    viewed_at?: string | null;
-    is_heartbeat?: boolean;
-  }[];
+  signals: Signal[];
   ordersCount: number;
   isLoading: boolean;
   error: Error | null;
@@ -816,9 +816,20 @@ function DashboardView({
                 onDelete={onDelete}
                 latestSignal={latest ?? null}
                 signalCount={monitorSignals.length}
+                allSignals={signals}
               />
             );
           })}
+        </div>
+      )}
+
+      {/* Activity feed — always shown when authenticated */}
+      {!isLoading && (
+        <div className="space-y-2">
+          <p className="font-mono text-[10px] uppercase tracking-widest text-slate-600">
+            Recent activity
+          </p>
+          <ActivityFeed signals={signals} monitors={monitors} />
         </div>
       )}
     </div>
@@ -889,7 +900,7 @@ export default function DashboardPage() {
 
   const { data: signals = [] } = useQuery({
     queryKey: ['signals'],
-    queryFn: () => api.listSignals(),
+    queryFn: () => api.listSignals(undefined, true),
     refetchInterval: 30_000,
     enabled: isAuthenticated,
   });

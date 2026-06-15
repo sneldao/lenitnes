@@ -101,8 +101,13 @@ export const api = {
       method: 'PATCH',
       body: JSON.stringify({ topUpHbar: amountHbar }),
     }),
-  listSignals: (monitorId?: string) =>
-    req<Signal[]>(`/signals${monitorId ? `?monitorId=${monitorId}` : ''}`),
+  listSignals: (monitorId?: string, includeHeartbeats?: boolean) => {
+    const params = new URLSearchParams();
+    if (monitorId) params.set('monitorId', monitorId);
+    if (includeHeartbeats) params.set('includeHeartbeats', 'true');
+    const qs = params.toString();
+    return req<Signal[]>(`/signals${qs ? `?${qs}` : ''}`);
+  },
   getSignal: (id: string) => req<SignalDetail>(`/signals/${id}`),
   /** Idempotently mark a signal as viewed by the current user. Re-arms the
    *  parent monitor's `triggered` status back to `active`. */
