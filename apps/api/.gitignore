@@ -1,0 +1,30 @@
+# Build
+dist/
+build/
+*.tsbuildinfo
+
+# Dependencies
+node_modules/
+
+# Env
+.env
+.env.local
+.env.*.local
+
+# Logs
+*.log
+logs/
+
+# OS
+.DS_Store
+.idea/
+.vscode/
+
+# Test
+coverage/
+.nyc_output/
+*.lcov
+
+# Worker-specific
+worker-data/
+queues/

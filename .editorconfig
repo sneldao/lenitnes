@@ -1,0 +1,30 @@
+# EditorConfig is awesome: https://EditorConfig.org
+# Tells every editor (VS Code, WebStorm, vim, Sublime) the same rules.
+
+root = true
+
+[*]
+indent_style = space
+indent_size = 2
+end_of_line = lf
+charset = utf-8
+trim_trailing_whitespace = true
+insert_final_newline = true
+max_line_length = 100
+
+# Markdown / docs
+[*.md]
+trim_trailing_whitespace = false
+
+# Solidity
+[*.sol]
+indent_size = 4
+max_line_length = 120
+
+# Makefiles
+[Makefile]
+indent_style = tab
+
+# YAML / config files
+[*.{yml,yaml,toml}]
+indent_size = 2

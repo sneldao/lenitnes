@@ -1,42 +1,81 @@
+# ──────────────────────────────────────────────────────────────────
 # Dependencies
+# ──────────────────────────────────────────────────────────────────
 node_modules/
 .pnp
 .pnp.js
+.yarn/
+.pnp.*
 
-# Builds
+# ──────────────────────────────────────────────────────────────────
+# Build outputs
+# ──────────────────────────────────────────────────────────────────
+# TypeScript / Next.js
 dist/
 build/
-.next/
 out/
+*.tsbuildinfo
 
-# Env
+# Next.js
+.next/
+next-env.d.ts.bak
+
+# Turbo / monorepo
+.turbo/
+
+# Foundry (Solidity)
+# Foundry's own .gitignore lives in contracts/.gitignore for clarity.
+# These catch root-level stray Foundry artifacts.
+cache/
+
+# ──────────────────────────────────────────────────────────────────
+# Environment & secrets
+# ──────────────────────────────────────────────────────────────────
 .env
 .env.local
 .env.*.local
+.env.development
+.env.production
 *.pem
+*.key
+secrets/
 
+# ──────────────────────────────────────────────────────────────────
 # Logs
+# ──────────────────────────────────────────────────────────────────
 logs/
 *.log
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
+pnpm-debug.log*
+lerna-debug.log*
 
+# ──────────────────────────────────────────────────────────────────
+# Test / coverage
+# ──────────────────────────────────────────────────────────────────
+coverage/
+.nyc_output/
+*.lcov
+
+# ──────────────────────────────────────────────────────────────────
 # OS / editor
+# ──────────────────────────────────────────────────────────────────
 .DS_Store
+Thumbs.db
 .idea/
 .vscode/
 *.swp
+*.swo
+*~
+.cache/
 
-# Test / coverage
-coverage/
-.nyc_output/
-
-# Misc
-*.tsbuildinfo
-.turbo/
+# ──────────────────────────────────────────────────────────────────
+# Tool caches
+# ──────────────────────────────────────────────────────────────────
 .blackboxcli/
 .antigravitycli/
-
-# Qoder
 .qoder/
+.eslintcache
+.stylelintcache
+*.tsbuildinfo

@@ -1,0 +1,17 @@
+# Foundry build files
+out/
+cache/
+broadcast/
+
+# Foundry config (kept: foundry.toml is source-of-truth for the project)
+
+# Hardhat (in case any tool is added later)
+artifacts/
+typechain-types/
+typechain/
+cache_hardhat/
+
+# Solidity coverage
+coverage/
+coverage.json
+lcov.info
