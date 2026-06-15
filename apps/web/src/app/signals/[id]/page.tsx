@@ -70,16 +70,35 @@ export default function SignalDetailPage({ params }: { params: Promise<{ id: str
       .markSignalViewed(signal.id)
       .then((res) => {
         if (res.monitorRearmed) {
-          // The parent monitor's status changed; refresh the cached lists
-          // so the dashboard reflects the new state.
           queryClient.invalidateQueries({ queryKey: ['monitors'] });
         }
       })
-      .catch(() => {
-        // Best-effort: a failed mark-as-viewed call shouldn't block the
-        // user from reading their signal.
-      });
+      .catch(() => {});
   }, [isPublic, signal, queryClient]);
+
+  // Inject OG / Twitter meta for public share links
+  useEffect(() => {
+    if (!signal || !isPublic) return;
+    const summary = signal.condition_summary ?? 'Signal detected';
+    const target = signal.monitor?.url ?? '';
+    const desc = `LENITNES proof: "${summary}" detected on ${target}. Hedera-timestamped, Grove-stored.`;
+    const setMeta = (prop: string, val: string, attr = 'property') => {
+      let el = document.querySelector(`meta[${attr}="${prop}"]`) as HTMLMetaElement | null;
+      if (!el) {
+        el = document.createElement('meta');
+        el.setAttribute(attr, prop);
+        document.head.appendChild(el);
+      }
+      el.setAttribute('content', val);
+    };
+    document.title = `${summary.slice(0, 60)} — LENITNES Proof`;
+    setMeta('og:title', document.title);
+    setMeta('og:description', desc);
+    setMeta('og:type', 'article');
+    setMeta('twitter:card', 'summary', 'name');
+    setMeta('twitter:title', document.title, 'name');
+    setMeta('twitter:description', desc, 'name');
+  }, [signal, isPublic]);
 
   const proofId = useMemo(() => 'LEN-' + id.slice(0, 8).toUpperCase(), [id]);
   const publicUrl = useMemo(() => {
@@ -320,45 +339,104 @@ export default function SignalDetailPage({ params }: { params: Promise<{ id: str
         </div>
       </div>
 
-      {Array.isArray(signal.classifications) && signal.classifications.length > 0 && (
-        <div className="card">
-          <h2 className="section-title mb-4 flex items-center gap-2">
-            <Fingerprint className="h-3.5 w-3.5 text-accent" />
-            Signal Classification
-          </h2>
-          <div className="flex flex-wrap gap-2">
-            {signal.classifications.map(
-              (c: { detector_type: string; score: number; confidence: number; label: string }) => (
-                <div
-                  key={c.detector_type}
-                  className="rounded-xl border border-accent/20 bg-accent/5 px-3 py-2"
-                >
-                  <div className="flex items-center gap-2">
-                    <span className="text-xs font-semibold text-accent">
-                      {c.detector_type.replace(/_/g, ' ')}
-                    </span>
-                    <span className="rounded-full bg-accent/15 px-1.5 py-0.5 text-[9px] font-bold text-accent">
-                      {c.score}
-                    </span>
-                  </div>
-                  {c.label && (
-                    <p className="mt-1 text-[10px] leading-relaxed text-slate-500">{c.label}</p>
-                  )}
-                  <p className="mt-1 text-[10px] text-slate-600">confidence {c.confidence}%</p>
+      {/* ── Classification hero — shown before proof chain ── */}
+      {Array.isArray(signal.classifications) &&
+        signal.classifications.length > 0 &&
+        (() => {
+          const top = signal.classifications[0] as {
+            detector_type: string;
+            score: number;
+            confidence: number;
+            label: string;
+          };
+          const colorMap: Record<
+            string,
+            { border: string; bg: string; text: string; badge: string }
+          > = {
+            emergency_patch: {
+              border: 'border-danger/40',
+              bg: 'bg-danger/8',
+              text: 'text-danger',
+              badge: 'bg-danger/15 text-danger',
+            },
+            security_critical_patch: {
+              border: 'border-warn/40',
+              bg: 'bg-warn/8',
+              text: 'text-warn',
+              badge: 'bg-warn/15 text-warn',
+            },
+            governance_shift: {
+              border: 'border-violet/40',
+              bg: 'bg-violet/8',
+              text: 'text-violet',
+              badge: 'bg-violet/15 text-violet',
+            },
+            protocol_upgrade: {
+              border: 'border-signal/40',
+              bg: 'bg-signal/8',
+              text: 'text-signal',
+              badge: 'bg-signal/15 text-signal',
+            },
+          };
+          const c = colorMap[top.detector_type] ?? {
+            border: 'border-accent/40',
+            bg: 'bg-accent/8',
+            text: 'text-accent',
+            badge: 'bg-accent/15 text-accent',
+          };
+          return (
+            <div className={`rounded-2xl border ${c.border} ${c.bg} px-5 py-4`}>
+              <div className="flex items-center justify-between gap-4">
+                <div className="space-y-1">
+                  <p className="font-mono text-[10px] uppercase tracking-widest text-slate-600">
+                    Signal type
+                  </p>
+                  <p className={`text-xl font-bold capitalize ${c.text}`}>
+                    {top.detector_type.replace(/_/g, ' ')}
+                  </p>
+                  {top.label && <p className="text-sm text-slate-400">{top.label}</p>}
                 </div>
-              ),
-            )}
-          </div>
-        </div>
-      )}
+                <div className="shrink-0 text-right space-y-1">
+                  <span className={`badge text-base font-bold ${c.badge}`}>
+                    {top.score}
+                    <span className="text-[10px] font-normal opacity-60">/100</span>
+                  </span>
+                  <p className="font-mono text-[10px] text-slate-600">
+                    {top.confidence}% confidence
+                  </p>
+                </div>
+              </div>
+              {signal.classifications.length > 1 && (
+                <div className="mt-3 flex flex-wrap gap-1.5 border-t border-white/5 pt-3">
+                  {signal.classifications.slice(1).map((c2: typeof top) => (
+                    <span
+                      key={c2.detector_type}
+                      className="badge bg-edge/60 text-slate-400 text-[9px]"
+                    >
+                      {c2.detector_type.replace(/_/g, ' ')} · {c2.score}
+                    </span>
+                  ))}
+                </div>
+              )}
+            </div>
+          );
+        })()}
 
-      {Array.isArray(signal.outcomes) && signal.outcomes.length > 0 && (
-        <div className="card">
-          <h2 className="section-title mb-4 flex items-center gap-2">
+      {/* ── Price impact — always shown ── */}
+      <div className="card">
+        <div className="mb-4 flex items-center justify-between">
+          <h2 className="section-title flex items-center gap-2">
             <TrendingUp className="h-3.5 w-3.5 text-signal" />
-            Price Impact
+            What happened next
           </h2>
-          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+          {Array.isArray(signal.outcomes) && signal.outcomes.length > 0 && (
+            <span className="font-mono text-[10px] text-slate-600">
+              {signal.outcomes[0]?.asset}
+            </span>
+          )}
+        </div>
+        {Array.isArray(signal.outcomes) && signal.outcomes.length > 0 ? (
+          <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
             {signal.outcomes.map(
               (o: {
                 asset: string;
@@ -382,24 +460,24 @@ export default function SignalDetailPage({ params }: { params: Promise<{ id: str
                     key={`${o.asset}-${o.window_seconds}`}
                     className={`rounded-xl border p-3 ${
                       isUp
-                        ? 'border-signal/20 bg-signal/5'
+                        ? 'border-signal/30 bg-signal/8'
                         : isDown
-                          ? 'border-danger/20 bg-danger/5'
+                          ? 'border-danger/30 bg-danger/8'
                           : 'border-edge/40 bg-ink-light/30'
                     }`}
                   >
-                    <p className="text-[10px] font-semibold uppercase tracking-wider text-slate-500">
-                      {windowLabel}
+                    <p className="font-mono text-[10px] uppercase tracking-wider text-slate-600">
+                      {windowLabel} after
                     </p>
                     <p
-                      className={`mt-1 text-lg font-bold tabular-nums ${
+                      className={`mt-1 text-xl font-bold tabular-nums ${
                         isUp ? 'text-signal' : isDown ? 'text-danger' : 'text-slate-400'
                       }`}
                     >
                       {isUp ? '+' : ''}
                       {pct.toFixed(2)}%
                     </p>
-                    <p className="mt-1 text-[10px] text-slate-500">
+                    <p className="mt-1 font-mono text-[10px] text-slate-600">
                       ${parseFloat(o.price_at_signal).toFixed(2)} → $
                       {parseFloat(o.price_after).toFixed(2)}
                     </p>
@@ -408,8 +486,12 @@ export default function SignalDetailPage({ params }: { params: Promise<{ id: str
               },
             )}
           </div>
-        </div>
-      )}
+        ) : (
+          <p className="font-mono text-sm text-slate-700">
+            price outcome data not yet available — backtest runs periodically
+          </p>
+        )}
+      </div>
 
       <div className="card">
         <div className="mb-4 flex items-center justify-between">

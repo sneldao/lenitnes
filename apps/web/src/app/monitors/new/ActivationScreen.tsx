@@ -15,8 +15,10 @@ import {
   Shield,
   Sparkles,
   TrendingDown,
+  TrendingUp,
   Wallet,
 } from 'lucide-react';
+import { useQuery } from '@tanstack/react-query';
 import { api, type Monitor } from '@/lib/api';
 import { useWallet } from '@/components/WalletConnect';
 import { useToast } from '@/components/Toast';
@@ -241,7 +243,7 @@ export function ActivationScreen({
       )}
 
       {/* ── Next-steps card ── */}
-      <div className="card space-y-2 p-4">
+      <div className="rounded-xl border border-edge/40 bg-ink-light/20 p-4 space-y-2">
         <p className="section-title">Next steps</p>
         <ul className="space-y-2 text-xs text-slate-300">
           <li className="flex items-start gap-2">
@@ -271,6 +273,9 @@ export function ActivationScreen({
           </button>
         </div>
       </div>
+
+      {/* ── Historical context ── */}
+      <HistoricalContext monitor={monitor} />
     </div>
   );
 }
@@ -434,6 +439,78 @@ function PreviewResult({ result }: { result: ActivationResult }) {
           )}
         </div>
         <Wallet className="h-3.5 w-3.5 text-slate-600" />
+      </div>
+    </div>
+  );
+}
+
+// ── Historical context — what signals like this have done ─────────────
+
+function HistoricalContext({ monitor }: { monitor: Monitor }) {
+  // Infer a likely asset from the URL for backtest lookup
+  const asset = (() => {
+    const u = monitor.url.toLowerCase();
+    if (u.includes('zcash') || u.includes('halo2')) return 'ZEC';
+    if (u.includes('solana') || u.includes('solana-labs')) return 'SOL';
+    if (u.includes('ethereum') || u.includes('go-ethereum')) return 'ETH';
+    if (u.includes('bitcoin') || u.includes('btc')) return 'BTC';
+    if (u.includes('polygon')) return 'MATIC';
+    if (u.includes('arbitrum')) return 'ARB';
+    return null;
+  })();
+
+  const { data: stats } = useQuery({
+    queryKey: ['backtest-stats', asset],
+    queryFn: () => api.getBacktestStats(asset ? { asset } : undefined),
+    enabled: Boolean(asset),
+    staleTime: 300_000,
+  });
+
+  const topStats = stats?.filter((s) => Number(s.total_signals) >= 2).slice(0, 3) ?? [];
+
+  if (!asset || topStats.length === 0) return null;
+
+  return (
+    <div className="space-y-3">
+      <p className="font-mono text-[10px] uppercase tracking-widest text-slate-600">
+        Historical signals · {asset}
+      </p>
+      <div className="divide-y divide-edge/30 overflow-hidden rounded-xl border border-edge/50 bg-ink-light/30">
+        {topStats.map((s) => {
+          const acc = parseFloat(s.accuracy ?? '0');
+          const avgPct = parseFloat(s.avg_pct_change ?? '0');
+          const isUp = avgPct > 0;
+          return (
+            <div
+              key={`${s.detector_type}-${s.asset}`}
+              className="flex items-center justify-between px-4 py-3"
+            >
+              <div>
+                <p className="text-xs font-medium text-slate-300 capitalize">
+                  {s.detector_type.replace(/_/g, ' ')}
+                </p>
+                <p className="font-mono text-[10px] text-slate-600">
+                  {s.total_signals} signal{Number(s.total_signals) !== 1 ? 's' : ''} ·{' '}
+                  {acc.toFixed(0)}% accurate
+                </p>
+              </div>
+              <div className="text-right">
+                <p
+                  className={`font-mono text-sm font-bold tabular-nums ${isUp ? 'text-signal' : 'text-danger'}`}
+                >
+                  {isUp ? '+' : ''}
+                  {avgPct.toFixed(2)}%
+                </p>
+                <p className="font-mono text-[10px] text-slate-600">avg move</p>
+              </div>
+            </div>
+          );
+        })}
+        <div className="px-4 py-2">
+          <p className="font-mono text-[10px] text-slate-700">
+            based on backtest data · past performance not indicative of future results
+          </p>
+        </div>
       </div>
     </div>
   );
