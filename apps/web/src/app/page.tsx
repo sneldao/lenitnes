@@ -10,7 +10,6 @@ import { useAuth } from '@/lib/useAuth';
 import { useReveal } from '@/lib/useReveal';
 import { burnRate, statusColor } from '@/lib/format';
 import { COPY, hostnameFromUrl } from '@/lib/copy';
-import { WaitlistBanner } from '@/components/WaitlistBanner';
 import { ConfirmDialog } from '@/components/ConfirmDialog';
 import {
   Activity,
@@ -56,7 +55,6 @@ import SocialProof from '@/components/landing/SocialProof';
 import BacktestProof from '@/components/landing/BacktestProof';
 import InteractiveDemo from '@/components/landing/InteractiveDemo';
 import LiveCounterBar from '@/components/landing/LiveCounterBar';
-import LandingLeaderboard from '@/components/landing/LandingLeaderboard';
 import { OnboardingWizard } from '@/components/onboarding/OnboardingWizard';
 import { ActivityFeed } from '@/components/ActivityFeed';
 import { MonitorSparkline } from '@/components/MonitorSparkline';
@@ -490,10 +488,10 @@ function DashboardView({
             <h1 className="text-2xl font-bold tracking-tight text-white">Dashboard</h1>
             <span className="badge bg-violet/10 text-violet text-[10px]">Beta</span>
             <Link
-              href="/leaderboard"
+              href="/scorecard"
               className="badge bg-ink-light/50 text-slate-500 hover:text-slate-300 text-[10px] transition-colors"
             >
-              🏆 Leaderboard
+              📊 Scorecard
             </Link>
           </div>
           <p className="mt-1 font-mono text-xs text-slate-600">
@@ -983,16 +981,14 @@ export default function DashboardPage() {
   async function doExecute(monitorId: string) {
     setExecuting((prev) => ({ ...prev, [monitorId]: true }));
     try {
-      const res = await api.executeMonitor(monitorId);
-      const data = await res.json();
+      // Day 1: the per-user x402 /execute endpoint was removed.
+      // The "execute on demand" flow is now POST /monitors/:id/first-check.
+      const data = await api.triggerCheck(monitorId);
       if (data.ok) {
-        toast.success('Payment confirmed — check complete!');
+        toast.success('Check complete!');
         queryClient.invalidateQueries({ queryKey: ['signals'] });
         queryClient.invalidateQueries({ queryKey: ['monitors'] });
         return;
-      }
-      if (data.error === 'monitor_not_active') {
-        toast.error(COPY.errors.monitorInactive);
       } else {
         toast.error(COPY.errors.serverError);
       }
@@ -1099,9 +1095,6 @@ export default function DashboardPage() {
           {/* Section Divider */}
           <SectionDivider />
 
-          {/* Top Signal Hunters — live leaderboard */}
-          <LandingLeaderboard />
-
           {/* Section Divider */}
           <SectionDivider variant="accent" />
 
@@ -1118,9 +1111,6 @@ export default function DashboardPage() {
               No credit card. Stake ℏ to run. Withdraw anytime.
             </p>
           </div>
-
-          {/* Waitlist / Feedback */}
-          <WaitlistBanner />
         </div>
         {/* Onboarding Wizard Modal */}
         {showOnboarding && (

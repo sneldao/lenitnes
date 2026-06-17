@@ -9,10 +9,8 @@ import { useAuth } from '@/lib/useAuth';
 const APP_LINKS = [
   { href: '/', label: 'Dashboard' },
   { href: '/signals', label: 'Signals' },
-  { href: '/rules', label: 'Rules' },
-  { href: '/orders', label: 'Orders' },
+  { href: '/scorecard', label: 'Scorecard' },
   { href: '/backtest', label: 'Backtest' },
-  { href: '/leaderboard', label: 'Leaderboard' },
 ];
 
 const LANDING_LINKS = [
