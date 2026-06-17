@@ -7,9 +7,6 @@
  * failing mid-execution with a cryptic error.
  */
 export const FEATURES = {
-  /** x402 micropayment on-demand execution */
-  x402: (process.env.X402_PAY_TO ?? process.env.HEDERA_TREASURY_ID ?? '') !== '',
-
   /** Hedera HCS proof chain (signal/heartbeat timestamping) */
   hederaProof: (process.env.PROOF_MODE ?? 'hedera') === 'hedera',
 

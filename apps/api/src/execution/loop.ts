@@ -1,22 +1,16 @@
 import pLimit from 'p-limit';
 import { query, withTransaction } from '../db/pool.js';
 import { config } from '../config.js';
-import type { Monitor, Rule, TinyFishResult } from '@lenitnes/types';
+import type { Monitor, TinyFishResult } from '@lenitnes/types';
 import * as tinyfish from '../services/tinyfish.js';
 import * as scraper from '../services/scraper.js';
 import * as ipfs from '../services/ipfs.js';
-import * as kraken from '../services/kraken.js';
-import * as notify from '../services/notify.js';
-import { decrypt } from '../services/crypto.js';
 import { getProofService } from '../services/proof.js';
 import { isCircuitOpen, recordSuccess, recordFailure } from '../services/circuit.js';
 import { incCounter } from '../middleware/metrics.js';
 import { logger } from '../logger.js';
-import { tradeConfigSchema } from '../validation/index.js';
 import { runDetectors } from '../services/detectors/registry.js';
-import { executeEvmTrade } from '../services/evm/trade.js';
 import { recordSignalOnChain } from '../services/evm/signal-registry.js';
-import { resolveTokenAddress } from '../services/evm/tokens.js';
 import { FEATURES } from '../features.js';
 
 // ─────────────────────────────────────────────────────────────
@@ -82,7 +76,7 @@ export async function executeCheck(
   const cost = Number(monitor.cost_per_check) || config.hedera.defaultCostPerCheck;
   const isPaid = !opts.skipDebit;
 
-  let debitTxId = 'x402-on-demand';
+  let debitTxId = 'free';
   const circuitOpts = { name: 'tinyfish', threshold: 5, windowMs: 60_000, cooldownMs: 300_000 };
 
   // ── 1) Atomic balance debit (outside transaction) ─────────────────
@@ -334,10 +328,13 @@ export async function executeCheck(
   }
 
   // ── 5) Best-effort rule execution ─────────────────────────────────
+  // (disabled after pivot — agent is the only rule, reimplemented in
+  // Day 4 as the agent + treasury integration. See HACKATHON_CUT.md.)
   if (!isHeartbeat && signalId) {
-    executeRules(monitor, signalId, result.summary).catch((err) => {
-      logger.error({ err, monitorId: monitor.id }, 'rule execution error (best-effort)');
-    });
+    logger.debug(
+      { signalId, monitorId: monitor.id },
+      'rule execution skipped — pending Day 4 agent integration',
+    );
   }
 
   return {
@@ -454,252 +451,7 @@ async function executeCheckTransaction(
   return { signalId, isHeartbeat: false };
 }
 
-// ── Rule execution ───────────────────────────────────────────
-
-async function executeRules(monitor: Monitor, signalId: string, summary: string): Promise<void> {
-  const { rows: rules } = await query<Rule>(
-    `SELECT * FROM rules WHERE monitor_id = $1 AND is_active = true`,
-    [monitor.id],
-  );
-
-  for (const rule of rules) {
-    if (!(await passesConditions(rule.conditions, signalId))) continue;
-
-    try {
-      switch (rule.action_type) {
-        case 'trade':
-          await executeTrade(monitor, rule, signalId);
-          break;
-        case 'webhook': {
-          const url = String(rule.action_config.url);
-          const result = await notify.sendWebhook(url, {
-            signalId,
-            monitorId: monitor.id,
-            summary,
-          });
-          // Record the delivery for the audit log.
-          query(
-            `INSERT INTO webhook_deliveries (rule_id, signal_id, url, status_code, duration_ms, error)
-             VALUES ($1, $2, $3, $4, $5, $6)`,
-            [rule.id, signalId, url, result.statusCode, result.durationMs, result.error],
-          ).catch((e) =>
-            logger.error({ err: e, ruleId: rule.id }, 'failed to persist webhook delivery'),
-          );
-          if (result.error) throw new Error(result.error);
-          break;
-        }
-        case 'telegram':
-          await notify.sendTelegram(
-            String(rule.action_config.chatId),
-            notify.formatSignalMessage({
-              summary,
-              monitorUrl: monitor.url,
-              pair: rule.action_config.pair as string | undefined,
-            }),
-          );
-          break;
-        case 'email': {
-          const proofUrl = signalId ? `${config.webOrigin}/proof/public/${signalId}` : null;
-          const { subject, body } = notify.formatSignalEmail({
-            summary,
-            monitorUrl: monitor.url,
-            proofUrl,
-          });
-          await notify.sendEmail(String(rule.action_config.to), subject, body);
-          break;
-        }
-        case 'trade_dex': {
-          const chain = (rule.action_config.chain as string) ?? 'arbitrum';
-          const evmResult = await executeEvmTrade({
-            chain,
-            tokenIn: rule.action_config.tokenIn as string,
-            tokenOut: rule.action_config.tokenOut as string,
-            amountIn: rule.action_config.amountIn as string,
-            slippageBps: rule.action_config.slippageBps as number | undefined,
-          });
-          await query(
-            `INSERT INTO orders (signal_id, rule_id, order_params, status, chain, chain_tx_hash)
-             VALUES ($1, $2, $3, 'filled', $4, $5)`,
-            [signalId, rule.id, JSON.stringify(rule.action_config), chain, evmResult.txHash],
-          );
-          break;
-        }
-        case 'trade_stock': {
-          const stockToken = rule.action_config.tokenOut as string;
-          const stockAmount = rule.action_config.amountIn as string;
-          const usdg = resolveTokenAddress('USDG', 'robinhood');
-          if (!usdg) throw new Error('USDG not configured for Robinhood Chain');
-          const stockResult = await executeEvmTrade({
-            chain: 'robinhood',
-            tokenIn: usdg,
-            tokenOut: stockToken,
-            amountIn: stockAmount,
-          });
-          await query(
-            `INSERT INTO orders (signal_id, rule_id, order_params, status, chain, chain_tx_hash)
-             VALUES ($1, $2, $3, 'filled', 'robinhood', $4)`,
-            [signalId, rule.id, JSON.stringify(rule.action_config), stockResult.txHash],
-          );
-          break;
-        }
-      }
-    } catch (err) {
-      logger.error({ err, ruleId: rule.id, actionType: rule.action_type }, 'rule action failed');
-    }
-  }
-
-  // ── Public feed: post to Telegram channel if monitor is public ──
-  const tradeRule = rules.find((r) => r.action_type === 'trade');
-  if (monitor.is_public && config.telegram.publicChannelId) {
-    try {
-      const proofUrl = `${config.webOrigin}/proof/public/${signalId}`;
-      await notify.sendTelegram(
-        config.telegram.publicChannelId,
-        notify.formatSignalMessage({
-          summary,
-          monitorUrl: monitor.url,
-          pair: tradeRule?.action_config.pair as string | undefined,
-          proofUrl,
-        }),
-      );
-      logger.info({ signalId, monitorId: monitor.id }, 'public signal posted to Telegram');
-    } catch (err) {
-      logger.error({ err, signalId }, 'failed to post public signal to Telegram');
-    }
-  }
-}
-
-/** Evaluate optional rule conditions (time-of-day filters, detector type filters, etc.). */
-async function passesConditions(
-  conditions: Record<string, unknown>,
-  signalId: string,
-): Promise<boolean> {
-  const window = conditions.utcHours as { from: number; to: number } | undefined;
-  if (window) {
-    const hour = new Date().getUTCHours();
-    if (hour < window.from || hour >= window.to) return false;
-  }
-
-  const detectorTypes = conditions.detectorTypes as string[] | undefined;
-  if (detectorTypes && detectorTypes.length > 0) {
-    const { rows } = await query<{ detector_type: string }>(
-      `SELECT detector_type FROM signal_classifications WHERE signal_id = $1`,
-      [signalId],
-    );
-    const matchedTypes = rows.map((r) => r.detector_type);
-    const hasMatch = detectorTypes.some((t) => matchedTypes.includes(t));
-    if (!hasMatch) return false;
-  }
-
-  return true;
-}
-
-function validateTradeConfig(raw: Record<string, unknown>): kraken.AddOrderParams {
-  const parsed = tradeConfigSchema.safeParse(raw);
-  if (!parsed.success) {
-    throw new Error(`Invalid trade config: ${parsed.error.message}`);
-  }
-  return parsed.data;
-}
-
-/** @internal exported for concurrency tests */
-export async function executeTrade(monitor: Monitor, rule: Rule, signalId: string): Promise<void> {
-  const order = validateTradeConfig(rule.action_config);
-  order.cancelAfter = config.trade.cancelAfterSeconds;
-
-  // Determine if this is a paper trade (validate mode)
-  const isPaper = order.validate === true;
-
-  // Load + decrypt the owning user's Kraken credentials.
-  const { rows } = await query<{ k: string | null; s: string | null }>(
-    `SELECT kraken_api_key_encrypted AS k, kraken_api_secret_encrypted AS s
-     FROM users WHERE id = $1`,
-    [monitor.user_id],
-  );
-  const enc = rows[0];
-  const hasCreds = !!enc?.k && !!enc?.s;
-
-  // If live trade and no credentials, abort.
-  if (!isPaper && !hasCreds) {
-    throw new Error('user has no Kraken credentials');
-  }
-
-  // Atomic guard + insert: lock the user row to serialize concurrent
-  // trade checks, preventing two signals from both passing the cap.
-  const orderId = await withTransaction(async (client) => {
-    await client.query('SELECT 1 FROM users WHERE id = $1 FOR UPDATE', [monitor.user_id]);
-
-    const cooldownSeconds = config.trade.cooldownMinutes * 60;
-    const { rows: recent } = await client.query<{ id: string }>(
-      `SELECT o.id FROM orders o
-       JOIN signals s ON s.id = o.signal_id
-       JOIN monitors m ON m.id = s.monitor_id
-       WHERE m.user_id = $1
-         AND o.order_params->>'pair' = $2
-         AND o.status IN ('placed', 'filled', 'partially_filled')
-         AND o.placed_at > now() - make_interval(secs => $3)
-       LIMIT 1`,
-      [monitor.user_id, order.pair, cooldownSeconds],
-    );
-    if (recent.length > 0) {
-      logger.warn(
-        { userId: monitor.user_id, pair: order.pair },
-        'trade skipped: pair cooldown active',
-      );
-      return null;
-    }
-
-    const { rows: openCount } = await client.query<{ count: string }>(
-      `SELECT count(*)::text AS count FROM orders o
-       JOIN signals s ON s.id = o.signal_id
-       JOIN monitors m ON m.id = s.monitor_id
-       WHERE m.user_id = $1 AND o.status = 'placed'`,
-      [monitor.user_id],
-    );
-    if (Number(openCount[0]?.count ?? 0) >= config.trade.maxOpenOrders) {
-      logger.warn(
-        { userId: monitor.user_id, openOrders: openCount[0].count },
-        'trade skipped: max open orders reached',
-      );
-      return null;
-    }
-
-    const { rows: orderRows } = await client.query<{ id: string }>(
-      `INSERT INTO orders (signal_id, rule_id, order_params, status)
-       VALUES ($1, $2, $3, 'pending') RETURNING id`,
-      [signalId, rule.id, JSON.stringify(order)],
-    );
-    return orderRows[0].id;
-  });
-
-  if (!orderId) return;
-
-  try {
-    let res: { krakenOrderId: string | null; raw: unknown };
-    if (isPaper) {
-      // Credential-less paper trade via the CLI built-in paper engine.
-      logger.info(
-        { userId: monitor.user_id, pair: order.pair },
-        'executing paper trade (no credentials)',
-      );
-      res = await kraken.paperAddOrder(order);
-    } else {
-      // hasCreds is true here, so enc.k and enc.s are non-null.
-      const { k, s } = enc as { k: string; s: string };
-      res = await kraken.addOrder(order, {
-        apiKey: decrypt(k),
-        apiSecret: decrypt(s),
-      });
-    }
-    await query(
-      `UPDATE orders SET kraken_order_id = $1, status = 'placed', placed_at = now(), kraken_response = $2 WHERE id = $3`,
-      [res.krakenOrderId, JSON.stringify(res.raw), orderId],
-    );
-  } catch (err) {
-    await query(`UPDATE orders SET status = 'failed', kraken_response = $1 WHERE id = $2`, [
-      JSON.stringify({ error: String(err) }),
-      orderId,
-    ]);
-    throw err;
-  }
-}
+// ── Rule execution (removed after pivot) ─────────────────────
+// The agent is now the only rule. Agent scoring + trade actions live in
+// services/agent.ts and services/treasury.ts (Day 3-5). The user-defined
+// rules table is dropped in the Day 2 schema migration.

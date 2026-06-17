@@ -292,10 +292,10 @@ paths:
 
   /execute/{monitorId}:
     post:
-      summary: On-demand execution
+      summary: On-demand execution (disabled after pivot)
       description: |
-        x402-gated on-demand execution. The client must pay via Hedera HBAR
-        micropayment before the check runs. Returns the check result immediately.
+        On-demand execution. Disabled after the zero-headcount pivot —
+        the autonomous loop handles all checks. Endpoint returns 501.
       parameters:
         - name: monitorId
           in: path
@@ -315,8 +315,8 @@ paths:
                     type: boolean
                   monitorId:
                     type: string
-        '402':
-          description: Payment Required (x402)
+        '501':
+          description: Disabled after pivot
 
   /orders:
     get:

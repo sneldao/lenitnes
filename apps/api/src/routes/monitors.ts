@@ -1,5 +1,4 @@
-import { Router } from 'express';
-import type { AuthenticatedRequest } from '../middleware/auth.js';
+import { Router, type Request, type Response } from 'express';
 import type { Monitor } from '@lenitnes/types';
 import { cacheGet, cacheSet } from '../middleware/cache.js';
 import { createMonitorSchema, patchMonitorSchema } from '../validation/index.js';
@@ -24,9 +23,8 @@ function hasAnyUpdateFields(b: Record<string, unknown>): boolean {
   return Object.values(b).some((v) => v !== undefined);
 }
 
-// POST /monitors — create monitor + provision escrow.
+// POST /monitors — create watchlist entry (admin-curated after pivot).
 monitorsRouter.post('/', validate(createMonitorSchema), async (req, res) => {
-  const authReq = req as unknown as AuthenticatedRequest;
   const b = req.body as {
     url: string;
     conditionText: string;
@@ -44,7 +42,6 @@ monitorsRouter.post('/', validate(createMonitorSchema), async (req, res) => {
   };
 
   const monitor = await createMonitorSvc({
-    userId: authReq.user.id,
     url: b.url,
     conditionText: b.conditionText,
     frequencySeconds: b.frequencySeconds,
@@ -55,56 +52,53 @@ monitorsRouter.post('/', validate(createMonitorSchema), async (req, res) => {
     assetMapping: b.assetMapping,
   });
 
-  // ── Public feed: announce new monitor to Telegram channel ──
+  // ── Public feed: announce new watchlist entry to Telegram channel ──
   if (monitor.is_public && config.telegram.publicChannelId) {
     const freqMin = Math.round(monitor.frequency_seconds / 60);
     const freqLabel = freqMin < 60 ? `${freqMin}m` : `${Math.round(freqMin / 60)}h`;
     notify
       .sendTelegram(
         config.telegram.publicChannelId,
-        `🛡️ <b>New monitor live</b>\n` +
+        `🛡️ <b>New watchlist entry live</b>\n` +
           `<b>${monitor.condition_text.slice(0, 80)}${monitor.condition_text.length > 80 ? '…' : ''}</b>\n\n` +
           `📍 ${monitor.url}\n` +
           `⏱ Every ${freqLabel}\n` +
-          `🔗 <a href="${config.webOrigin}/monitors/${monitor.id}">View monitor</a>`,
+          `🔗 <a href="${config.webOrigin}/signals?monitorId=${monitor.id}">View signals</a>`,
       )
       .catch((err) =>
-        logger.warn({ err, monitorId: monitor.id }, 'failed to post monitor creation to Telegram'),
+        logger.warn({ err, monitorId: monitor.id }, 'failed to post watchlist entry to Telegram'),
       );
   }
 
   res.status(201).json(monitor);
 });
 
-// GET /monitors — list only the authenticated user's monitors.
+// GET /monitors — list all watchlist entries (public after pivot).
 monitorsRouter.get('/', async (req, res) => {
-  const authReq = req as unknown as AuthenticatedRequest;
   const limit = Math.min(Number(req.query.limit ?? 50), 100);
   const offset = Math.max(Number(req.query.offset ?? 0), 0);
-  const cacheKey = `monitors:${authReq.user.id}:${limit}:${offset}`;
+  const cacheKey = `monitors:all:${limit}:${offset}`;
   const cached = cacheGet<Monitor[]>(cacheKey);
   if (cached) {
     res.setHeader('X-Cache', 'HIT');
     res.json(cached);
     return;
   }
-  const rows = await listMonitorsSvc(authReq.user.id, limit, offset);
+  const rows = await listMonitorsSvc(limit, offset);
   cacheSet(cacheKey, rows, 30_000); // 30s TTL
   res.setHeader('X-Cache', 'MISS');
   res.json(rows);
 });
 
-// GET /monitors/:id — detail with signal history (own monitors only).
+// GET /monitors/:id — detail with signal history.
 monitorsRouter.get('/:id', async (req, res) => {
-  const authReq = req as unknown as AuthenticatedRequest;
-  const result = await getMonitorWithSignalsSvc(req.params.id ?? '', authReq.user.id);
+  const result = await getMonitorWithSignalsSvc(req.params.id ?? '');
   if (!result) return res.status(404).json({ error: 'not found' });
   res.json(result);
 });
 
-// PATCH /monitors/:id — update frequency/condition/top up/status (own monitors only).
+// PATCH /monitors/:id — update frequency/condition/status.
 monitorsRouter.patch('/:id', validate(patchMonitorSchema), async (req, res) => {
-  const authReq = req as unknown as AuthenticatedRequest;
   const b = req.body as {
     frequencySeconds?: number;
     conditionText?: string;
@@ -116,30 +110,23 @@ monitorsRouter.patch('/:id', validate(patchMonitorSchema), async (req, res) => {
     return res.status(400).json({ error: 'no fields to update' });
   }
 
-  const monitor = await updateMonitorSvc(req.params.id ?? '', authReq.user.id, b);
+  const monitor = await updateMonitorSvc(req.params.id ?? '', b);
   if (!monitor) return res.status(404).json({ error: 'not found' });
   res.json(monitor);
 });
 
-// DELETE /monitors/:id — pause + release remaining escrow (own monitors only).
+// DELETE /monitors/:id — pause the watchlist entry.
 monitorsRouter.delete('/:id', async (req, res) => {
-  const authReq = req as unknown as AuthenticatedRequest;
-  const ok = await pauseAndReleaseEscrowSvc(req.params.id ?? '', authReq.user.id);
+  const ok = await pauseAndReleaseEscrowSvc(req.params.id ?? '');
   if (!ok) return res.status(404).json({ error: 'not found' });
   res.json({ ok: true });
 });
 
-// POST /monitors/:id/first-check — free first check (no x402, no escrow debit).
-// One-time per monitor. Skips payment to give instant gratification.
+// POST /monitors/:id/first-check — trigger a check (system-facing after pivot).
 monitorsRouter.post('/:id/first-check', async (req, res) => {
-  const authReq = req as unknown as AuthenticatedRequest;
   const monitorId = req.params.id ?? '';
 
-  // Verify ownership
-  const { rows } = await query<Monitor>(`SELECT * FROM monitors WHERE id = $1 AND user_id = $2`, [
-    monitorId,
-    authReq.user.id,
-  ]);
+  const { rows } = await query<Monitor>(`SELECT * FROM monitors WHERE id = $1`, [monitorId]);
   const monitor = rows[0];
   if (!monitor) return res.status(404).json({ error: 'not found' });
   if (monitor.status !== 'active') return res.status(400).json({ error: 'monitor_not_active' });
@@ -152,7 +139,7 @@ monitorsRouter.post('/:id/first-check', async (req, res) => {
   if (Number(countRows[0]?.count ?? 0) > 0) {
     return res.status(400).json({
       error: 'first_check_already_used',
-      message: 'Use on-demand execution for subsequent checks.',
+      message: 'Subsequent checks run on the autonomous schedule.',
     });
   }
 

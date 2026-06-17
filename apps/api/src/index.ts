@@ -7,25 +7,17 @@ import crypto from 'node:crypto';
 import rateLimit from 'express-rate-limit';
 import { config } from './config.js';
 import { pool } from './db/pool.js';
-import { authRouter } from './routes/auth.js';
 import { monitorsRouter } from './routes/monitors.js';
 import { signalsRouter } from './routes/signals.js';
-import { rulesRouter } from './routes/rules.js';
 import { webhooksRouter } from './routes/webhooks.js';
-import { executeRouter } from './routes/execute.js';
 import { ordersRouter } from './routes/orders.js';
-import { krakenRouter } from './routes/kraken.js';
 import { proofRouter } from './routes/proof.js';
 import { dlqRouter } from './routes/dlq.js';
-import { waitlistRouter } from './routes/waitlist.js';
 import { backtestRouter } from './routes/backtest.js';
 import { statsRouter } from './routes/stats.js';
 import { leaderboardRouter } from './routes/leaderboard.js';
-import { profileRouter } from './routes/profile.js';
-import { requireAuth } from './middleware/auth.js';
 import { auditMiddleware } from './middleware/audit.js';
 import { renderMetrics, metricsMiddleware } from './middleware/metrics.js';
-import { x402Middleware } from './middleware/x402.js';
 import { cacheInvalidate } from './middleware/cache.js';
 import { validateSchema } from './db/validate.js';
 import { logger } from './logger.js';
@@ -50,20 +42,6 @@ app.use(cookieParser());
 const generalLimiter = rateLimit({
   windowMs: 15 * 60 * 1000, // 15 minutes
   max: 200,
-  standardHeaders: true,
-  legacyHeaders: false,
-});
-const authLimiter = rateLimit({
-  windowMs: 15 * 60 * 1000,
-  max: 10,
-  message: { error: 'too_many_requests' },
-  standardHeaders: true,
-  legacyHeaders: false,
-});
-const executeLimiter = rateLimit({
-  windowMs: 60 * 1000, // 1 minute
-  max: 5,
-  message: { error: 'too_many_requests' },
   standardHeaders: true,
   legacyHeaders: false,
 });
@@ -143,10 +121,8 @@ app.get('/health', async (_req, res) => {
 });
 
 app.use('/stats', statsRouter);
-app.use('/auth', authLimiter, authRouter);
 // ── Public endpoints (no auth required) ─────────────────────────
 app.use('/proof', proofRouter);
-app.use('/waitlist', waitlistRouter);
 app.use('/leaderboard', leaderboardRouter);
 // Public backtest stats for landing page (no auth)
 app.get('/backtest/stats', async (req, res) => {
@@ -156,18 +132,12 @@ app.get('/backtest/stats', async (req, res) => {
   const stats = await getBacktestStats({ detectorType, asset });
   res.json(stats);
 });
-app.use('/monitors', requireAuth, monitorsRouter);
-app.use('/signals', requireAuth, signalsRouter);
-app.use('/rules', requireAuth, rulesRouter);
+app.use('/monitors', monitorsRouter);
+app.use('/signals', signalsRouter);
 app.use('/webhooks', webhooksRouter); // Kraken callbacks — use separate HMAC auth
-app.use('/orders', requireAuth, ordersRouter);
-app.use('/account/profile', requireAuth, profileRouter);
-app.use('/kraken', requireAuth, krakenRouter);
-app.use('/dlq', requireAuth, dlqRouter);
-app.use('/backtest', requireAuth, backtestRouter);
-
-// ── x402-gated execution (payment → execution tightly coupled) ─
-app.use('/execute', requireAuth, executeLimiter, x402Middleware, executeRouter);
+app.use('/orders', ordersRouter);
+app.use('/dlq', dlqRouter);
+app.use('/backtest', backtestRouter);
 
 // Centralized error handler.
 app.use(

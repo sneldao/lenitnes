@@ -1,12 +1,8 @@
 import { Router, type Request, type Response } from 'express';
 import { getDlqDepth, listDlqJobs, replayDlqJob, discardDlqJob } from '../queue/dlq.js';
-import { requireAuth } from '../middleware/auth.js';
 import { logger } from '../logger.js';
 
 export const dlqRouter = Router();
-
-// All DLQ operations require auth — they expose which monitors are failing.
-dlqRouter.use(requireAuth);
 
 // GET /dlq — list DLQ jobs and depth
 dlqRouter.get('/', async (req: Request, res: Response) => {

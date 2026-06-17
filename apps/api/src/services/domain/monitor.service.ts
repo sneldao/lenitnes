@@ -7,10 +7,13 @@ import { detectAssetMapping } from '../detectors/asset-lookup.js';
 /**
  * Monitor domain service — pure business logic, no Express.
  * Routes are thin adapters that call these functions and serialize responses.
+ *
+ * Pivot note: user_id binding removed. The user_id column is dropped in
+ * the Day 2 schema migration. Until then, the column is left in place
+ * for backwards compatibility but no longer used for filtering.
  */
 
 export interface CreateMonitorParams {
-  userId: string;
   url: string;
   conditionText: string;
   frequencySeconds: number;
@@ -25,9 +28,8 @@ export async function createMonitor(params: CreateMonitorParams): Promise<Monito
   const assetMapping = params.assetMapping ?? detectAssetMapping(params.url) ?? {};
   const { rows } = await query<Monitor>(
     `INSERT INTO monitors (user_id, url, condition_text, frequency_seconds, hbar_balance, cost_per_check, screenshots_enabled, is_public, confidence_threshold, asset_mapping)
-     VALUES ($1, $2, $3, $4, 0, $5, $6, $7, $8, $9) RETURNING *`,
+     VALUES (NULL, $1, $2, $3, 0, $4, $5, $6, $7, $8) RETURNING *`,
     [
-      params.userId,
       params.url,
       params.conditionText,
       params.frequencySeconds,
@@ -38,35 +40,27 @@ export async function createMonitor(params: CreateMonitorParams): Promise<Monito
       JSON.stringify(assetMapping),
     ],
   );
-  cacheInvalidate(`monitors:${params.userId}:`);
+  cacheInvalidate(`monitors:all:`);
   return rows[0];
 }
 
-export async function listMonitors(
-  userId: string,
-  limit: number,
-  offset: number,
-): Promise<Monitor[]> {
+export async function listMonitors(limit: number, offset: number): Promise<Monitor[]> {
   const { rows } = await query<Monitor>(
-    `SELECT * FROM monitors WHERE user_id = $1 ORDER BY created_at DESC LIMIT $2 OFFSET $3`,
-    [userId, limit, offset],
+    `SELECT * FROM monitors ORDER BY created_at DESC LIMIT $1 OFFSET $2`,
+    [limit, offset],
   );
   return rows;
 }
 
-export async function getMonitorById(id: string, userId: string): Promise<Monitor | null> {
-  const { rows } = await query<Monitor>(`SELECT * FROM monitors WHERE id = $1 AND user_id = $2`, [
-    id,
-    userId,
-  ]);
+export async function getMonitorById(id: string): Promise<Monitor | null> {
+  const { rows } = await query<Monitor>(`SELECT * FROM monitors WHERE id = $1`, [id]);
   return rows[0] ?? null;
 }
 
 export async function getMonitorWithSignals(
   id: string,
-  userId: string,
 ): Promise<(Monitor & { signals: unknown[] }) | null> {
-  const monitor = await getMonitorById(id, userId);
+  const monitor = await getMonitorById(id);
   if (!monitor) return null;
   const { rows: signals } = await query(
     `SELECT * FROM signals WHERE monitor_id = $1 ORDER BY detected_at DESC`,
@@ -85,7 +79,6 @@ export interface UpdateMonitorParams {
 
 export async function updateMonitor(
   id: string,
-  userId: string,
   params: UpdateMonitorParams,
 ): Promise<Monitor | null> {
   const sets: string[] = [];
@@ -113,22 +106,22 @@ export async function updateMonitor(
   }
   if (!sets.length) return null;
 
-  vals.push(id, userId);
+  vals.push(id);
   const { rows } = await query<Monitor>(
-    `UPDATE monitors SET ${sets.join(', ')} WHERE id = $${i++} AND user_id = $${i} RETURNING *`,
+    `UPDATE monitors SET ${sets.join(', ')} WHERE id = $${i} RETURNING *`,
     vals,
   );
-  if (rows[0]) cacheInvalidate(`monitors:${userId}:`);
+  if (rows[0]) cacheInvalidate(`monitors:all:`);
   return rows[0] ?? null;
 }
 
-export async function pauseAndReleaseEscrow(id: string, userId: string): Promise<boolean> {
+export async function pauseAndReleaseEscrow(id: string): Promise<boolean> {
   const { rowCount } = await query(
-    `UPDATE monitors SET status = 'paused', hbar_balance = 0 WHERE id = $1 AND user_id = $2`,
-    [id, userId],
+    `UPDATE monitors SET status = 'paused', hbar_balance = 0 WHERE id = $1`,
+    [id],
   );
   if (rowCount) {
-    cacheInvalidate(`monitors:${userId}:`);
+    cacheInvalidate(`monitors:all:`);
     return true;
   }
   return false;

@@ -3,7 +3,6 @@ import { FEATURES, requireFeature } from '../src/features.js';
 
 describe('FEATURES', () => {
   it('exposes expected feature flags', () => {
-    expect(FEATURES).toHaveProperty('x402');
     expect(FEATURES).toHaveProperty('hederaProof');
     expect(FEATURES).toHaveProperty('telegram');
     expect(FEATURES).toHaveProperty('email');
