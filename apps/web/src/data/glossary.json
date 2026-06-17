@@ -1,6 +1,5 @@
 {
   "HCS": "Hedera Consensus Service — timestamps events on the Hedera network in 3-5 seconds for ~$0.0001 per entry.",
-  "x402": "An HTTP payment protocol that lets you pay per API call via crypto micropayments — no subscription needed.",
   "escrow": "HBAR held in a per-monitor account to pay for scheduled checks. You can withdraw remaining funds anytime by deleting the monitor.",
   "proof chain": "A cryptographically verifiable trail: detection → timestamp → storage → action. Each link is immutable.",
   "Grove": "A decentralized storage network (IPFS-compatible) used to store proof packages — screenshots, diffs, and evidence.",

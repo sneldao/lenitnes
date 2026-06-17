@@ -5,7 +5,6 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { api, type Monitor, type Signal } from '@/lib/api';
-import { useWallet } from '@/components/WalletConnect';
 import { useToast } from '@/components/Toast';
 import { useAuth } from '@/lib/useAuth';
 import { useReveal } from '@/lib/useReveal';
@@ -38,6 +37,17 @@ import {
   Tooltip as RechartsTooltip,
   ResponsiveContainer,
 } from 'recharts';
+
+// Stub: real wallet integration removed after pivot. Agent is the operator.
+function useWallet() {
+  return {
+    isConnected: true,
+    accountId: null as string | null,
+    connect: async () => {},
+    disconnect: () => {},
+    executeWithPayment: (url: string, init?: RequestInit) => fetch(url, init),
+  };
+}
 
 import CinematicHero from '@/components/landing/CinematicHero';
 import ProofChainLive from '@/components/landing/ProofChainLive';
@@ -974,7 +984,7 @@ export default function DashboardPage() {
   async function doExecute(monitorId: string) {
     setExecuting((prev) => ({ ...prev, [monitorId]: true }));
     try {
-      const res = await api.executeMonitor(monitorId, executeWithPayment);
+      const res = await api.executeMonitor(monitorId);
       const data = await res.json();
       if (data.ok) {
         toast.success('Payment confirmed — check complete!');
@@ -991,7 +1001,7 @@ export default function DashboardPage() {
       const msg = String(e).toLowerCase();
       if (msg.includes('rejected') || msg.includes('cancel') || msg.includes('denied')) {
         toast.error(COPY.errors.paymentRejected);
-      } else if (msg.includes('402') || msg.includes('payment') || msg.includes('x402')) {
+      } else if (msg.includes('402') || msg.includes('payment')) {
         toast.error(COPY.errors.paymentFailed);
       } else if (msg.includes('timeout') || msg.includes('timed out')) {
         toast.error(COPY.errors.timeout);

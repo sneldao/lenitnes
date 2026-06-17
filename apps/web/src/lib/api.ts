@@ -168,7 +168,7 @@ export const api = {
       body: JSON.stringify({ email }),
     }),
 
-  /** Free first check — no x402 payment, no escrow debit. One-time per monitor. */
+  /** Free first check — no escrow debit. One-time per monitor. */
   firstCheck: (monitorId: string) =>
     req<{
       ok: boolean;
@@ -188,13 +188,10 @@ export const api = {
       };
     }>(`/monitors/${monitorId}/first-check`, { method: 'POST' }),
 
-  /** Execute a monitor on-demand via the x402-gated endpoint. */
+  /** Execute a monitor on-demand (system-facing after pivot). */
 
-  executeMonitor: async (
-    monitorId: string,
-    executeWithPayment: (url: string, init?: RequestInit) => Promise<Response>,
-  ) => {
-    return executeWithPayment(`${BASE}/execute/${monitorId}`, {
+  executeMonitor: async (monitorId: string) => {
+    return fetch(`${BASE}/execute/${monitorId}`, {
       method: 'POST',
       credentials: 'include',
       headers: { 'Content-Type': 'application/json' },

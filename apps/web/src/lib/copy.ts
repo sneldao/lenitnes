@@ -186,7 +186,7 @@ export const COPY = {
   errors: {
     noWallet: 'Connect your Hedera wallet to get started.',
     paymentRejected: 'Payment rejected in wallet. You were not charged.',
-    paymentFailed: 'x402 payment setup failed. Check your wallet balance and try again.',
+    paymentFailed: 'Payment setup failed. Try again.',
     timeout: 'Request timed out. The network may be congested — try again.',
     serverError: 'Check failed on the server. Try again in a moment.',
     monitorInactive: 'Monitor is paused or has insufficient balance. Top up to re-enable.',

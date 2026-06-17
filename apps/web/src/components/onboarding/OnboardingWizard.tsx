@@ -34,8 +34,8 @@ interface OnboardingState {
 interface OnboardingWizardProps {
   onComplete: () => void;
   onClose: () => void;
-  isWalletConnected: boolean;
-  onConnectWallet: () => void | Promise<void>;
+  isWalletConnected?: boolean;
+  onConnectWallet?: () => void | Promise<void>;
 }
 
 // ─── Step Indicator ───
@@ -369,8 +369,8 @@ function RecommendedTemplate({
 export function OnboardingWizard({
   onComplete,
   onClose,
-  isWalletConnected,
-  onConnectWallet,
+  isWalletConnected = true,
+  onConnectWallet = () => {},
 }: OnboardingWizardProps) {
   const [step, setStep] = useState(0);
   const [state, setState] = useState<OnboardingState>({
