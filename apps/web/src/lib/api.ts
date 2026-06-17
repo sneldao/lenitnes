@@ -1,31 +1,6 @@
 // Thin client for the LENITNES backend API.
 
-import type {
-  Monitor,
-  MonitorStatus,
-  Signal,
-  SignalDetail,
-  LeaderboardResponse,
-} from '@lenitnes/types';
-
-/** Inlined to avoid Docker workspace resolution issues with @lenitnes/types */
-interface HunterDetail {
-  user_id: string;
-  wallet_address: string;
-  email: string | null;
-  display_name: string | null;
-  total_signals: number;
-  chain_completed: number;
-  accuracy: string | null;
-  streak: number;
-  top_pair: string | null;
-  last_signal_at: string | null;
-}
-
-interface HunterDetailResponse {
-  hunter: HunterDetail;
-  signals: Signal[];
-}
+import type { Monitor, MonitorStatus, Signal, SignalDetail } from '@lenitnes/types';
 
 const BASE = process.env.NEXT_PUBLIC_API_URL || '/api';
 
@@ -46,15 +21,7 @@ async function req<T>(path: string, init?: RequestInit): Promise<T> {
   return res.json() as Promise<T>;
 }
 
-export {
-  type Monitor,
-  type MonitorStatus,
-  type Signal,
-  type SignalDetail,
-  type LeaderboardResponse,
-};
-
-export type { HunterDetail, HunterDetailResponse };
+export { type Monitor, type MonitorStatus, type Signal, type SignalDetail };
 
 export interface AuthUser {
   id: string;
@@ -120,7 +87,7 @@ export const api = {
 
   listOrders: () =>
     req<
-      {
+      Array<{
         id: string;
         kraken_order_id: string | null;
         order_params: Record<string, unknown>;
@@ -132,60 +99,8 @@ export const api = {
         detected_at: string;
         monitor_id: string;
         monitor_url: string;
-      }[]
+      }>
     >('/orders'),
-  syncOrders: () => req<{ synced: number; updated: number }>('/orders/sync'),
-  cancelOrder: (id: string) => req<{ ok: boolean }>(`/orders/${id}/cancel`, { method: 'POST' }),
-
-  krakenConfigure: (body: { apiKey: string; apiSecret: string }) =>
-    req<{ ok: boolean }>('/kraken/configure', { method: 'POST', body: JSON.stringify(body) }),
-  krakenDeleteConfigure: () => req<{ ok: boolean }>('/kraken/configure', { method: 'DELETE' }),
-  krakenStatus: () =>
-    req<{ configured: boolean; cliAvailable: boolean; fallback: string }>('/kraken/status'),
-  krakenBalance: () => req<{ balance: Record<string, string> }>('/kraken/balance'),
-  krakenTestTrade: (params?: { pair?: string; type?: 'buy' | 'sell'; volume?: string }) =>
-    req<{
-      ok: boolean;
-      krakenOrderId: string | null;
-      raw: unknown;
-      note: string;
-    }>('/kraken/test-trade', { method: 'POST', body: JSON.stringify(params ?? {}) }),
-
-  joinWaitlist: (email: string) =>
-    req<{ ok: boolean; message: string }>('/waitlist', {
-      method: 'POST',
-      body: JSON.stringify({ email }),
-    }),
-
-  /** Free first check — no escrow debit. One-time per monitor. */
-  firstCheck: (monitorId: string) =>
-    req<{
-      ok: boolean;
-      monitorId: string;
-      signalId: string | null;
-      conditionMet: boolean;
-      isHeartbeat: boolean;
-      summary: string | null;
-      publicShareToken: string | null;
-      metadata?: {
-        checkMethod: 'tinyfish' | 'scraper-fallback';
-        circuitOpen: boolean;
-        githubCommitsFetched: number;
-        confidence: number;
-        confidenceThreshold: number;
-        thresholdBlocked: boolean;
-      };
-    }>(`/monitors/${monitorId}/first-check`, { method: 'POST' }),
-
-  /** Execute a monitor on-demand (system-facing after pivot). */
-
-  executeMonitor: async (monitorId: string) => {
-    return fetch(`${BASE}/execute/${monitorId}`, {
-      method: 'POST',
-      credentials: 'include',
-      headers: { 'Content-Type': 'application/json' },
-    });
-  },
 
   // DLQ admin — for inspecting/replaying stuck monitor check jobs.
   listDlq: (limit = 50) =>
@@ -234,120 +149,61 @@ export const api = {
       method: 'POST',
     }),
 
-  getLeaderboard: (params?: {
-    limit?: number;
-    offset?: number;
-    sort?: 'signals' | 'accuracy' | 'streak' | 'recent';
-  }) => {
-    const qs = new URLSearchParams();
-    if (params?.limit) qs.set('limit', String(params.limit));
-    if (params?.offset) qs.set('offset', String(params.offset));
-    if (params?.sort) qs.set('sort', params.sort);
-    const suffix = qs.toString();
-    return req<LeaderboardResponse>(`/leaderboard${suffix ? `?${suffix}` : ''}`);
-  },
-
-  getProfile: () =>
-    req<{
-      id: string;
-      wallet_address: string;
-      email: string | null;
-      display_name: string | null;
-      created_at: string;
-    }>('/account/profile'),
-  updateProfile: (body: { display_name?: string; email?: string }) =>
-    req<{ id: string; wallet_address: string; email: string | null; display_name: string | null }>(
-      '/account/profile',
-      {
-        method: 'PUT',
-        body: JSON.stringify(body),
-      },
-    ),
-
-  /** Test a webhook URL by sending a sample signal payload. */
-  testWebhook: (url: string) =>
-    req<{ ok: boolean; status: number; durationMs: number }>('/webhooks/test', {
-      method: 'POST',
-      body: JSON.stringify({ url }),
-    }),
-
-  /** Recent webhook delivery log for the current user. */
-  getWebhookDeliveries: (limit = 20) =>
-    req<
-      Array<{
-        id: string;
-        rule_id: string;
-        signal_id: string;
-        url: string;
-        status_code: number | null;
-        duration_ms: number;
-        error: string | null;
-        created_at: string;
-        action_type: string;
-        rule_url: string | null;
-        // Note: the backend also returns durationMs in camelCase — this field
-        // is named duration_ms in the type to match the PG column convention.
-      }>
-    >(`/webhooks/deliveries?limit=${limit}`),
-
-  /** Add a comment to a signal. */
-  addComment: (signalId: string, content: string) =>
-    req<{
-      id: string;
-      signal_id: string;
-      user_id: string;
-      content: string;
-      created_at: string;
-      updated_at: string;
-      author_name: string | null;
-    }>(`/signals/${signalId}/comments`, {
-      method: 'POST',
-      body: JSON.stringify({ content }),
-    }),
-
-  /** Edit a comment on a signal. */
-  updateComment: (signalId: string, commentId: string, content: string) =>
-    req<{
-      id: string;
-      signal_id: string;
-      user_id: string;
-      content: string;
-      created_at: string;
-      updated_at: string;
-      author_name: string | null;
-    }>(`/signals/${signalId}/comments/${commentId}`, {
-      method: 'PUT',
-      body: JSON.stringify({ content }),
-    }),
-
-  /** Delete a comment on a signal. */
-  deleteComment: (signalId: string, commentId: string) =>
-    req<{ ok: boolean }>(`/signals/${signalId}/comments/${commentId}`, {
-      method: 'DELETE',
-    }),
-
-  /** List comments on a signal. */
-  getComments: (signalId: string) =>
-    req<
-      Array<{
-        id: string;
-        signal_id: string;
-        user_id: string;
-        content: string;
-        created_at: string;
-        updated_at: string;
-        author_name: string | null;
-      }>
-    >(`/signals/${signalId}/comments`),
-
-  getHunterDetail: (userId: string, params?: { limit?: number; offset?: number }) => {
-    const qs = new URLSearchParams();
-    if (params?.limit) qs.set('limit', String(params.limit));
-    if (params?.offset) qs.set('offset', String(params.offset));
-    const suffix = qs.toString();
-    return req<HunterDetailResponse>(`/leaderboard/${userId}${suffix ? `?${suffix}` : ''}`);
+  // Public scorecard (Day 7) — replaces the per-user leaderboard
+  getScorecard: () => req<ScorecardResponse>(`/scorecard`),
+  getScorecardRecent: (limit?: number) => {
+    const qs = limit ? `?limit=${limit}` : '';
+    return req<ScorecardRecentCall[]>(`/scorecard/recent${qs}`);
   },
 };
+
+// ── Scorecard types (Day 7) ──────────────────────────────────
+
+export interface ScorecardRecentCallOutcome {
+  t1h: number | null;
+  t1d: number | null;
+  t7d: number | null;
+}
+
+export interface ScorecardRecentCall {
+  signalId: string;
+  detectedAt: string;
+  monitorUrl: string;
+  detectorTypes: string[];
+  conviction: number | null;
+  thesis: string | null;
+  recommendedAction: 'long' | 'short' | 'none' | null;
+  tradeTxHash: string | null;
+  outcomes: ScorecardRecentCallOutcome;
+}
+
+export interface ScorecardBySignalType {
+  detectorType: string;
+  total: number;
+  hits: number;
+  hitRatio: number;
+}
+
+export interface ScorecardByWatchlist {
+  monitorId: string;
+  url: string;
+  total: number;
+  hits: number;
+  hitRatio: number;
+}
+
+export interface ScorecardResponse {
+  totalSignals: number;
+  totalTrades: number;
+  hitRatio: number;
+  cumulativePnlUsd: number;
+  sharpe: number;
+  maxDrawdownUsd: number;
+  bySignalType: ScorecardBySignalType[];
+  byWatchlist: ScorecardByWatchlist[];
+  recentCalls: ScorecardRecentCall[];
+  generatedAt: string;
+}
 
 // Helpers — re-exported from @/lib/format for backward compatibility.
 export { burnRate, statusColor } from '@/lib/format';
