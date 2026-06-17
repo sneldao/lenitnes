@@ -29,7 +29,6 @@ monitorsRouter.post('/', validate(createMonitorSchema), async (req, res) => {
     url: string;
     conditionText: string;
     frequencySeconds: number;
-    costPerCheck?: number;
     screenshotsEnabled: boolean;
     isPublic?: boolean;
     confidenceThreshold?: number;
@@ -45,7 +44,6 @@ monitorsRouter.post('/', validate(createMonitorSchema), async (req, res) => {
     url: b.url,
     conditionText: b.conditionText,
     frequencySeconds: b.frequencySeconds,
-    costPerCheck: b.costPerCheck,
     screenshotsEnabled: b.screenshotsEnabled,
     isPublic: b.isPublic,
     confidenceThreshold: b.confidenceThreshold,
@@ -102,7 +100,6 @@ monitorsRouter.patch('/:id', validate(patchMonitorSchema), async (req, res) => {
   const b = req.body as {
     frequencySeconds?: number;
     conditionText?: string;
-    topUpHbar?: number;
     status?: 'active' | 'paused';
   };
 
@@ -144,7 +141,7 @@ monitorsRouter.post('/:id/first-check', async (req, res) => {
   }
 
   try {
-    const result = await executeCheck(monitor, { skipDebit: true });
+    const result = await executeCheck(monitor);
     res.json({
       ok: true,
       monitorId,

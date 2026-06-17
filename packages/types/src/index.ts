@@ -1,21 +1,21 @@
 // ─────────────────────────────────────────────────────────────
 // LENITNES — shared domain types
 // Consumed by both apps/api and apps/web.
+//
+// Pivot note: User, KrakenKey, Waitlist, Rule, LeaderboardEntry,
+// HunterDetail are gone after the zero-headcount pivot. AgentScore
+// and TreasuryWallet are new. See docs/AGENT_ARCHITECTURE.md.
 // ─────────────────────────────────────────────────────────────
 
-// ── Monitor ──────────────────────────────────────────────────
+// ── Monitor (now a watchlist entry) ──────────────────────────
 
-export type MonitorStatus = 'active' | 'paused' | 'triggered' | 'insufficient_balance';
+export type MonitorStatus = 'active' | 'paused' | 'triggered';
 
 export interface Monitor {
   id: string;
-  user_id: string;
   url: string;
   condition_text: string;
   frequency_seconds: number;
-  escrow_account_id: string | null;
-  hbar_balance: string; // NUMERIC comes back as string from pg
-  cost_per_check: string;
   status: MonitorStatus;
   screenshots_enabled: boolean;
   is_public: boolean;
@@ -24,17 +24,23 @@ export interface Monitor {
   last_seen_commit_hash: string | null;
   asset_mapping: AssetMapping;
   created_at: string;
+  /**
+   * @deprecated Removed after pivot (Day 2). Kept as optional so the
+   * web typechecks until Day 9 rewrites the dashboard. The columns
+   * no longer exist in the DB.
+   */
+  hbar_balance?: string;
+  /** @deprecated Removed after pivot. See hbar_balance. */
+  cost_per_check?: string;
 }
 
 export interface CreateMonitorInput {
-  userId: string;
   url: string;
   conditionText: string;
-  frequencySeconds?: number; // default 3600
-  costPerCheck?: number;
-  screenshotsEnabled?: boolean; // default true
-  isPublic?: boolean; // default true
-  confidenceThreshold?: number; // 0-100, default 50
+  frequencySeconds?: number;
+  screenshotsEnabled?: boolean;
+  isPublic?: boolean;
+  confidenceThreshold?: number;
   assetMapping?: AssetMapping;
 }
 
@@ -42,7 +48,6 @@ export interface UpdateMonitorInput {
   conditionText?: string;
   frequencySeconds?: number;
   status?: MonitorStatus;
-  stakeHbar?: number; // top-up
   confidenceThreshold?: number;
 }
 
@@ -60,12 +65,11 @@ export interface Signal {
   screenshot_urls: string[];
   condition_summary: string | null;
   is_heartbeat: boolean;
-  /** ISO timestamp; null means the owning user has not opened the signal yet. */
-  viewed_at?: string | null;
-  viewed_by?: string | null;
   arb_tx_hash?: string | null;
   search_results?: Array<{ title: string; url: string; snippet: string; siteName?: string }>;
   orders_count?: number;
+  /** @deprecated Removed after pivot. See Signal.viewed_at. */
+  viewed_at?: string | null;
 }
 
 export interface SignalDetail extends Signal {
@@ -92,31 +96,10 @@ export interface SignalDetail extends Signal {
     pct_change: string;
     direction: string;
   }>;
+  agent_score?: AgentScore;
 }
 
-// ── Rule ─────────────────────────────────────────────────────
-
-export type ActionType = 'trade' | 'trade_dex' | 'trade_stock' | 'webhook' | 'email' | 'telegram';
-
-export interface Rule {
-  id: string;
-  monitor_id: string;
-  action_type: ActionType;
-  action_config: Record<string, unknown>;
-  conditions: Record<string, unknown>;
-  is_active: boolean;
-  created_at: string;
-}
-
-export interface CreateRuleInput {
-  monitorId: string;
-  actionType: ActionType;
-  actionConfig?: Record<string, unknown>;
-  conditions?: Record<string, unknown>;
-  isActive?: boolean;
-}
-
-// ── Order ─────────────────────────────────────────────────────
+// ── Order (treasury trades) ──────────────────────────────────
 
 export type OrderStatus =
   | 'pending'
@@ -130,23 +113,58 @@ export type OrderStatus =
 export interface Order {
   id: string;
   signal_id: string;
-  rule_id: string | null;
+  rule_id: string | null; // null after pivot (rules table dropped)
   kraken_order_id: string | null;
   order_params: Record<string, unknown>;
   status: OrderStatus;
   placed_at: string | null;
   cancelled_at: string | null;
   kraken_response: Record<string, unknown> | null;
+  chain?: string | null;
+  chain_tx_hash?: string | null;
 }
 
-// ── User ──────────────────────────────────────────────────────
+// ── Agent (the operator) ─────────────────────────────────────
 
-export interface User {
+export type AgentAction = 'long' | 'short' | 'none';
+export type ConfidenceBand = 'low' | 'mid' | 'high';
+
+export interface AgentScore {
   id: string;
-  wallet_address: string;
-  email: string | null;
-  display_name: string | null;
+  signal_id: string;
+  rubric_version: string;
+  conviction: number; // 0-100
+  thesis: string; // ≤280 chars for Telegram
+  recommended_action: AgentAction;
+  confidence_band: ConfidenceBand;
+  raw_response: Record<string, unknown>;
   created_at: string;
+}
+
+export interface AgentInput {
+  signal_id: string;
+  detector_classifications: Array<{
+    detector_type: string;
+    score: number;
+    confidence: number;
+    label: string;
+    metadata?: Record<string, unknown>;
+  }>;
+  asset_mapping: AssetMapping;
+  evidence_text: string | null;
+  condition_summary: string | null;
+  precedent_count: number;
+}
+
+// ── Treasury (system wallets) ────────────────────────────────
+
+export type Chain = 'hedera' | 'arbitrum' | 'robinhood';
+
+export interface TreasuryWallet {
+  chain: Chain;
+  address: string;
+  label: string | null;
+  is_active: boolean;
 }
 
 // ── Signal Types (typed detectors) ──────────────────────────
@@ -179,7 +197,7 @@ export interface AssetMapping {
   direction?: 'long' | 'short' | 'both';
 }
 
-// ── Signal Outcome (backtest) ────────────────────────────────
+// ── Signal Outcome (backtest / live outcomes) ────────────────
 
 export interface SignalOutcome {
   signal_id: string;
@@ -217,7 +235,18 @@ export interface ApiOk {
   ok: true;
 }
 
-// ── Leaderboard ────────────────────────────────────────────
+// ── Health check ────────────────────────────────────────────
+
+export interface HealthStatus {
+  ok: boolean;
+  service: string;
+  version: string;
+  checks?: {
+    database: 'ok' | 'fail';
+  };
+}
+
+// ── Leaderboard (deprecated — replaced by /scorecard in Day 7) ──────
 
 export interface LeaderboardEntry {
   user_id: string;
@@ -257,17 +286,6 @@ export interface HunterDetail {
 export interface HunterDetailResponse {
   hunter: HunterDetail;
   signals: Signal[];
-}
-
-// ── Health check ────────────────────────────────────────────
-
-export interface HealthStatus {
-  ok: boolean;
-  service: string;
-  version: string;
-  checks?: {
-    database: 'ok' | 'fail';
-  };
 }
 
 // ── TinyFish result ─────────────────────────────────────────

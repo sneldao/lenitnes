@@ -5,9 +5,6 @@ import type {
   MonitorStatus,
   Signal,
   SignalDetail,
-  Rule,
-  CreateMonitorInput,
-  CreateRuleInput,
   LeaderboardResponse,
 } from '@lenitnes/types';
 
@@ -54,7 +51,6 @@ export {
   type MonitorStatus,
   type Signal,
   type SignalDetail,
-  type Rule,
   type LeaderboardResponse,
 };
 
@@ -88,18 +84,26 @@ export const api = {
   logout: () => req<{ ok: boolean }>('/auth/logout', { method: 'POST' }),
   me: () => req<AuthUser>('/auth/me'),
 
-  listMonitors: (userId?: string) =>
-    req<Monitor[]>(`/monitors${userId ? `?userId=${userId}` : ''}`),
+  listMonitors: () => req<Monitor[]>(`/monitors`),
   getMonitor: (id: string) => req<Monitor & { signals: Signal[] }>(`/monitors/${id}`),
-  createMonitor: (body: CreateMonitorInput) =>
-    req<Monitor>(`/monitors`, { method: 'POST', body: JSON.stringify(body) }),
+  createMonitor: (body: {
+    url: string;
+    conditionText: string;
+    frequencySeconds?: number;
+    screenshotsEnabled?: boolean;
+    isPublic?: boolean;
+    confidenceThreshold?: number;
+    assetMapping?: {
+      coingeckoId?: string;
+      krakenPair?: string;
+      tokenizedStock?: string;
+      direction?: 'long' | 'short' | 'both';
+    };
+  }) => req<Monitor>(`/monitors`, { method: 'POST', body: JSON.stringify(body) }),
   deleteMonitor: (id: string) => req<{ ok: boolean }>(`/monitors/${id}`, { method: 'DELETE' }),
-
-  /** Top up monitor escrow balance (replaces inline fetch calls in rules.tsx and monitors/new/page.tsx). */
-  topUpMonitor: (id: string, amountHbar: number) =>
-    req<Monitor>(`/monitors/${id}`, {
-      method: 'PATCH',
-      body: JSON.stringify({ topUpHbar: amountHbar }),
+  triggerCheck: (id: string) =>
+    req<{ ok: boolean; signalId: string | null }>(`/monitors/${id}/first-check`, {
+      method: 'POST',
     }),
   listSignals: (monitorId?: string, includeHeartbeats?: boolean) => {
     const params = new URLSearchParams();
@@ -109,25 +113,10 @@ export const api = {
     return req<Signal[]>(`/signals${qs ? `?${qs}` : ''}`);
   },
   getSignal: (id: string) => req<SignalDetail>(`/signals/${id}`),
-  /** Idempotently mark a signal as viewed by the current user. Re-arms the
-   *  parent monitor's `triggered` status back to `active`. */
-  markSignalViewed: (id: string) =>
-    req<{
-      ok: boolean;
-      signalId: string;
-      monitorId: string;
-      monitorRearmed: boolean;
-      wasAlreadyViewed: boolean;
-    }>(`/signals/${id}/viewed`, { method: 'POST' }),
   getPublicProof: (id: string, shareToken?: string) =>
     req<SignalDetail>(
       `/proof/public/${id}${shareToken ? `?share=${encodeURIComponent(shareToken)}` : ''}`,
     ),
-  createRule: (body: CreateRuleInput) =>
-    req<Rule>(`/rules`, { method: 'POST', body: JSON.stringify(body) }),
-  listRules: (monitorId?: string) =>
-    req<Rule[]>(`/rules${monitorId ? `?monitorId=${monitorId}` : ''}`),
-  deleteRule: (id: string) => req<{ ok: boolean }>(`/rules/${id}`, { method: 'DELETE' }),
 
   listOrders: () =>
     req<

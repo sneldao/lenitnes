@@ -26,7 +26,6 @@ export const config = {
     operatorKey: process.env.HEDERA_OPERATOR_KEY ?? '',
     treasuryId: process.env.HEDERA_TREASURY_ID ?? '',
     hcsTopicId: process.env.HEDERA_HCS_TOPIC_ID ?? '',
-    defaultCostPerCheck: Number(process.env.DEFAULT_COST_PER_CHECK_HBAR ?? 0.5),
   },
 
   tinyfish: {
@@ -70,9 +69,8 @@ export const config = {
     url: process.env.REDIS_URL ?? 'redis://localhost:6379',
   },
 
-  trade: {
-    cooldownMinutes: Number(process.env.TRADE_COOLDOWN_MINUTES ?? 15),
-    cancelAfterSeconds: Number(process.env.KRAKEN_CANCEL_AFTER_SECONDS ?? 300),
-    maxOpenOrders: Number(process.env.MAX_OPEN_ORDERS ?? 10),
+  agent: {
+    convictionThreshold: Number(process.env.CONVICTION_THRESHOLD ?? 70),
+    dailyBudgetUsd: Number(process.env.DAILY_AGENT_BUDGET_USD ?? 20),
   },
 } as const;

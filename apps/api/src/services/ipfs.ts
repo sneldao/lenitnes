@@ -15,7 +15,13 @@ export interface ProofPackage {
   evidence: string;
   summary: string;
   screenshots: string[];
-  hederaTxId: string;
+  /**
+   * Optional on-chain timestamp reference. After the pivot, the
+   * HCS message ID stored in `signals.hedera_hcs_message_id` is
+   * the canonical proof-of-timestamp; this field is kept for
+   * backwards compatibility with existing Grove packages.
+   */
+  hederaTxId?: string;
 }
 
 interface GroveUploadResponse {

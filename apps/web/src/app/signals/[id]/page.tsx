@@ -61,20 +61,9 @@ export default function SignalDetailPage({ params }: { params: Promise<{ id: str
     retry: 1,
   });
 
-  // Mark the signal as viewed the first time the owner opens it. The endpoint
-  // is idempotent and re-arms the parent monitor's `triggered` status back
-  // to `active` so the dashboard's "Signal caught!" celebration goes away.
-  useEffect(() => {
-    if (isPublic || !signal || signal.viewed_at) return;
-    api
-      .markSignalViewed(signal.id)
-      .then((res) => {
-        if (res.monitorRearmed) {
-          queryClient.invalidateQueries({ queryKey: ['monitors'] });
-        }
-      })
-      .catch(() => {});
-  }, [isPublic, signal, queryClient]);
+  // (Removed after pivot: the per-user "mark viewed" endpoint is gone.
+  // The signal detail page is public; the owner-action celebration is
+  // reimplemented in Day 9 alongside the landing-page rewrite.)
 
   // Inject OG / Twitter meta for public share links
   useEffect(() => {

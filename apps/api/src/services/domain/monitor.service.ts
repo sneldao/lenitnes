@@ -1,5 +1,4 @@
 import { query } from '../../db/pool.js';
-import { config } from '../../config.js';
 import type { AssetMapping, Monitor } from '@lenitnes/types';
 import { cacheInvalidate } from '../../middleware/cache.js';
 import { detectAssetMapping } from '../detectors/asset-lookup.js';
@@ -27,13 +26,12 @@ export interface CreateMonitorParams {
 export async function createMonitor(params: CreateMonitorParams): Promise<Monitor> {
   const assetMapping = params.assetMapping ?? detectAssetMapping(params.url) ?? {};
   const { rows } = await query<Monitor>(
-    `INSERT INTO monitors (user_id, url, condition_text, frequency_seconds, hbar_balance, cost_per_check, screenshots_enabled, is_public, confidence_threshold, asset_mapping)
-     VALUES (NULL, $1, $2, $3, 0, $4, $5, $6, $7, $8) RETURNING *`,
+    `INSERT INTO monitors (url, condition_text, frequency_seconds, screenshots_enabled, is_public, confidence_threshold, asset_mapping)
+     VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING *`,
     [
       params.url,
       params.conditionText,
       params.frequencySeconds,
-      params.costPerCheck ?? config.hedera.defaultCostPerCheck,
       params.screenshotsEnabled,
       params.isPublic ?? true,
       params.confidenceThreshold ?? 50,
@@ -72,7 +70,6 @@ export async function getMonitorWithSignals(
 export interface UpdateMonitorParams {
   frequencySeconds?: number;
   conditionText?: string;
-  topUpHbar?: number;
   status?: 'active' | 'paused';
   isPublic?: boolean;
 }
@@ -91,10 +88,6 @@ export async function updateMonitor(
   if (params.conditionText !== undefined) {
     sets.push(`condition_text = $${i++}`);
     vals.push(params.conditionText);
-  }
-  if (params.topUpHbar !== undefined) {
-    sets.push(`hbar_balance = hbar_balance + $${i++}`);
-    vals.push(params.topUpHbar);
   }
   if (params.status !== undefined) {
     sets.push(`status = $${i++}`);
@@ -116,10 +109,7 @@ export async function updateMonitor(
 }
 
 export async function pauseAndReleaseEscrow(id: string): Promise<boolean> {
-  const { rowCount } = await query(
-    `UPDATE monitors SET status = 'paused', hbar_balance = 0 WHERE id = $1`,
-    [id],
-  );
+  const { rowCount } = await query(`UPDATE monitors SET status = 'paused' WHERE id = $1`, [id]);
   if (rowCount) {
     cacheInvalidate(`monitors:all:`);
     return true;

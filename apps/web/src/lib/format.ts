@@ -5,14 +5,18 @@
 
 import type { MonitorStatus } from '@lenitnes/types';
 
-/** Compute per-day burn rate and estimated days remaining. */
+/**
+ * @deprecated Removed after pivot. The burn rate concept depends on
+ * the per-monitor HBAR billing, which is gone. The agent's own
+ * cost-per-signal stat is in the scorecard (Day 7).
+ */
 export function burnRate(monitor: {
-  hbar_balance: string | number;
-  cost_per_check: string | number;
+  hbar_balance?: string | number;
+  cost_per_check?: string | number;
   frequency_seconds: number;
 }): { perDay: number; daysLeft: number; checksRemaining: number } {
-  const bal = Number(monitor.hbar_balance);
-  const cost = Number(monitor.cost_per_check);
+  const bal = Number(monitor.hbar_balance ?? 0);
+  const cost = Number(monitor.cost_per_check ?? 0);
   const checksPerDay = 86_400 / monitor.frequency_seconds;
   const perDay = checksPerDay * cost;
   const checksRemaining = cost > 0 ? Math.floor(bal / cost) : 0;
@@ -24,8 +28,7 @@ export function burnRate(monitor: {
  *  Colors communicate emotional state, not just technical state:
  *  - active    → signal (green)   : calm, everything is fine
  *  - triggered → accent (cyan)    : exciting peak moment
- *  - paused    → danger (red)     : urgent, you are missing signals NOW
- *  - insufficient_balance → warn (orange) : fixable, act before it goes red
+ *  - paused    → danger (red)     : manual intervention required
  */
 export function statusColor(s: MonitorStatus): string {
   switch (s) {
@@ -35,8 +38,6 @@ export function statusColor(s: MonitorStatus): string {
       return 'bg-accent/15 text-accent';
     case 'paused':
       return 'bg-danger/15 text-danger';
-    case 'insufficient_balance':
-      return 'bg-warn/15 text-warn';
   }
 }
 

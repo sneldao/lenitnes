@@ -134,7 +134,7 @@ function MonitorCard({
   const cat = categoryColor(monitor.url);
   const isCodeSignal = monitor.url.includes('github.com');
   const [expanded, setExpanded] = useState(false);
-  const canExecute = isConnected && monitor.status !== 'insufficient_balance';
+  const canExecute = isConnected && monitor.status !== 'paused';
   const host = hostnameFromUrl(monitor.url);
 
   // ── Countdown timer for low-balance monitors ──
@@ -441,7 +441,7 @@ function DashboardView({
     const sorted = [...list];
     switch (sort) {
       case 'balance':
-        sorted.sort((a, b) => Number(b.hbar_balance) - Number(a.hbar_balance));
+        sorted.sort((a, b) => Number(b.hbar_balance ?? 0) - Number(a.hbar_balance ?? 0));
         break;
       case 'daysLeft':
         sorted.sort((a, b) => burnRate(a).daysLeft - burnRate(b).daysLeft);
@@ -927,7 +927,6 @@ export default function DashboardPage() {
     setAutoDemoState('creating');
     api
       .createMonitor({
-        userId: user.id,
         url: 'https://github.com/zcash/halo2/commits/main',
         conditionText:
           'A new commit fixes a critical cryptography bug, soundness issue, or verifying key change in the halo2 circuit — something that could affect ZEC token confidence or require immediate network attention.',

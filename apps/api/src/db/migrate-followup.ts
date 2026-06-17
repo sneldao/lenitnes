@@ -28,6 +28,53 @@ const MIGRATIONS: string[] = [
   `CREATE INDEX IF NOT EXISTS idx_signals_unviewed
      ON signals(monitor_id, detected_at DESC)
      WHERE is_heartbeat = false AND viewed_at IS NULL`,
+
+  // ── 0003: Pivot to zero-headcount operator (Day 2) ──
+  // Full SQL lives at db/migrations/003_pivot.sql. Inlined here
+  // because the runner reads a hardcoded array (see apps/api/src/db/migrate.ts).
+  //
+  // Drops user-owned tables, drops user_id / hbar_balance / cost_per_check /
+  // escrow_account_id from monitors, nullifies orders.rule_id FK, adds
+  // agent_scores + treasury_wallets. Idempotent — safe to re-run.
+  `
+  DROP TABLE IF EXISTS webhook_deliveries CASCADE;
+  DROP TABLE IF EXISTS signal_comments CASCADE;
+  DROP TABLE IF EXISTS rules CASCADE;
+  DROP TABLE IF EXISTS waitlist CASCADE;
+  DROP TABLE IF EXISTS users CASCADE;
+  ALTER TABLE signals DROP COLUMN IF EXISTS viewed_at;
+  ALTER TABLE signals DROP COLUMN IF EXISTS viewed_by;
+  ALTER TABLE audit_logs DROP COLUMN IF EXISTS user_id;
+  ALTER TABLE monitors DROP COLUMN IF EXISTS user_id CASCADE;
+  ALTER TABLE monitors DROP COLUMN IF EXISTS hbar_balance;
+  ALTER TABLE monitors DROP COLUMN IF EXISTS cost_per_check;
+  ALTER TABLE monitors DROP COLUMN IF EXISTS escrow_account_id;
+  DROP INDEX IF EXISTS idx_monitors_user_id;
+  DROP INDEX IF EXISTS idx_audit_logs_user_id;
+  DROP INDEX IF EXISTS idx_signals_unviewed;
+  ALTER TABLE orders DROP CONSTRAINT IF EXISTS orders_rule_id_fkey;
+  ALTER TABLE orders ALTER COLUMN rule_id DROP NOT NULL;
+  CREATE TABLE IF NOT EXISTS agent_scores (
+    id                   UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    signal_id            UUID NOT NULL REFERENCES signals(id) ON DELETE CASCADE,
+    rubric_version       TEXT NOT NULL,
+    conviction           INTEGER NOT NULL CHECK (conviction BETWEEN 0 AND 100),
+    thesis               TEXT NOT NULL,
+    recommended_action   TEXT NOT NULL CHECK (recommended_action IN ('long', 'short', 'none')),
+    confidence_band      TEXT NOT NULL CHECK (confidence_band IN ('low', 'mid', 'high')),
+    raw_response         JSONB NOT NULL,
+    created_at           TIMESTAMPTZ NOT NULL DEFAULT now()
+  );
+  CREATE INDEX IF NOT EXISTS idx_agent_scores_signal ON agent_scores(signal_id);
+  CREATE INDEX IF NOT EXISTS idx_agent_scores_conviction ON agent_scores(conviction DESC);
+  CREATE INDEX IF NOT EXISTS idx_agent_scores_created_at ON agent_scores(created_at DESC);
+  CREATE TABLE IF NOT EXISTS treasury_wallets (
+    chain      TEXT PRIMARY KEY,
+    address    TEXT NOT NULL,
+    label      TEXT,
+    is_active  BOOLEAN NOT NULL DEFAULT true
+  );
+  `,
 ];
 
 async function migrate() {
