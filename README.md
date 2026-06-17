@@ -1,47 +1,46 @@
 # LENITNES
 
-**Proof-chained web monitoring that detects code-level signals and executes trades across Kraken, Arbitrum, and Robinhood Chain — powered by AI, Hedera, and EVM smart contracts.**
+**An autonomous AI intelligence operation. Frontier-model agents read public commits to consensus-critical code, score them against a versioned conviction rubric, execute timestamped testnet trades, and broadcast every call to Telegram — all in the same block, all publicly auditable.**
 
-LENITNES (a.k.a. _Sentinel_) watches GitHub repositories and other web sources for
-signals that precede market moves, then routes trades to the optimal venue.
-Every signal carries a tamper-evident **proof chain**:
+LENITNES (a.k.a. _Sentinel_) is a zero-headcount research desk. No users, no per-monitor staking, no SaaS dashboard to manage. The agents run continuously; their calls become a public track record the system cannot misremember.
 
 ```
-╭───────────────╮   ╭──────────────╮   ╭────────────────╮   ╭──────────────────────────╮
-│   TinyFish    │──▶│  Hedera HCS  │──▶│   Arbitrum     │──▶│  Execute:                │
-│ detect signal │   │  + Grove     │   │  SignalRegistry│   │  Kraken / Arb DEX /      │
-│  + classify   │   │  timestamp   │   │  (dual-chain)  │   │  Robinhood Chain stocks  │
-╰───────────────╯   ╰──────────────╯   ╰────────────────╯   ╰──────────────────────────╯
+╭───────────────╮   ╭──────────────╮   ╭────────────────╮   ╭──────────────────╮   ╭───────────────╮
+│   TinyFish    │──▶│  Frontier-   │──▶│  Hedera HCS    │──▶│  Testnet trade   │──▶│  Telegram +   │
+│   detect      │   │  model agent │   │  + Arbitrum    │   │  + on-chain      │   │  live         │
+│  + classify   │   │  scores      │   │  SignalRegistry│   │  receipt         │   │  scorecard    │
+╰───────────────╯   ╰──────────────╯   ╰────────────────╯   ╰──────────────────╯   ╰───────────────╯
 ```
 
-The defensibility is the receipt: a Hedera consensus timestamp + TinyFish run ID +
-Grove-stored proof package proves you detected a _public_ signal at a specific moment and
-acted on it — valuable for compliance.
+Every call is publicly auditable in three places — the on-chain signal registry, the testnet trade tx, and the Telegram post — all timestamped within the same block. Mainnet price outcomes at T+1h, T+1d, and T+7d are snapshotted and attributed back to the originating signal. The system cannot lie about its own performance.
 
-## Why this exists
+## The ZEC moment
 
-In 2026, a critical vulnerability sat undiscovered in Zcash's `halo2` cryptographic
-circuit code for **four years**. The bug — an unanchored base point in the
-incomplete-addition loop — meant anyone could forge proofs and mint unlimited ZEC.
-It was found by an AI (Claude 4.8), not by human auditors. When patched, the fix
-landed quietly as
-[`halo2_gadgets: Anchor variable-base scalar-mul incomplete-addition base`](https://github.com/zcash/halo2/commit/d8e48efddbe4746d76eb2c8a843a6ddc2b9a727a):
-technical, understated, easy to scroll past.
+In 2026, a frontier-model researcher discovered that Zcash's `halo2` proving circuit had carried a four-year vulnerability — an unanchored base point in the incomplete-addition loop that allowed forging proofs to mint unlimited ZEC. The fix landed quietly as [`halo2_gadgets: Anchor variable-base scalar-mul incomplete-addition base`](https://github.com/zcash/halo2/commit/d8e48efddbe4746d76eb2c8a843a6ddc2b9a727a) — technical, understated, easy to scroll past. The commit was public for ~4 days before the market noticed. ZEC then dropped ~50%.
 
-The signals were public — an unusually large, urgent commit to core consensus code
-with no preceding bug report or discussion — but no one was watching. LENITNES is
-what watches. Not for this specific bug (that's formal verification's job), but for
-the _pattern_: the sudden patch, the out-of-band urgency, the quiet change to
-critical infrastructure that traders, researchers, and protocols need to know about
-_before_ the news breaks.
+The signals were public the whole time: an unusually large, urgent commit to consensus-critical code with no preceding bug report or discussion, landing during a quiet hour. **No human was watching with the right rubric. An AI could have been.** LENITNES is what watches.
+
+## How it works (autonomous loop)
+
+1. **Watchlist** — a curated set of consensus-critical and security-critical repositories. Admin-managed, not user-facing.
+2. **Detect** — TinyFish + scraper pulls each new commit; 8 typed detectors classify it (`emergency_patch`, `security_critical`, `governance_shift`, etc.).
+3. **Score** — a frontier-model agent evaluates the commit against a versioned rubric: consensus criticality × holder concentration × precedent × market attention. Outputs a conviction score (0–100), thesis, and recommended action.
+4. **Commit** (if conviction ≥ threshold) — all three happen in the same block to prove simultaneity:
+   - **Trade** the call from the treasury wallet on testnet (Arbitrum / Robinhood Chain / paper Kraken).
+   - **Notarize** the signal: Hedera HCS message + Arbitrum `SignalRegistry` write + Grove proof package.
+   - **Broadcast** to Telegram with thesis, tx hash, and outcome window.
+5. **Track outcome** — at T+1h, T+1d, T+7d, mainnet price for the named asset is snapshotted and attributed back to the signal.
+6. **Scorecard updates** — public scorecard recomputes hit ratio, Sharpe, drawdown, by signal type and watchlist.
+
+No human input in the steady state. Curation of the watchlist and rubric versioning are admin operations.
 
 ## Core concepts
 
-- **Monitor** — a target URL + a plain-English condition + a check frequency + staked HBAR.
-- **Signal** — fires when the condition is met; carries the Hedera timestamp, screenshot/diff, TinyFish run ID, and IPFS CID.
-- **Rule** — connects a signal to an action (Kraken order, webhook, Telegram, email), with optional conditions (time-of-day, etc.).
-- **x402 On-Demand Execution** — pay per check via Hedera HBAR micropayments through the x402 protocol. No wallet funds touch the backend; payments are settled on-chain in real time.
-- **Hedera Agent Kit** — all Hedera operations (HCS message submission, HBAR transfers, topic creation) are executed through the `hedera-agent-kit` plugin architecture rather than direct SDK calls.
+- **Watchlist entry** — system-curated repository + monitored paths + asset mapping. Not user-owned.
+- **Signal** — a scored commit that crossed the conviction threshold; carries Hedera timestamp, Arbitrum receipt, Grove CID, TinyFish run ID, agent thesis, and trade receipt.
+- **Conviction Score** — frontier-model evaluation against the versioned rubric; only signals at threshold trigger the commit step.
+- **Treasury wallet** — single server-side wallet per chain (testnet). All trades are paper / testnet during the credibility-building phase.
+- **Outcome window** — fixed T+1h / T+1d / T+7d mainnet price snapshots, used for the public scorecard.
 
 ## Project structure
 
@@ -137,33 +136,16 @@ Auth is via **httpOnly cookie** (`lenitnes_token`). The frontend uses `credentia
 
 ## Execution loop
 
-For each due monitor (`apps/api/src/execution/loop.ts`):
+For each due watchlist entry (`apps/api/src/execution/loop.ts`):
 
-1. **Atomic balance debit** — `UPDATE monitors SET hbar_balance = hbar_balance - cost WHERE id = $1 AND hbar_balance >= $1` prevents race conditions.
-2. **Write heartbeat** via pluggable proof service (Hedera HCS by default, or `none` mode).
-3. **Run TinyFish** against the URL with the NL condition (circuit breaker + scraper fallback).
-4. **No signal** → store heartbeat and stop.
-5. **Signal** → package proof, upload to Grove (Lens Protocol).
-6. **Timestamp signal** via proof service (HCS message with signal ID, monitor ID, evidence).
-7. **Execute rules** with safety guards:
-   - **Pair cooldown** — skip if same user+pair traded within cooldown window (default 15 min).
-   - **Max open orders** — prevent unbounded live orders (default 10).
-   - **Zod validation** — trade config schema validates before any Kraken call.
-   - **Order types** — market, limit, stop-loss, take-profit, stop-loss-limit, take-profit-limit.
-8. **Store receipt** — Kraken order ID + response against the signal.
-
-### x402 On-Demand Execution
-
-The `POST /execute/:monitorId` endpoint is gated by the **x402** micropayment middleware (`apps/api/src/middleware/x402.ts`). The flow:
-
-1. Frontend calls the endpoint with an x402-enabled `fetch` (provided by `WalletConnect.tsx`).
-2. The backend returns a `402 Payment Required` with an x402 payment requirement.
-3. The client signs a Hedera `TransferTransaction` via HashConnect and resubmits.
-4. The x402 middleware verifies settlement on-chain via Blocky402.
-5. On success, `executeCheck` runs with `skipDebit: true` (the x402 payment itself is the fee).
-6. The full check→proof→signal pipeline executes immediately and returns results.
-
-This tightly couples payment and execution — no credit, no execution — and all funds move on-chain.
+1. **Detect** — TinyFish or scraper pulls new commits; 8 typed detectors classify each.
+2. **Score** — frontier-model agent evaluates against the versioned conviction rubric (see `apps/api/src/services/agent.ts`). Below threshold → store as heartbeat and stop.
+3. **Commit** (above threshold) — atomic in the same block:
+   - **Trade** the call from the treasury wallet (testnet). Existing safety guards still apply: pair cooldown, max open orders, Zod-validated trade config.
+   - **Notarize** — Hedera HCS message + Arbitrum `SignalRegistry.recordSignal` + Grove proof package. Failures queue to `failed_proofs` with exponential backoff.
+   - **Broadcast** — Telegram post with thesis, tx hash, and outcome window.
+4. **Schedule outcome snapshots** — T+1h, T+1d, T+7d mainnet price fetches enqueued to BullMQ. Results write to `outcome_snapshots`, attributed back to the signal.
+5. **Scorecard recomputes** — hit ratio, Sharpe, drawdown updated. Public scorecard page refreshes.
 
 ## Deployment
 
