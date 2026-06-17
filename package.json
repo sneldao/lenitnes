@@ -45,6 +45,7 @@
     "vitest": "4.1.8"
   },
   "dependencies": {
+    "@rolldown/binding-darwin-x64": "^1.1.1",
     "cors": "^2.8.6",
     "dotenv": "^17.4.2",
     "express": "^5.2.1",
