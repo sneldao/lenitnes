@@ -28,14 +28,14 @@ export const FEATURES = {
   /** GitHub API commit enrichment */
   githubApi: (process.env.GITHUB_TOKEN ?? '') !== '',
 
-  /** Arbitrum DEX trading (requires EVM key + deployed TradeExecutor) */
+  /** Arbitrum DEX trading (requires treasury key + deployed TradeExecutor) */
   arbitrumTrading:
-    (process.env.EVM_PRIVATE_KEY ?? '') !== '' &&
+    (process.env.TREASURY_PRIVATE_KEY ?? '') !== '' &&
     (process.env.ARB_TRADE_EXECUTOR_ADDRESS ?? '') !== '',
 
-  /** Robinhood Chain stock trading (requires EVM key + deployed TradeExecutor) */
+  /** Robinhood Chain stock trading (requires treasury key + deployed TradeExecutor) */
   robinhoodChain:
-    (process.env.EVM_PRIVATE_KEY ?? '') !== '' &&
+    (process.env.TREASURY_PRIVATE_KEY ?? '') !== '' &&
     (process.env.RH_TRADE_EXECUTOR_ADDRESS ?? '') !== '',
 
   /** Arbitrum on-chain proof (requires deployed SignalRegistry) */

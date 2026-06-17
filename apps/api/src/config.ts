@@ -37,7 +37,10 @@ export const config = {
   },
 
   evm: {
-    privateKey: process.env.EVM_PRIVATE_KEY ?? '',
+    // System wallet key (Day 5 pivot). Used for both contract deployment
+    // and ongoing trade execution. Replaces the per-user EVM_PRIVATE_KEY
+    // that was used before the pivot.
+    privateKey: process.env.TREASURY_PRIVATE_KEY ?? '',
     arbitrumRpcUrl: process.env.ARBITRUM_RPC_URL ?? 'https://sepolia-rollup.arbitrum.io/rpc',
     robinhoodRpcUrl: process.env.ROBINHOOD_RPC_URL ?? 'https://rpc.testnet.chain.robinhood.com',
     arbSignalRegistry: process.env.ARB_SIGNAL_REGISTRY_ADDRESS ?? '',
@@ -72,5 +75,25 @@ export const config = {
   agent: {
     convictionThreshold: Number(process.env.CONVICTION_THRESHOLD ?? 70),
     dailyBudgetUsd: Number(process.env.DAILY_AGENT_BUDGET_USD ?? 20),
+  },
+
+  treasury: {
+    // Day 5: every signal-derived trade runs through one system wallet
+    // per chain. Default chain is Arbitrum Sepolia (where signals are
+    // recorded). Mode defaults to 'paper' so the dev loop doesn't
+    // require a funded testnet wallet.
+    defaultChain: (process.env.TREASURY_DEFAULT_CHAIN ?? 'arbitrum') as
+      | 'arbitrum'
+      | 'robinhood'
+      | 'hedera',
+    defaultMode: (process.env.TREASURY_MODE ?? 'paper') as 'paper' | 'live',
+    defaultTradeAmount: process.env.TREASURY_DEFAULT_AMOUNT ?? '0.01',
+    defaultSlippageBps: Number(process.env.TREASURY_SLIPPAGE_BPS ?? 50),
+    // Day 5: tokenIn is the quote (USDC by default) and tokenOut is
+    // the underlying asset. Addresses are placeholders for the MVP —
+    // the live path requires real testnet token addresses. Override
+    // per chain in env (TREASURY_ARBITRUM_TOKEN_OUT etc.) when
+    // deploying with funded wallets.
+    defaultTokenIn: process.env.TREASURY_DEFAULT_TOKEN_IN ?? '0xUSDC_PLACEHOLDER',
   },
 } as const;

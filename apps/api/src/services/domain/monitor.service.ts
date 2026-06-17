@@ -16,7 +16,6 @@ export interface CreateMonitorParams {
   url: string;
   conditionText: string;
   frequencySeconds: number;
-  costPerCheck?: number;
   screenshotsEnabled: boolean;
   isPublic?: boolean;
   confidenceThreshold?: number;

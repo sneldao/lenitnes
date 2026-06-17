@@ -49,7 +49,7 @@ export function getProvider(chain: string): ethers.JsonRpcProvider {
 
 export function getWallet(chain: string): ethers.Wallet {
   if (!wallets[chain]) {
-    if (!config.evm.privateKey) throw new Error('EVM_PRIVATE_KEY not configured');
+    if (!config.evm.privateKey) throw new Error('TREASURY_PRIVATE_KEY not configured');
     wallets[chain] = new ethers.Wallet(config.evm.privateKey, getProvider(chain));
   }
   return wallets[chain];

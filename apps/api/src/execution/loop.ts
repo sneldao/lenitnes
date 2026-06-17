@@ -14,6 +14,12 @@ import { recordSignalOnChain } from '../services/evm/signal-registry.js';
 import { FEATURES } from '../features.js';
 import { buildAgentEnvFromConfig, precedentCount, scoreAndPersist } from '../services/agent.js';
 import type { AgentScore } from '@lenitnes/types';
+import {
+  deriveActionFromAgent,
+  recordTrade,
+  signAndSend,
+  type TradeReceipt,
+} from '../services/treasury.js';
 
 // ─────────────────────────────────────────────────────────────
 // Monitor execution loop — the heart of LENITNES.
@@ -68,6 +74,12 @@ export interface CheckMetadata {
   agentBand?: 'low' | 'mid' | 'high';
   agentAction?: 'long' | 'short' | 'none';
   agentThesis?: string;
+  // Day 5: treasury trade receipt (above-threshold only).
+  tradeTxHash?: string;
+  tradeChain?: 'hedera' | 'arbitrum' | 'robinhood';
+  tradePair?: string;
+  tradeMode?: 'paper' | 'live';
+  orderId?: string;
 }
 
 export async function executeCheck(monitor: Monitor): Promise<{
@@ -326,7 +338,7 @@ export async function executeCheck(monitor: Monitor): Promise<{
       } else {
         logger.info(
           { signalId, monitorId: monitor.id, conviction: agentScore.conviction },
-          'agent above threshold — trade eligible (Day 5 wires treasury)',
+          'agent above threshold — proceeding to treasury',
         );
       }
     } catch (err) {
@@ -336,6 +348,63 @@ export async function executeCheck(monitor: Monitor): Promise<{
       logger.error(
         { err, signalId, monitorId: monitor.id },
         'agent scoring failed — gate 2 blocked, no trade',
+      );
+    }
+  }
+
+  // ── 6) Treasury trade (above-threshold only) ────────────────────
+  // Derives a single trade action from the agent's recommendation +
+  // the watchlist entry's asset_mapping. Skipped when:
+  //   - the agent said 'none'
+  //   - the directions conflict (e.g. agent says short, asset is
+  //     only tradeable long)
+  //   - the agent call failed (no agentScore)
+  //   - the signal is a heartbeat
+  let tradeReceipt: TradeReceipt | null = null;
+  let orderId: string | null = null;
+  if (agentScore && !gate2Blocked && !isHeartbeat && signalId) {
+    const derived = deriveActionFromAgent(agentScore, monitor.asset_mapping, {
+      chain: config.treasury.defaultChain,
+      mode: config.treasury.defaultMode,
+      amountIn: config.treasury.defaultTradeAmount,
+      slippageBps: config.treasury.defaultSlippageBps,
+      tokenIn: config.treasury.defaultTokenIn,
+      // The underlying token is intentionally a placeholder. The
+      // live path requires the watchlist to carry per-chain token
+      // addresses (Day 10 launch task).
+      tokenOut: '0xUNDERLYING_PLACEHOLDER',
+    });
+
+    if (derived.trade) {
+      try {
+        tradeReceipt = await signAndSend(derived.trade);
+        const status = tradeReceipt.mode === 'paper' || tradeReceipt.txHash ? 'filled' : 'failed';
+        orderId = await recordTrade(signalId, derived.trade, tradeReceipt, status);
+        logger.info(
+          {
+            signalId,
+            orderId,
+            chain: derived.trade.chain,
+            mode: tradeReceipt.mode,
+            txHash: tradeReceipt.txHash,
+            pair: derived.trade.pair,
+          },
+          'treasury: trade recorded',
+        );
+      } catch (err) {
+        logger.error(
+          { err, signalId, monitorId: monitor.id, chain: derived.trade.chain },
+          'treasury: trade failed — signal still public',
+        );
+      }
+    } else {
+      logger.info(
+        {
+          signalId,
+          agentAction: agentScore.recommended_action,
+          direction: monitor.asset_mapping.direction,
+        },
+        'treasury: no trade — agent action conflicts with asset direction',
       );
     }
   }
@@ -359,6 +428,11 @@ export async function executeCheck(monitor: Monitor): Promise<{
       agentBand: agentScore?.confidence_band,
       agentAction: agentScore?.recommended_action,
       agentThesis: agentScore?.thesis,
+      tradeTxHash: tradeReceipt?.txHash,
+      tradeChain: tradeReceipt?.chain,
+      tradePair: tradeReceipt?.pair,
+      tradeMode: tradeReceipt?.mode,
+      orderId: orderId ?? undefined,
     },
   };
 }
