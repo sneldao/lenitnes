@@ -1,9 +1,10 @@
 // ─────────────────────────────────────────────────────────────
 // Agent — frontier-model conviction scorer for the autonomous
-// signal pipeline. Day 3 of the pivot. Modular boundary per
+// signal pipeline. Day 3 + Day 4 of the pivot. Modular boundary per
 // AGENT_ARCHITECTURE.md: this module knows about detectors and
 // conviction; it does NOT know about Telegram, trading, or the DB
-// beyond the AgentScore return type.
+// beyond the AgentScore return type + the agent_scores persistence
+// helper below.
 // ─────────────────────────────────────────────────────────────
 
 import fs from 'node:fs';
@@ -11,6 +12,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import OpenAI from 'openai';
 import type { AgentInput, AgentScore } from '@lenitnes/types';
+import { query } from '../db/pool.js';
 import { logger } from '../logger.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -228,4 +230,111 @@ export function _internalDailySpendUsd(): number {
 export function _internalResetForTests(): void {
   dailySpendUsd = 0;
   dailyResetAt = '';
+}
+
+// ── Persistence + env helper (Day 4) ────────────────────────────────
+
+/**
+ * Persist an AgentScore to the agent_scores table. Every score is
+ * persisted regardless of conviction — sub-threshold scores form
+ * the "agent reasoning archive" (public surface, future).
+ */
+export async function saveAgentScore(signalId: string, score: AgentScore): Promise<void> {
+  await query(
+    `INSERT INTO agent_scores
+       (signal_id, rubric_version, conviction, thesis,
+        recommended_action, confidence_band, raw_response)
+     VALUES ($1, $2, $3, $4, $5, $6, $7)`,
+    [
+      signalId,
+      score.rubric_version,
+      score.conviction,
+      score.thesis,
+      score.recommended_action,
+      score.confidence_band,
+      JSON.stringify(score.raw_response),
+    ],
+  );
+}
+
+/**
+ * Score + persist. The Day 4 entry point for loop.ts.
+ */
+export async function scoreAndPersist(input: AgentInput, env: AgentEnv): Promise<AgentScore> {
+  const result = await score(input, env);
+  await saveAgentScore(input.signal_id, result);
+  return result;
+}
+
+/**
+ * Count similar past signals in the last 90 days. Used as a
+ * precedent signal in the agent's rubric. Cheap query, no caching.
+ */
+export async function precedentCount(monitorId: string, detectorTypes: string[]): Promise<number> {
+  if (detectorTypes.length === 0) return 0;
+  const { rows } = await query<{ count: string }>(
+    `SELECT COUNT(*)::text AS count FROM signals s
+       JOIN signal_classifications sc ON sc.signal_id = s.id
+      WHERE s.monitor_id = $1
+        AND sc.detector_type = ANY($2)
+        AND s.detected_at > now() - interval '90 days'`,
+    [monitorId, detectorTypes],
+  );
+  return parseInt(rows[0]?.count ?? '0', 10);
+}
+
+/**
+ * Build AgentEnv from process.env. Single place that reads the env
+ * vars; called by loop.ts at request time (not at module load).
+ */
+export function buildAgentEnvFromConfig(): AgentEnv {
+  return {
+    apiKey: process.env.VIRTUALS_API_KEY ?? '',
+    baseUrl: process.env.VIRTUALS_BASE_URL ?? 'https://compute.virtuals.io/v1',
+    model: process.env.AGENT_MODEL ?? 'moonshotai/kimi-k2-0905',
+    mock: process.env.MOCK_AGENT === '1',
+    dailyBudgetUsd: Number(process.env.DAILY_AGENT_BUDGET_USD ?? 20),
+    inputCostPer1M: Number(process.env.AGENT_INPUT_COST_PER_1M_USD ?? 0.6),
+    outputCostPer1M: Number(process.env.AGENT_OUTPUT_COST_PER_1M_USD ?? 2.5),
+  };
+}
+
+/**
+ * Fetch the persisted agent_score for a signal. Used by the
+ * /signals/:id route to surface the agent's verdict on the public
+ * signal detail page.
+ */
+export async function fetchAgentScore(signalId: string): Promise<AgentScore | null> {
+  const { rows } = await query<{
+    id: string;
+    signal_id: string;
+    rubric_version: string;
+    conviction: number;
+    thesis: string;
+    recommended_action: 'long' | 'short' | 'none';
+    confidence_band: 'low' | 'mid' | 'high';
+    raw_response: Record<string, unknown>;
+    created_at: string;
+  }>(
+    `SELECT id, signal_id, rubric_version, conviction, thesis,
+            recommended_action, confidence_band, raw_response, created_at
+       FROM agent_scores
+      WHERE signal_id = $1
+      ORDER BY created_at DESC
+      LIMIT 1`,
+    [signalId],
+  );
+  const row = rows[0];
+  if (!row) return null;
+  return {
+    id: row.id,
+    signal_id: row.signal_id,
+    rubric_version: row.rubric_version,
+    conviction: row.conviction,
+    thesis: row.thesis,
+    recommended_action: row.recommended_action,
+    confidence_band: row.confidence_band,
+    raw_response: row.raw_response,
+    created_at: row.created_at,
+  };
 }

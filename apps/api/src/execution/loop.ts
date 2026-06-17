@@ -12,6 +12,8 @@ import { logger } from '../logger.js';
 import { runDetectors } from '../services/detectors/registry.js';
 import { recordSignalOnChain } from '../services/evm/signal-registry.js';
 import { FEATURES } from '../features.js';
+import { buildAgentEnvFromConfig, precedentCount, scoreAndPersist } from '../services/agent.js';
+import type { AgentScore } from '@lenitnes/types';
 
 // ─────────────────────────────────────────────────────────────
 // Monitor execution loop — the heart of LENITNES.
@@ -60,6 +62,12 @@ export interface CheckMetadata {
     confidence: number;
     label: string;
   }>;
+  // Day 4: agent conviction gating (Gate 2).
+  gate2Blocked?: boolean;
+  agentConviction?: number;
+  agentBand?: 'low' | 'mid' | 'high';
+  agentAction?: 'long' | 'short' | 'none';
+  agentThesis?: string;
 }
 
 export async function executeCheck(monitor: Monitor): Promise<{
@@ -211,6 +219,13 @@ export async function executeCheck(monitor: Monitor): Promise<{
   // ── 4b) Run detector pipeline on new signals (best-effort) ─────────
   let classifications: Array<{ type: string; score: number; confidence: number; label: string }> =
     [];
+  let detectorResultsFull: Array<{
+    type: string;
+    score: number;
+    confidence: number;
+    label: string;
+    metadata: Record<string, unknown>;
+  }> = [];
   if (!isHeartbeat && signalId && result.commits && result.commits.length > 0) {
     try {
       const detectorResults = runDetectors({
@@ -225,6 +240,13 @@ export async function executeCheck(monitor: Monitor): Promise<{
           score: c.score,
           confidence: c.confidence,
           label: c.label,
+        }));
+        detectorResultsFull = detectorResults.map((c) => ({
+          type: c.type,
+          score: c.score,
+          confidence: c.confidence,
+          label: c.label,
+          metadata: c.metadata,
         }));
         await Promise.all(
           detectorResults.map((c) =>
@@ -263,14 +285,59 @@ export async function executeCheck(monitor: Monitor): Promise<{
       });
   }
 
-  // ── 5) Best-effort rule execution ─────────────────────────────────
-  // (disabled after pivot — agent is the only rule, reimplemented in
-  // Day 4 as the agent + treasury integration. See HACKATHON_CUT.md.)
-  if (!isHeartbeat && signalId) {
-    logger.debug(
-      { signalId, monitorId: monitor.id },
-      'rule execution skipped — pending Day 4 agent integration',
-    );
+  // ── 5) Agent conviction gating (Gate 2) ─────────────────────────
+  // If detectors fired, the agent scores the signal against a versioned
+  // rubric. Sub-threshold scores are persisted (agent reasoning archive)
+  // and the signal is published without a trade. Above-threshold
+  // signals continue to the treasury step (Day 5).
+  let agentScore: AgentScore | null = null;
+  let gate2Blocked = false;
+  if (!isHeartbeat && signalId && detectorResultsFull.length > 0) {
+    const env = buildAgentEnvFromConfig();
+    const threshold = config.agent.convictionThreshold;
+    try {
+      const precedent = await precedentCount(
+        monitor.id,
+        detectorResultsFull.map((d) => d.type),
+      );
+      agentScore = await scoreAndPersist(
+        {
+          signal_id: signalId,
+          detector_classifications: detectorResultsFull.map((d) => ({
+            detector_type: d.type,
+            score: d.score,
+            confidence: d.confidence,
+            label: d.label,
+            metadata: d.metadata,
+          })),
+          asset_mapping: monitor.asset_mapping,
+          evidence_text: result.evidence,
+          condition_summary: result.summary,
+          precedent_count: precedent,
+        },
+        env,
+      );
+      if (agentScore.conviction < threshold) {
+        gate2Blocked = true;
+        logger.info(
+          { signalId, monitorId: monitor.id, conviction: agentScore.conviction, threshold },
+          'agent below threshold — no trade, signal still public',
+        );
+      } else {
+        logger.info(
+          { signalId, monitorId: monitor.id, conviction: agentScore.conviction },
+          'agent above threshold — trade eligible (Day 5 wires treasury)',
+        );
+      }
+    } catch (err) {
+      // Budget exceeded, API error, parse error — treat as blocked.
+      // No agent_scores row is written when the call itself fails.
+      gate2Blocked = true;
+      logger.error(
+        { err, signalId, monitorId: monitor.id },
+        'agent scoring failed — gate 2 blocked, no trade',
+      );
+    }
   }
 
   return {
@@ -287,6 +354,11 @@ export async function executeCheck(monitor: Monitor): Promise<{
       thresholdBlocked:
         result.conditionMet && result.confidence < (monitor.confidence_threshold ?? 50),
       ...(classifications.length > 0 ? { classifications } : {}),
+      gate2Blocked,
+      agentConviction: agentScore?.conviction,
+      agentBand: agentScore?.confidence_band,
+      agentAction: agentScore?.recommended_action,
+      agentThesis: agentScore?.thesis,
     },
   };
 }

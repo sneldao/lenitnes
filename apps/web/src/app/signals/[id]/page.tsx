@@ -32,6 +32,7 @@ import {
   Trash2,
   X as XIcon,
   Check as CheckIcon,
+  Sparkles,
 } from 'lucide-react';
 import ProofChain from '@/components/ProofChain';
 import { getProofChainSteps } from '@/lib/proof-chain';
@@ -412,6 +413,41 @@ export default function SignalDetailPage({ params }: { params: Promise<{ id: str
             </div>
           );
         })()}
+
+      {/* ── Agent verdict — shown when the agent has scored this signal ── */}
+      {signal.agent_score && (
+        <div className="card border-accent/20">
+          <div className="mb-4 flex items-start justify-between gap-4">
+            <div className="min-w-0 flex-1">
+              <h2 className="section-title flex items-center gap-2">
+                <Sparkles className="h-3.5 w-3.5 text-accent" />
+                Agent verdict
+              </h2>
+              <p className="mt-1 max-w-xl text-sm leading-relaxed text-slate-400">
+                Frontier-model scoring of the detector output against a versioned conviction rubric.
+                Persisted regardless of threshold — the sub-threshold archive is part of the public
+                surface.
+              </p>
+            </div>
+            <div className="shrink-0 text-right">
+              <div className="font-mono text-3xl font-bold text-accent">
+                {signal.agent_score.conviction}
+                <span className="text-base text-slate-500">/100</span>
+              </div>
+              <div className="mt-1 font-mono text-[10px] uppercase tracking-wider text-slate-500">
+                {signal.agent_score.confidence_band} · {signal.agent_score.recommended_action}
+              </div>
+            </div>
+          </div>
+          <blockquote className="rounded-lg border border-accent/10 bg-accent/5 p-4 text-sm italic leading-relaxed text-slate-300">
+            {signal.agent_score.thesis}
+          </blockquote>
+          <div className="mt-3 flex items-center justify-between font-mono text-[10px] text-slate-600">
+            <span>rubric {signal.agent_score.rubric_version}</span>
+            <span>{new Date(signal.agent_score.created_at).toISOString().slice(0, 19)}Z</span>
+          </div>
+        </div>
+      )}
 
       {/* ── Price impact — always shown ── */}
       <div className="card">

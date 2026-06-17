@@ -2,9 +2,10 @@ import { Router, type Request, type Response } from 'express';
 import { createHash } from 'crypto';
 import { query } from '../db/pool.js';
 import { groveGatewayUrl } from '../services/ipfs.js';
-import type { Signal } from '@lenitnes/types';
+import type { AgentScore, Signal } from '@lenitnes/types';
 import { cacheGet, cacheSet } from '../middleware/cache.js';
 import { createSignalShareToken } from '../services/share-token.js';
+import { fetchAgentScore } from '../services/agent.js';
 
 export const signalsRouter = Router();
 
@@ -14,6 +15,7 @@ export interface ProofPackage {
   monitor: { id: string; url: string; condition_text: string } | null;
   orders: unknown[];
   proof: { ipfsUrl: string | null; hashscanUrl: string | null };
+  agent_score: AgentScore | null;
 }
 
 export async function getSignalWithProof(
@@ -30,9 +32,10 @@ export async function getSignalWithProof(
   const signal = rows[0] as unknown as Signal;
 
   const includeOrders = options.includeOrders ?? true;
-  const [orders, monitor] = await Promise.all([
+  const [orders, monitor, agent_score] = await Promise.all([
     includeOrders ? query(`SELECT * FROM orders WHERE signal_id = $1`, [signal.id]) : { rows: [] },
     query(`SELECT id, url, condition_text FROM monitors WHERE id = $1`, [signal.monitor_id]),
+    fetchAgentScore(signal.id),
   ]);
 
   return {
@@ -46,6 +49,7 @@ export async function getSignalWithProof(
         ? `https://hashscan.io/testnet/transaction/${encodeURIComponent(signal.hedera_tx_id)}`
         : null,
     },
+    agent_score,
   };
 }
 
@@ -160,5 +164,6 @@ signalsRouter.get('/:id', async (req: Request, res: Response) => {
     public_share_token: createSignalShareToken(pkg.signal.id),
     classifications: classifications.rows,
     outcomes: outcomes.rows,
+    agent_score: pkg.agent_score,
   });
 });
