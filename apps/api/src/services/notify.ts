@@ -153,3 +153,179 @@ export function formatSignalMessage(opts: {
   }
   return lines.join('\n');
 }
+
+// ─────────────────────────────────────────────────────────────
+// Day 6: broadcast the agent's verdict to the public Telegram
+// channel. Single channel (publicChannelId); paid/private channels
+// are a future config addition. Only above-threshold signals post.
+// ─────────────────────────────────────────────────────────────
+
+/** Explorer URL for a chain tx hash, or null if paper / unsupported. */
+function explorerUrlFor(chain: string, txHash: string): string | null {
+  // Paper trades have a 0xpap prefix — never on a real chain.
+  if (txHash.startsWith('0xpap')) return null;
+  switch (chain) {
+    case 'hedera':
+      return `https://hashscan.io/testnet/transaction/${encodeURIComponent(txHash)}`;
+    case 'arbitrum':
+      return `https://sepolia.arbiscan.io/tx/${txHash}`;
+    case 'robinhood':
+      return `https://explorer.testnet.chain.robinhood.com/tx/${txHash}`;
+    default:
+      return null;
+  }
+}
+
+export interface BroadcastSignalInput {
+  signalId: string;
+  summary: string;
+  monitorUrl: string;
+  detectedAt: string;
+  agentScore: {
+    conviction: number;
+    thesis: string;
+    recommended_action: 'long' | 'short' | 'none';
+    confidence_band: 'low' | 'mid' | 'high';
+  };
+  tradeReceipt: {
+    chain: string;
+    txHash: string;
+    pair: string;
+    mode: 'paper' | 'live';
+  } | null;
+  proofs: {
+    ipfsCid?: string | null;
+    hederaTxId?: string | null;
+    arbitrumTxHash?: string | null;
+  };
+  outcomeWindows: { t1h: string; t1d: string; t7d: string };
+}
+
+/**
+ * Format the public broadcast. Plain text (Telegram auto-links URLs).
+ * Sections, in order:
+ *   - header + thesis
+ *   - conviction + action
+ *   - trade (pair, chain, tx, mode)
+ *   - proofs (Hedera HCS, IPFS, Arbitrum)
+ *   - outcome windows (T+1h, T+1d, T+7d)
+ */
+export function formatSignalBroadcastMessage(input: BroadcastSignalInput): string {
+  const lines: string[] = [];
+  const assetLabel = input.tradeReceipt?.pair ?? 'WATCHLIST';
+  lines.push(`🚨 LENITNES signal — ${assetLabel}`);
+  lines.push('');
+
+  // Conviction + action
+  const actionLabel = input.agentScore.recommended_action.toUpperCase();
+  lines.push(
+    `🎯 Conviction ${input.agentScore.conviction}/100 (${input.agentScore.confidence_band}) → ${actionLabel}`,
+  );
+  lines.push(`💭 ${input.agentScore.thesis}`);
+  lines.push('');
+
+  // Trade
+  if (input.tradeReceipt) {
+    const t = input.tradeReceipt;
+    lines.push(`🔗 Trade`);
+    lines.push(`  Pair: ${t.pair}`);
+    lines.push(`  Chain: ${t.chain}`);
+    const url = explorerUrlFor(t.chain, t.txHash);
+    if (url) {
+      lines.push(`  Tx: ${t.txHash} → ${url}`);
+    } else {
+      lines.push(`  Tx: ${t.txHash} (paper)`);
+    }
+    lines.push(`  Mode: ${t.mode}`);
+    lines.push('');
+  }
+
+  // Proofs
+  lines.push(`📜 Proofs`);
+  if (input.proofs.hederaTxId) {
+    lines.push(
+      `  Hedera HCS: ${input.proofs.hederaTxId} → https://hashscan.io/testnet/transaction/${encodeURIComponent(input.proofs.hederaTxId)}`,
+    );
+  } else {
+    lines.push(`  Hedera HCS: pending`);
+  }
+  if (input.proofs.ipfsCid) {
+    lines.push(
+      `  IPFS: ${input.proofs.ipfsCid} → https://grove.lens.xyz/ipfs/${input.proofs.ipfsCid}`,
+    );
+  } else {
+    lines.push(`  IPFS: pending`);
+  }
+  if (input.proofs.arbitrumTxHash) {
+    const url = explorerUrlFor('arbitrum', input.proofs.arbitrumTxHash);
+    if (url) {
+      lines.push(`  Arbitrum: ${input.proofs.arbitrumTxHash} → ${url}`);
+    }
+  }
+  lines.push('');
+
+  // Outcome windows
+  lines.push(`📊 Outcomes (scheduled)`);
+  lines.push(`  T+1h: ${input.outcomeWindows.t1h}Z`);
+  lines.push(`  T+1d: ${input.outcomeWindows.t1d}Z`);
+  lines.push(`  T+7d: ${input.outcomeWindows.t7d}Z`);
+
+  return lines.join('\n');
+}
+
+/**
+ * Build the outcome window timestamps for a signal. T+1h, T+1d, T+7d
+ * from the signal's detected_at. The cron job (Day 5/7) records the
+ * actual price at each window.
+ */
+export function buildOutcomeWindows(detectedAt: string): { t1h: string; t1d: string; t7d: string } {
+  const base = new Date(detectedAt);
+  if (Number.isNaN(base.getTime())) {
+    const now = new Date();
+    return {
+      t1h: new Date(now.getTime() + 60 * 60 * 1000).toISOString(),
+      t1d: new Date(now.getTime() + 24 * 60 * 60 * 1000).toISOString(),
+      t7d: new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000).toISOString(),
+    };
+  }
+  return {
+    t1h: new Date(base.getTime() + 60 * 60 * 1000).toISOString(),
+    t1d: new Date(base.getTime() + 24 * 60 * 60 * 1000).toISOString(),
+    t7d: new Date(base.getTime() + 7 * 24 * 60 * 60 * 1000).toISOString(),
+  };
+}
+
+/**
+ * Broadcast an above-threshold signal to the public Telegram channel.
+ * Best-effort: logs failures but does not throw. Returns the message
+ * body that was sent (or null if Telegram isn't configured).
+ *
+ * Sub-threshold / no-detectors signals are NOT broadcast — the
+ * public surface is reserved for verified trades. The reasoning
+ * archive (agent_scores) is the surface for sub-threshold reasoning.
+ */
+export async function broadcastSignal(input: BroadcastSignalInput): Promise<string | null> {
+  if (!config.telegram.botToken || !config.telegram.publicChannelId) {
+    logger.warn(
+      { signalId: input.signalId },
+      'telegram not configured — broadcast skipped (no bot token or public channel id)',
+    );
+    return null;
+  }
+
+  const message = formatSignalBroadcastMessage(input);
+  try {
+    await sendTelegram(config.telegram.publicChannelId, message);
+    logger.info(
+      { signalId: input.signalId, channelId: config.telegram.publicChannelId },
+      'signal broadcast to telegram',
+    );
+    return message;
+  } catch (err) {
+    logger.error(
+      { err, signalId: input.signalId },
+      'telegram broadcast failed — signal still public, retry on next signal',
+    );
+    return null;
+  }
+}

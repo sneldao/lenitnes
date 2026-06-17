@@ -20,6 +20,11 @@ import {
   signAndSend,
   type TradeReceipt,
 } from '../services/treasury.js';
+import {
+  buildOutcomeWindows,
+  broadcastSignal,
+  type BroadcastSignalInput,
+} from '../services/notify.js';
 
 // ─────────────────────────────────────────────────────────────
 // Monitor execution loop — the heart of LENITNES.
@@ -407,6 +412,55 @@ export async function executeCheck(monitor: Monitor): Promise<{
         'treasury: no trade — agent action conflicts with asset direction',
       );
     }
+  }
+
+  // ── 7) Public broadcast (above-threshold + trade only) ──────────
+  // The agent's verdict goes to the public Telegram channel as a
+  // best-effort fire-and-forget. Sub-threshold signals are
+  // intentionally NOT broadcast — the reasoning archive
+  // (agent_scores) is the surface for those, the public channel
+  // is reserved for verified trades.
+  if (agentScore && !gate2Blocked && !isHeartbeat && signalId && tradeReceipt) {
+    // The proof data (ipfs_cid / hedera_tx_id / arb_tx_hash) is
+    // written to the signal row by the post-commit step. Pull it
+    // back out so the broadcast can include explorer links.
+    const { rows: signalRows } = await query<{
+      ipfs_cid: string | null;
+      hedera_hcs_message_id: string | null;
+      arb_tx_hash: string | null;
+    }>(`SELECT ipfs_cid, hedera_hcs_message_id, arb_tx_hash FROM signals WHERE id = $1`, [
+      signalId,
+    ]);
+    const signalProofs = signalRows[0];
+
+    const broadcastInput: BroadcastSignalInput = {
+      signalId,
+      summary: result.summary,
+      monitorUrl: monitor.url,
+      detectedAt: new Date().toISOString(),
+      agentScore: {
+        conviction: agentScore.conviction,
+        thesis: agentScore.thesis,
+        recommended_action: agentScore.recommended_action,
+        confidence_band: agentScore.confidence_band,
+      },
+      tradeReceipt: {
+        chain: tradeReceipt.chain,
+        txHash: tradeReceipt.txHash,
+        pair: tradeReceipt.pair,
+        mode: tradeReceipt.mode,
+      },
+      proofs: {
+        ipfsCid: signalProofs?.ipfs_cid ?? null,
+        hederaTxId: signalProofs?.hedera_hcs_message_id ?? null,
+        arbitrumTxHash: signalProofs?.arb_tx_hash ?? null,
+      },
+      outcomeWindows: buildOutcomeWindows(new Date().toISOString()),
+    };
+
+    broadcastSignal(broadcastInput).catch((err) => {
+      logger.error({ err, signalId }, 'telegram broadcast errored — already logged inside');
+    });
   }
 
   return {
