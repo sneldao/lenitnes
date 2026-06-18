@@ -133,8 +133,12 @@ export default function SignalDetailPage({ params }: { params: Promise<{ id: str
     setTimeout(() => setCopied(null), 1500);
   }
 
-  const backHref = isPublic ? '/' : '/signals';
-  const backLabel = isPublic ? 'Home' : 'Back to Signals';
+  // The non-public detail view was reachable from /signals (a
+  // per-user list page that was removed in Day 13). For non-public
+  // detail pages, fall back to the scorecard's recent-calls list,
+  // which is the post-pivot equivalent.
+  const backHref = isPublic ? '/' : '/scorecard';
+  const backLabel = isPublic ? 'Home' : 'Back to scorecard';
 
   if (error)
     return (

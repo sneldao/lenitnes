@@ -6,10 +6,15 @@ import { usePathname } from 'next/navigation';
 import { Settings, Menu, X } from 'lucide-react';
 import { useAuth } from '@/lib/useAuth';
 
+// APP_LINKS is the post-pivot operator nav (useAuth().isAuthenticated
+// is hardcoded false in the Day 13 zero-headcount build, so this is
+// never rendered today, but kept for the day the auth surface comes back).
+// /signals and /admin were removed in Day 13; /account is the only
+// post-pivot authenticated route that would need to exist for the
+// operator surface to make sense again.
 const APP_LINKS = [
-  { href: '/', label: 'Dashboard' },
-  { href: '/signals', label: 'Signals' },
   { href: '/scorecard', label: 'Scorecard' },
+  { href: '/case-study/halo2', label: 'Case Study' },
   { href: '/backtest', label: 'Backtest' },
 ];
 

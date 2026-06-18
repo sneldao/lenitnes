@@ -173,7 +173,7 @@ lenitnes/
 │   │       ├── seed/            demo.ts (real-evidence seed, 3 public commits)
 │   │       └── middleware/      cache · metrics · rate-limit
 │   └── web/                    Next.js 16 + Tailwind
-│       └── src/app/             scorecard · case-study/halo2 · signals · admin
+│       └── src/app/             scorecard · case-study/halo2 · signals/:id · backtest · public/proof/:id
 ├── contracts/                  Foundry (SignalRegistry + TradeExecutor; multi-chain)
 ├── packages/types/             Shared domain types (Chain, AgentScore, TreasuryWallet)
 ├── db/

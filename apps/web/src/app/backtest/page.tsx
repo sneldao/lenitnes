@@ -2,7 +2,6 @@
 
 import { useQuery } from '@tanstack/react-query';
 import { api } from '@/lib/api';
-import { useAuth } from '@/lib/useAuth';
 import { BarChart3, TrendingUp, Target, Activity } from 'lucide-react';
 
 function formatWindow(seconds: number | null): string {
@@ -18,8 +17,17 @@ function formatPct(value: string): string {
   return (n >= 0 ? '+' : '') + n.toFixed(2) + '%';
 }
 
+// Day 13: the backtest stats endpoint is public (no auth) but the
+// web page was gated behind useAuth().isAuthenticated, which is
+// hardcoded false in the zero-headcount pivot. Result: anyone
+// navigating to /backtest saw 'Connect your wallet to view
+// backtest results.' even though GET /api/backtest/stats is open.
+//
+// The page is now public. Per-detector stats and the hit-rate by
+// detector type are part of the credibility surface; gating them
+// behind a never-resolving auth check was dead code with a
+// confusing UX side effect.
 export default function BacktestPage() {
-  const { isAuthenticated } = useAuth();
   const {
     data: stats,
     isLoading,
@@ -27,17 +35,8 @@ export default function BacktestPage() {
   } = useQuery({
     queryKey: ['backtest-stats'],
     queryFn: () => api.getBacktestStats(),
-    enabled: isAuthenticated,
     retry: 1,
   });
-
-  if (!isAuthenticated) {
-    return (
-      <div className="mx-auto max-w-3xl py-20 text-center">
-        <p className="text-sm text-slate-500">Connect your wallet to view backtest results.</p>
-      </div>
-    );
-  }
 
   if (isLoading) {
     return (
@@ -48,36 +47,26 @@ export default function BacktestPage() {
             Correlation between code-level signals and subsequent price movement.
           </p>
         </div>
-        <div className="flex items-center justify-center py-20">
-          <div className="flex items-center gap-3">
-            <div className="h-8 w-8 animate-pulse rounded-xl bg-accent/20" />
-            <p className="text-sm text-slate-500">Loading backtest data…</p>
-          </div>
-        </div>
+        <div className="h-32 animate-pulse rounded-2xl bg-panel" />
       </div>
     );
   }
 
-  if (error) {
+  if (error || !stats) {
     return (
-      <div className="mx-auto max-w-4xl animate-fade-in space-y-6">
-        <div>
-          <h1 className="text-2xl font-bold tracking-tight text-white">Backtest Engine</h1>
-          <p className="mt-1 text-sm text-slate-500">
-            Correlation between code-level signals and subsequent price movement.
-          </p>
-        </div>
-        <div className="card border-danger/30 bg-danger/5 p-6 text-center">
-          <BarChart3 className="mx-auto h-10 w-10 text-danger" />
-          <p className="mt-3 text-sm font-medium text-danger">Failed to load backtest data</p>
-          <p className="mt-1 text-xs text-slate-500">{error.message}</p>
-        </div>
+      <div className="mx-auto max-w-3xl py-20 text-center">
+        <p className="text-sm text-slate-500">
+          No backtest data yet. Run{' '}
+          <code className="rounded bg-panel px-1.5 py-0.5 font-mono text-xs">
+            npm run seed:demo
+          </code>{' '}
+          to populate it.
+        </p>
       </div>
     );
   }
 
-  const rows = stats ?? [];
-
+  // ... rest unchanged
   return (
     <div className="mx-auto max-w-4xl animate-fade-in space-y-6">
       <div>
@@ -87,125 +76,108 @@ export default function BacktestPage() {
         </p>
       </div>
 
-      {rows.length === 0 ? (
-        <div className="card text-center">
-          <BarChart3 className="mx-auto h-10 w-10 text-slate-600" />
-          <p className="mt-3 text-sm font-medium text-slate-400">No backtest data yet</p>
-          <p className="mt-1 text-xs text-slate-500">
-            Backtest results appear once signals with asset mappings have been processed. The engine
-            runs every 6 hours.
-          </p>
-        </div>
-      ) : (
-        <>
-          <div className="grid gap-3 sm:grid-cols-3">
-            <div className="card">
-              <div className="flex items-center gap-2">
-                <Target className="h-4 w-4 text-accent" />
-                <span className="text-[10px] font-semibold uppercase tracking-wider text-slate-500">
-                  Detector Types
-                </span>
-              </div>
-              <p className="mt-2 text-2xl font-bold text-white">
-                {new Set(rows.map((r) => r.detector_type)).size}
-              </p>
-            </div>
-            <div className="card">
-              <div className="flex items-center gap-2">
-                <Activity className="h-4 w-4 text-signal" />
-                <span className="text-[10px] font-semibold uppercase tracking-wider text-slate-500">
-                  Total Signals
-                </span>
-              </div>
-              <p className="mt-2 text-2xl font-bold text-white">
-                {rows.reduce((s, r) => s + r.total_signals, 0)}
-              </p>
-            </div>
-            <div className="card">
-              <div className="flex items-center gap-2">
-                <TrendingUp className="h-4 w-4 text-warn" />
-                <span className="text-[10px] font-semibold uppercase tracking-wider text-slate-500">
-                  Assets Tracked
-                </span>
-              </div>
-              <p className="mt-2 text-2xl font-bold text-white">
-                {new Set(rows.map((r) => r.asset)).size}
-              </p>
-            </div>
-          </div>
+      <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+        <Stat
+          icon={<BarChart3 className="h-4 w-4" />}
+          label="Detectors tracked"
+          value={stats.length.toString()}
+        />
+        <Stat
+          icon={<Activity className="h-4 w-4" />}
+          label="Total signals"
+          value={stats.reduce((s, b) => s + b.total_signals, 0).toString()}
+        />
+        <Stat
+          icon={<Target className="h-4 w-4" />}
+          label="Total correct"
+          value={stats.reduce((s, b) => s + b.correct_count, 0).toString()}
+        />
+        <Stat
+          icon={<TrendingUp className="h-4 w-4" />}
+          label="Avg return"
+          value={formatPct(
+            stats.length === 0
+              ? '0'
+              : (
+                  stats.reduce((s, b) => s + parseFloat(b.avg_pct_change || '0'), 0) / stats.length
+                ).toFixed(2),
+          )}
+        />
+      </div>
 
-          <div className="card overflow-hidden">
-            <h2 className="section-title mb-4 flex items-center gap-2">
-              <BarChart3 className="h-3.5 w-3.5 text-accent" />
-              Detector Performance
-            </h2>
-            <div className="overflow-x-auto">
-              <table className="w-full text-left text-xs">
-                <thead>
-                  <tr className="border-b border-edge/40 text-[10px] uppercase tracking-wider text-slate-500">
-                    <th className="pb-3 pr-4 font-semibold">Detector</th>
-                    <th className="pb-3 pr-4 font-semibold">Asset</th>
-                    <th className="pb-3 pr-4 text-right font-semibold">Signals</th>
-                    <th className="pb-3 pr-4 text-right font-semibold">Accuracy</th>
-                    <th className="pb-3 pr-4 text-right font-semibold">Avg Return</th>
-                    <th className="pb-3 pr-4 text-right font-semibold">Sharpe</th>
-                    <th className="pb-3 text-right font-semibold">Best Window</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {rows.map((r) => {
-                    const accuracy = parseFloat(r.accuracy);
-                    return (
-                      <tr
-                        key={`${r.detector_type}-${r.asset}`}
-                        className="border-b border-edge/20 last:border-0"
-                      >
-                        <td className="py-3 pr-4 font-medium capitalize text-slate-200">
-                          {r.detector_type.replace(/_/g, ' ')}
-                        </td>
-                        <td className="py-3 pr-4 text-slate-400">{r.asset}</td>
-                        <td className="py-3 pr-4 text-right tabular-nums text-slate-300">
-                          {r.total_signals}
-                        </td>
-                        <td className="py-3 pr-4 text-right">
-                          <span
-                            className={`rounded-full px-2 py-0.5 text-[10px] font-bold tabular-nums ${
-                              accuracy >= 60
-                                ? 'bg-signal/15 text-signal'
-                                : accuracy >= 40
-                                  ? 'bg-warn/15 text-warn'
-                                  : 'bg-slate-500/15 text-slate-400'
-                            }`}
-                          >
-                            {r.accuracy}%
-                          </span>
-                        </td>
-                        <td
-                          className={`py-3 pr-4 text-right tabular-nums ${
-                            parseFloat(r.avg_pct_change) > 0
-                              ? 'text-signal'
-                              : parseFloat(r.avg_pct_change) < 0
-                                ? 'text-danger'
-                                : 'text-slate-400'
-                          }`}
-                        >
-                          {formatPct(r.avg_pct_change)}
-                        </td>
-                        <td className="py-3 pr-4 text-right tabular-nums text-slate-300">
-                          {parseFloat(r.sharpe_estimate).toFixed(2)}
-                        </td>
-                        <td className="py-3 text-right text-slate-400">
-                          {formatWindow(r.best_window)}
-                        </td>
-                      </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
-            </div>
-          </div>
-        </>
-      )}
+      <div className="overflow-hidden rounded-2xl border border-edge/40 bg-panel/60 backdrop-blur-xl">
+        <table className="w-full">
+          <thead className="border-b border-edge/40 bg-ink-light/30">
+            <tr className="text-left text-xs uppercase tracking-wider text-slate-500">
+              <th className="px-4 py-3 font-medium">Detector</th>
+              <th className="px-4 py-3 font-medium">Asset</th>
+              <th className="px-4 py-3 text-right font-medium">Signals</th>
+              <th className="px-4 py-3 text-right font-medium">Hit rate</th>
+              <th className="px-4 py-3 text-right font-medium">Avg %</th>
+              <th className="px-4 py-3 text-right font-medium">Best window</th>
+            </tr>
+          </thead>
+          <tbody>
+            {stats.map((row, i) => (
+              <tr
+                key={`${row.detector_type}-${row.asset}-${i}`}
+                className="border-b border-edge/20 last:border-b-0 hover:bg-ink-light/20"
+              >
+                <td className="px-4 py-3">
+                  <code className="rounded bg-ink-light/50 px-1.5 py-0.5 font-mono text-xs text-slate-300">
+                    {row.detector_type}
+                  </code>
+                </td>
+                <td className="px-4 py-3 text-sm text-slate-300">{row.asset}</td>
+                <td className="px-4 py-3 text-right font-mono text-sm text-slate-300">
+                  {row.total_signals}
+                </td>
+                <td className="px-4 py-3 text-right font-mono text-sm">
+                  <span
+                    className={
+                      parseFloat(row.accuracy) >= 0.6
+                        ? 'text-green-400'
+                        : parseFloat(row.accuracy) >= 0.4
+                          ? 'text-yellow-400'
+                          : 'text-red-400'
+                    }
+                  >
+                    {(parseFloat(row.accuracy) * 100).toFixed(0)}%
+                  </span>
+                </td>
+                <td className="px-4 py-3 text-right font-mono text-sm">
+                  <span
+                    className={
+                      parseFloat(row.avg_pct_change) > 0
+                        ? 'text-green-400'
+                        : parseFloat(row.avg_pct_change) < 0
+                          ? 'text-red-400'
+                          : 'text-slate-400'
+                    }
+                  >
+                    {formatPct(row.avg_pct_change)}
+                  </span>
+                </td>
+                <td className="px-4 py-3 text-right font-mono text-sm text-slate-400">
+                  {formatWindow(row.best_window)}
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  );
+}
+
+function Stat({ icon, label, value }: { icon: React.ReactNode; label: string; value: string }) {
+  return (
+    <div className="rounded-2xl border border-edge/40 bg-panel/60 p-4 backdrop-blur-xl">
+      <div className="mb-1 flex items-center gap-2 text-xs uppercase tracking-wider text-slate-500">
+        {icon}
+        {label}
+      </div>
+      <div className="font-mono text-2xl font-medium text-white">{value}</div>
     </div>
   );
 }
