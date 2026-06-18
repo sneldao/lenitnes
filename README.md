@@ -56,17 +56,23 @@ No human input in the steady state. The only operator surfaces are `/admin/*` (X
 
 ## Stack
 
-| Layer     | Choice                                     | Why                          |
-| --------- | ------------------------------------------ | ---------------------------- |
-| API       | Express 5 + TypeScript                     | Boring, fast, easy to deploy |
-| DB        | PostgreSQL 14                              | Reliable, JSONB, window fns  |
-| Agent     | Frontier model (Kimi K2 / Claude / etc.)   | Pluggable, MOCK for tests    |
-| Notarize  | Hedera HCS + Arbitrum `SignalRegistry`     | Two-chain proof              |
-| Store     | IPFS (Grove / Lens)                        | Immutable evidence package   |
-| Trade     | Arbitrum Sepolia + Robinhood Chain testnet | Real on-chain receipts       |
-| Broadcast | Telegram public channel                    | Public, timestamped          |
-| Charts    | CoinGecko historical API (with fallback)   | Real price outcomes          |
-| Frontend  | Next.js 16 + Tailwind                      | Music-publication aesthetic  |
+| Layer          | Choice                                           | Why                                        |
+| -------------- | ------------------------------------------------ | ------------------------------------------ |
+| API            | Express 5 + TypeScript                           | Boring, fast, easy to deploy               |
+| DB             | PostgreSQL 14                                    | Reliable, JSONB, window fns                |
+| Agent          | Frontier model (Kimi K2 / Claude / etc.)         | Pluggable, MOCK for tests                  |
+| Market context | CoinMarketCap Pro API (+ x402 fallback)          | Global metrics, Fear & Greed, asset quotes |
+| Notarize       | Hedera HCS + Arbitrum `SignalRegistry`           | Two-chain proof                            |
+| Store          | IPFS (Grove / Lens)                              | Immutable evidence package                 |
+| Trade          | Arbitrum Sepolia · Robinhood Chain · BSC testnet | Three live venues + paper                  |
+| Sign on BSC    | Trust Wallet Agent Kit (TWAK)                    | Self-custody signing on BSC                |
+| Broadcast      | Telegram public channel                          | Public, timestamped                        |
+| Charts         | CoinGecko historical API (with fallback)         | Real price outcomes                        |
+| Frontend       | Next.js 16 + Tailwind                            | Music-publication aesthetic                |
+
+See [`docs/AGENT_ARCHITECTURE.md`](./docs/AGENT_ARCHITECTURE.md) for the frozen
+Q1-Q3 design decisions and [`docs/HACKATHON_CUT.md`](./docs/HACKATHON_CUT.md)
+for the 10-day plan + BNB Hack (June 22-28) plan.
 
 ## Getting started (local)
 
@@ -78,6 +84,8 @@ npm install --legacy-peer-deps
 cp .env.example .env
 # Required: JWT_SECRET, ENCRYPTION_KEY, WEBHOOK_SECRET (32-byte hex each)
 # Required: DATABASE_URL, VIRTUALS_API_KEY (or MOCK_AGENT=1 for testing)
+# Optional: TWAK_ACCESS_ID + TWAK_HMAC_SECRET (BSC live trading),
+#           CMC_API_KEY (market context) or X402_PRIVATE_KEY (x402 fallback)
 
 # 3. Generate secrets
 node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"
@@ -101,32 +109,48 @@ Visit `http://localhost:3000/scorecard` to see the track record. Visit `http://l
 
 ## Deploy to testnet (the real path)
 
-See **[DEPLOYMENT.md](./DEPLOYMENT.md)** for the full guide. The short version:
+See **[DEPLOYMENT.md](./DEPLOYMENT.md)** for the full guide, including the
+parallel BSC testnet deploy for the BNB Hack. The short version:
 
 ```bash
 # 1. Install Foundry (forge)
 curl -L https://foundry.paradigm.xyz | bash
 
-# 2. Get a testnet wallet + Arbitrum Sepolia ETH
-#    Faucet: https://www.alchemy.com/faucets/arbitrum-sepolia
+# 2. Get a testnet wallet + ETH for gas
+#    Arbitrum Sepolia:  https://www.alchemy.com/faucets/arbitrum-sepolia
+#    BSC testnet:       https://testnet.bnbchain.org/faucet-smart
 
-# 3. Deploy contracts
+# 3. Deploy contracts (Arbitrum Sepolia)
 cd contracts
 forge script script/Deploy.s.sol \
   --rpc-url $ARBITRUM_RPC_URL \
-  --private-key $TREASURY_PRIVATE_KEY \
+  --private-key $EVM_PRIVATE_KEY \
+  --broadcast
+
+#    …or BSC testnet (BNB Hack):
+CHAIN=bsc forge script script/Deploy.s.sol \
+  --rpc-url $BNB_RPC_URL \
+  --private-key $EVM_PRIVATE_KEY \
   --broadcast
 
 # 4. Update .env with the deployed addresses
 ARB_SIGNAL_REGISTRY_ADDRESS=0x...
 ARB_TRADE_EXECUTOR_ADDRESS=0x...
+# (BSC deploy — see DEPLOYMENT.md Step 4b)
+BNB_SIGNAL_REGISTRY_ADDRESS=0x...
+BNB_TRADE_EXECUTOR_ADDRESS=0x...
 TREASURY_MODE=live
 TELEGRAM_BOT_TOKEN=...
 TELEGRAM_PUBLIC_CHANNEL_ID=@lenitnes
 TINYFISH_API_KEY=...
 GITHUB_TOKEN=...
 
-# 5. Restart the API. The system runs the loop and posts to Telegram on every above-threshold signal.
+# 5. (BSC only) Optional: self-custody signing via Trust Wallet Agent Kit
+TWAK_ACCESS_ID=...
+TWAK_HMAC_SECRET=...
+TWAK_ENABLED=true
+
+# 6. Restart the API. The system runs the loop and posts to Telegram on every above-threshold signal.
 ```
 
 ## Project structure
@@ -137,43 +161,85 @@ lenitnes/
 │   ├── api/                    Express + TypeScript REST API
 │   │   └── src/
 │   │       ├── index.ts        Server entry + graceful shutdown
-│   │       ├── config.ts        Env-var loader (treasury, agent, admin, telegram, evm)
+│   │       ├── config.ts        Env-var loader (chains, treasury, agent, admin, telegram)
 │   │       ├── db/              pool · migrate · schema · 003_pivot · validate
-│   │       ├── routes/          monitors · signals · scorecard · admin · backtest · replay
-│   │       ├── services/        agent · treasury · replay · notify · scorecard
-│   │       ├── services/evm/    client · trade · signal-registry
+│   │       ├── routes/          monitors · signals · scorecard · admin · backtest · replay · dlq · proof · webhooks
+│   │       ├── services/        agent · treasury · replay · notify · scorecard · share-token
+│   │       │   ├── cmc.ts        CoinMarketCap Pro API (global metrics, Fear & Greed, quotes)
+│   │       │   ├── cmc-x402.ts   x402 pay-per-request CMC fallback (USDC on Base)
+│   │       │   ├── twak.ts       Trust Wallet Agent Kit wrapper (BSC self-custody swap)
+│   │       │   └── evm/         client · trade · signal-registry
 │   │       ├── execution/       loop.ts (the autonomous loop, sections 1-7)
-│   │       ├── seed/            demo.ts (real-evidence seed)
+│   │       ├── seed/            demo.ts (real-evidence seed, 3 public commits)
 │   │       └── middleware/      cache · metrics · rate-limit
 │   └── web/                    Next.js 16 + Tailwind
 │       └── src/app/             scorecard · case-study/halo2 · signals · admin
-├── contracts/                  Foundry (SignalRegistry + TradeExecutor)
-├── packages/types/             Shared domain types
+├── contracts/                  Foundry (SignalRegistry + TradeExecutor; multi-chain)
+├── packages/types/             Shared domain types (Chain, AgentScore, TreasuryWallet)
 ├── db/
 │   ├── schema.sql              Postgres schema (CREATE IF NOT EXISTS)
 │   ├── migrations/003_pivot.sql  Day 2 pivot: drops per-user tables
-│   └── seed/                   watchlist · treasury_wallets
+│   └── seed/                   watchlist · treasury_wallets (4 chains: hedera, arbitrum, robinhood, bnb)
+├── scripts/                    register-bnb-hack.sh — on-chain agent registration
 ├── docs/
 │   ├── AGENT_ARCHITECTURE.md   Frozen decision doc (Q1-Q3)
-│   └── HACKATHON_CUT.md        10-day plan
-├── DEPLOYMENT.md               Testnet deploy guide
+│   └── HACKATHON_CUT.md        10-day plan + BNB Hack pivot
+├── DEPLOYMENT.md               Testnet deploy guide (Arbitrum + BSC)
+├── openapi.yaml                REST API spec (post-pivot, 27 paths)
 └── README.md                   You are here
 ```
 
 ## API surface (public)
 
 ```
-GET  /scorecard            Public track record (cached 60s, no auth)
-GET  /scorecard/recent    Recent calls (cached 30s)
-GET  /case-study/halo2     ... (live at /case-study/halo2 on the web)
-GET  /signals              Signal list
-GET  /signals/:id          Signal detail with agent verdict + proof chain
-GET  /proof/public/:id     Public proof for sharing
-GET  /backtest/replay/halo2  The founding-myth replay (hardcoded for now)
-GET  /admin/status         Operator surface (X-Admin-Key)
-GET  /admin/agent/budget   Agent daily spend vs cap
-POST /admin/cache/invalidate  Manual cache flush
+GET  /scorecard                  Public track record (cached 60s, no auth)
+GET  /scorecard/recent           Recent calls (cached 30s)
+GET  /signals                    Signal list (cached 30s)
+GET  /signals/:id                Signal detail with proof package + agent verdict
+GET  /proof/public/:id           Public proof for sharing (share-token gated)
+GET  /backtest/stats             Per-detector + per-asset backtest stats
+GET  /backtest/signals/:id/outcomes  Outcome rows for one signal
+GET  /backtest/replay            Founding-myth replay (any repo)
+GET  /backtest/replay/halo2      Canonical halo2 replay
+GET  /stats/public               Landing-page aggregate counters (cached 30s)
+GET  /monitors                   Watchlist entries (system-curated, public)
+GET  /monitors/:id               Monitor + signal history
+GET  /orders                     Recent orders (treasury trades)
+GET  /dlq                        DLQ depth + jobs (operator surface in practice)
+GET  /health                     Verbose snapshot (DB, Redis, DLQ, memory)
+GET  /health/live                Liveness probe (k8s)
+GET  /health/ready               Readiness probe (DB + Redis)
+GET  /metrics                    Prometheus metrics
+
+# Operator (X-Admin-Key)
+GET  /admin/status               Signal counts, agent budget, treasury wallets
+POST /admin/cache/invalidate     Drop cache entries by pattern
+POST /admin/cache/invalidate-all Nuke every cache entry
 ```
+
+Full OpenAPI 3.1 spec: [`openapi.yaml`](./openapi.yaml).
+
+## BNB Hack (June 22-28 live trading window)
+
+LENITNES participates in the [Lepton Agents Hackathon](https://www.bnbchain.foundation/en/learn-DynamicPage/what-is-the-lepton-ai-hackathon) with a third trading venue: **BNB Smart Chain (testnet)**.
+
+What's new vs the Arbitrum-only stack:
+
+- **BSC chain plumbing** — `chains.bnb` in `config.ts`, BSC RPC + WBNB/PancakeSwap wiring in `services/evm/client.ts`, BSC treasury wallet row in `db/seed/treasury_wallets.sql`.
+- **CMC market context** — every above-threshold signal now carries live CoinMarketCap global metrics + Fear & Greed + asset quotes into the agent prompt (`services/cmc.ts`). The agent's rubric (v1) gained a `market_context` field.
+- **x402 pay-per-request** — optional fallback to the CMC x402 endpoint (`services/cmc-x402.ts`, USDC on Base, ~$0.01/req). Unlocks the TWAK special-prize component.
+- **TWAK self-custody signing** — BSC live trades route through the Trust Wallet Agent Kit (`services/twak.ts`) instead of direct `ethers.Wallet`. The wallet is created locally; the keys never leave the operator's machine.
+- **On-chain agent registration** — `scripts/register-bnb-hack.sh` calls `twak compete register` against the BNB Hack registry so the agent is in the live-trading leaderboard.
+
+Deployed BSC Testnet addresses (June 18):
+
+| Contract              | Address                                      |
+| --------------------- | -------------------------------------------- |
+| SignalRegistry        | `0x05177fa11543cEB73cb18883DFb49B17dc23C862` |
+| TradeExecutor         | `0xE2Ac333ad2BCD6A0389bf95a059fF576d13EbE8F` |
+| PancakeSwap V2 Router | `0xD99D1C33f9fC3444f8101754aBC46B524bA2C6BD` |
+
+See [`docs/HACKATHON_CUT.md`](./docs/HACKATHON_CUT.md) for the full BNB Hack plan and Day 1-3 pivot notes, and [DEPLOYMENT.md § Step 4b](./DEPLOYMENT.md#step-4b--deploy-contracts-to-bsc-testnet-bnb-hack) for the BSC deploy walk-through.
 
 ## Why this matters
 
