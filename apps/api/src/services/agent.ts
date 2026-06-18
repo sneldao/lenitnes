@@ -171,22 +171,24 @@ function mockScore(input: AgentInput): AgentScore {
 }
 
 export async function score(input: AgentInput, env: AgentEnv): Promise<AgentScore> {
-  // Budget check fires regardless of MOCK vs live — the daily cap is a
-  // hard ceiling on agent activity, not just API spend.
+  // Budget check is bypassed in MOCK mode — the deterministic stub
+  // costs nothing, and a developer running seed:demo or a local
+  // backtest should not need to set DAILY_AGENT_BUDGET_USD just to
+  // exercise the pipeline. The circuit-breaker behavior is still
+  // exercised by the live path (env.mock === false).
   const rubric = readRubric();
   const userContent = JSON.stringify(input);
   const prompt = `${rubric}\n\n## Input\n\n${userContent}`;
+
+  if (env.mock) {
+    const result = mockScore(input);
+    return result;
+  }
 
   resetIfNewDay();
   const estimatedUsd = estimateCost(env, prompt);
   if (dailySpendUsd + estimatedUsd > env.dailyBudgetUsd) {
     throw new AgentBudgetExceededError(dailySpendUsd, env.dailyBudgetUsd, estimatedUsd);
-  }
-
-  if (env.mock) {
-    const result = mockScore(input);
-    dailySpendUsd += estimatedUsd; // record the would-be cost
-    return result;
   }
 
   const client = new OpenAI({ apiKey: env.apiKey, baseURL: env.baseUrl });

@@ -267,7 +267,7 @@ The constraint is **time**, not engineering. The system works.
 
 **`schema validation failed — run npm run migrate`** — the API's `validateSchema()` checks that all post-pivot tables exist. Re-run the migrations.
 
-**`MOCK_AGENT=1` doesn't fire** — the agent budget check fires before the MOCK check. Set `DAILY_AGENT_BUDGET_USD=100` in `.env` to give it room.
+**`MOCK_AGENT=1` doesn't fire** — fixed in Day 13. The agent budget check is now bypassed entirely on the MOCK path (the stub costs nothing, and a developer running seed:demo or a local backtest shouldn't need DAILY_AGENT_BUDGET_USD just to exercise the pipeline). The circuit-breaker is still exercised by the live path (`MOCK_AGENT=` empty or `0`).
 
 **Telegram broadcast not posting** — verify the bot is admin in the channel. `curl https://api.telegram.org/bot<token>/getChat?chat_id=@lenitnes` should return `"ok":true`.
 

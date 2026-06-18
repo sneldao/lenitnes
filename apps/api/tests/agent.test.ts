@@ -86,9 +86,17 @@ describe('agent.score (budget cap)', () => {
     _internalResetForTests();
   });
 
-  it('throws AgentBudgetExceededError when daily budget is set below the estimate', async () => {
-    const tinyEnv = { ...mockEnv, dailyBudgetUsd: 0.0001 };
-    await expect(score(baseInput, tinyEnv)).rejects.toThrow(AgentBudgetExceededError);
+  // Budget cap only fires on the live path; MOCK mode short-circuits
+  // before the budget check (Day 13) so seed:demo and local backtests
+  // don't need DAILY_AGENT_BUDGET_USD just to exercise the pipeline.
+  it('throws AgentBudgetExceededError when daily budget is set below the estimate (live path)', async () => {
+    const liveTinyEnv = { ...mockEnv, mock: false, dailyBudgetUsd: 0.0001 };
+    await expect(score(baseInput, liveTinyEnv)).rejects.toThrow(AgentBudgetExceededError);
+  });
+
+  it('does not throw on the MOCK path regardless of daily budget', async () => {
+    const mockTinyEnv = { ...mockEnv, dailyBudgetUsd: 0.0001 };
+    await expect(score(baseInput, mockTinyEnv)).resolves.toBeDefined();
   });
 });
 
