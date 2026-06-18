@@ -38,6 +38,12 @@ services:
       dockerfile: apps/api/Dockerfile
     restart: unless-stopped
     env_file: .env
+    # Expose 8742 on the host so /health and /scorecard are reachable
+    # from the host. Coolify/Traefik would handle the public routing
+    # via the SERVICE_FQDN_API_8742 var; the direct port map is the
+    # fallback for local curl / debug / non-Coolify deploys.
+    ports:
+      - '8742:8742'
     environment:
       SERVICE_FQDN_API_8742: ${SERVICE_FQDN_API_8742:-}
       API_PORT: '8742'
