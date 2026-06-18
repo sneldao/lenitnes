@@ -1,7 +1,5 @@
 import { Router, type Request, type Response } from 'express';
 import { cacheGet, cacheSet } from '../middleware/cache.js';
-import { logger } from '../logger.js';
-import { FEATURES } from '../features.js';
 
 export const ordersRouter = Router();
 
@@ -35,15 +33,4 @@ ordersRouter.get('/', async (req: Request, res: Response) => {
   cacheSet(cacheKey, rows, 30_000);
   res.setHeader('X-Cache', 'MISS');
   res.json(rows);
-});
-
-// GET /orders/sync — disabled after pivot (per-user Kraken trading removed).
-// Re-implemented Day 5 as a treasury-facing system endpoint.
-ordersRouter.get('/sync', async (_req: Request, res: Response) => {
-  return res.status(501).json({ error: 'not_implemented_after_pivot' });
-});
-
-// POST /orders/:id/cancel — disabled after pivot.
-ordersRouter.post('/:id/cancel', async (_req: Request, res: Response) => {
-  return res.status(501).json({ error: 'not_implemented_after_pivot' });
 });

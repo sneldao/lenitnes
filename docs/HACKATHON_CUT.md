@@ -230,7 +230,6 @@ GET  /scorecard/by-watchlist-entry   → { [monitor_id]: HitStats }
 GET  /scorecard/recent?limit=N       → SignalCard[]
 GET  /signals/:id                    → public signal + thesis + agent score + outcomes + proofs
 GET  /proof/public/:id               → public proof package (exists, unchanged)
-GET  /stats/public                   → public counters (exists, unchanged)
 POST /admin/watchlist                → admin-only watchlist CRUD
 POST /admin/treasury/wallets         → admin-only wallet CRUD
 DELETE /admin/watchlist/:id

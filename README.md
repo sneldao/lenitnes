@@ -201,7 +201,6 @@ GET  /backtest/stats             Per-detector + per-asset backtest stats
 GET  /backtest/signals/:id/outcomes  Outcome rows for one signal
 GET  /backtest/replay            Founding-myth replay (any repo)
 GET  /backtest/replay/halo2      Canonical halo2 replay
-GET  /stats/public               Landing-page aggregate counters (cached 30s)
 GET  /monitors                   Watchlist entries (system-curated, public)
 GET  /monitors/:id               Monitor + signal history
 GET  /orders                     Recent orders (treasury trades)

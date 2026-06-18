@@ -13,7 +13,10 @@ info:
       • a public surface — scorecard, signals, replay, proof packages,
         public stats (no auth required)
       • an operator surface — /admin/* gated by X-Admin-Key
-      • a webhook surface — /webhooks/* for HMAC-signed callbacks
+      • a webhook surface — /webhooks/test (HMAC-signed Kraken
+        callback was removed in Day 13 when the dead code was
+        swept; the autonomous loop drives trades via treasury,
+        not via exchange webhooks)
       • infrastructure endpoints — /health, /metrics
 
     Day 1 pivot (zero-headcount): the per-user surface
@@ -386,23 +389,6 @@ paths:
                     items:
                       $ref: '#/components/schemas/ReplayVerdict'
 
-  /stats/public:
-    get:
-      tags: [Public]
-      summary: Aggregate counters for landing page
-      description: |
-        Live counts — total signals, active monitors, total orders,
-        total HCS proofs, total Arbitrum proofs, total waitlist.
-        Cached 30s.
-      security: []
-      responses:
-        '200':
-          description: Public stats
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/PublicStats'
-
   /monitors:
     get:
       tags: [Public]
@@ -672,36 +658,6 @@ paths:
                   ok: { type: boolean }
                   status: { type: integer }
                   durationMs: { type: integer }
-
-  /webhooks/kraken:
-    post:
-      tags: [Webhooks]
-      summary: Kraken order confirmation callback (HMAC-signed)
-      description: |
-        Receives Kraken order confirmations. HMAC-verified against
-        `WEBHOOK_SECRET`. Returns 503 if `WEBHOOK_SECRET` is unset.
-        (Kept as legacy surface for pre-pivot trading integrations;
-        the autonomous loop drives trades via treasury → TWAK/ethers,
-        not via Kraken.)
-      security: []
-      parameters:
-        - name: x-webhook-signature
-          in: header
-          required: true
-          schema: { type: string }
-      responses:
-        '200':
-          description: Order updated
-          content:
-            application/json:
-              schema:
-                type: object
-                properties:
-                  ok: { type: boolean }
-        '401':
-          description: Invalid signature
-        '503':
-          description: WEBHOOK_SECRET not configured
 
 components:
   securitySchemes:
@@ -1135,29 +1091,6 @@ components:
             price_after: { type: number }
             pct_change: { type: number }
             hit: { type: boolean }
-
-    # ── Stats ───────────────────────────────────────────────
-
-    PublicStats:
-      type: object
-      required:
-        - total_signals
-        - active_monitors
-        - total_orders
-        - total_proofs
-        - total_arb_proofs
-        - total_waitlist
-      properties:
-        total_signals: { type: integer }
-        active_monitors: { type: integer }
-        total_orders: { type: integer }
-        total_proofs: { type: integer, description: Signals with a Hedera tx_id }
-        total_arb_proofs: { type: integer, description: Signals with an Arbitrum tx hash }
-        total_waitlist:
-          {
-            type: integer,
-            description: Waitlist signups (deprecated surface; kept for backwards compat),
-          }
 
     # ── Admin ───────────────────────────────────────────────
 
