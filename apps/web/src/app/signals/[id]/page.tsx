@@ -772,8 +772,11 @@ export default function SignalDetailPage({ params }: { params: Promise<{ id: str
           <div className="space-y-3">
             {(signal as any).orders.map((o: any) => {
               const params = o.order_params || {};
-              const isPaper =
-                params.validate === true || String(o.kraken_order_id).startsWith('paper-');
+              // Day 5+: trades carry a 'chain' field (arbitrum | robinhood | bnb).
+              // Pre-pivot paper trades were Kraken-specific (kraken_order_id
+              // started with 'paper-'). Post-pivot, paper mode is the
+              // treasury default; check the order_params.mode instead.
+              const isPaper = params.validate === true || params.mode === 'paper';
               return (
                 <div key={o.id} className="space-y-2">
                   <div className="flex items-center justify-between">
@@ -798,9 +801,9 @@ export default function SignalDetailPage({ params }: { params: Promise<{ id: str
                       {o.status}
                     </span>
                   </div>
-                  {o.kraken_response?.mode === 'paper' && o.kraken_response?.output && (
+                  {params.mode === 'paper' && params.output && (
                     <pre className="overflow-auto rounded-lg bg-ink-light/80 p-3 font-mono text-[10px] leading-relaxed text-slate-400">
-                      {o.kraken_response.output}
+                      {params.output}
                     </pre>
                   )}
                 </div>

@@ -34,7 +34,6 @@ monitorsRouter.post('/', validate(createMonitorSchema), async (req, res) => {
     confidenceThreshold?: number;
     assetMapping?: {
       coingeckoId?: string;
-      krakenPair?: string;
       tokenizedStock?: string;
       direction?: 'long' | 'short' | 'both';
     };

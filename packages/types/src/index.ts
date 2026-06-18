@@ -5,6 +5,11 @@
 // Pivot note: User, KrakenKey, Waitlist, Rule, LeaderboardEntry,
 // HunterDetail are gone after the zero-headcount pivot. AgentScore
 // and TreasuryWallet are new. See docs/AGENT_ARCHITECTURE.md.
+//
+// Day 14: Kraken fields (Order.kraken_order_id, Order.kraken_response,
+// AssetMapping.krakenPair) were removed. Trades are chain-native
+// (chain + chain_tx_hash on Order). Price resolution is coingecko-only
+// (see services/price.ts).
 // ─────────────────────────────────────────────────────────────
 
 // ── Monitor (now a watchlist entry) ──────────────────────────
@@ -114,14 +119,12 @@ export interface Order {
   id: string;
   signal_id: string;
   rule_id: string | null; // null after pivot (rules table dropped)
-  kraken_order_id: string | null;
   order_params: Record<string, unknown>;
   status: OrderStatus;
   placed_at: string | null;
   cancelled_at: string | null;
-  kraken_response: Record<string, unknown> | null;
-  chain?: string | null;
-  chain_tx_hash?: string | null;
+  chain: string | null;
+  chain_tx_hash: string | null;
 }
 
 // ── Agent (the operator) ─────────────────────────────────────
@@ -194,7 +197,6 @@ export interface SignalClassification {
 
 export interface AssetMapping {
   coingeckoId?: string;
-  krakenPair?: string;
   tokenizedStock?: string;
   direction?: 'long' | 'short' | 'both';
 }

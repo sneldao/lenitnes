@@ -13,7 +13,7 @@ const baseAgentScore: Pick<AgentScore, 'recommended_action' | 'signal_id' | 'the
   thesis: 'Critical soundness fix',
 };
 
-const baseAssetMapping = { krakenPair: 'ZECUSD', coingeckoId: 'zcash', direction: 'long' as const };
+const baseAssetMapping = { coingeckoId: 'zcash', direction: 'long' as const };
 
 const baseTradeConfig = {
   chain: 'arbitrum' as const,
@@ -37,7 +37,7 @@ describe('treasury.deriveActionFromAgent', () => {
     const result = deriveActionFromAgent(baseAgentScore, baseAssetMapping, baseTradeConfig);
     expect(result.action).toBe('long');
     expect(result.trade?.side).toBe('long');
-    expect(result.trade?.pair).toBe('ZECUSD');
+    expect(result.trade?.pair).toBe('zcash');
     expect(result.trade?.chain).toBe('arbitrum');
     expect(result.trade?.amountIn).toBe('0.01');
     expect(result.trade?.mode).toBe('paper');
@@ -81,7 +81,7 @@ describe('treasury.deriveActionFromAgent', () => {
     expect(result.action).toBe('long');
   });
 
-  it('falls back to coingeckoId when krakenPair is missing', () => {
+  it('uses coingeckoId as the trade pair identifier', () => {
     const result = deriveActionFromAgent(
       baseAgentScore,
       { coingeckoId: 'zcash', direction: 'long' },

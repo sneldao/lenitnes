@@ -1,13 +1,12 @@
 import { query } from '../../db/pool.js';
-import { getPriceAtWindow, type PriceSource } from '../price.js';
+import { getPriceAtWindow } from '../price.js';
 import { logger } from '../../logger.js';
 import type { AssetMapping, DetectorBacktestStats, SignalOutcome } from '@lenitnes/types';
 
 const DEFAULT_WINDOWS = [3600, 14400, 86400, 604800]; // 1h, 4h, 24h, 7d
 
-function resolveAsset(mapping: AssetMapping): { id: string; source: PriceSource } | null {
-  if (mapping.coingeckoId) return { id: mapping.coingeckoId, source: 'coingecko' };
-  if (mapping.krakenPair) return { id: mapping.krakenPair, source: 'kraken' };
+function resolveAsset(mapping: AssetMapping): { id: string } | null {
+  if (mapping.coingeckoId) return { id: mapping.coingeckoId };
   return null;
 }
 
@@ -54,7 +53,7 @@ export async function processSignalOutcomes(
 
     for (const windowSec of windows) {
       try {
-        const result = await getPriceAtWindow(asset.id, signalTime, windowSec, asset.source);
+        const result = await getPriceAtWindow(asset.id, signalTime, windowSec);
         if (!result) continue;
 
         const pctChange = ((result.afterWindow - result.atSignal) / result.atSignal) * 100;

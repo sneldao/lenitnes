@@ -1,23 +1,22 @@
 import type { AssetMapping } from '@lenitnes/types';
 
 const REPO_ASSET_MAP: Record<string, AssetMapping> = {
-  'zcash/zcash': { coingeckoId: 'zcash', krakenPair: 'ZECUSD', direction: 'both' },
-  'zcash/halo2': { coingeckoId: 'zcash', krakenPair: 'ZECUSD', direction: 'both' },
-  'zcash/librustzcash': { coingeckoId: 'zcash', krakenPair: 'ZECUSD', direction: 'both' },
-  'bitcoin/bitcoin': { coingeckoId: 'bitcoin', krakenPair: 'XBTUSD', direction: 'both' },
-  'bitcoin-core/secp256k1': { coingeckoId: 'bitcoin', krakenPair: 'XBTUSD', direction: 'both' },
-  'ethereum/go-ethereum': { coingeckoId: 'ethereum', krakenPair: 'ETHUSD', direction: 'both' },
-  'ethereum/solidity': { coingeckoId: 'ethereum', krakenPair: 'ETHUSD', direction: 'both' },
-  'ethereum/evmone': { coingeckoId: 'ethereum', krakenPair: 'ETHUSD', direction: 'both' },
-  'solana-labs/solana': { coingeckoId: 'solana', krakenPair: 'SOLUSD', direction: 'both' },
-  'anza-xyz/agave': { coingeckoId: 'solana', krakenPair: 'SOLUSD', direction: 'both' },
-  'cosmos/cosmos-sdk': { coingeckoId: 'cosmos', krakenPair: 'ATOMUSD', direction: 'both' },
-  'tendermint/tendermint': { coingeckoId: 'cosmos', krakenPair: 'ATOMUSD', direction: 'both' },
-  'polkadot-js/api': { coingeckoId: 'polkadot', krakenPair: 'DOTUSD', direction: 'both' },
-  'paritytech/polkadot-sdk': { coingeckoId: 'polkadot', krakenPair: 'DOTUSD', direction: 'both' },
+  'zcash/zcash': { coingeckoId: 'zcash', direction: 'both' },
+  'zcash/halo2': { coingeckoId: 'zcash', direction: 'both' },
+  'zcash/librustzcash': { coingeckoId: 'zcash', direction: 'both' },
+  'bitcoin/bitcoin': { coingeckoId: 'bitcoin', direction: 'both' },
+  'bitcoin-core/secp256k1': { coingeckoId: 'bitcoin', direction: 'both' },
+  'ethereum/go-ethereum': { coingeckoId: 'ethereum', direction: 'both' },
+  'ethereum/solidity': { coingeckoId: 'ethereum', direction: 'both' },
+  'ethereum/evmone': { coingeckoId: 'ethereum', direction: 'both' },
+  'solana-labs/solana': { coingeckoId: 'solana', direction: 'both' },
+  'anza-xyz/agave': { coingeckoId: 'solana', direction: 'both' },
+  'cosmos/cosmos-sdk': { coingeckoId: 'cosmos', direction: 'both' },
+  'tendermint/tendermint': { coingeckoId: 'cosmos', direction: 'both' },
+  'polkadot-js/api': { coingeckoId: 'polkadot', direction: 'both' },
+  'paritytech/polkadot-sdk': { coingeckoId: 'polkadot', direction: 'both' },
   'cardano-foundation/cardano-wallet': {
     coingeckoId: 'cardano',
-    krakenPair: 'ADAUSD',
     direction: 'both',
   },
 
@@ -31,16 +30,15 @@ const REPO_ASSET_MAP: Record<string, AssetMapping> = {
   'nicklockwood/swiftformat': { tokenizedStock: 'AAPL', direction: 'long' },
   'chromium/chromium': { tokenizedStock: 'GOOG', direction: 'long' },
 
-  'uniswap/v3-core': { coingeckoId: 'uniswap', krakenPair: 'UNIUSD', direction: 'both' },
-  'uniswap/v4-core': { coingeckoId: 'uniswap', krakenPair: 'UNIUSD', direction: 'both' },
-  'aave/aave-v3-core': { coingeckoId: 'aave', krakenPair: 'AAVEUSD', direction: 'both' },
+  'uniswap/v3-core': { coingeckoId: 'uniswap', direction: 'both' },
+  'uniswap/v4-core': { coingeckoId: 'uniswap', direction: 'both' },
+  'aave/aave-v3-core': { coingeckoId: 'aave', direction: 'both' },
   'compound-finance/compound-protocol': {
     coingeckoId: 'compound-governance-token',
-    krakenPair: 'COMPUSD',
     direction: 'both',
   },
-  'makerdao/dss': { coingeckoId: 'maker', krakenPair: 'MKRUSD', direction: 'both' },
-  'lido/lido-dao': { coingeckoId: 'lido-dao', krakenPair: 'LDOUSD', direction: 'both' },
+  'makerdao/dss': { coingeckoId: 'maker', direction: 'both' },
+  'lido/lido-dao': { coingeckoId: 'lido-dao', direction: 'both' },
 };
 
 function normalizeRepoKey(url: string): string {

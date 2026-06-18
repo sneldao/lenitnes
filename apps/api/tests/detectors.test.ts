@@ -256,7 +256,7 @@ describe('detectAssetMapping', () => {
     const mapping = detectAssetMapping('https://github.com/zcash/zcash');
     expect(mapping).not.toBeNull();
     expect(mapping!.coingeckoId).toBe('zcash');
-    expect(mapping!.krakenPair).toBe('ZECUSD');
+    expect(mapping!.direction).toBe('both');
   });
 
   it('maps ethereum repo to ETH', () => {

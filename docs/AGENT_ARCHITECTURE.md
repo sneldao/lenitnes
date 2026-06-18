@@ -100,13 +100,13 @@ A v2 swap is infrastructure-free: a new file + bump the import.
 
 Phase 1 seeds 5 watchlist rows:
 
-| Symbol | URL                                      | Condition                                                  | asset_mapping                                     |
-| ------ | ---------------------------------------- | ---------------------------------------------------------- | ------------------------------------------------- |
-| ZEC    | github.com/zcash/halo2/releases          | consensus-critical / emergency patch / mainnet-upgrade tag | { coingeckoId: "zcash", krakenPair: "ZECUSD" }    |
-| BTC    | github.com/bitcoin/bitcoin/releases      | consensus-critical / emergency patch                       | { coingeckoId: "bitcoin", krakenPair: "XBTUSD" }  |
-| ETH    | github.com/ethereum/go-ethereum/releases | consensus-critical / emergency patch / hard-fork tag       | { coingeckoId: "ethereum", krakenPair: "ETHUSD" } |
-| SOL    | github.com/solana-labs/solana/releases   | consensus-critical / emergency patch                       | { coingeckoId: "solana", krakenPair: "SOLUSD" }   |
-| ARB    | github.com/OffchainLabs/nitro/releases   | consensus-critical / emergency patch                       | { coingeckoId: "arbitrum" }                       |
+| Symbol | URL                                      | Condition                                                  | asset_mapping               |
+| ------ | ---------------------------------------- | ---------------------------------------------------------- | --------------------------- |
+| ZEC    | github.com/zcash/halo2/releases          | consensus-critical / emergency patch / mainnet-upgrade tag | { coingeckoId: "zcash" }    |
+| BTC    | github.com/bitcoin/bitcoin/releases      | consensus-critical / emergency patch                       | { coingeckoId: "bitcoin" }  |
+| ETH    | github.com/ethereum/go-ethereum/releases | consensus-critical / emergency patch / hard-fork tag       | { coingeckoId: "ethereum" } |
+| SOL    | github.com/solana-labs/solana/releases   | consensus-critical / emergency patch                       | { coingeckoId: "solana" }   |
+| ARB    | github.com/OffchainLabs/nitro/releases   | consensus-critical / emergency patch                       | { coingeckoId: "arbitrum" } |
 
 Five rows because: ZEC is the founding-myth asset; BTC/ETH/SOL give
 breadth; ARB ties to the on-chain proof chain. The agent's first
@@ -165,3 +165,58 @@ KNOWS NOTHING ABOUT: Telegram, trading, the rest of the loop.
 The integration lives in `loop.ts`, between the detector pass and
 post-commit, not inside `agent.ts`. The module boundary is enforced
 by the type signature, not by lint rules.
+
+---
+
+## Day 14: Kraken integration fully removed
+
+The Day 1 zero-headcount pivot removed Kraken from the trading
+path (it had been a per-user exchange API). The Day 12 commits
+(060a17d) removed the Kraken CLI download from the api
+Dockerfile. Day 14 completes the removal:
+
+- `apps/api/src/services/kraken.ts` (211 lines) — Kraken REST
+  client (addOrder, getBalance, queryOrders, sign) — deleted.
+- `apps/api/src/mcp/kraken-server.ts` (86 lines) — MCP server
+  exposing Kraken as MCP tools — deleted.
+- `apps/api/src/validation/kraken.schema.ts` — zod schemas
+  for Kraken config (krakenConfigSchema, testTradeSchema) — deleted.
+- `apps/api/src/services/price.ts` — Kraken OHLC backend
+  (getKrakenPriceAt) deleted; PriceSource reduced to coingecko-only.
+- `apps/api/src/services/evm/venue.ts` — Venue reduced from
+  ('kraken' | 'arbitrum' | 'robinhood') to ('arbitrum' | 'robinhood').
+- `apps/api/src/services/treasury.ts` — deriveActionFromAgent
+  no longer reads assetMapping.krakenPair.
+- `packages/types/src/index.ts` — Order.kraken_order_id and
+  Order.kraken_response fields removed; AssetMapping.krakenPair removed.
+- `apps/api/src/validation/monitor.schema.ts` —
+  assetMapping.krakenPair zod field removed.
+- `apps/api/src/routes/orders.ts` — kraken_order_id, kraken_response
+  dropped from the GET /orders SELECT.
+- `apps/web/src/app/signals/[id]/page.tsx` — order rendering
+  switched from `o.kraken_order_id.startsWith('paper-')` to
+  `params.mode === 'paper'` (the post-pivot paper-mode flag).
+- `apps/web/src/app/layout.tsx` — metadata description
+  reworded; footer tech strip changed from
+  Hedera / TinyFish / Grove / Kraken to
+  Hedera / CMC / TWAK / x402.
+- `apps/api/package.json` — `mcp` script (pointed at the deleted
+  server) and `@modelcontextprotocol/sdk` dep removed.
+
+What did NOT change:
+
+- `db/schema.sql` still has `kraken_order_id` and `kraken_response`
+  columns on the `orders` table. Historical rows reference them.
+  The TypeScript layer no longer fetches or writes them; a future
+  migration could drop the columns if the historical data isn't
+  needed.
+- The db seed files (`db/seed/watchlist.sql`,
+  `db/seed/treasury_wallets.sql`) — out of scope for this commit.
+- `db/migrations/003_pivot.sql` and earlier — historical record,
+  intentionally left untouched.
+
+The architectural narrative now matches the code: there is no
+Kraken anywhere in the runtime path. Trades are chain-native
+(Arbitrum / Robinhood / BSC), self-custody (TWAK on BSC) or
+operator-key (ethers on Arbitrum / RH), and the price oracle is
+CoinGecko only.

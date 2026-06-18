@@ -19,8 +19,8 @@ ordersRouter.get('/', async (req: Request, res: Response) => {
   const { query } = await import('../db/pool.js');
   const { rows } = await query(
     `SELECT
-       o.id, o.kraken_order_id, o.order_params, o.status,
-       o.placed_at, o.cancelled_at, o.kraken_response,
+       o.id, o.order_params, o.status,
+       o.placed_at, o.cancelled_at,
        s.id as signal_id, s.detected_at,
        m.id as monitor_id, m.url as monitor_url
      FROM orders o

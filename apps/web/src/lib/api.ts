@@ -62,7 +62,6 @@ export const api = {
     confidenceThreshold?: number;
     assetMapping?: {
       coingeckoId?: string;
-      krakenPair?: string;
       tokenizedStock?: string;
       direction?: 'long' | 'short' | 'both';
     };
@@ -89,12 +88,10 @@ export const api = {
     req<
       Array<{
         id: string;
-        kraken_order_id: string | null;
         order_params: Record<string, unknown>;
         status: string;
         placed_at: string | null;
         cancelled_at: string | null;
-        kraken_response: Record<string, unknown> | null;
         signal_id: string;
         detected_at: string;
         monitor_id: string;

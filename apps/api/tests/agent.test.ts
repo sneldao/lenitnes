@@ -22,7 +22,7 @@ const baseInput: AgentInput = {
       metadata: { patch: 'abc123' },
     },
   ],
-  asset_mapping: { coingeckoId: 'zcash', krakenPair: 'ZECUSD', direction: 'long' },
+  asset_mapping: { coingeckoId: 'zcash', direction: 'long' },
   evidence_text: 'A critical soundness bug was just merged into the halo2 proving system.',
   condition_summary: 'critical soundness bug fix in halo2',
   precedent_count: 3,

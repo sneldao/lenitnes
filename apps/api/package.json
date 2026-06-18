@@ -10,7 +10,6 @@
     "build": "tsc -p tsconfig.json",
     "start": "node dist/index.js",
     "worker": "tsx src/worker.ts",
-    "mcp": "tsx src/mcp/kraken-server.ts",
     "migrate": "tsx src/db/migrate.ts",
     "migrate:followup": "tsx src/db/migrate-followup.ts",
     "seed:demo": "tsx src/seed/demo.ts",
@@ -20,7 +19,6 @@
   "dependencies": {
     "@hashgraph/sdk": "2.80.0",
     "@lenitnes/types": "*",
-    "@modelcontextprotocol/sdk": "^1.29.0",
     "@x402/axios": "^2.15.0",
     "@x402/evm": "^2.15.0",
     "bullmq": "^5.52.0",

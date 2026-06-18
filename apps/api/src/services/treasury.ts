@@ -184,7 +184,7 @@ export async function signAndSend(action: TradeAction): Promise<TradeReceipt> {
  */
 export function deriveActionFromAgent(
   agentScore: Pick<AgentScore, 'recommended_action' | 'signal_id' | 'thesis'>,
-  assetMapping: Pick<AssetMapping, 'krakenPair' | 'coingeckoId' | 'direction'>,
+  assetMapping: Pick<AssetMapping, 'coingeckoId' | 'direction'>,
   config: {
     chain: Chain;
     mode: TradeMode;
@@ -205,7 +205,7 @@ export function deriveActionFromAgent(
   if (wantsShort && !allowShort) return { action: 'none' };
 
   const side = wantsLong ? 'long' : 'short';
-  const pair = assetMapping.krakenPair ?? assetMapping.coingeckoId ?? 'unknown';
+  const pair = assetMapping.coingeckoId ?? 'unknown';
 
   return {
     action: side,
@@ -229,8 +229,11 @@ export function deriveActionFromAgent(
  *   - live:  'filled' once executeEvmTrade returns a receipt with
  *     a non-empty txHash; 'failed' if the call throws
  *
- * chain_tx_hash is the canonical on-chain reference. The kraken_*
- * columns stay null — Kraken is a future path, not the current one.
+ * chain_tx_hash is the canonical on-chain reference (Arbitrum /
+ * Robinhood / BSC). The legacy `kraken_*` columns on the orders
+ * table stay null — Day 14 removed them from the TypeScript
+ * layer; the DB columns remain for historical rows but are
+ * never written to.
  */
 export async function recordTrade(
   signalId: string,

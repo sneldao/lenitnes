@@ -17,7 +17,6 @@ export const createMonitorSchema = z.object({
   assetMapping: z
     .object({
       coingeckoId: z.string().optional(),
-      krakenPair: z.string().optional(),
       tokenizedStock: z.string().optional(),
       direction: z.enum(['long', 'short', 'both']).optional(),
     })

@@ -135,7 +135,7 @@ app.get('/backtest/stats', async (req, res) => {
 });
 app.use('/monitors', monitorsRouter);
 app.use('/signals', signalsRouter);
-app.use('/webhooks', webhooksRouter); // Kraken callbacks — use separate HMAC auth
+app.use('/webhooks', webhooksRouter); // HMAC-signed callbacks for the /webhooks/test utility
 app.use('/orders', ordersRouter);
 app.use('/dlq', dlqRouter);
 app.use('/backtest', backtestRouter);
