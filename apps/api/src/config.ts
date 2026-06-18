@@ -33,7 +33,13 @@ export const config = {
   port: Number(process.env.API_PORT ?? 4000),
   webOrigin: process.env.WEB_ORIGIN ?? 'http://localhost:3000',
 
-  databaseUrl: process.env.DATABASE_URL || databaseUrlFromPgVars(),
+  // If POSTGRES_HOST is set (docker-compose sets it to 'db'),
+  // build the URL from individual vars so the container connects
+  // to the docker network's db service. Otherwise use DATABASE_URL
+  // (host's local URL or fallback).
+  databaseUrl: process.env.POSTGRES_HOST
+    ? databaseUrlFromPgVars()
+    : process.env.DATABASE_URL || databaseUrlFromPgVars(),
 
   hedera: {
     network: process.env.HEDERA_NETWORK ?? 'testnet',
