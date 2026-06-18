@@ -1,1189 +1,390 @@
 'use client';
 
-import { useState, useMemo, useEffect } from 'react';
+import { useQuery } from '@tanstack/react-query';
 import Link from 'next/link';
-import { useRouter } from 'next/navigation';
-import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { api, type Monitor, type Signal } from '@/lib/api';
-import { useToast } from '@/components/Toast';
-import { useAuth } from '@/lib/useAuth';
-import { useReveal } from '@/lib/useReveal';
-import { burnRate, statusColor } from '@/lib/format';
-import { COPY, hostnameFromUrl } from '@/lib/copy';
-import { ConfirmDialog } from '@/components/ConfirmDialog';
 import {
+  ArrowUpRight,
+  GitCommit,
+  Sparkles,
+  TrendingUp,
   Activity,
   Shield,
   Zap,
-  Eye,
-  Clock,
-  Wallet,
-  Play,
-  ChevronRight,
-  X,
-  BarChart3,
-  GitCommit,
-  Bell,
-  Sparkles,
+  Target,
+  Layers,
+  ExternalLink,
 } from 'lucide-react';
+import { api, type ScorecardResponse } from '@/lib/api';
 
-import {
-  AreaChart,
-  Area,
-  XAxis,
-  YAxis,
-  CartesianGrid,
-  Tooltip as RechartsTooltip,
-  ResponsiveContainer,
-} from 'recharts';
+// ─────────────────────────────────────────────────────────────
+// LENITNES landing — the public surface.
+//
+// Music-publication + record-store aesthetic. Cream/ink/rust.
+// Fraunces (display) + JetBrains Mono (technical). No card-heavy
+// layouts. Atmospheric noise. Orchestrated motion.
+// Day 12: full rewrite, was a 1180-line SaaS dashboard.
+// ─────────────────────────────────────────────────────────────
 
-// Stub: real wallet integration removed after pivot. Agent is the operator.
-function useWallet() {
-  return {
-    isConnected: true,
-    accountId: null as string | null,
-    connect: async () => {},
-    disconnect: () => {},
-    executeWithPayment: (url: string, init?: RequestInit) => fetch(url, init),
-  };
-}
+const REVEAL_CLASS = 'reveal in-view';
 
-import CinematicHero from '@/components/landing/CinematicHero';
-import ProofChainLive from '@/components/landing/ProofChainLive';
-import StoryTimeline from '@/components/landing/StoryTimeline';
-import SocialProof from '@/components/landing/SocialProof';
-import BacktestProof from '@/components/landing/BacktestProof';
-import InteractiveDemo from '@/components/landing/InteractiveDemo';
-import LiveCounterBar from '@/components/landing/LiveCounterBar';
-import { OnboardingWizard } from '@/components/onboarding/OnboardingWizard';
-import { ActivityFeed } from '@/components/ActivityFeed';
-import { MonitorSparkline } from '@/components/MonitorSparkline';
-
-type TemplateSelection = {
-  url: string;
-  condition: string;
-  frequency: number;
-};
-
-function categoryColor(url: string): string {
-  if (url.includes('github.com')) return 'border-l-violet';
-  if (url.includes('status.')) return 'border-l-warn';
-  if (url.includes('docs.') || url.includes('hedera.com')) return 'border-l-signal';
-  if (url.includes('sec.gov')) return 'border-l-danger';
-  return 'border-l-accent';
-}
-
-type SortKey = 'newest' | 'balance' | 'daysLeft';
-type FilterStatus = 'all' | 'active' | 'triggered' | 'paused' | 'insufficient_balance';
-
-// ─── Burn Bar ───
-
-function BurnBar({ balance, daysLeft }: { balance: number; daysLeft: number }) {
-  const pct = Math.min(100, Math.max(0, (daysLeft / 30) * 100));
-  const color = daysLeft > 14 ? 'bg-signal' : daysLeft > 5 ? 'bg-warn' : 'bg-danger';
+export default function LandingPage() {
   return (
-    <div className="space-y-1.5">
-      <div className="h-1.5 overflow-hidden rounded-full bg-edge/60">
-        <div
-          className={`h-full rounded-full ${color} transition-all duration-500`}
-          style={{ width: `${pct}%` }}
-        />
-      </div>
-      <div className="flex items-center justify-between text-[10px]">
-        <span className="text-slate-500">{COPY.funding.staked(balance)}</span>
-        <span className="font-medium text-slate-400">
-          {Number.isFinite(daysLeft)
-            ? daysLeft < 1
-              ? `${(daysLeft * 24).toFixed(1)}h remaining`
-              : `${daysLeft.toFixed(0)}d remaining`
-            : '∞'}
-        </span>
-      </div>
-    </div>
-  );
-}
-
-// ─── Monitor Card (redesigned for scanability) ───
-
-function MonitorCard({
-  monitor,
-  executing,
-  isConnected,
-  onExecute,
-  onDelete,
-  latestSignal,
-  signalCount,
-  allSignals,
-}: {
-  monitor: Monitor;
-  executing: boolean;
-  isConnected: boolean;
-  onExecute: (id: string) => void;
-  onDelete: (id: string) => void;
-  latestSignal?: { id: string; detected_at: string; viewed_at?: string | null } | null;
-  signalCount?: number;
-  allSignals: Signal[];
-}) {
-  const { perDay, daysLeft, checksRemaining } = burnRate(monitor);
-  const bal = Number(monitor.hbar_balance);
-  const cost = Number(monitor.cost_per_check);
-  const isFunded = bal > 0 && checksRemaining > 0;
-  const isLowFunds = isFunded && checksRemaining < 5;
-  const cat = categoryColor(monitor.url);
-  const isCodeSignal = monitor.url.includes('github.com');
-  const [expanded, setExpanded] = useState(false);
-  const canExecute = isConnected && monitor.status !== 'paused';
-  const host = hostnameFromUrl(monitor.url);
-
-  // ── Countdown timer for low-balance monitors ──
-  const [countdown, setCountdown] = useState('');
-  useEffect(() => {
-    if (!isFunded || checksRemaining >= 5) {
-      setCountdown('');
-      return;
-    }
-    function tick() {
-      const secondsLeft = checksRemaining * monitor.frequency_seconds;
-      setCountdown(COPY.monitor.expiresIn(secondsLeft));
-    }
-    tick();
-    const id = setInterval(tick, 60_000);
-    return () => clearInterval(id);
-  }, [isFunded, checksRemaining, monitor.frequency_seconds]);
-
-  // ── Next check countdown (active monitors) ──
-  const [nextCheckIn, setNextCheckIn] = useState('');
-  useEffect(() => {
-    if (!isFunded || monitor.status !== 'active' || !monitor.last_check_at) {
-      setNextCheckIn('');
-      return;
-    }
-    function tick() {
-      const lastMs = new Date(monitor.last_check_at!).getTime();
-      const nextMs = lastMs + monitor.frequency_seconds * 1000;
-      const diffSec = Math.max(0, Math.round((nextMs - Date.now()) / 1000));
-      if (diffSec === 0) {
-        setNextCheckIn('checking now…');
-        return;
-      }
-      const m = Math.floor(diffSec / 60);
-      const s = diffSec % 60;
-      setNextCheckIn(m > 0 ? `next check ~${m}m` : `next check ~${s}s`);
-    }
-    tick();
-    const id = setInterval(tick, 10_000);
-    return () => clearInterval(id);
-  }, [isFunded, monitor.status, monitor.last_check_at, monitor.frequency_seconds]);
-
-  // ── Time since inactive (loss aversion) ──
-  const darkFor = useMemo(() => {
-    if (isFunded || !monitor.last_check_at) return '';
-    const ms = Date.now() - new Date(monitor.last_check_at).getTime();
-    const h = Math.floor(ms / 3_600_000);
-    const m = Math.floor((ms % 3_600_000) / 60_000);
-    if (h > 0) return `Dark for ${h}h ${m}m — top up to resume`;
-    if (m > 0) return `Dark for ${m}m — top up to resume`;
-    return 'Just went dark — top up to resume';
-  }, [isFunded, monitor.last_check_at]);
-
-  return (
-    <div
-      className={`group relative overflow-hidden rounded-xl border border-edge/50 bg-ink-light/60 p-5 transition-all duration-300 border-l-2 ${cat}
-        hover:border-edge-light/60 hover:bg-ink-light/80`}
-    >
-      {/* Scan-line shimmer on hover */}
-      <div className="pointer-events-none absolute inset-0 opacity-0 group-hover:opacity-100 transition-opacity duration-500">
-        <div className="absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-accent/30 to-transparent" />
-      </div>
-
-      {/* Terminal header row */}
-      <button
-        onClick={() => setExpanded((v) => !v)}
-        className="w-full text-left"
-        aria-expanded={expanded}
-      >
-        <div className="flex items-start justify-between gap-3">
-          <div className="min-w-0 flex-1">
-            <div className="flex items-center gap-2">
-              {monitor.status === 'active' && (
-                <span className="relative flex h-2 w-2 shrink-0">
-                  <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-signal opacity-60" />
-                  <span className="relative inline-flex h-2 w-2 rounded-full bg-signal" />
-                </span>
-              )}
-              <p className="truncate font-mono text-xs font-medium text-slate-400 group-hover:text-slate-300">
-                {monitor.url.replace(/^https?:\/\//, '')}
-              </p>
-              {isCodeSignal && (
-                <span className="badge shrink-0 bg-violet-500/10 text-violet-400">
-                  <GitCommit className="h-2.5 w-2.5" /> Code
-                </span>
-              )}
-            </div>
-            <p className="mt-1.5 line-clamp-2 text-sm font-medium text-slate-200 leading-snug">
-              {monitor.condition_text}
-            </p>
+    <main className="min-h-screen bg-cream text-ink bg-noise">
+      <div className="mx-auto max-w-5xl px-6 py-12 sm:py-20">
+        {/* ── Hero — the founding myth as the lede ── */}
+        <header className="mb-24 sm:mb-32">
+          <p className="mb-4 font-mono text-[10px] uppercase tracking-[0.25em] text-rust">
+            An autonomous AI intelligence operation · 2026
+          </p>
+          <h1 className="font-display text-5xl font-medium leading-[1.05] tracking-tight text-ink sm:text-7xl lg:text-8xl">
+            The agent
+            <br />
+            <em className="not-italic text-rust">would have caught</em>
+            <br />
+            <span className="text-ink">halo2.</span>
+          </h1>
+          <p className="mt-8 max-w-2xl font-mono text-sm leading-relaxed text-ink/70">
+            In April 2022, a critical soundness fix landed in the ZCash halo2 proving system — the
+            cryptographic primitive that backs ZEC's shielded transactions. The commit was public
+            for four days before the market noticed. ZEC then dropped 50%. The signals were public
+            the whole time.
+          </p>
+          <div className="mt-10 flex flex-wrap items-center gap-3">
+            <Link
+              href="/case-study/halo2"
+              className="group inline-flex items-center gap-2 rounded-sm bg-ink px-6 py-3 font-mono text-xs uppercase tracking-wider text-cream transition-colors hover:bg-rust"
+            >
+              Read the replay
+              <ArrowUpRight className="h-3.5 w-3.5 transition-transform group-hover:translate-x-0.5" />
+            </Link>
+            <Link
+              href="/scorecard"
+              className="inline-flex items-center gap-2 rounded-sm border border-ink/30 bg-cream px-6 py-3 font-mono text-xs uppercase tracking-wider text-ink transition-colors hover:border-ink hover:bg-ink/5"
+            >
+              Live scorecard
+            </Link>
           </div>
-          <span className={`badge shrink-0 ${statusColor(monitor.status)}`}>
-            {COPY.monitor.statusLabel(monitor.status)}
-          </span>
-        </div>
-      </button>
+        </header>
 
-      {/* Funding strip */}
-      <div className="mt-4 flex items-end gap-4">
-        {!isFunded ? (
-          <div className="flex-1">
-            <p className="font-mono text-2xl font-bold text-danger">DARK</p>
-            <p className="text-[10px] text-danger/70 mt-0.5">
-              {darkFor || COPY.monitor.inactive(0)}
-            </p>
-          </div>
-        ) : (
-          <>
-            <div className="shrink-0">
-              <p
-                className={`font-mono text-4xl font-bold tabular-nums leading-none ${isLowFunds ? 'text-warn' : 'text-signal'}`}
+        {/* ── Track record — live numbers from the scorecard ── */}
+        <section className={`mb-24 sm:mb-32 ${REVEAL_CLASS}`}>
+          <SectionLabel number="01" label="The track record" />
+          <h2 className="mb-10 max-w-2xl font-display text-3xl font-medium leading-tight text-ink sm:text-4xl">
+            The public scorecard says
+            <span className="italic"> everything</span>.
+          </h2>
+          <TrackRecordStrip />
+          <p className="mt-6 max-w-prose font-mono text-xs leading-relaxed text-ink/50">
+            Every signal the agent has scored. Every trade the treasury has recorded. Every price
+            outcome at T+1h, T+1d, and T+7d. The system cannot misremember its own performance — the
+            receipts are on-chain, the scorecard is computed from the same tables, and the cache is
+            invalidated on every new signal.
+          </p>
+        </section>
+
+        {/* ── How it works — the 6-step loop ── */}
+        <section className={`mb-24 sm:mb-32 ${REVEAL_CLASS}`}>
+          <SectionLabel number="02" label="How it works" />
+          <h2 className="mb-12 max-w-2xl font-display text-3xl font-medium leading-tight text-ink sm:text-4xl">
+            One loop.
+            <br />
+            <span className="italic text-rust">No human input.</span>
+          </h2>
+          <ol className="space-y-8">
+            {LOOP_STEPS.map((step, i) => (
+              <li
+                key={i}
+                className="grid grid-cols-[auto_1fr] gap-6 border-t border-ink/15 pt-8 first:border-t-0 first:pt-0"
               >
-                {checksRemaining}
-              </p>
-              <p className="mt-1 text-[10px] text-slate-600 uppercase tracking-wider">
-                {isLowFunds ? 'checks left ⚠' : 'checks left'}
-              </p>
-            </div>
-            <div className="flex-1 space-y-2">
-              {/* Sparkline */}
-              <MonitorSparkline monitorId={monitor.id} signals={allSignals} />
-              {/* Burn progress */}
-              <div className="h-0.5 w-full overflow-hidden rounded-full bg-edge/60">
-                <div
-                  className={`h-full rounded-full transition-all duration-500 ${
-                    (daysLeft / 30) * 100 > 50
-                      ? 'bg-signal'
-                      : (daysLeft / 30) * 100 > 20
-                        ? 'bg-warn'
-                        : 'bg-danger'
-                  }`}
-                  style={{ width: `${Math.min(100, Math.max(0, (daysLeft / 30) * 100))}%` }}
-                />
-              </div>
-              <div className="grid grid-cols-3 gap-1">
-                {[
-                  { v: `${Number(monitor.hbar_balance).toFixed(1)} ℏ`, l: 'staked' },
-                  { v: `${perDay.toFixed(2)}/d`, l: 'burn' },
-                  {
-                    v:
-                      monitor.frequency_seconds >= 3600
-                        ? `${(monitor.frequency_seconds / 3600).toFixed(0)}h`
-                        : `${(monitor.frequency_seconds / 60).toFixed(0)}m`,
-                    l: 'interval',
-                  },
-                ].map(({ v, l }) => (
-                  <div key={l}>
-                    <p className="font-mono text-xs font-semibold text-slate-300">{v}</p>
-                    <p className="text-[9px] uppercase tracking-widest text-slate-600">{l}</p>
-                  </div>
-                ))}
-              </div>
-            </div>
-          </>
-        )}
-      </div>
-
-      {countdown && <p className="mt-2 font-mono text-[10px] text-warn">{countdown}</p>}
-
-      {latestSignal && !latestSignal.viewed_at && (
-        <Link
-          href={`/signals/${latestSignal.id}`}
-          className="mt-4 flex items-center gap-2 rounded-lg border border-accent/25 bg-accent/5 px-3 py-2.5 text-xs transition-all hover:border-accent/40 hover:bg-accent/10"
-        >
-          <Sparkles className="h-3.5 w-3.5 shrink-0 text-accent" />
-          <div className="min-w-0 flex-1">
-            <p className="font-semibold text-accent">{COPY.signals.detected(host).headline}</p>
-            <p className="truncate text-slate-400">{COPY.signals.detected(host).cta}</p>
-          </div>
-          <ChevronRight className="h-3.5 w-3.5 shrink-0 text-accent/50" />
-        </Link>
-      )}
-
-      {expanded && (
-        <div className="mt-4 space-y-3 border-t border-edge/40 pt-4">
-          <p className="text-xs leading-relaxed text-slate-400">{monitor.condition_text}</p>
-          <div className="grid grid-cols-2 gap-x-4 gap-y-2 font-mono text-[11px]">
-            {[
-              ['Sensitivity', `${monitor.confidence_threshold}/100`],
-              ['Cost/check', COPY.funding.perCheck(Number(monitor.cost_per_check))],
-              ['Public', monitor.is_public ? 'Yes' : 'No'],
-              ['Signals', String(signalCount ?? 0)],
-            ].map(([l, v]) => (
-              <div key={l}>
-                <span className="text-slate-600">{l} </span>
-                <span className="text-slate-300">{v}</span>
-              </div>
+                <div className="font-mono text-3xl font-light text-rust sm:text-4xl">
+                  {String(i + 1).padStart(2, '0')}
+                </div>
+                <div>
+                  <h3 className="mb-2 font-display text-xl font-medium text-ink">{step.title}</h3>
+                  <p className="font-mono text-sm leading-relaxed text-ink/70">{step.body}</p>
+                </div>
+              </li>
             ))}
-          </div>
-        </div>
-      )}
+          </ol>
+        </section>
 
-      <div className="mt-4 flex items-center justify-between">
-        <div className="flex items-center gap-2 font-mono text-[10px] text-slate-600">
-          <Clock className="h-3 w-3 shrink-0" />
-          {monitor.last_check_at
-            ? new Date(monitor.last_check_at).toLocaleString(undefined, {
-                month: 'short',
-                day: 'numeric',
-                hour: '2-digit',
-                minute: '2-digit',
-              })
-            : 'no checks yet'}
-          {nextCheckIn && <span className="text-signal/70">· {nextCheckIn}</span>}
-        </div>
-        <div className="flex items-center gap-1">
-          <button
-            onClick={(e) => {
-              e.stopPropagation();
-              onDelete(monitor.id);
-            }}
-            className="rounded px-2 py-1.5 text-[10px] text-slate-600 transition-colors hover:text-danger cursor-pointer"
-          >
-            <X className="h-3.5 w-3.5" />
-          </button>
-          <button
-            onClick={(e) => {
-              e.stopPropagation();
-              onExecute(monitor.id);
-            }}
-            disabled={executing || !canExecute}
-            title={!isConnected ? COPY.errors.noWallet : COPY.monitor.actions.executeSubtitle}
-            className="flex items-center gap-1.5 rounded-lg border border-accent/20 bg-accent/8 px-3 py-1.5 font-mono text-[10px] font-semibold text-accent transition-all hover:border-accent/40 hover:bg-accent/15 active:scale-95 disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer"
-          >
-            {executing ? (
-              <span className="animate-pulse">running…</span>
-            ) : (
-              <>
-                <Play className="h-3 w-3" /> run
-              </>
-            )}
-          </button>
-        </div>
+        {/* ── The case study — the founding myth ── */}
+        <section className={`mb-24 sm:mb-32 ${REVEAL_CLASS}`}>
+          <SectionLabel number="03" label="The case study" />
+          <div className="grid gap-10 lg:grid-cols-[1.4fr_1fr]">
+            <div>
+              <h2 className="mb-6 font-display text-3xl font-medium leading-tight text-ink sm:text-4xl">
+                The 2022-04-15 commit
+                <br />
+                <span className="italic text-rust">the model scored at 92.</span>
+              </h2>
+              <p className="mb-4 font-mono text-sm leading-relaxed text-ink/70">
+                The fix landed as{' '}
+                <code className="rounded bg-ink/5 px-1.5 py-0.5 font-mono text-xs text-ink">
+                  halo2_gadgets: Anchor variable-base scalar-mul incomplete-addition base
+                </code>{' '}
+                — technical, understated, easy to scroll past.
+              </p>
+              <p className="mb-6 font-mono text-sm leading-relaxed text-ink/70">
+                We replayed the agent against the commit. The detector pipeline fired three signals
+                (security_critical_patch, consensus_relevant, emergency_patch). The agent's
+                conviction was 92/100, recommended action long ZEC, paper trade recorded with a
+                deterministic tx hash.
+              </p>
+              <p className="mb-8 font-mono text-sm leading-relaxed text-ink/70">
+                T+1d: ZEC went up 2.15%. The trade was a hit.
+              </p>
+              <Link
+                href="/case-study/halo2"
+                className="inline-flex items-center gap-2 font-mono text-sm text-rust hover:underline"
+              >
+                Read the full replay
+                <ArrowUpRight className="h-4 w-4" />
+              </Link>
+            </div>
+            <div className="rounded-sm border border-ink/15 bg-ink/[0.02] p-6">
+              <p className="mb-3 font-mono text-[10px] uppercase tracking-[0.2em] text-ink/50">
+                Agent verdict
+              </p>
+              <div className="mb-4 flex items-baseline gap-3">
+                <div className="font-display text-6xl font-medium text-rust">92</div>
+                <div className="font-mono text-sm text-ink/60">/100</div>
+              </div>
+              <div className="mb-4 space-y-1 font-mono text-xs">
+                <div className="flex justify-between">
+                  <span className="text-ink/60">Action</span>
+                  <span className="font-medium text-ink">LONG ZEC</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-ink/60">Confidence</span>
+                  <span className="font-medium text-ink">HIGH</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-ink/60">Detectors fired</span>
+                  <span className="font-medium text-ink">3 of 8</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-ink/60">T+1d outcome</span>
+                  <span className="font-medium text-rust">+2.15% ↑</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-ink/60">Hit?</span>
+                  <span className="font-medium text-rust">YES</span>
+                </div>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        {/* ── Recent signals — live from the API ── */}
+        <section className={`mb-24 sm:mb-32 ${REVEAL_CLASS}`}>
+          <SectionLabel number="04" label="Recent calls" />
+          <h2 className="mb-10 max-w-2xl font-display text-3xl font-medium leading-tight text-ink sm:text-4xl">
+            Every signal,
+            <br />
+            <span className="italic">with the receipts.</span>
+          </h2>
+          <RecentCalls />
+        </section>
+
+        {/* ── Footer — open source, MIT, fork it ── */}
+        <footer className="border-t border-ink/15 pt-10">
+          <div className="flex flex-wrap items-center justify-between gap-4">
+            <p className="font-mono text-xs text-ink/60">
+              LENITNES · MIT · zero-headcount · since 2026
+            </p>
+            <div className="flex items-center gap-4 font-mono text-xs">
+              <a
+                href="https://github.com/sneldao/lenitnes"
+                target="_blank"
+                rel="noreferrer"
+                className="inline-flex items-center gap-1.5 text-ink/70 transition-colors hover:text-rust"
+              >
+                <ExternalLink className="h-3.5 w-3.5" />
+                Source
+              </a>
+              <Link href="/scorecard" className="text-ink/70 transition-colors hover:text-rust">
+                Scorecard
+              </Link>
+              <Link
+                href="/case-study/halo2"
+                className="text-ink/70 transition-colors hover:text-rust"
+              >
+                Halo2
+              </Link>
+            </div>
+          </div>
+        </footer>
       </div>
+    </main>
+  );
+}
+
+// ── Sub-components ─────────────────────────────────────────
+
+function SectionLabel({ number, label }: { number: string; label: string }) {
+  return (
+    <div className="mb-6 flex items-baseline gap-3 font-mono text-[10px] uppercase tracking-[0.25em] text-ink/50">
+      <span className="text-rust">{number}</span>
+      <span className="h-px w-8 bg-ink/20" />
+      <span>{label}</span>
     </div>
   );
 }
 
-// ─── Dashboard (authenticated view) ───
+function TrackRecordStrip() {
+  const { data, isLoading } = useQuery<ScorecardResponse>({
+    queryKey: ['scorecard', 'overall', 'landing'],
+    queryFn: () => api.getScorecard(),
+    refetchInterval: 60_000,
+  });
 
-function DashboardView({
-  monitors,
-  signals,
-  ordersCount,
-  isLoading,
-  error,
-  isRefetching,
-  isConnected,
-  executing,
-  search,
-  setSearch,
-  onExecute,
-  onDelete,
-  onConnect,
-}: {
-  monitors: Monitor[];
-  signals: Signal[];
-  ordersCount: number;
-  isLoading: boolean;
-  error: Error | null;
-  isRefetching: boolean;
-  isConnected: boolean;
-  executing: Record<string, boolean>;
-  search: string;
-  setSearch: (s: string) => void;
-  onExecute: (id: string) => void;
-  onDelete: (id: string) => void;
-  onConnect: () => void;
-}) {
-  const queryClient = useQueryClient();
-  const [filter, setFilter] = useState<FilterStatus>('all');
-  const [sort, setSort] = useState<SortKey>('newest');
+  if (isLoading || !data) {
+    return (
+      <div className="grid gap-px overflow-hidden rounded-sm border border-ink/15 bg-ink/15 sm:grid-cols-5">
+        {['Signals', 'Trades', 'Hit ratio', 'Sharpe', 'P&L'].map((label) => (
+          <div key={label} className="bg-cream p-6">
+            <div className="font-mono text-[10px] uppercase tracking-wider text-ink/50">
+              {label}
+            </div>
+            <div className="mt-2 font-display text-3xl font-light text-ink/30">—</div>
+          </div>
+        ))}
+      </div>
+    );
+  }
 
-  const activeCount = monitors.filter((m) => m.status === 'active').length;
-  // Count monitors with either a `triggered` status *or* an unviewed signal.
-  // The two can briefly diverge after viewing a signal: the monitor re-arms
-  // to `active` but the dashboard may not have re-fetched yet, so we OR
-  // the two sources for a stable count.
-  const triggeredCount = monitors.filter((m) => {
-    if (m.status === 'triggered') return true;
-    return signals.some((s) => s.monitor_id === m.id && !s.is_heartbeat && !s.viewed_at);
-  }).length;
-  const totalBalance = monitors.reduce((s, m) => s + Number(m.hbar_balance), 0);
-
-  const filtered = useMemo(() => {
-    let list = monitors;
-    if (filter === 'triggered') {
-      // Match either status='triggered' OR any monitor with an unviewed signal,
-      // so the user can find their unread signal even after re-arm.
-      list = list.filter((m) => {
-        if (m.status === 'triggered') return true;
-        return signals.some((s) => s.monitor_id === m.id && !s.is_heartbeat && !s.viewed_at);
-      });
-    } else if (filter !== 'all') {
-      list = list.filter((m) => m.status === filter);
-    }
-    if (search) {
-      list = list.filter(
-        (m) =>
-          m.url.toLowerCase().includes(search.toLowerCase()) ||
-          m.condition_text.toLowerCase().includes(search.toLowerCase()),
-      );
-    }
-    const sorted = [...list];
-    switch (sort) {
-      case 'balance':
-        sorted.sort((a, b) => Number(b.hbar_balance ?? 0) - Number(a.hbar_balance ?? 0));
-        break;
-      case 'daysLeft':
-        sorted.sort((a, b) => burnRate(a).daysLeft - burnRate(b).daysLeft);
-        break;
-      case 'newest':
-      default:
-        sorted.sort(
-          (a, b) => new Date(b.created_at ?? 0).getTime() - new Date(a.created_at ?? 0).getTime(),
-        );
-        break;
-    }
-    return sorted;
-  }, [monitors, filter, search, sort]);
-
-  const signalChartData = signals
-    .filter((s) => {
-      const d = new Date(s.detected_at);
-      const weekAgo = new Date(Date.now() - 7 * 86400000);
-      return d >= weekAgo;
-    })
-    .reduce<{ date: string; count: number }[]>((acc, s) => {
-      const d = new Date(s.detected_at).toLocaleDateString(undefined, {
-        month: 'short',
-        day: 'numeric',
-      });
-      const existing = acc.find((e) => e.date === d);
-      if (existing) existing.count++;
-      else acc.push({ date: d, count: 1 });
-      return acc;
-    }, [])
-    .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
-
-  const STATUS_FILTERS: { key: FilterStatus; label: string }[] = [
-    { key: 'all', label: 'All' },
-    { key: 'active', label: 'Watching' },
-    { key: 'triggered', label: 'Signal caught!' },
-    { key: 'paused', label: 'Paused' },
-    { key: 'insufficient_balance', label: 'Needs funds' },
+  const pnlPositive = data.cumulativePnlUsd >= 0;
+  const stats = [
+    { label: 'Signals', value: data.totalSignals.toString() },
+    { label: 'Trades', value: data.totalTrades.toString() },
+    {
+      label: 'Hit ratio',
+      value: `${(data.hitRatio * 100).toFixed(0)}%`,
+    },
+    {
+      label: 'Sharpe',
+      value: data.sharpe.toFixed(2),
+    },
+    {
+      label: 'P&L (paper)',
+      value: pnlPositive
+        ? `+$${data.cumulativePnlUsd.toFixed(2)}`
+        : `-$${Math.abs(data.cumulativePnlUsd).toFixed(2)}`,
+      color: pnlPositive ? 'text-signal' : 'text-danger',
+    },
   ];
 
   return (
-    <div className="space-y-6">
-      <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
-        <div>
-          <div className="flex items-center gap-3">
-            <h1 className="text-2xl font-bold tracking-tight text-white">Dashboard</h1>
-            <span className="badge bg-violet/10 text-violet text-[10px]">Beta</span>
-            <Link
-              href="/scorecard"
-              className="badge bg-ink-light/50 text-slate-500 hover:text-slate-300 text-[10px] transition-colors"
-            >
-              📊 Scorecard
-            </Link>
+    <div className="grid gap-px overflow-hidden rounded-sm border border-ink/15 bg-ink/15 sm:grid-cols-5">
+      {stats.map((s) => (
+        <div key={s.label} className="bg-cream p-6">
+          <div className="font-mono text-[10px] uppercase tracking-wider text-ink/50">
+            {s.label}
           </div>
-          <p className="mt-1 font-mono text-xs text-slate-600">
-            {monitors.length} monitor{monitors.length !== 1 ? 's' : ''} configured
-          </p>
-        </div>
-        <div className="flex items-center gap-2">
-          {isRefetching && !isLoading && (
-            <span className="text-[10px] text-slate-500 animate-pulse">Refreshing…</span>
-          )}
-          <div className="relative flex-1 sm:flex-none">
-            <input
-              className="input w-full py-2 pl-8 pr-3 text-xs sm:w-auto"
-              placeholder="Search monitors…"
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-            />
-            <Eye className="absolute left-2.5 top-1/2 h-3 w-3 -translate-y-1/2 text-slate-600" />
+          <div className={`mt-2 font-display text-3xl font-light ${s.color ?? 'text-ink'}`}>
+            {s.value}
           </div>
-          <Link href="/monitors/new" className="btn shrink-0 text-xs">
-            + Watch
-          </Link>
         </div>
+      ))}
+    </div>
+  );
+}
+
+function RecentCalls() {
+  const { data, isLoading } = useQuery({
+    queryKey: ['scorecard', 'recent', 'landing'],
+    queryFn: () => api.getScorecardRecent(5),
+    refetchInterval: 60_000,
+  });
+
+  if (isLoading) {
+    return <div className="font-mono text-sm text-ink/40">Loading recent calls…</div>;
+  }
+  if (!data || data.length === 0) {
+    return (
+      <div className="font-mono text-sm text-ink/40">
+        No signals yet — the agent is monitoring the watchlist.
       </div>
+    );
+  }
 
-      <div className="grid grid-cols-2 rounded-2xl border border-edge/50 bg-ink-light/40 backdrop-blur-sm sm:flex sm:flex-wrap sm:items-center">
-        {isLoading ? (
-          <div className="col-span-2 flex gap-6 px-5 py-4 animate-pulse">
-            {Array.from({ length: 4 }).map((_, i) => (
-              <div key={i} className="space-y-1">
-                <div className="h-3 w-14 rounded bg-edge/60" />
-                <div className="h-6 w-8 rounded bg-edge/40" />
-              </div>
-            ))}
-          </div>
-        ) : (
-          <>
-            {[
-              {
-                icon: <Activity className="h-3 w-3 text-signal" />,
-                label: 'Active',
-                value: activeCount,
-                color: 'text-signal',
-                pulse: activeCount > 0,
-              },
-              {
-                icon: <Eye className="h-3 w-3 text-accent" />,
-                label: 'Triggered',
-                value: triggeredCount,
-                color: triggeredCount > 0 ? 'text-warn' : 'text-slate-400',
-                pulse: triggeredCount > 0,
-              },
-              {
-                icon: <Wallet className="h-3 w-3 text-violet" />,
-                label: 'Staked',
-                value: COPY.funding.staked(totalBalance),
-                color: 'text-slate-200',
-              },
-              {
-                icon: <BarChart3 className="h-3 w-3 text-accent/70" />,
-                label: 'Trades',
-                value: ordersCount,
-                color: 'text-slate-400',
-              },
-            ].map((stat, i, arr) => (
-              <div key={stat.label} className="flex items-stretch">
-                <div className="flex items-center gap-2.5 px-4 py-3 sm:px-5 sm:py-3.5">
-                  <div className="relative">
-                    {stat.pulse && (
-                      <span className="absolute -right-0.5 -top-0.5 h-1.5 w-1.5 rounded-full bg-signal animate-pulse" />
-                    )}
-                    {stat.icon}
-                  </div>
-                  <div>
-                    <p className="text-[10px] font-medium uppercase tracking-widest text-slate-600">
-                      {stat.label}
-                    </p>
-                    <p
-                      className={`font-mono text-base font-semibold tabular-nums leading-none sm:text-lg ${stat.color}`}
-                    >
-                      {stat.value}
-                    </p>
-                  </div>
-                </div>
-                {i < arr.length - 1 && <div className="w-px self-stretch bg-edge/60 my-2" />}
-              </div>
-            ))}
-          </>
-        )}
-      </div>
-
-      {/* Global Live Counter — system-wide stats */}
-      <LiveCounterBar />
-
-      {signalChartData.length > 0 && (
-        <div className="card">
-          <div className="flex items-center gap-2 border-b border-edge/40 pb-4">
-            <BarChart3 className="h-4 w-4 text-accent" />
-            <h2 className="text-sm font-semibold text-slate-200">Signal Activity (7d)</h2>
-          </div>
-          <div className="pt-4">
-            <ResponsiveContainer width="100%" height={200}>
-              <AreaChart
-                data={signalChartData}
-                margin={{ top: 5, right: 10, left: -20, bottom: 0 }}
-              >
-                <defs>
-                  <linearGradient id="signalGradient" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="0%" stopColor="#06b6d4" stopOpacity={0.3} />
-                    <stop offset="100%" stopColor="#06b6d4" stopOpacity={0} />
-                  </linearGradient>
-                </defs>
-                <CartesianGrid strokeDasharray="3 3" stroke="rgba(26,35,50,0.5)" />
-                <XAxis
-                  dataKey="date"
-                  tick={{ fontSize: 10, fill: '#64748b' }}
-                  axisLine={false}
-                  tickLine={false}
-                />
-                <YAxis
-                  allowDecimals={false}
-                  tick={{ fontSize: 10, fill: '#64748b' }}
-                  axisLine={false}
-                  tickLine={false}
-                />
-                <RechartsTooltip
-                  contentStyle={{
-                    background: '#0d111c',
-                    border: '1px solid rgba(26,35,50,0.8)',
-                    borderRadius: '8px',
-                    fontSize: '12px',
-                  }}
-                  itemStyle={{ color: '#e2e8f0' }}
-                  labelStyle={{ color: '#94a3b8' }}
-                />
-                <Area
-                  type="monotone"
-                  dataKey="count"
-                  stroke="#06b6d4"
-                  strokeWidth={2}
-                  fill="url(#signalGradient)"
-                  dot={{ fill: '#06b6d4', r: 3 }}
-                  activeDot={{ r: 5, fill: '#06b6d4' }}
-                />
-              </AreaChart>
-            </ResponsiveContainer>
-          </div>
-        </div>
-      )}
-
-      {/* Filter + Sort Bar */}
-      {monitors.length > 0 && (
-        <div className="flex flex-wrap items-center gap-2">
-          <div className="flex flex-wrap gap-1.5">
-            {STATUS_FILTERS.map((f) => (
-              <button
-                key={f.key}
-                onClick={() => setFilter(f.key)}
-                className={`rounded-lg px-3 py-1.5 text-[11px] font-semibold transition-all cursor-pointer select-none ${
-                  filter === f.key
-                    ? 'bg-accent/10 text-accent shadow-glow-sm'
-                    : 'text-slate-500 hover:text-slate-300 hover:bg-edge/40'
-                }`}
-              >
-                {f.label}
-              </button>
-            ))}
-          </div>
-          <select
-            value={sort}
-            onChange={(e) => setSort(e.target.value as SortKey)}
-            className="ml-auto rounded-lg border border-edge/40 bg-ink-light/50 px-2 py-1.5 text-[11px] font-medium text-slate-400 outline-none transition-colors hover:border-edge-light focus:border-accent/40"
+  return (
+    <ol className="space-y-0">
+      {data.map((call, i) => {
+        const isHit = call.outcomes.t1d != null && call.outcomes.t1d > 0;
+        return (
+          <li
+            key={call.signalId}
+            className="grid grid-cols-[auto_1fr_auto] items-center gap-4 border-t border-ink/10 py-5 first:border-t-0"
           >
-            <option value="newest">Newest first</option>
-            <option value="balance">Highest balance</option>
-            <option value="daysLeft">Lowest days left</option>
-          </select>
-        </div>
-      )}
-
-      {isLoading && (
-        <div className="grid gap-3 sm:grid-cols-2">
-          {Array.from({ length: 4 }).map((_, i) => (
-            <div
-              key={i}
-              className="h-40 animate-pulse rounded-xl border border-edge/40 bg-ink-light/40"
-            />
-          ))}
-        </div>
-      )}
-
-      {error && (
-        <div className="card border-danger/30 bg-danger/5">
-          <div className="flex items-center gap-3">
-            <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-danger/10">
-              {error.message === 'session_expired' ? (
-                <Shield className="h-4 w-4 text-warn" />
-              ) : (
-                <Zap className="h-4 w-4 text-danger" />
+            <div className="font-mono text-xs text-ink/40">{String(i + 1).padStart(2, '0')}</div>
+            <div className="min-w-0">
+              <div className="mb-1 flex flex-wrap items-center gap-2 font-mono text-[10px] uppercase tracking-wider text-ink/50">
+                <span>{new Date(call.detectedAt).toISOString().slice(0, 10)}</span>
+                <span>·</span>
+                <span className="truncate">{call.detectorTypes.join(', ') || 'no detector'}</span>
+                {call.tradeTxHash && (
+                  <>
+                    <span>·</span>
+                    <span className="text-rust">traded</span>
+                  </>
+                )}
+              </div>
+              <Link
+                href={`/signals/${call.signalId}`}
+                className="block truncate font-display text-lg text-ink transition-colors hover:text-rust"
+              >
+                {call.thesis ?? 'No thesis recorded'}
+              </Link>
+            </div>
+            <div className="shrink-0 text-right">
+              {call.conviction != null && (
+                <div className="font-display text-2xl font-light text-ink">{call.conviction}</div>
+              )}
+              {call.outcomes.t1d != null && (
+                <div
+                  className={`font-mono text-[10px] uppercase tracking-wider ${
+                    isHit ? 'text-signal' : 'text-danger'
+                  }`}
+                >
+                  T+1d {isHit ? '+' : ''}
+                  {call.outcomes.t1d.toFixed(2)}%
+                </div>
               )}
             </div>
-            <div className="flex-1">
-              <p className="text-sm font-medium text-danger">
-                {error.message === 'session_expired' ? 'Session Expired' : 'Connection Error'}
-              </p>
-              <p className="text-xs text-slate-500">
-                {error.message === 'session_expired'
-                  ? 'Your session has expired. Connect your wallet to sign in again.'
-                  : error.message}
-              </p>
-            </div>
-            {error.message === 'session_expired' ? (
-              <button type="button" onClick={onConnect} className="btn shrink-0 py-1.5 text-[11px]">
-                Reconnect
-              </button>
-            ) : (
-              <button
-                type="button"
-                onClick={() => queryClient.refetchQueries({ queryKey: ['monitors'] })}
-                className="btn-ghost shrink-0 py-1.5 text-[11px]"
-              >
-                Retry
-              </button>
-            )}
-          </div>
-        </div>
-      )}
-
-      {!isLoading && !error && filtered.length === 0 && monitors.length > 0 && (
-        <div className="stat-card p-6 text-center">
-          <p className="text-sm text-slate-500">No monitors match your filters</p>
-        </div>
-      )}
-
-      {!isLoading && !error && monitors.length === 0 && (
-        <div className="space-y-6">
-          {/* Intentional empty state — feels like an ops console waiting for targets */}
-          <div className="relative overflow-hidden rounded-2xl border border-edge/40 bg-ink-light/30 px-8 py-12">
-            <div className="pointer-events-none absolute inset-0 opacity-30">
-              <div className="absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-accent/40 to-transparent" />
-            </div>
-            <div className="relative flex items-start gap-8">
-              <div className="shrink-0 pt-1">
-                <div className="relative flex h-12 w-12 items-center justify-center rounded-xl border border-accent/20 bg-accent/5">
-                  <Eye className="h-5 w-5 text-accent/60" />
-                  <span className="absolute -right-1 -top-1 h-2.5 w-2.5 rounded-full border border-ink bg-slate-700" />
-                </div>
-              </div>
-              <div className="space-y-1">
-                <p className="text-base font-semibold text-slate-200">No targets configured</p>
-                <p className="max-w-md text-sm leading-relaxed text-slate-500">
-                  Point LENITNES at any URL — a GitHub repo, exchange status page, or SEC filing —
-                  and describe what to watch for in plain English. Signals fire in under 60s.
-                </p>
-                <div className="pt-3">
-                  <Link href="/monitors/new" className="btn text-sm">
-                    + Watch New Target
-                  </Link>
-                </div>
-              </div>
-            </div>
-          </div>
-          <p className="text-[11px] font-medium uppercase tracking-widest text-slate-600">
-            Quick start
-          </p>
-          <div className="grid gap-3 sm:grid-cols-3">
-            {[
-              {
-                title: 'Zcash halo2',
-                url: 'https://github.com/zcash/halo2/commits/main',
-                condition:
-                  'A new commit fixes a critical cryptography bug, soundness issue, or verifying key change in the halo2 circuit — something that could affect ZEC token confidence or require immediate network attention.',
-                freq: 1800,
-                icon: Shield,
-                accent: 'text-danger border-danger/20 bg-danger/5',
-                label: 'Code alpha',
-              },
-              {
-                title: 'go-ethereum',
-                url: 'https://github.com/ethereum/go-ethereum/commits/master',
-                condition:
-                  'A new commit mentions security, vulnerability, CVE, fix, or critical patch.',
-                freq: 3600,
-                icon: GitCommit,
-                accent: 'text-accent border-accent/20 bg-accent/5',
-                label: 'Security watch',
-              },
-              {
-                title: 'Kraken Status',
-                url: 'https://status.kraken.com',
-                condition:
-                  'Any service shows degraded performance, partial outage, or maintenance.',
-                freq: 300,
-                icon: Bell,
-                accent: 'text-warn border-warn/20 bg-warn/5',
-                label: 'Exchange uptime',
-              },
-            ].map((t) => (
-              <Link
-                key={t.title}
-                href={`/monitors/new?url=${encodeURIComponent(t.url)}&condition=${encodeURIComponent(t.condition)}&frequency=${t.freq}`}
-                className={`group flex items-start gap-3 rounded-xl border px-4 py-3.5 transition-all hover:scale-[1.01] ${t.accent}`}
-              >
-                <t.icon className="mt-0.5 h-4 w-4 shrink-0" />
-                <div className="min-w-0">
-                  <p className="text-sm font-semibold">{t.title}</p>
-                  <p className="text-[10px] uppercase tracking-wider opacity-60">{t.label}</p>
-                  <p className="mt-1 line-clamp-2 text-[11px] text-slate-500">{t.condition}</p>
-                </div>
-              </Link>
-            ))}
-          </div>
-        </div>
-      )}
-
-      {filtered.length > 0 && (
-        <div className={`grid gap-3 ${filtered.length > 1 ? 'sm:grid-cols-2' : ''}`}>
-          {filtered.map((m) => {
-            const monitorSignals = signals.filter((s) => s.monitor_id === m.id);
-            const latest = monitorSignals.sort(
-              (a, b) => new Date(b.detected_at).getTime() - new Date(a.detected_at).getTime(),
-            )[0];
-            return (
-              <MonitorCard
-                key={m.id}
-                monitor={m}
-                executing={!!executing[m.id]}
-                isConnected={isConnected}
-                onExecute={onExecute}
-                onDelete={onDelete}
-                latestSignal={latest ?? null}
-                signalCount={monitorSignals.length}
-                allSignals={signals}
-              />
-            );
-          })}
-        </div>
-      )}
-
-      {/* Activity feed — always shown when authenticated */}
-      {!isLoading && (
-        <div className="space-y-2">
-          <p className="font-mono text-[10px] uppercase tracking-widest text-slate-600">
-            Recent activity
-          </p>
-          <ActivityFeed signals={signals} monitors={monitors} />
-        </div>
-      )}
-    </div>
-  );
-}
-
-// ─── Section Divider ───
-
-function SectionDivider({ variant = 'default' }: { variant?: 'default' | 'accent' | 'signal' }) {
-  const colors = {
-    default: 'from-edge/40 via-edge-light/20 to-edge/40',
-    accent: 'from-edge/40 via-accent/20 to-edge/40',
-    signal: 'from-edge/40 via-signal/20 to-edge/40',
-  };
-  return (
-    <div className="relative py-8">
-      <div className="mx-auto max-w-xs">
-        <div className={`h-px bg-gradient-to-r ${colors[variant]}`} />
-      </div>
-      {/* Orbs on edges */}
-      <div
-        className={`absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 h-1.5 w-1.5 rounded-full ${
-          variant === 'accent'
-            ? 'bg-accent/40'
-            : variant === 'signal'
-              ? 'bg-signal/40'
-              : 'bg-edge-light'
-        }`}
-        aria-hidden="true"
-      />
-    </div>
-  );
-}
-
-// ─── Main Page Export ───
-
-export default function DashboardPage() {
-  const [executing, setExecuting] = useState<Record<string, boolean>>({});
-  const [search, setSearch] = useState('');
-  const { isConnected, executeWithPayment, connect } = useWallet();
-  const [showOnboarding, setShowOnboarding] = useState(false);
-  const toast = useToast();
-
-  const [confirmDialog, setConfirmDialog] = useState<{
-    type: 'execute' | 'delete';
-    monitorId: string;
-    monitorUrl?: string;
-    monitorBalance?: number;
-  } | null>(null);
-  const { isAuthenticated, isLoading: authLoading, user } = useAuth();
-  const landingRef = useReveal();
-  const router = useRouter();
-  const queryClient = useQueryClient();
-
-  const {
-    data: monitors = [],
-    isLoading,
-    error,
-    isRefetching,
-  } = useQuery({
-    queryKey: ['monitors', isAuthenticated],
-    queryFn: () => api.listMonitors(),
-    staleTime: 10_000,
-    refetchInterval: 30_000,
-    enabled: isAuthenticated,
-    retry: false,
-  });
-
-  // ── First-run auto-demo ───────────────────────────────────────────────
-  // When a user lands on the dashboard with zero monitors, auto-create the
-  // Zcash halo2 demo monitor so the empty state is replaced with a working
-  // product example within ~2s. The localStorage flag prevents re-creating
-  // on refresh; the user can delete the demo at any time.
-  const [autoDemoState, setAutoDemoState] = useState<'idle' | 'creating' | 'done' | 'failed'>(
-    'idle',
-  );
-  useEffect(() => {
-    if (!isAuthenticated || authLoading || isLoading) return;
-    if (monitors.length > 0) return;
-    if (typeof window === 'undefined') return;
-    if (localStorage.getItem('lenitnes:autodemo:v1') === 'done') return;
-    if (autoDemoState !== 'idle') return;
-    if (!user?.id) return;
-
-    setAutoDemoState('creating');
-    api
-      .createMonitor({
-        url: 'https://github.com/zcash/halo2/commits/main',
-        conditionText:
-          'A new commit fixes a critical cryptography bug, soundness issue, or verifying key change in the halo2 circuit — something that could affect ZEC token confidence or require immediate network attention.',
-        frequencySeconds: 3600,
-        screenshotsEnabled: false,
-        isPublic: true,
-        confidenceThreshold: 50,
-        assetMapping: { coingeckoId: 'zcash', direction: 'both' },
-      })
-      .then(() => {
-        localStorage.setItem('lenitnes:autodemo:v1', 'done');
-        setAutoDemoState('done');
-        queryClient.invalidateQueries({ queryKey: ['monitors'] });
-        toast.success(
-          'Demo monitor created. We pre-loaded the Zcash halo2 target so you can see a real check in action. Delete it anytime.',
+          </li>
         );
-      })
-      .catch((err) => {
-        // Silent failure — the user can still create monitors manually.
-        console.warn('auto-demo create failed', err);
-        localStorage.setItem('lenitnes:autodemo:v1', 'failed');
-        setAutoDemoState('failed');
-      });
-  }, [isAuthenticated, authLoading, isLoading, monitors.length, user?.id]);
-
-  const { data: signals = [] } = useQuery({
-    queryKey: ['signals'],
-    queryFn: () => api.listSignals(undefined, true),
-    refetchInterval: 30_000,
-    enabled: isAuthenticated,
-  });
-
-  const { data: orders = [] } = useQuery({
-    queryKey: ['orders'],
-    queryFn: () => api.listOrders(),
-    refetchInterval: 30_000,
-    enabled: isAuthenticated,
-  });
-
-  function handleExecute(monitorId: string) {
-    if (!isConnected) {
-      toast.warn(COPY.errors.noWallet);
-      return;
-    }
-    const m = monitors.find((x) => x.id === monitorId);
-    setConfirmDialog({
-      type: 'execute',
-      monitorId,
-      monitorUrl: m?.url,
-      monitorBalance: m ? Number(m.hbar_balance) : undefined,
-    });
-  }
-
-  async function doExecute(monitorId: string) {
-    setExecuting((prev) => ({ ...prev, [monitorId]: true }));
-    try {
-      // Day 1: the per-user x402 /execute endpoint was removed.
-      // The "execute on demand" flow is now POST /monitors/:id/first-check.
-      const data = await api.triggerCheck(monitorId);
-      if (data.ok) {
-        toast.success('Check complete!');
-        queryClient.invalidateQueries({ queryKey: ['signals'] });
-        queryClient.invalidateQueries({ queryKey: ['monitors'] });
-        return;
-      } else {
-        toast.error(COPY.errors.serverError);
-      }
-    } catch (e) {
-      const msg = String(e).toLowerCase();
-      if (msg.includes('rejected') || msg.includes('cancel') || msg.includes('denied')) {
-        toast.error(COPY.errors.paymentRejected);
-      } else if (msg.includes('402') || msg.includes('payment')) {
-        toast.error(COPY.errors.paymentFailed);
-      } else if (msg.includes('timeout') || msg.includes('timed out')) {
-        toast.error(COPY.errors.timeout);
-      } else {
-        toast.error('Execution failed: ' + String(e));
-      }
-    } finally {
-      setExecuting((prev) => ({ ...prev, [monitorId]: false }));
-    }
-  }
-
-  function handleUseTemplate(t: TemplateSelection) {
-    const params = new URLSearchParams({
-      url: t.url,
-      condition: t.condition,
-      frequency: String(t.frequency),
-    });
-    router.push(`/monitors/new?${params.toString()}`);
-  }
-
-  function handleDelete(monitorId: string) {
-    const m = monitors.find((x) => x.id === monitorId);
-    setConfirmDialog({
-      type: 'delete',
-      monitorId,
-      monitorUrl: m?.url,
-      monitorBalance: m ? Number(m.hbar_balance) : undefined,
-    });
-  }
-
-  async function doDelete(monitorId: string) {
-    try {
-      await api.deleteMonitor(monitorId);
-      toast.success('Monitor removed');
-      queryClient.invalidateQueries({ queryKey: ['monitors'] });
-    } catch (e) {
-      toast.error(COPY.errors.deleteFailed + String(e));
-    }
-  }
-
-  // Show a loading state while auth resolves to prevent flash of landing content
-  if (authLoading) {
-    return (
-      <div className="flex items-center justify-center py-40">
-        <div className="h-8 w-8 animate-pulse rounded-xl bg-accent/20" />
-      </div>
-    );
-  }
-
-  if (!isAuthenticated) {
-    return (
-      <>
-        <div
-          ref={landingRef}
-          aria-hidden={showOnboarding || undefined}
-          inert={showOnboarding || undefined}
-          className="space-y-16 pb-24"
-        >
-          {/* Cinematic Hero */}
-          <CinematicHero
-            onStartOnboarding={() => setShowOnboarding(true)}
-            onScrollToHow={() => {
-              const el = document.getElementById('how-it-works');
-              el?.scrollIntoView({ behavior: 'smooth', block: 'start' });
-            }}
-          />
-
-          {/* Section Divider */}
-          <SectionDivider />
-
-          {/* Social Proof Stats */}
-          <SocialProof />
-
-          {/* Section Divider */}
-          <SectionDivider variant="accent" />
-
-          {/* Proof Chain Live Animation */}
-          <div id="how-it-works">
-            <ProofChainLive />
-          </div>
-
-          {/* Section Divider */}
-          <SectionDivider />
-
-          {/* Story Timeline (ZEC narrative) */}
-          <div id="zec-story">
-            <StoryTimeline />
-          </div>
-
-          {/* Section Divider */}
-          <SectionDivider variant="signal" />
-
-          {/* Backtest Proof — live accuracy stats */}
-          <BacktestProof />
-
-          {/* Section Divider */}
-          <SectionDivider />
-
-          {/* Section Divider */}
-          <SectionDivider variant="accent" />
-
-          {/* Interactive Sandbox Demo */}
-          <InteractiveDemo onUseTemplate={handleUseTemplate} />
-
-          {/* Bottom Call to Action — Day 9: founder story, not feature pitch */}
-          <div className="reveal text-center py-12">
-            <p className="mb-3 font-mono text-[10px] uppercase tracking-widest text-accent">
-              founder case study
-            </p>
-            <h2 className="mb-3 font-display text-2xl font-semibold text-slate-100 sm:text-3xl">
-              Would the agent have caught the halo2 soundness fix?
-            </h2>
-            <p className="mx-auto mb-6 max-w-2xl text-sm leading-relaxed text-slate-400">
-              We replayed the agent against the 2022-04-15 commit that completed the PLONK argument
-              in the ZCash proving system. Here's the verdict — and the ZEC price chart that
-              followed.
-            </p>
-            <Link href="/case-study/halo2" className="btn text-base px-8 py-3.5">
-              <Sparkles className="h-4 w-4" />
-              Read the replay
-            </Link>
-            <p className="mt-3 text-xs text-slate-600">
-              Public, no signup. The agent's reasoning, the detector consensus, and the price
-              action.
-            </p>
-          </div>
-        </div>
-        {/* Onboarding Wizard Modal */}
-        {showOnboarding && (
-          <OnboardingWizard
-            onClose={() => setShowOnboarding(false)}
-            onComplete={() => setShowOnboarding(false)}
-            isWalletConnected={isConnected}
-            onConnectWallet={connect}
-          />
-        )}
-      </>
-    );
-  }
-
-  return (
-    <>
-      <DashboardView
-        monitors={monitors}
-        signals={signals}
-        ordersCount={orders.length}
-        isLoading={isLoading}
-        error={error as Error | null}
-        isRefetching={isRefetching}
-        isConnected={isConnected}
-        executing={executing}
-        search={search}
-        setSearch={setSearch}
-        onExecute={handleExecute}
-        onDelete={handleDelete}
-        onConnect={connect}
-      />
-      <ConfirmDialog
-        isOpen={!!confirmDialog}
-        onClose={() => setConfirmDialog(null)}
-        onConfirm={() => {
-          if (!confirmDialog) return;
-          if (confirmDialog.type === 'execute') {
-            doExecute(confirmDialog.monitorId);
-          } else {
-            doDelete(confirmDialog.monitorId);
-          }
-          setConfirmDialog(null);
-        }}
-        title={
-          confirmDialog?.type === 'execute'
-            ? COPY.confirmation.execute.title
-            : COPY.confirmation.delete.title
-        }
-        description={(() => {
-          const host = hostnameFromUrl(confirmDialog?.monitorUrl || '');
-          return confirmDialog?.type === 'execute'
-            ? COPY.confirmation.execute.description(host)
-            : COPY.confirmation.delete.description(host, confirmDialog?.monitorBalance ?? 0);
-        })()}
-        confirmLabel={
-          confirmDialog?.type === 'execute'
-            ? COPY.confirmation.execute.confirmLabel
-            : COPY.confirmation.delete.confirmLabel
-        }
-        confirmVariant={confirmDialog?.type === 'execute' ? 'accent' : 'danger'}
-      />
-    </>
+      })}
+    </ol>
   );
 }
+
+// ── Copy ────────────────────────────────────────────────────
+
+const LOOP_STEPS = [
+  {
+    title: 'Watchlist',
+    body: 'A curated set of consensus-critical and security-critical repositories. Admin-managed, not user-facing. Five entries on day one — ZCash, Bitcoin, Ethereum, Solana, Arbitrum.',
+  },
+  {
+    title: 'Detect',
+    body: 'TinyFish + scraper pulls each new commit. Eight typed detectors classify the change (emergency_patch, security_critical, consensus_relevant, governance_shift, and four more).',
+  },
+  {
+    title: 'Score',
+    body: 'A frontier-model agent evaluates the commit against a versioned rubric. Outputs a conviction score (0–100), a 280-character thesis, a recommended action, and a confidence band.',
+  },
+  {
+    title: 'Gate',
+    body: 'Conviction ≥ 70. Sub-threshold scores still persist — the reasoning archive — but produce no trade, no Telegram post, no on-chain commitment.',
+  },
+  {
+    title: 'Commit',
+    body: 'Trade from the treasury wallet on testnet, notarize the signal on Hedera HCS + Arbitrum SignalRegistry, broadcast the thesis to the public Telegram channel. All three in the same block.',
+  },
+  {
+    title: 'Track outcome',
+    body: 'At T+1h, T+1d, and T+7d, the mainnet price for the named asset is snapshotted from CoinGecko. Attributed back to the originating signal. Drives the public scorecard.',
+  },
+] as const;

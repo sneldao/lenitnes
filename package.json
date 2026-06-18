@@ -48,6 +48,7 @@
     "@rolldown/binding-darwin-x64": "^1.1.1",
     "cors": "^2.8.6",
     "dotenv": "^17.4.2",
+    "esbuild": "^0.28.0",
     "express": "^5.2.1",
     "jose": "^6.2.3",
     "node-cron": "^4.2.1",
