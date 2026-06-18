@@ -52,6 +52,7 @@ services:
       POSTGRES_DB: ${POSTGRES_DB:-lenitnes}
       POSTGRES_USER: ${POSTGRES_USER:-lenitnes}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      PGSSLMODE: disable
       REDIS_HOST: lenitnes-redis
       REDIS_PORT: '6379'
       JWT_SECRET: ${JWT_SECRET}
