@@ -67,7 +67,10 @@ export default function LandingPage() {
         </header>
 
         {/* ── Track record — live numbers from the scorecard ── */}
-        <section className={`mb-24 sm:mb-32 ${REVEAL_CLASS}`}>
+        <section
+          id="demo"
+          className={`mb-24 scroll-mt-24 sm:mb-32 sm:scroll-mt-28 ${REVEAL_CLASS}`}
+        >
           <SectionLabel number="01" label="The track record" />
           <h2 className="mb-10 max-w-2xl font-display text-3xl font-medium leading-tight text-ink sm:text-4xl">
             The public scorecard says
@@ -83,7 +86,10 @@ export default function LandingPage() {
         </section>
 
         {/* ── How it works — the 6-step loop ── */}
-        <section className={`mb-24 sm:mb-32 ${REVEAL_CLASS}`}>
+        <section
+          id="how-it-works"
+          className={`mb-24 scroll-mt-24 sm:mb-32 sm:scroll-mt-28 ${REVEAL_CLASS}`}
+        >
           <SectionLabel number="02" label="How it works" />
           <h2 className="mb-12 max-w-2xl font-display text-3xl font-medium leading-tight text-ink sm:text-4xl">
             One loop.
@@ -109,7 +115,10 @@ export default function LandingPage() {
         </section>
 
         {/* ── The case study — the founding myth ── */}
-        <section className={`mb-24 sm:mb-32 ${REVEAL_CLASS}`}>
+        <section
+          id="zec-story"
+          className={`mb-24 scroll-mt-24 sm:mb-32 sm:scroll-mt-28 ${REVEAL_CLASS}`}
+        >
           <SectionLabel number="03" label="The case study" />
           <div className="grid gap-10 lg:grid-cols-[1.4fr_1fr]">
             <div>

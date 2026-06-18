@@ -34,9 +34,13 @@ export function Nav() {
   }
 
   const links = isAuthenticated ? APP_LINKS : LANDING_LINKS;
+  // Public CTA: case study is the founding myth (the lede on the landing
+  // page). Per-user routes (/monitors/new, /account) were removed in the
+  // Day 12 pivot — useAuth().isAuthenticated is hardcoded false, so this
+  // branch is the one that actually renders today.
   const cta = isAuthenticated
-    ? { href: '/monitors/new', label: '+ Monitor' }
-    : { href: '/monitors/new', label: 'Start Setup' };
+    ? { href: '/account', label: 'Account' }
+    : { href: '/case-study/halo2', label: 'Read the case study' };
 
   function isActive(href: string): boolean {
     if (href.includes('#')) return false;

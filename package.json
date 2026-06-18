@@ -17,6 +17,7 @@
     "test": "npm run test --workspace=@lenitnes/api",
     "test:watch": "vitest",
     "secrets": "gitleaks git --pre-commit --staged --redact --verbose",
+    "postinstall": "npm install --include=optional --no-audit --no-fund",
     "prepare": "husky",
     "deploy": "bash scripts/deploy.sh",
     "health": "bash scripts/health.sh",
@@ -56,10 +57,10 @@
     "zod": "^4.4.3"
   },
   "optionalDependencies": {
-    "@rolldown/binding-darwin-x64": "^1.1.1",
     "@rolldown/binding-darwin-arm64": "^1.1.1",
-    "@rolldown/binding-linux-x64-gnu": "^1.1.1",
-    "@rolldown/binding-linux-arm64-gnu": "^1.1.1"
+    "@rolldown/binding-darwin-x64": "^1.1.1",
+    "@rolldown/binding-linux-arm64-gnu": "^1.1.1",
+    "@rolldown/binding-linux-x64-gnu": "^1.1.1"
   },
   "overrides": {
     "@hashgraph/sdk": "2.80.0"
