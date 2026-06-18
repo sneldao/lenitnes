@@ -1101,14 +1101,26 @@ export default function DashboardPage() {
           {/* Interactive Sandbox Demo */}
           <InteractiveDemo onUseTemplate={handleUseTemplate} />
 
-          {/* Bottom Call to Action */}
+          {/* Bottom Call to Action — Day 9: founder story, not feature pitch */}
           <div className="reveal text-center py-12">
-            <button onClick={() => setShowOnboarding(true)} className="btn text-base px-8 py-3.5">
-              <Eye className="h-4 w-4" />
-              Start Watching in 30 Seconds
-            </button>
+            <p className="mb-3 font-mono text-[10px] uppercase tracking-widest text-accent">
+              founder case study
+            </p>
+            <h2 className="mb-3 font-display text-2xl font-semibold text-slate-100 sm:text-3xl">
+              Would the agent have caught the halo2 soundness fix?
+            </h2>
+            <p className="mx-auto mb-6 max-w-2xl text-sm leading-relaxed text-slate-400">
+              We replayed the agent against the 2022-04-15 commit that completed the PLONK argument
+              in the ZCash proving system. Here's the verdict — and the ZEC price chart that
+              followed.
+            </p>
+            <Link href="/case-study/halo2" className="btn text-base px-8 py-3.5">
+              <Sparkles className="h-4 w-4" />
+              Read the replay
+            </Link>
             <p className="mt-3 text-xs text-slate-600">
-              No credit card. Stake ℏ to run. Withdraw anytime.
+              Public, no signup. The agent's reasoning, the detector consensus, and the price
+              action.
             </p>
           </div>
         </div>
