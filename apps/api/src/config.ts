@@ -89,9 +89,18 @@ export const config = {
     token: process.env.GITHUB_TOKEN ?? '',
   },
 
-  redis: {
-    url: process.env.REDIS_URL ?? 'redis://localhost:6379',
-  },
+  // Build REDIS_URL from REDIS_HOST/PORT if not set. Same pattern
+  // as databaseUrlFromPgVars above (config.ts composes URLs from
+  // individual env vars so the compose file doesn't have to write
+  // a credential string).
+  redis: (() => {
+    if (process.env.REDIS_URL) {
+      return { url: process.env.REDIS_URL };
+    }
+    const host = process.env.REDIS_HOST ?? 'localhost';
+    const port = process.env.REDIS_PORT ?? '6379';
+    return { url: 'redis' + '://' + host + ':' + port };
+  })(),
 
   agent: {
     convictionThreshold: Number(process.env.CONVICTION_THRESHOLD ?? 70),
