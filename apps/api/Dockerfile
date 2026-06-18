@@ -30,6 +30,7 @@ WORKDIR /app
 ENV NODE_ENV=production
 
 COPY --from=base /app/apps/api/dist ./dist
+COPY --from=base /app/apps/api/src/services/agent/rubric-v1.md ./dist/services/agent/rubric-v1.md
 COPY --from=base /app/node_modules ./node_modules
 COPY --from=base /app/apps/api/node_modules ./apps/api/node_modules
 COPY --from=base /app/packages ./packages
