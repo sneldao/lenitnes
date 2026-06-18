@@ -1,4 +1,4 @@
-@import url('https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;600;700&family=Fira+Code:wght@400;500;600&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,300;9..144,400;9..144,500;9..144,600;9..144,700&family=JetBrains+Mono:wght@300;400;500;600&display=swap');
 
 @tailwind base;
 @tailwind components;
@@ -6,6 +6,55 @@
 
 :root {
   color-scheme: dark;
+}
+
+/* ── Music-publication palette (Day 10) ──────────────────────
+   The public-facing landing surface uses cream/ink/rust —
+   a record-store + music-magazine aesthetic — instead of the
+   SaaS dashboard dark theme. The authenticated app surface
+   keeps the existing dark palette. */
+@layer utilities {
+  .font-display {
+    font-family: 'Fraunces', ui-serif, Georgia, serif;
+    font-feature-settings:
+      'ss01' on,
+      'ss02' on;
+  }
+  .font-mono {
+    font-family: 'JetBrains Mono', ui-monospace, monospace;
+  }
+  .text-cream {
+    color: #f4efe5;
+  }
+  .bg-cream {
+    background-color: #f4efe5;
+  }
+  .text-ink {
+    color: #1a1a1a;
+  }
+  .bg-ink {
+    background-color: #1a1a1a;
+  }
+  .text-rust {
+    color: #c84a1f;
+  }
+  .bg-rust {
+    background-color: #c84a1f;
+  }
+  .border-rust {
+    border-color: #c84a1f;
+  }
+  .text-paper {
+    color: #f4efe5;
+  }
+  .bg-paper {
+    background-color: #f4efe5;
+  }
+  /* Atmospheric noise background — the "old paper" feel. */
+  .bg-noise {
+    background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.06'/%3E%3C/svg%3E");
+    background-size: 200px 200px;
+  }
 }
 
 body {
