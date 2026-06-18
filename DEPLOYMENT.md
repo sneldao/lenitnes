@@ -2,19 +2,33 @@
 
 This guide takes the local dev setup to a live, on-chain testnet deploy with real Telegram broadcasts. The full path takes 1-2 hours of focused work.
 
+Two parallel tracks are supported:
+
+- **Arbitrum Sepolia + Robinhood Chain** — the always-on credibility surface.
+- **BSC Testnet (BNB Hack, June 22-28)** — the third trading venue. Same code path, separate contracts, different deploy steps.
+
+Pick the track you want; both can run on the same API instance.
+
 ## Prerequisites
 
 1. **A testnet wallet.** Generate one with any tool (e.g. `cast wallet new` from Foundry, MetaMask, or `node -e "..."`).
-2. **Arbitrum Sepolia ETH for gas.** Get it from a faucet:
-   - https://www.alchemy.com/faucets/arbitrum-sepolia
-   - https://www.sepoliafaucet.com (bridge to Arbitrum)
-   - 0.01 ETH is plenty.
+2. **Testnet ETH/BNB for gas.** Get it from a faucet:
+   - Arbitrum Sepolia: https://www.alchemy.com/faucets/arbitrum-sepolia
+   - BSC Testnet: https://testnet.bnbchain.org/faucet-smart
+   - Robinhood Chain: contact the chain team (no public faucet as of June 2026)
+   - 0.01 ETH / 0.01 BNB is plenty.
 3. **Foundry (forge).** Install:
    ```bash
    curl -L https://foundry.paradigm.xyz | bash
    foundryup
    ```
 4. **A Virtuals / OpenAI-compatible LLM key.** The agent defaults to Virtuals (Kimi K2). Get one at https://compute.virtuals.io. For tests, set `MOCK_AGENT=1` and skip this.
+5. **(BSC track only) Trust Wallet Agent Kit.** Used for self-custody signing on BSC.
+   ```bash
+   npm install -g @trustwallet/cli
+   twak init --api-key <id> --api-secret <secret>
+   ```
+   Get credentials at https://portal.trustwallet.com/dashboard/apps.
 
 ## Step 1 — Set up the local repo
 
@@ -55,8 +69,10 @@ psql $DATABASE_URL -f db/seed/treasury_wallets.sql
 ## Step 3 — Configure `.env` for live trading
 
 ```bash
-# Treasury / deployer key (32-byte hex, no 0x prefix)
-TREASURY_PRIVATE_KEY=ac9d...your-key-here...
+# Treasury / deployer key (32-byte hex, no 0x prefix). Used by the
+# forge deploy step AND as the signer for live trades.
+EVM_PRIVATE_KEY=ac9d...your-key-here...
+TREASURY_PRIVATE_KEY=ac9d...your-key-here...   # same value; config reads TREASURY_PRIVATE_KEY
 
 # LLM provider
 VIRTUALS_API_KEY=acp-...
@@ -66,7 +82,7 @@ AGENT_MODEL=moonshotai/kimi-k2-0905
 MOCK_AGENT=
 
 # Trade execution
-TREASURY_DEFAULT_CHAIN=arbitrum
+TREASURY_DEFAULT_CHAIN=arbitrum       # 'arbitrum' | 'robinhood' | 'bnb'
 TREASURY_MODE=live              # 'paper' for paper-only
 TREASURY_DEFAULT_AMOUNT=0.01    # amount of tokenIn per trade
 TREASURY_SLIPPAGE_BPS=50        # 0.5%
@@ -84,19 +100,43 @@ GITHUB_TOKEN=ghp_...
 # Admin (operator surface)
 ADMIN_API_KEY=...32-byte-hex...
 
-# Arbitrum Sepolia RPC
+# Arbitrum Sepolia RPC + Robinhood Chain RPC + deployed addresses
 ARBITRUM_RPC_URL=https://sepolia-rollup.arbitrum.io/rpc
 ROBINHOOD_RPC_URL=https://rpc.testnet.chain.robinhood.com
+ARB_SIGNAL_REGISTRY_ADDRESS=0x...
+ARB_TRADE_EXECUTOR_ADDRESS=0x...
+RH_SIGNAL_REGISTRY_ADDRESS=0x...
+RH_TRADE_EXECUTOR_ADDRESS=0x...
+ROBINHOOD_SWAP_ROUTER=0x...
+
+# ── BSC Testnet (BNB Hack, June 22-28) ──
+BNB_RPC_URL=https://data-seed-prebsc-1-s1.binance.org:8545/
+BNB_SWAP_ROUTER=0xD99D1C33f9fC3444f8101754aBC46B524bA2C6BD
+BNB_SIGNAL_REGISTRY_ADDRESS=0x...   # from Step 4b
+BNB_TRADE_EXECUTOR_ADDRESS=0x...    # from Step 4b
+BNB_DEFAULT_TOKEN_IN=0x...          # BEP-20 USDC on BSC testnet
+
+# ── Trust Wallet Agent Kit (BSC self-custody signing) ──
+TWAK_ACCESS_ID=...
+TWAK_HMAC_SECRET=...
+TWAK_ENABLED=true                   # set false to fall back to direct ethers.Wallet
+
+# ── CoinMarketCap (market context for the agent) ──
+CMC_API_KEY=...                     # Pro API key, OR:
+X402_ENABLED=false                  # true to use x402 (USDC on Base, ~$0.01/req)
+X402_PRIVATE_KEY=...                # only when X402_ENABLED=true; wallet needs USDC on Base (chain 8453)
 ```
 
-## Step 4 — Deploy contracts
+`MOCK_AGENT=1` works with `TREASURY_MODE=live` — the agent returns a deterministic stub and trades still go through, so you can verify the live-trade plumbing without burning budget.
+
+## Step 4a — Deploy contracts to Arbitrum Sepolia
 
 ```bash
 cd contracts
 forge build
 forge script script/Deploy.s.sol \
   --rpc-url $ARBITRUM_RPC_URL \
-  --private-key $TREASURY_PRIVATE_KEY \
+  --private-key $EVM_PRIVATE_KEY \
   --broadcast
 ```
 
@@ -114,6 +154,43 @@ ARB_SIGNAL_REGISTRY_ADDRESS=0xABC...
 ARB_TRADE_EXECUTOR_ADDRESS=0xDEF...
 ```
 
+## Step 4b — Deploy contracts to BSC Testnet (BNB Hack)
+
+Run with `CHAIN=bsc` — the deploy script auto-detects and uses the PancakeSwap V2 router for BSC.
+
+```bash
+cd contracts
+forge build
+CHAIN=bsc forge script script/Deploy.s.sol \
+  --rpc-url $BNB_RPC_URL \
+  --private-key $EVM_PRIVATE_KEY \
+  --broadcast
+```
+
+Output:
+
+```
+SignalRegistry: 0x05177fa11543cEB73cb18883DFb49B17dc23C862
+TradeExecutor:  0xE2Ac333ad2BCD6A0389bf95a059fF576d13EbE8F
+```
+
+Copy them into `.env`:
+
+```bash
+BNB_SIGNAL_REGISTRY_ADDRESS=0x05177fa11543cEB73cb18883DFb49B17dc23C862
+BNB_TRADE_EXECUTOR_ADDRESS=0xE2Ac333ad2BCD6A0389bf95a059fF576d13EbE8F
+```
+
+(If you redeploy, the addresses will change. Re-run the seed:demo
+after — `signal_outcomes`, `orders`, and the agent_scores for
+existing DEMO: signals are unaffected because they key off signal_id,
+not contract address.)
+
+Confirm on BSCScan Testnet:
+
+- SignalRegistry: https://testnet.bscscan.com/address/<SIGNAL_REGISTRY>
+- TradeExecutor: https://testnet.bscscan.com/address/<TRADE_EXECUTOR>
+
 ## Step 5 — Seed the demo (so the scorecard isn't empty)
 
 ```bash
@@ -126,9 +203,13 @@ Re-running is idempotent.
 
 ## Step 6 — Fund the treasury wallet
 
-The deployed `TradeExecutor` and the treasury wallet (your `TREASURY_PRIVATE_KEY`) need testnet USDC (or whatever the `tokenIn` is) and ETH for gas.
+The deployed `TradeExecutor` and the treasury wallet (your `EVM_PRIVATE_KEY`) need testnet USDC (or whatever the `tokenIn` is) and ETH/BNB for gas.
 
-For Arbitrum Sepolia USDC: bridge from Ethereum Sepolia via the official Arbitrum bridge, or use a Circle testnet faucet.
+- **Arbitrum Sepolia USDC**: bridge from Ethereum Sepolia via the official Arbitrum bridge, or use a Circle testnet faucet.
+- **BSC testnet BNB** (for gas + trade): https://testnet.bnbchain.org/faucet-smart
+- **BSC testnet USDC** (the trade's tokenIn): no canonical testnet USDC contract on BSC; check the BNB Hack docs for the current address, or use any BEP-20 the operator is willing to spend.
+
+When `TREASURY_MODE=live`, `TREASURY_DEFAULT_CHAIN` decides which chain the next above-threshold trade lands on. Switch with a single env var.
 
 ## Step 7 — Start the API
 
@@ -156,11 +237,19 @@ If detectors fire and the agent scores above 70, you'll see a Telegram post in t
 
 ```bash
 cast tx <0xpap...> --rpc-url $ARBITRUM_RPC_URL
-# or for live trades:
-cast tx <0xREAL...> --rpc-url $ARBITRUM_RPC_URL
+# Arbitrum Sepolia explorer: https://sepolia.arbiscan.io/tx/<tx-hash>
+# BSC Testnet explorer:    https://testnet.bscscan.com/tx/<tx-hash>
 ```
 
-The trade will be visible at https://sepolia.arbiscan.io/tx/<tx-hash>.
+The trade will be visible at the explorer for the chain the trade landed on. Trade receipts include a `chain` field (one of `arbitrum` | `robinhood` | `bnb`) so you can route the explorer link accordingly.
+
+## Step 10 — (BSC only) Register on-chain for the BNB Hack leaderboard
+
+```bash
+TWAK_WALLET_PASSWORD=<your-tw-ak-wallet-password> ./scripts/register-bnb-hack.sh
+```
+
+This calls `twak compete register` against the BNB Hack registry using the agent wallet the script creates locally. The wallet's address is recorded for the live-trading leaderboard (June 22-28). Run this BEFORE the trading window opens.
 
 ## What to monitor
 
@@ -183,6 +272,14 @@ The constraint is **time**, not engineering. The system works.
 **Telegram broadcast not posting** — verify the bot is admin in the channel. `curl https://api.telegram.org/bot<token>/getChat?chat_id=@lenitnes` should return `"ok":true`.
 
 **CoinGecko rate-limited** — the demo seed has a hardcoded fallback table for the 3 demo commits. The live loop's outcome tracker will skip signals when the API is unavailable and backfill when it's back.
+
+**CMC market context failing** — check `CMC_API_KEY` and `CMC_API_KEY` quota. The agent will run without market context if the fetch fails (it's enrichment, not a hard dependency).
+
+**x402 client init fails** — `apps/api/src/services/cmc-x402.ts` imports `wrapAxiosWithPaymentFromConfig` from `@x402/axios` and `ExactEvmScheme` from `@x402/evm`. If your pinned version of `@x402/axios` doesn't export `wrapAxiosWithPaymentFromConfig`, either upgrade (`npm install @x402/axios@latest`) or disable the x402 path by setting `X402_ENABLED=false` — `services/cmc.ts` will fall back to the Pro API key automatically.
+
+**BSC trade goes through but no TWAK signature** — `TWAK_ENABLED` is `false` or `TWAK_ACCESS_ID`/`TWAK_HMAC_SECRET` is unset. The treasury will fall back to direct `ethers.Wallet` signing, which works but forfeits the TWAK special-prize component.
+
+**BSC forge deploy reverts with "insufficient funds"** — the deployer wallet needs BSC testnet BNB for gas. Faucet: https://testnet.bnbchain.org/faucet-smart.
 
 ## License
 
