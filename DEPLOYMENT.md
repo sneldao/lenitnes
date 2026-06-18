@@ -265,6 +265,8 @@ The constraint is **time**, not engineering. The system works.
 
 ## Troubleshooting
 
+**`vitest` fails with `Cannot find module './rolldown-binding.darwin-arm64.node'` (or `linux-x64-gnu` / `linux-arm64-gnu`)** — npm silently skipped the platform-specific optional dependency for `@rolldown/binding-*`. Re-run with optional deps forced: `npm install --include=optional`. This downloads the native binding for the current platform. (Day 13 had a `postinstall` script that did this automatically; Day 14 removed it because it doubled install time on every CI run — the `--include=optional` workaround is fast enough that the manual flag is acceptable.)
+
 **`schema validation failed — run npm run migrate`** — the API's `validateSchema()` checks that all post-pivot tables exist. Re-run the migrations.
 
 **`MOCK_AGENT=1` doesn't fire** — fixed in Day 13. The agent budget check is now bypassed entirely on the MOCK path (the stub costs nothing, and a developer running seed:demo or a local backtest shouldn't need DAILY_AGENT_BUDGET_USD just to exercise the pipeline). The circuit-breaker is still exercised by the live path (`MOCK_AGENT=` empty or `0`).
