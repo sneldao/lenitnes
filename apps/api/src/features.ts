@@ -19,12 +19,6 @@ export const FEATURES = {
   /** TinyFish AI detection */
   tinyfish: (process.env.TINYFISH_API_KEY ?? '') !== '',
 
-  /** Kraken trade execution */
-  krakenTrading: true,
-
-  /** Public proof sharing */
-  publicProofs: true,
-
   /** GitHub API commit enrichment */
   githubApi: (process.env.GITHUB_TOKEN ?? '') !== '',
 

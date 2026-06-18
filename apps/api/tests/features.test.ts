@@ -7,18 +7,28 @@ describe('FEATURES', () => {
     expect(FEATURES).toHaveProperty('telegram');
     expect(FEATURES).toHaveProperty('email');
     expect(FEATURES).toHaveProperty('tinyfish');
-    expect(FEATURES).toHaveProperty('krakenTrading');
-    expect(FEATURES).toHaveProperty('publicProofs');
+    expect(FEATURES).toHaveProperty('githubApi');
+    expect(FEATURES).toHaveProperty('arbitrumTrading');
+    expect(FEATURES).toHaveProperty('robinhoodChain');
+    expect(FEATURES).toHaveProperty('evmProof');
   });
 
-  it('krakenTrading and publicProofs are always true', () => {
-    expect(FEATURES.krakenTrading).toBe(true);
-    expect(FEATURES.publicProofs).toBe(true);
+  it('does not expose the dead per-user flags', () => {
+    // Removed in Day 10 dead-code sweep:
+    //   krakenTrading (always true, never read)
+    //   publicProofs (always true, never read)
+    expect(FEATURES).not.toHaveProperty('krakenTrading');
+    expect(FEATURES).not.toHaveProperty('publicProofs');
   });
 });
 
 describe('requireFeature', () => {
-  it('passes silently for enabled features', () => {
-    expect(() => requireFeature('krakenTrading')).not.toThrow();
+  it('passes silently for an enabled feature', () => {
+    expect(() => requireFeature('hederaProof')).not.toThrow();
+  });
+
+  it('throws for a feature name that is not on the type', () => {
+    // @ts-expect-error — intentional: checking the runtime contract
+    expect(() => requireFeature('krakenTrading')).toThrow();
   });
 });
