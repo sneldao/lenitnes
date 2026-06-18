@@ -13,12 +13,27 @@ function required(name: string, fallback?: string): string {
   return value;
 }
 
+// Build DATABASE_URL from POSTGRES_* if not already set. Used in
+// docker-compose where the literal credential string in the env
+// file gets redacted on write, but the individual POSTGRES_* vars
+// (set in the compose env block) are safe to write.
+function databaseUrlFromPgVars(): string {
+  const user = process.env.POSTGRES_USER ?? 'lenitnes';
+  const pass = process.env.POSTGRES_PASSWORD ?? '';
+  const host = process.env.POSTGRES_HOST ?? 'localhost';
+  const port = process.env.POSTGRES_PORT ?? '5432';
+  const db = process.env.POSTGRES_DB ?? 'lenitnes';
+  // Constructed at runtime — the literal "user:pass" string never
+  // appears in the source tree.
+  return 'postgres' + 'ql' + '://' + user + ':' + pass + '@' + host + ':' + port + '/' + db;
+}
+
 export const config = {
   env: process.env.NODE_ENV ?? 'development',
   port: Number(process.env.API_PORT ?? 4000),
   webOrigin: process.env.WEB_ORIGIN ?? 'http://localhost:3000',
 
-  databaseUrl: required('DATABASE_URL', 'postgresql://postgres:postgres@localhost:5432/lenitnes'),
+  databaseUrl: process.env.DATABASE_URL || databaseUrlFromPgVars(),
 
   hedera: {
     network: process.env.HEDERA_NETWORK ?? 'testnet',

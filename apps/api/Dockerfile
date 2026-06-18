@@ -29,18 +29,6 @@ FROM node:20-slim AS prod
 WORKDIR /app
 ENV NODE_ENV=production
 
-# Install Kraken CLI (judging criterion: "Use of Kraken CLI functionality")
-RUN apt-get update && apt-get install -y --no-install-recommends curl ca-certificates tar \
-  && curl -L -o /tmp/kraken-cli.tar.gz \
-    "https://github.com/krakenfx/kraken-cli/releases/latest/download/kraken-cli-x86_64-unknown-linux-gnu.tar.gz" \
-  && tar -xzf /tmp/kraken-cli.tar.gz -C /usr/local/bin --strip-components=1 \
-  && chmod +x /usr/local/bin/kraken \
-  && rm /tmp/kraken-cli.tar.gz \
-  && rm -rf /var/lib/apt/lists/*
-
-# Initialize Kraken paper trading account (no credentials required, uses live prices)
-RUN kraken paper init 2>/dev/null || true
-
 COPY --from=base /app/apps/api/dist ./dist
 COPY --from=base /app/node_modules ./node_modules
 COPY --from=base /app/apps/api/node_modules ./apps/api/node_modules
