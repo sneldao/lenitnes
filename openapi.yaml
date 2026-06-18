@@ -2,38 +2,119 @@ openapi: 3.1.0
 info:
   title: LENITNES API
   description: |
-    Proof-chained web monitoring that detects market signals and executes trades.
-    Every signal carries a cryptographic proof chain: TinyFish detection → Hedera HCS timestamp → IPFS proof package → Kraken execution receipt.
-  version: 0.1.0
+    LENITNES is an autonomous AI trading-intelligence operation.
+    Frontier-model agents read public commits to consensus-critical
+    code, score them against a versioned conviction rubric, execute
+    timestamped testnet trades, and broadcast every call to a public
+    Telegram channel — all in the same block, all publicly auditable.
+
+    The API exposes:
+
+      • a public surface — scorecard, signals, replay, proof packages,
+        public stats (no auth required)
+      • an operator surface — /admin/* gated by X-Admin-Key
+      • a webhook surface — /webhooks/* for HMAC-signed callbacks
+      • infrastructure endpoints — /health, /metrics
+
+    Day 1 pivot (zero-headcount): the per-user surface
+    (/auth/*, /rules, /execute/:id) was removed. Every endpoint on
+    this spec is post-pivot.
+  version: 0.2.0
   contact:
     name: LENITNES
+
 servers:
   - url: https://api.lenitnes.io
     description: Production
+  - url: http://localhost:8742
+    description: Local development (Docker)
   - url: http://localhost:4000
-    description: Local development
+    description: Local development (npm run dev:api, no Docker)
 
-security:
-  - bearerAuth: []
+# No global auth — most endpoints are public. Per-endpoint security
+# is declared inline (see `security: []` for public routes and
+# `security: [adminKey: []]` for the operator surface).
+security: []
+
+tags:
+  - name: Public
+    description: Public credibility surface — scorecard, replay, signals, proof
+  - name: Operator
+    description: /admin/* surface — single-operator persona (X-Admin-Key)
+  - name: Health
+    description: Liveness + readiness probes
+  - name: Webhooks
+    description: HMAC-signed callbacks
 
 paths:
+  # ───────────────────────────────────────────────────────────
+  # Health & metrics
+  # ───────────────────────────────────────────────────────────
+
   /health:
     get:
-      summary: Health check
-      description: Returns service status, uptime, and DB connectivity. No auth required.
+      tags: [Health]
+      summary: Verbose health snapshot
+      description: |
+        Returns service status, uptime, DB + Redis checks, DLQ depth,
+        and memory usage. No auth required.
       security: []
       responses:
         '200':
-          description: Service is healthy
+          description: Service is alive
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/HealthStatus'
 
+  /health/live:
+    get:
+      tags: [Health]
+      summary: Liveness probe
+      description: Returns 200 as long as the process is up. For Kubernetes liveness.
+      security: []
+      responses:
+        '200':
+          description: Process is up
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  ok: { type: boolean }
+                  service: { type: string }
+                  version: { type: string }
+
+  /health/ready:
+    get:
+      tags: [Health]
+      summary: Readiness probe
+      description: |
+        Returns 200 only when DB and Redis are both reachable. For
+        Kubernetes readiness + load-balancer health checks.
+      security: []
+      responses:
+        '200':
+          description: Service is ready
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  ok: { type: boolean }
+                  checks:
+                    type: object
+                    properties:
+                      database: { type: string, enum: [ok, fail] }
+                      redis: { type: string, enum: [ok, fail] }
+        '503':
+          description: Service is not ready
+
   /metrics:
     get:
+      tags: [Health]
       summary: Prometheus metrics
-      description: Returns HTTP request counters and latency histograms in Prometheus text format. No auth required.
+      description: HTTP request counters and latency histograms in Prometheus text format.
       security: []
       responses:
         '200':
@@ -43,184 +124,77 @@ paths:
               schema:
                 type: string
 
-  /auth/login:
-    post:
-      summary: Login with wallet signature
-      description: |
-        Verifies an Ed25519 signature on a `lenitnes:auth:<timestamp>` nonce,
-        upserts the user, and returns a 24h JWT.
-      security: []
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/LoginRequest'
-      responses:
-        '200':
-          description: JWT token and user info
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/LoginResponse'
-        '400':
-          description: Invalid request body
-        '401':
-          description: Invalid or expired signature
+  # ───────────────────────────────────────────────────────────
+  # Public credibility surface
+  # ───────────────────────────────────────────────────────────
 
-  /auth/refresh:
-    post:
-      summary: Refresh JWT token
-      description: Validates an existing (non-expired) token and issues a fresh 24h JWT.
-      security: []
-      requestBody:
-        required: false
-        content: {}
-      responses:
-        '200':
-          description: New JWT token
-          content:
-            application/json:
-              schema:
-                type: object
-                properties:
-                  token:
-                    type: string
-        '401':
-          description: Missing or invalid token
-
-  /monitors:
+  /scorecard:
     get:
-      summary: List monitors
-      description: Returns the authenticated user's monitors with pagination.
+      tags: [Public]
+      summary: Public track record
+      description: |
+        The scorecard. Recomputed from signals × agent_scores ×
+        signal_outcomes × orders on every call. Cached 60s; the
+        execution loop invalidates the cache on every new signal.
+      security: []
+      responses:
+        '200':
+          description: Scorecard snapshot
+          headers:
+            X-Cache:
+              schema: { type: string, enum: [HIT, MISS] }
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ScorecardOverall'
+
+  /scorecard/recent:
+    get:
+      tags: [Public]
+      summary: Recent agent calls
+      description: |
+        Most recent signals with the agent's verdict and the
+        T+1h / T+1d / T+7d outcomes. Cached 30s (shorter TTL —
+        the list changes on every signal).
+      security: []
       parameters:
         - name: limit
           in: query
-          schema:
-            type: integer
-            default: 50
-            maximum: 100
-        - name: offset
-          in: query
-          schema:
-            type: integer
-            default: 0
+          schema: { type: integer, default: 20, minimum: 1, maximum: 100 }
       responses:
         '200':
-          description: Array of monitors
+          description: Recent calls
+          headers:
+            X-Cache:
+              schema: { type: string, enum: [HIT, MISS] }
           content:
             application/json:
               schema:
                 type: array
                 items:
-                  $ref: '#/components/schemas/Monitor'
-    post:
-      summary: Create monitor
-      description: Creates a monitor and provisions a Hedera escrow account.
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/CreateMonitorInput'
-      responses:
-        '201':
-          description: Created monitor
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Monitor'
-        '400':
-          description: Validation error
-
-  /monitors/{id}:
-    get:
-      summary: Get monitor detail
-      parameters:
-        - name: id
-          in: path
-          required: true
-          schema:
-            type: string
-            format: uuid
-      responses:
-        '200':
-          description: Monitor with signal history
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Monitor'
-        '404':
-          description: Monitor not found
-    patch:
-      summary: Update monitor
-      parameters:
-        - name: id
-          in: path
-          required: true
-          schema:
-            type: string
-            format: uuid
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/UpdateMonitorInput'
-      responses:
-        '200':
-          description: Updated monitor
-        '404':
-          description: Monitor not found
-    delete:
-      summary: Delete monitor
-      description: Pauses monitor and releases remaining escrow HBAR.
-      parameters:
-        - name: id
-          in: path
-          required: true
-          schema:
-            type: string
-            format: uuid
-      responses:
-        '200':
-          description: Monitor paused
-          content:
-            application/json:
-              schema:
-                type: object
-                properties:
-                  ok:
-                    type: boolean
-        '404':
-          description: Monitor not found
+                  $ref: '#/components/schemas/RecentCall'
 
   /signals:
     get:
+      tags: [Public]
       summary: List signals
-      description: Returns signals for the authenticated user's monitors. Heartbeats excluded by default.
+      description: |
+        Returns recent signals. Heartbeats excluded by default.
+        Cached 30s.
+      security: []
       parameters:
         - name: monitorId
           in: query
-          schema:
-            type: string
-            format: uuid
+          schema: { type: string, format: uuid }
         - name: includeHeartbeats
           in: query
-          schema:
-            type: boolean
-            default: false
+          schema: { type: boolean, default: false }
         - name: limit
           in: query
-          schema:
-            type: integer
-            default: 50
-            maximum: 100
+          schema: { type: integer, default: 50, maximum: 100 }
         - name: offset
           in: query
-          schema:
-            type: integer
-            default: 0
+          schema: { type: integer, default: 0 }
       responses:
         '200':
           description: Array of signals
@@ -233,15 +207,18 @@ paths:
 
   /signals/{id}:
     get:
-      summary: Get signal detail
-      description: Returns full proof package including IPFS CID and Hedera tx links.
+      tags: [Public]
+      summary: Signal detail with proof package
+      description: |
+        Full proof package — signal + monitor metadata + orders +
+        classifications + outcomes + agent verdict + verification
+        checklist + share token.
+      security: []
       parameters:
         - name: id
           in: path
           required: true
-          schema:
-            type: string
-            format: uuid
+          schema: { type: string, format: uuid }
       responses:
         '200':
           description: Signal with proof package
@@ -252,57 +229,238 @@ paths:
         '404':
           description: Signal not found
 
-  /rules:
+  /proof/public/{id}:
     get:
-      summary: List rules
+      tags: [Public]
+      summary: Public proof package (share-link friendly)
+      description: |
+        Public proof endpoint. Excludes orders (potentially sensitive
+        trade data) but includes signal + monitor + agent score +
+        verification checklist. Optional `share` query param gates
+        the response on a per-signal token.
+      security: []
       parameters:
-        - name: monitorId
+        - name: id
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+        - name: share
           in: query
-          schema:
-            type: string
-            format: uuid
+          schema: { type: string }
+          description: Per-signal share token (required to view non-public signals)
       responses:
         '200':
-          description: Array of rules
+          description: Public proof package
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PublicProof'
+        '404':
+          description: Not found or invalid share token
+
+  /backtest/stats:
+    get:
+      tags: [Public]
+      summary: Backtest statistics per detector + asset
+      description: |
+        Aggregated accuracy, hit ratio, and avg pct-change per
+        detector type and asset.
+      security: []
+      parameters:
+        - name: detector
+          in: query
+          schema: { type: string }
+        - name: asset
+          in: query
+          schema: { type: string }
+      responses:
+        '200':
+          description: Array of detector stats
           content:
             application/json:
               schema:
                 type: array
                 items:
-                  $ref: '#/components/schemas/Rule'
-    post:
-      summary: Create rule
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/CreateRuleInput'
+                  $ref: '#/components/schemas/DetectorBacktestStats'
+
+  /backtest/signals/{id}/outcomes:
+    get:
+      tags: [Public]
+      summary: Outcomes for a specific signal
+      description: Price outcome rows (T+1h / T+1d / T+7d) for a given signal.
+      security: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
       responses:
-        '201':
-          description: Created rule
+        '200':
+          description: Outcome rows
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Rule'
-        '400':
-          description: Validation error
+                type: array
+                items:
+                  $ref: '#/components/schemas/SignalOutcome'
+
+  /backtest/process:
+    post:
+      tags: [Public]
+      summary: Trigger on-demand backtest processing
+      description: |
+        Recompute backtest stats from any signals that have new
+        outcomes but unprocessed detector_backtest_stats rows.
+        Idempotent.
+      security: []
+      responses:
+        '200':
+          description: Process result
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  ok: { type: boolean }
+                  processed: { type: integer }
+                  errors: { type: integer }
+
+  /backtest/replay:
+    get:
+      tags: [Public]
+      summary: Founding-myth replay
+      description: |
+        Run the agent + detector pipeline against a historical commit
+        range. v1 returns the canonical halo2 example for /halo2;
+        other repos return []. Public, uncached.
+      security: []
+      parameters:
+        - name: repo
+          in: query
+          schema: { type: string, default: 'zcash/halo2' }
+        - name: from
+          in: query
+          schema: { type: string, format: date }
+        - name: to
+          in: query
+          schema: { type: string, format: date }
+        - name: asset
+          in: query
+          schema: { type: string }
+      responses:
+        '200':
+          description: Replay verdicts
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  repo: { type: string }
+                  from: { type: string, nullable: true }
+                  to: { type: string, nullable: true }
+                  asset: { type: string, nullable: true }
+                  verdicts:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/ReplayVerdict'
+        '500':
+          description: Replay failed
+
+  /backtest/replay/halo2:
+    get:
+      tags: [Public]
+      summary: Canonical halo2 replay
+      description: Hardcoded replay of the 2022-04-15 halo2 soundness fix.
+      security: []
+      responses:
+        '200':
+          description: Halo2 replay
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  repo: { type: string, example: 'zcash/halo2' }
+                  verdicts:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/ReplayVerdict'
+
+  /stats/public:
+    get:
+      tags: [Public]
+      summary: Aggregate counters for landing page
+      description: |
+        Live counts — total signals, active monitors, total orders,
+        total HCS proofs, total Arbitrum proofs, total waitlist.
+        Cached 30s.
+      security: []
+      responses:
+        '200':
+          description: Public stats
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PublicStats'
+
+  /monitors:
+    get:
+      tags: [Public]
+      summary: List watchlist entries
+      description: |
+        Returns the system watchlist (admin-curated, no per-user
+        filter). Cached 30s.
+      security: []
+      parameters:
+        - name: limit
+          in: query
+          schema: { type: integer, default: 50, maximum: 100 }
+        - name: offset
+          in: query
+          schema: { type: integer, default: 0 }
+      responses:
+        '200':
+          description: Array of monitors
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Monitor'
+
+  /monitors/{id}:
+    get:
+      tags: [Public]
+      summary: Monitor detail
+      security: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+      responses:
+        '200':
+          description: Monitor with signal history
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MonitorWithSignals'
         '404':
           description: Monitor not found
 
-  /execute/{monitorId}:
+  /monitors/{id}/first-check:
     post:
-      summary: On-demand execution (disabled after pivot)
+      tags: [Public]
+      summary: Trigger first check (one-time per monitor)
       description: |
-        On-demand execution. Disabled after the zero-headcount pivot —
-        the autonomous loop handles all checks. Endpoint returns 501.
+        Enforces one-time use: subsequent calls return 400 because
+        the autonomous cron takes over.
+      security: []
       parameters:
-        - name: monitorId
+        - name: id
           in: path
           required: true
-          schema:
-            type: string
-            format: uuid
+          schema: { type: string, format: uuid }
       responses:
         '200':
           description: Execution result
@@ -311,28 +469,28 @@ paths:
               schema:
                 type: object
                 properties:
-                  ok:
-                    type: boolean
-                  monitorId:
-                    type: string
-        '501':
-          description: Disabled after pivot
+                  ok: { type: boolean }
+                  monitorId: { type: string }
+                  signalId: { type: string, nullable: true }
+                  publicShareToken: { type: string, nullable: true }
+        '400':
+          description: First check already used
+        '404':
+          description: Monitor not found
 
   /orders:
     get:
-      summary: List orders
+      tags: [Public]
+      summary: List recent orders
+      description: Recent treasury trades joined with signal + monitor metadata.
+      security: []
       parameters:
         - name: limit
           in: query
-          schema:
-            type: integer
-            default: 50
-            maximum: 100
+          schema: { type: integer, default: 50, maximum: 100 }
         - name: offset
           in: query
-          schema:
-            type: integer
-            default: 0
+          schema: { type: integer, default: 0 }
       responses:
         '200':
           description: Array of orders
@@ -343,213 +501,403 @@ paths:
                 items:
                   $ref: '#/components/schemas/Order'
 
+  /dlq:
+    get:
+      tags: [Public]
+      summary: Dead-letter queue depth + jobs
+      description: BullMQ jobs that exhausted retries. Operator surface in practice.
+      security: []
+      parameters:
+        - name: limit
+          in: query
+          schema: { type: integer, default: 50, maximum: 200 }
+      responses:
+        '200':
+          description: DLQ snapshot
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  depth: { type: integer }
+                  jobs:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/DlqJob'
+
+  /dlq/{jobId}/replay:
+    post:
+      tags: [Public]
+      summary: Replay a DLQ job
+      description: Re-enqueue the monitor check on the main queue.
+      security: []
+      parameters:
+        - name: jobId
+          in: path
+          required: true
+          schema: { type: string }
+      responses:
+        '200':
+          description: Job replayed
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  ok: { type: boolean }
+        '404':
+          description: Job not found
+
+  /dlq/{jobId}:
+    delete:
+      tags: [Public]
+      summary: Discard a DLQ job
+      security: []
+      parameters:
+        - name: jobId
+          in: path
+          required: true
+          schema: { type: string }
+      responses:
+        '200':
+          description: Job discarded
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  ok: { type: boolean }
+        '404':
+          description: Job not found
+
+  # ───────────────────────────────────────────────────────────
+  # Operator surface (X-Admin-Key)
+  # ───────────────────────────────────────────────────────────
+
+  /admin/status:
+    get:
+      tags: [Operator]
+      summary: Operator status snapshot
+      description: |
+        Daily signal counts, agent budget spent vs cap, latest signal
+        id, treasury wallet count. Returned only when `X-Admin-Key`
+        matches `ADMIN_API_KEY` env var. When `ADMIN_API_KEY` is
+        unset, returns 503 (no info leak).
+      security:
+        - adminKey: []
+      responses:
+        '200':
+          description: Status
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminStatus'
+        '401':
+          description: Invalid admin key
+        '503':
+          description: ADMIN_API_KEY not configured
+
+  /admin/cache/invalidate:
+    post:
+      tags: [Operator]
+      summary: Invalidate cache entries by pattern
+      description: |
+        Drops cache entries whose key starts with `pattern`.
+        Used when a new signal commits and the scorecard needs to
+        refresh before its 60s TTL.
+      security:
+        - adminKey: []
+      parameters:
+        - name: pattern
+          in: query
+          required: true
+          schema: { type: string }
+      responses:
+        '200':
+          description: Pattern invalidated
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  ok: { type: boolean }
+                  pattern: { type: string }
+                  invalidatedAt: { type: string, format: date-time }
+        '400':
+          description: pattern query param required
+
+  /admin/cache/invalidate-all:
+    post:
+      tags: [Operator]
+      summary: Invalidate every cache entry
+      security:
+        - adminKey: []
+      responses:
+        '200':
+          description: All cache entries dropped
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  ok: { type: boolean }
+                  invalidatedAt: { type: string, format: date-time }
+
+  # ───────────────────────────────────────────────────────────
+  # Webhooks
+  # ───────────────────────────────────────────────────────────
+
+  /webhooks/test:
+    post:
+      tags: [Webhooks]
+      summary: Test a webhook URL
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [url]
+              properties:
+                url: { type: string, format: uri }
+      responses:
+        '200':
+          description: Test result
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  ok: { type: boolean }
+                  status: { type: integer }
+                  durationMs: { type: integer }
+
+  /webhooks/kraken:
+    post:
+      tags: [Webhooks]
+      summary: Kraken order confirmation callback (HMAC-signed)
+      description: |
+        Receives Kraken order confirmations. HMAC-verified against
+        `WEBHOOK_SECRET`. Returns 503 if `WEBHOOK_SECRET` is unset.
+        (Kept as legacy surface for pre-pivot trading integrations;
+        the autonomous loop drives trades via treasury → TWAK/ethers,
+        not via Kraken.)
+      security: []
+      parameters:
+        - name: x-webhook-signature
+          in: header
+          required: true
+          schema: { type: string }
+      responses:
+        '200':
+          description: Order updated
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  ok: { type: boolean }
+        '401':
+          description: Invalid signature
+        '503':
+          description: WEBHOOK_SECRET not configured
+
 components:
   securitySchemes:
-    bearerAuth:
-      type: http
-      scheme: bearer
-      bearerFormat: JWT
-      description: JWT token from /auth/login
+    adminKey:
+      type: apiKey
+      in: header
+      name: X-Admin-Key
+      description: |
+        Matches the `ADMIN_API_KEY` env var. When unset, all
+        /admin/* endpoints return 503 (no info leak).
 
   schemas:
+    # ── Health ──────────────────────────────────────────────
+
     HealthStatus:
       type: object
       required: [ok, service, version]
       properties:
-        ok:
-          type: boolean
-        service:
-          type: string
-        version:
-          type: string
-        uptime:
-          type: number
+        ok: { type: boolean }
+        service: { type: string, example: lenitnes-api }
+        version: { type: string, example: 0.2.0 }
+        uptime: { type: number }
         checks:
           type: object
           properties:
-            database:
-              type: string
-              enum: [ok, fail]
+            database: { type: string, enum: [ok, fail] }
+            redis: { type: string, enum: [ok, fail] }
+            dlq:
+              type: object
+              properties:
+                depth: { type: integer }
+                status: { type: string, enum: [ok, fail] }
         memory:
           type: object
           properties:
-            rss:
-              type: integer
-            heapUsed:
-              type: integer
-            external:
-              type: integer
+            rss: { type: integer }
+            heapUsed: { type: integer }
+            external: { type: integer }
 
-    LoginRequest:
-      type: object
-      required: [walletAddress, publicKey, message, signature]
-      properties:
-        walletAddress:
-          type: string
-          description: Hedera account ID
-          maxLength: 100
-        publicKey:
-          type: string
-          description: Hex-encoded Ed25519 public key
-          maxLength: 200
-        message:
-          type: string
-          description: 'Auth nonce: lenitnes:auth:<timestamp>'
-          maxLength: 200
-        signature:
-          type: string
-          description: Hex-encoded Ed25519 signature
-          maxLength: 500
-        email:
-          type: string
-          format: email
+    # ── Scorecard ───────────────────────────────────────────
 
-    LoginResponse:
+    ScorecardOverall:
       type: object
-      required: [token, user]
+      required:
+        - totalSignals
+        - totalTrades
+        - hitRatio
+        - cumulativePnlUsd
+        - sharpe
+        - maxDrawdownUsd
+        - bySignalType
+        - byWatchlist
+        - recentCalls
+        - generatedAt
       properties:
-        token:
+        totalSignals: { type: integer, description: Non-heartbeat signals }
+        totalTrades: { type: integer, description: Orders with status='filled' }
+        hitRatio:
+          type: number
+          minimum: 0
+          maximum: 1
+          description: Fraction of T+1d outcomes where price moved in the agent's predicted direction
+        cumulativePnlUsd:
+          type: number
+          description: Sum of (price_after - price_at_signal) across T+1d outcomes
+        sharpe:
+          type: number
+          description: Mean pct_change / stddev over T+1d outcomes
+        maxDrawdownUsd: { type: number }
+        bySignalType:
+          type: array
+          items: { $ref: '#/components/schemas/ScorecardBySignalType' }
+        byWatchlist:
+          type: array
+          items: { $ref: '#/components/schemas/ScorecardByWatchlist' }
+        recentCalls:
+          type: array
+          items: { $ref: '#/components/schemas/RecentCall' }
+        generatedAt: { type: string, format: date-time }
+
+    ScorecardBySignalType:
+      type: object
+      required: [detectorType, total, hits, hitRatio]
+      properties:
+        detectorType: { type: string }
+        total: { type: integer }
+        hits: { type: integer }
+        hitRatio: { type: number }
+
+    ScorecardByWatchlist:
+      type: object
+      required: [monitorId, url, total, hits, hitRatio]
+      properties:
+        monitorId: { type: string, format: uuid }
+        url: { type: string }
+        total: { type: integer }
+        hits: { type: integer }
+        hitRatio: { type: number }
+
+    RecentCall:
+      type: object
+      required: [signalId, detectedAt, monitorUrl, outcomes, detectorTypes]
+      properties:
+        signalId: { type: string, format: uuid }
+        detectedAt: { type: string, format: date-time }
+        monitorUrl: { type: string }
+        detectorTypes:
+          type: array
+          items: { type: string }
+        conviction: { type: integer, minimum: 0, maximum: 100, nullable: true }
+        thesis: { type: string, nullable: true, maxLength: 280 }
+        recommendedAction:
           type: string
-        user:
+          enum: [long, short, none]
+          nullable: true
+        tradeTxHash: { type: string, nullable: true }
+        outcomes:
           type: object
-          required: [id, wallet_address]
           properties:
-            id:
-              type: string
-              format: uuid
-            wallet_address:
-              type: string
-            email:
-              type: string
-              nullable: true
+            t1h: { type: number, nullable: true }
+            t1d: { type: number, nullable: true }
+            t7d: { type: number, nullable: true }
 
-    CreateMonitorInput:
-      type: object
-      required: [url, conditionText]
-      properties:
-        url:
-          type: string
-          format: uri
-          description: Must be http or https
-        conditionText:
-          type: string
-          minLength: 1
-          maxLength: 500
-          description: Plain English condition. Max 500 chars to prevent token bombing.
-        frequencySeconds:
-          type: integer
-          default: 3600
-        stakeHbar:
-          type: number
-          default: 0
-        costPerCheck:
-          type: number
-        screenshotsEnabled:
-          type: boolean
-          default: true
+    # ── Monitor ─────────────────────────────────────────────
 
-    UpdateMonitorInput:
-      type: object
-      properties:
-        conditionText:
-          type: string
-          minLength: 1
-          maxLength: 500
-        frequencySeconds:
-          type: integer
-        status:
-          type: string
-          enum: [active, paused, triggered, insufficient_balance]
-        stakeHbar:
-          type: number
+    MonitorStatus:
+      type: string
+      enum: [active, paused, triggered]
 
     Monitor:
       type: object
       required:
-        [
-          id,
-          user_id,
-          url,
-          condition_text,
-          frequency_seconds,
-          hbar_balance,
-          cost_per_check,
-          status,
-          created_at,
-        ]
+        - id
+        - url
+        - condition_text
+        - frequency_seconds
+        - status
+        - screenshots_enabled
+        - is_public
+        - confidence_threshold
+        - asset_mapping
+        - created_at
       properties:
-        id:
-          type: string
-          format: uuid
-        user_id:
-          type: string
-          format: uuid
-        url:
-          type: string
-        condition_text:
-          type: string
-        frequency_seconds:
-          type: integer
-        escrow_account_id:
-          type: string
-          nullable: true
-        hbar_balance:
-          type: number
-        cost_per_check:
-          type: number
-        screenshots_enabled:
-          type: boolean
-        status:
-          type: string
-          enum: [active, paused, triggered, insufficient_balance]
-        last_check_at:
-          type: string
-          format: date-time
-          nullable: true
-        last_seen_commit_hash:
-          type: string
-          nullable: true
-        created_at:
-          type: string
-          format: date-time
+        id: { type: string, format: uuid }
+        url: { type: string, format: uri }
+        condition_text: { type: string, maxLength: 500 }
+        frequency_seconds: { type: integer, minimum: 60 }
+        status: { $ref: '#/components/schemas/MonitorStatus' }
+        screenshots_enabled: { type: boolean }
+        is_public: { type: boolean }
+        confidence_threshold: { type: integer, minimum: 0, maximum: 100 }
+        last_check_at: { type: string, format: date-time, nullable: true }
+        last_seen_commit_hash: { type: string, nullable: true }
+        asset_mapping:
+          type: object
+          properties:
+            coingeckoId: { type: string }
+            krakenPair: { type: string }
+            tokenizedStock: { type: string }
+            direction: { type: string, enum: [long, short, both] }
+        created_at: { type: string, format: date-time }
+
+    MonitorWithSignals:
+      allOf:
+        - $ref: '#/components/schemas/Monitor'
+        - type: object
+          properties:
+            signals:
+              type: array
+              items: { $ref: '#/components/schemas/Signal' }
+
+    # ── Signal ──────────────────────────────────────────────
 
     Signal:
       type: object
-      required: [id, monitor_id, detected_at, is_heartbeat]
+      required:
+        - id
+        - monitor_id
+        - detected_at
+        - is_heartbeat
       properties:
-        id:
-          type: string
-          format: uuid
-        monitor_id:
-          type: string
-          format: uuid
-        detected_at:
-          type: string
-          format: date-time
-        hedera_tx_id:
-          type: string
-          nullable: true
-        hedera_hcs_message_id:
-          type: string
-          nullable: true
-        tinyfish_run_id:
-          type: string
-          nullable: true
-        ipfs_cid:
-          type: string
-          nullable: true
-        evidence_text:
-          type: string
-          nullable: true
+        id: { type: string, format: uuid }
+        monitor_id: { type: string, format: uuid }
+        detected_at: { type: string, format: date-time }
+        hedera_tx_id: { type: string, nullable: true }
+        hedera_hcs_message_id: { type: string, nullable: true }
+        tinyfish_run_id: { type: string, nullable: true }
+        ipfs_cid: { type: string, nullable: true }
+        evidence_text: { type: string, nullable: true }
         screenshot_urls:
           type: array
-          items:
-            type: string
-        condition_summary:
-          type: string
-          nullable: true
-        is_heartbeat:
-          type: boolean
+          items: { type: string }
+        condition_summary: { type: string, nullable: true }
+        is_heartbeat: { type: boolean }
+        arb_tx_hash: { type: string, nullable: true }
+        orders_count: { type: integer }
 
     SignalDetail:
       allOf:
@@ -558,94 +906,302 @@ components:
           properties:
             monitor:
               type: object
+              nullable: true
               properties:
-                id:
-                  type: string
-                url:
-                  type: string
-                condition_text:
-                  type: string
+                id: { type: string }
+                url: { type: string }
+                condition_text: { type: string }
             orders:
               type: array
-              items:
-                $ref: '#/components/schemas/Order'
+              items: { $ref: '#/components/schemas/Order' }
             proof:
               type: object
               properties:
-                ipfsUrl:
-                  type: string
-                  nullable: true
-                hashscanUrl:
-                  type: string
-                  nullable: true
+                ipfsUrl: { type: string, nullable: true }
+                hashscanUrl: { type: string, nullable: true }
+            evidence_hash: { type: string, nullable: true, description: SHA-256 of evidence_text }
+            verification_checklist:
+              type: array
+              items:
+                type: object
+                properties:
+                  name: { type: string }
+                  ok: { type: boolean }
+                  detail: { type: string }
+            public_share_token: { type: string }
+            classifications:
+              type: array
+              items:
+                type: object
+                properties:
+                  detector_type: { type: string }
+                  score: { type: integer }
+                  confidence: { type: integer }
+                  label: { type: string }
+            outcomes:
+              type: array
+              items: { $ref: '#/components/schemas/SignalOutcome' }
+            agent_score: { $ref: '#/components/schemas/AgentScore' }
 
-    CreateRuleInput:
+    PublicProof:
       type: object
-      required: [monitorId, actionType]
       properties:
-        monitorId:
-          type: string
-          format: uuid
-        actionType:
-          type: string
-          enum: [trade, webhook, email, telegram]
-        actionConfig:
+        id: { type: string, format: uuid }
+        detected_at: { type: string, format: date-time }
+        condition_summary: { type: string, nullable: true }
+        evidence_text: { type: string, nullable: true }
+        evidence_hash: { type: string, nullable: true }
+        screenshot_urls:
+          type: array
+          items: { type: string }
+        is_heartbeat: { type: boolean }
+        hedera_tx_id: { type: string, nullable: true }
+        ipfs_cid: { type: string, nullable: true }
+        monitor: { $ref: '#/components/schemas/Monitor' }
+        proof:
           type: object
-        conditions:
-          type: object
-        isActive:
-          type: boolean
-          default: true
+          properties:
+            ipfsUrl: { type: string, nullable: true }
+            hashscanUrl: { type: string, nullable: true }
+        verification_checklist:
+          type: array
+          items:
+            type: object
+            properties:
+              name: { type: string }
+              ok: { type: boolean }
+              detail: { type: string }
 
-    Rule:
+    # ── Outcome ─────────────────────────────────────────────
+
+    SignalOutcome:
       type: object
-      required: [id, monitor_id, action_type, action_config, conditions, is_active, created_at]
+      required: [signal_id, asset, window_seconds, direction]
       properties:
-        id:
+        signal_id: { type: string, format: uuid }
+        asset: { type: string }
+        window_seconds:
+          type: integer
+          enum: [3600, 86400, 604800]
+          description: 'T+1h, T+1d, or T+7d'
+        price_at_signal: { type: string }
+        price_after: { type: string }
+        pct_change: { type: string }
+        direction:
           type: string
-          format: uuid
-        monitor_id:
-          type: string
-          format: uuid
-        action_type:
-          type: string
-        action_config:
-          type: object
-        conditions:
-          type: object
-        is_active:
-          type: boolean
-        created_at:
-          type: string
-          format: date-time
+          enum: [up, down, flat]
+
+    # ── Order ───────────────────────────────────────────────
 
     Order:
       type: object
-      required: [id, signal_id, order_params, status]
+      required: [id, signal_id, status]
       properties:
-        id:
-          type: string
-          format: uuid
-        kraken_order_id:
+        id: { type: string, format: uuid }
+        signal_id: { type: string, format: uuid }
+        rule_id:
           type: string
           nullable: true
+          description: 'Deprecated — rules table dropped in Day 2 pivot. Always null post-pivot.'
+        kraken_order_id: { type: string, nullable: true }
         order_params:
           type: object
+          additionalProperties: true
         status:
           type: string
-          enum: [pending, placed, failed]
-        placed_at:
-          type: string
-          format: date-time
-          nullable: true
+          enum: [pending, placed, filled, partially_filled, cancelled, failed, expired]
+        placed_at: { type: string, format: date-time, nullable: true }
+        cancelled_at: { type: string, format: date-time, nullable: true }
         kraken_response:
           type: object
           nullable: true
-        signal_id:
+          additionalProperties: true
+        chain:
           type: string
-        detected_at:
+          enum: [hedera, arbitrum, robinhood, bnb]
+          nullable: true
+        chain_tx_hash: { type: string, nullable: true }
+
+    # ── Agent ───────────────────────────────────────────────
+
+    AgentAction:
+      type: string
+      enum: [long, short, none]
+
+    ConfidenceBand:
+      type: string
+      enum: [low, mid, high]
+
+    AgentScore:
+      type: object
+      required:
+        [id, signal_id, rubric_version, conviction, thesis, recommended_action, confidence_band]
+      properties:
+        id: { type: string, format: uuid }
+        signal_id: { type: string, format: uuid }
+        rubric_version: { type: string, example: v1 }
+        conviction:
+          type: integer
+          minimum: 0
+          maximum: 100
+          description: 0-100 conviction score. Signals ≥ CONVICTION_THRESHOLD (default 70) trigger the trade.
+        thesis:
           type: string
-        monitor_id:
-          type: string
-        monitor_url:
-          type: string
+          maxLength: 280
+          description: 280-char thesis broadcast to Telegram
+        recommended_action: { $ref: '#/components/schemas/AgentAction' }
+        confidence_band: { $ref: '#/components/schemas/ConfidenceBand' }
+        raw_response:
+          type: object
+          additionalProperties: true
+        created_at: { type: string, format: date-time }
+
+    # ── Treasury ────────────────────────────────────────────
+
+    Chain:
+      type: string
+      enum: [hedera, arbitrum, robinhood, bnb]
+
+    TreasuryWallet:
+      type: object
+      required: [chain, address, is_active]
+      properties:
+        chain: { $ref: '#/components/schemas/Chain' }
+        address: { type: string }
+        label: { type: string, nullable: true }
+        is_active: { type: boolean }
+
+    # ── Detectors / Backtest ─────────────────────────────────
+
+    SignalType:
+      type: string
+      enum:
+        - emergency_patch
+        - security_critical_patch
+        - dependency_rotation
+        - governance_shift
+        - maintainer_departure
+        - silent_merge
+        - protocol_upgrade
+        - supply_chain_risk
+        - generic
+
+    DetectorBacktestStats:
+      type: object
+      required: [detector_type, asset, total_signals, correct_count]
+      properties:
+        detector_type: { type: string }
+        asset: { type: string }
+        total_signals: { type: integer }
+        correct_count: { type: integer }
+        accuracy: { type: string }
+        avg_pct_change: { type: string }
+        median_pct_change: { type: string }
+        avg_abs_return: { type: string }
+        sharpe_estimate: { type: string }
+        best_window:
+          type: integer
+          nullable: true
+
+    ReplayVerdict:
+      type: object
+      description: |
+        One agent verdict per replay run. Schema mirrors a frozen
+        AgentScore + a few replay-only metadata fields (the
+        historical commit range, the source repo).
+      properties:
+        repo: { type: string }
+        commit: { type: string }
+        committed_at: { type: string, format: date-time }
+        conviction: { type: integer, minimum: 0, maximum: 100 }
+        thesis: { type: string }
+        recommended_action: { $ref: '#/components/schemas/AgentAction' }
+        confidence_band: { $ref: '#/components/schemas/ConfidenceBand' }
+        detector_classifications:
+          type: array
+          items:
+            type: object
+            properties:
+              detector_type: { type: string }
+              score: { type: integer }
+              confidence: { type: integer }
+              label: { type: string }
+        outcome:
+          type: object
+          properties:
+            asset: { type: string }
+            window_seconds: { type: integer }
+            price_at_signal: { type: number }
+            price_after: { type: number }
+            pct_change: { type: number }
+            hit: { type: boolean }
+
+    # ── Stats ───────────────────────────────────────────────
+
+    PublicStats:
+      type: object
+      required:
+        - total_signals
+        - active_monitors
+        - total_orders
+        - total_proofs
+        - total_arb_proofs
+        - total_waitlist
+      properties:
+        total_signals: { type: integer }
+        active_monitors: { type: integer }
+        total_orders: { type: integer }
+        total_proofs: { type: integer, description: Signals with a Hedera tx_id }
+        total_arb_proofs: { type: integer, description: Signals with an Arbitrum tx hash }
+        total_waitlist:
+          {
+            type: integer,
+            description: Waitlist signups (deprecated surface; kept for backwards compat),
+          }
+
+    # ── Admin ───────────────────────────────────────────────
+
+    AdminStatus:
+      type: object
+      required: [signals, agent, trades, treasury]
+      properties:
+        signals:
+          type: object
+          required: [last24h, last7d]
+          properties:
+            last24h: { type: integer }
+            last7d: { type: integer }
+            latestAt: { type: string, format: date-time, nullable: true }
+            latestId: { type: string, format: uuid, nullable: true }
+        agent:
+          type: object
+          required: [scoresLast24h, dailySpendUsd, dailyBudgetUsd]
+          properties:
+            scoresLast24h: { type: integer }
+            dailySpendUsd: { type: number }
+            dailyBudgetUsd: { type: number }
+        trades:
+          type: object
+          required: [filledAllTime]
+          properties:
+            filledAllTime: { type: integer }
+        treasury:
+          type: object
+          required: [activeWallets, defaultChain, defaultMode]
+          properties:
+            activeWallets: { type: integer }
+            defaultChain: { $ref: '#/components/schemas/Chain' }
+            defaultMode:
+              type: string
+              enum: [paper, live]
+
+    # ── DLQ ─────────────────────────────────────────────────
+
+    DlqJob:
+      type: object
+      required: [monitorId, finalError, attemptsMade, movedAt]
+      properties:
+        monitorId: { type: string }
+        finalError: { type: string }
+        attemptsMade: { type: integer }
+        movedAt: { type: string, format: date-time }
