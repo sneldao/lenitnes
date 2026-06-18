@@ -13,6 +13,7 @@
     "mcp": "tsx src/mcp/kraken-server.ts",
     "migrate": "tsx src/db/migrate.ts",
     "migrate:followup": "tsx src/db/migrate-followup.ts",
+    "seed:demo": "tsx src/seed/demo.ts",
     "typecheck": "tsc --noEmit",
     "test": "vitest run"
   },

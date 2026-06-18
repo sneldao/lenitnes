@@ -64,12 +64,15 @@ const T1D_WINDOW = 86400;
 
 /** A signal is a "hit" if the price moved in the agent's predicted
  * direction at T+1d. Direction comes from signal_outcomes; the
- * agent's predicted direction comes from agent_scores. */
+ * agent's predicted direction comes from agent_scores.
+ *
+ * Uses the column aliases from the consuming CTE (recommended_action,
+ * direction). The caller is responsible for the JOIN. */
 function isHitPredicate(): string {
   return `
     (
-      (ag.recommended_action = 'long' AND so.direction = 'up') OR
-      (ag.recommended_action = 'short' AND so.direction = 'down')
+      (recommended_action = 'long' AND direction = 'up') OR
+      (recommended_action = 'short' AND direction = 'down')
     )
   `;
 }
@@ -209,18 +212,29 @@ async function outcomesQuery(): Promise<OutcomesRow> {
 async function bySignalTypeQuery(): Promise<ScorecardBySignalType[]> {
   // Compute on the fly (not from detector_backtest_stats) so the
   // scorecard is always accurate even before the backtest cron runs.
+  // The isHitPredicate now uses unqualified column names — it
+  // expects the CTE to expose `recommended_action` and `direction`.
   const { rows } = await query<{
     detector_type: string;
     total: string;
     hits: string;
   }>(
-    `SELECT
+    `WITH t1d_per_signal AS (
+       SELECT DISTINCT ON (so.signal_id)
+         so.signal_id,
+         so.direction,
+         ag.recommended_action
+       FROM signal_outcomes so
+       LEFT JOIN agent_scores ag ON ag.signal_id = so.signal_id
+       WHERE so.window_seconds = $1
+       ORDER BY so.signal_id, so.created_at DESC
+     )
+     SELECT
        sc.detector_type,
        COUNT(DISTINCT sc.signal_id)::text AS total,
        COUNT(DISTINCT CASE WHEN ${isHitPredicate()} THEN sc.signal_id END)::text AS hits
      FROM signal_classifications sc
-     LEFT JOIN signal_outcomes so ON so.signal_id = sc.signal_id AND so.window_seconds = $1
-     LEFT JOIN agent_scores ag ON ag.signal_id = sc.signal_id
+     LEFT JOIN t1d_per_signal t ON t.signal_id = sc.signal_id
      GROUP BY sc.detector_type
      ORDER BY total DESC`,
     [T1D_WINDOW],
@@ -240,15 +254,24 @@ async function byWatchlistQuery(): Promise<ScorecardByWatchlist[]> {
     total: string;
     hits: string;
   }>(
-    `SELECT
+    `WITH t1d_per_signal AS (
+       SELECT DISTINCT ON (so.signal_id)
+         so.signal_id,
+         so.direction,
+         ag.recommended_action
+       FROM signal_outcomes so
+       LEFT JOIN agent_scores ag ON ag.signal_id = so.signal_id
+       WHERE so.window_seconds = $1
+       ORDER BY so.signal_id, so.created_at DESC
+     )
+     SELECT
        m.id AS monitor_id,
        m.url,
        COUNT(DISTINCT s.id)::text AS total,
        COUNT(DISTINCT CASE WHEN ${isHitPredicate()} THEN s.id END)::text AS hits
      FROM monitors m
      LEFT JOIN signals s ON s.monitor_id = m.id AND s.is_heartbeat = false
-     LEFT JOIN signal_outcomes so ON so.signal_id = s.id AND so.window_seconds = $1
-     LEFT JOIN agent_scores ag ON ag.signal_id = s.id
+     LEFT JOIN t1d_per_signal t ON t.signal_id = s.id
      GROUP BY m.id, m.url
      ORDER BY total DESC, m.url ASC`,
     [T1D_WINDOW],
