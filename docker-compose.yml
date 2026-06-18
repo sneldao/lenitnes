@@ -1,9 +1,51 @@
 # LENITNES — full stack for Coolify (Docker Compose deployment).
 #
-# Services: postgres (db), api, worker, web.
+# Services: postgres (db), redis, api, worker, web.
 # Secrets and public URLs are supplied via Coolify environment variables.
 # SERVICE_FQDN_* are Coolify "magic" vars that auto-generate domains + Traefik
 # routing for the exposed services (api on :8742, web on :3000).
+
+x-api-env: &api-env
+  NODE_ENV: 'production'
+  DATABASE_URL: 'postgresql://${POSTGRES_USER:***@db:5432/${POSTGRES_DB:-lenitnes}'
+  PGSSLMODE: 'disable'
+  REDIS_URL: 'redis://lenitnes-redis:6379'
+  WEB_ORIGIN: ${WEB_ORIGIN}
+  # ── Auth (zero-headcount — JWT_SECRET/ENCRYPTION_KEY kept for legacy endpoints) ──
+  JWT_SECRET: ${JWT_SECRET}
+  ENCRYPTION_KEY: ${ENCRYPTION_KEY}
+  WEBHOOK_SECRET: ${WEBHOOK_SECRET}
+  # ── Agent (Day 3) ──
+  VIRTUALS_API_KEY: ${VIRTUALS_API_KEY}
+  VIRTUALS_BASE_URL: ${VIRTUALS_BASE_URL:-https://compute.virtuals.io/v1}
+  AGENT_MODEL: ${AGENT_MODEL:-moonshotai/kimi-k2-0905}
+  MOCK_AGENT: ${MOCK_AGENT:-1}
+  CONVICTION_THRESHOLD: ${CONVICTION_THRESHOLD:-70}
+  DAILY_AGENT_BUDGET_USD: ${DAILY_AGENT_BUDGET_USD:-100}
+  AGENT_INPUT_COST_PER_1M_USD: ${AGENT_INPUT_COST_PER_1M_USD:-0.60}
+  AGENT_OUTPUT_COST_PER_1M_USD: ${AGENT_OUTPUT_COST_PER_1M_USD:-2.50}
+  ADMIN_API_KEY: ${ADMIN_API_KEY}
+  # ── Treasury (Day 5) ──
+  TREASURY_PRIVATE_KEY: ${TREASURY_PRIVATE_KEY}
+  TREASURY_MODE: ${TREASURY_MODE:-paper}
+  TREASURY_DEFAULT_CHAIN: ${TREASURY_DEFAULT_CHAIN:-arbitrum}
+  TREASURY_DEFAULT_AMOUNT: ${TREASURY_DEFAULT_AMOUNT:-0.01}
+  TREASURY_SLIPPAGE_BPS: ${TREASURY_SLIPPAGE_BPS:-50}
+  TREASURY_DEFAULT_TOKEN_IN: ${TREASURY_DEFAULT_TOKEN_IN}
+  ARBITRUM_RPC_URL: ${ARBITRUM_RPC_URL:-https://sepolia-rollup.arbitrum.io/rpc}
+  ROBINHOOD_RPC_URL: ${ROBINHOOD_RPC_URL:-https://rpc.testnet.chain.robinhood.com}
+  ARB_SIGNAL_REGISTRY_ADDRESS: ${ARB_SIGNAL_REGISTRY_ADDRESS}
+  ARB_TRADE_EXECUTOR_ADDRESS: ${ARB_TRADE_EXECUTOR_ADDRESS}
+  RH_SIGNAL_REGISTRY_ADDRESS: ${RH_SIGNAL_REGISTRY_ADDRESS}
+  RH_TRADE_EXECUTOR_ADDRESS: ${RH_TRADE_EXECUTOR_ADDRESS}
+  ROBINHOOD_SWAP_ROUTER: ${ROBINHOOD_SWAP_ROUTER}
+  # ── Notification ──
+  TELEGRAM_BOT_TOKEN: ${TELEGRAM_BOT_TOKEN}
+  TELEGRAM_PUBLIC_CHANNEL_ID: ${TELEGRAM_PUBLIC_CHANNEL_ID}
+  # ── Detection (optional — demo seed doesn't use these) ──
+  TINYFISH_API_KEY: ${TINYFISH_API_KEY}
+  GITHUB_TOKEN: ${GITHUB_TOKEN}
+  PROOF_MODE: ${PROOF_MODE:-hedera}
 
 services:
   db:
@@ -44,34 +86,9 @@ services:
       dockerfile: apps/api/Dockerfile
     restart: unless-stopped
     environment:
-      - SERVICE_FQDN_API_8742
-      - NODE_ENV=production
-      - API_PORT=8742
-      - DATABASE_URL=postgresql://${POSTGRES_USER:-lenitnes}:${POSTGRES_PASSWORD:-lenitnes}@db:5432/${POSTGRES_DB:-lenitnes}
-      - PGSSLMODE=disable
-      - REDIS_URL=redis://lenitnes-redis:6379
-      - WEB_ORIGIN=${WEB_ORIGIN}
-      - JWT_SECRET=${JWT_SECRET}
-      - ENCRYPTION_KEY=${ENCRYPTION_KEY}
-      - HEDERA_NETWORK=${HEDERA_NETWORK:-testnet}
-      - HEDERA_OPERATOR_ID=${HEDERA_OPERATOR_ID}
-      - HEDERA_OPERATOR_KEY=${HEDERA_OPERATOR_KEY}
-      - HEDERA_TREASURY_ID=${HEDERA_TREASURY_ID}
-      - HEDERA_HCS_TOPIC_ID=${HEDERA_HCS_TOPIC_ID}
-      - DEFAULT_COST_PER_CHECK_HBAR=${DEFAULT_COST_PER_CHECK_HBAR:-0.5}
-      - TINYFISH_API_KEY=${TINYFISH_API_KEY}
-      - GROVE_CHAIN_ID=${GROVE_CHAIN_ID:-37111}
-      - TELEGRAM_BOT_TOKEN=${TELEGRAM_BOT_TOKEN}
-      - SMTP_URL=${SMTP_URL}
-      - X402_FACILITATOR_URL=${X402_FACILITATOR_URL:-https://blocky402.com}
-      - X402_HEDERA_NETWORK=${X402_HEDERA_NETWORK:-hedera:testnet}
-      - X402_PAY_TO=${X402_PAY_TO}
-      - X402_PRICE_HBAR=${X402_PRICE_HBAR:-0.5}
-      - WEBHOOK_SECRET=${WEBHOOK_SECRET}
-      - PROOF_MODE=${PROOF_MODE:-hedera}
-      - TRADE_COOLDOWN_MINUTES=${TRADE_COOLDOWN_MINUTES:-15}
-      - KRAKEN_CANCEL_AFTER_SECONDS=${KRAKEN_CANCEL_AFTER_SECONDS:-300}
-      - MAX_OPEN_ORDERS=${MAX_OPEN_ORDERS:-10}
+      <<: *api-env
+      SERVICE_FQDN_API_8742: ${SERVICE_FQDN_API_8742}
+      API_PORT: '8742'
     networks:
       - default
       - coolify
@@ -79,11 +96,11 @@ services:
       - 'traefik.enable=true'
       - 'traefik.docker.network=coolify'
       - 'traefik.http.routers.lenitnes-api.rule=Host(`lenitnes.persidian.com`) && PathPrefix(`/api`)'
-      - 'traefik.http.routers.lenitnes-api.priority=100'
+      - 'traefik.http.routers.lenitnes-api.priority=50'
       - 'traefik.http.routers.lenitnes-api.entrypoints=https'
       - 'traefik.http.routers.lenitnes-api.tls.certresolver=letsencrypt'
-      - 'traefik.http.routers.lenitnes-api.middlewares=lenitnes-api-stripprefix'
       - 'traefik.http.middlewares.lenitnes-api-stripprefix.stripprefix.prefixes=/api'
+      - 'traefik.http.routers.lenitnes-api.middlewares=lenitnes-api-stripprefix'
       - 'traefik.http.services.lenitnes-api.loadbalancer.server.port=8742'
     ports:
       - '8742:8742'
@@ -105,31 +122,7 @@ services:
       dockerfile: apps/api/Dockerfile.worker
     restart: unless-stopped
     environment:
-      - NODE_ENV=production
-      - DATABASE_URL=postgresql://${POSTGRES_USER:-lenitnes}:${POSTGRES_PASSWORD:-lenitnes}@db:5432/${POSTGRES_DB:-lenitnes}
-      - PGSSLMODE=disable
-      - REDIS_URL=redis://lenitnes-redis:6379
-      - JWT_SECRET=${JWT_SECRET}
-      - ENCRYPTION_KEY=${ENCRYPTION_KEY}
-      - HEDERA_NETWORK=${HEDERA_NETWORK:-testnet}
-      - HEDERA_OPERATOR_ID=${HEDERA_OPERATOR_ID}
-      - HEDERA_OPERATOR_KEY=${HEDERA_OPERATOR_KEY}
-      - HEDERA_TREASURY_ID=${HEDERA_TREASURY_ID}
-      - HEDERA_HCS_TOPIC_ID=${HEDERA_HCS_TOPIC_ID}
-      - DEFAULT_COST_PER_CHECK_HBAR=${DEFAULT_COST_PER_CHECK_HBAR:-0.5}
-      - TINYFISH_API_KEY=${TINYFISH_API_KEY}
-      - GROVE_CHAIN_ID=${GROVE_CHAIN_ID:-37111}
-      - TELEGRAM_BOT_TOKEN=${TELEGRAM_BOT_TOKEN}
-      - SMTP_URL=${SMTP_URL}
-      - X402_FACILITATOR_URL=${X402_FACILITATOR_URL:-https://blocky402.com}
-      - X402_HEDERA_NETWORK=${X402_HEDERA_NETWORK:-hedera:testnet}
-      - X402_PAY_TO=${X402_PAY_TO}
-      - X402_PRICE_HBAR=${X402_PRICE_HBAR:-0.5}
-      - WEBHOOK_SECRET=${WEBHOOK_SECRET}
-      - PROOF_MODE=${PROOF_MODE:-hedera}
-      - TRADE_COOLDOWN_MINUTES=${TRADE_COOLDOWN_MINUTES:-15}
-      - KRAKEN_CANCEL_AFTER_SECONDS=${KRAKEN_CANCEL_AFTER_SECONDS:-300}
-      - MAX_OPEN_ORDERS=${MAX_OPEN_ORDERS:-10}
+      <<: *api-env
     depends_on:
       db:
         condition: service_healthy
@@ -142,8 +135,6 @@ services:
       dockerfile: apps/web/Dockerfile
       args:
         - NEXT_PUBLIC_API_URL=${NEXT_PUBLIC_API_URL:-/api}
-        - NEXT_PUBLIC_WALLETCONNECT_PROJECT_ID=${NEXT_PUBLIC_WALLETCONNECT_PROJECT_ID}
-        - NEXT_PUBLIC_HEDERA_NETWORK=${NEXT_PUBLIC_HEDERA_NETWORK:-testnet}
     restart: unless-stopped
     networks:
       - default

@@ -1,0 +1,20 @@
+# gitleaks config — allowlist the .env.example template
+# The .env.example file contains intentional placeholder values
+# (e.g. `TREASURY_PRIVATE_KEY=`, `0xUSDC_PLACEHOLDER`) that
+# trigger gitleaks' generic-api-key rule on every pre-commit.
+#
+title = "lenitnes gitleaks config"
+
+[allowlist]
+paths = [
+  '''.env.example$''',
+]
+# Allow empty values for known secret keys
+regexes = [
+  '''^[A-Z_]+=\s*$''',  # KEY=
+  '''^0x[A-Z_]+$''',    # 0xUSDC_PLACEHOLDER-style tokens
+  '''0xUSDC_PLACEHOLDER''',
+  '''0xUNDERLYING_PLACEHOLDER''',
+  '''^X_ADM_KEY''',
+  '''change-me-32-bytes-min-aes-256-key''',
+]

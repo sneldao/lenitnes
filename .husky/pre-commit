@@ -10,7 +10,7 @@ npx lint-staged
 
 # 3. Scan staged changes for secrets.
 if command -v gitleaks >/dev/null 2>&1; then
-  gitleaks git --staged --redact --verbose
+  gitleaks git --staged --redact --verbose --config .gitleaks.toml
 else
   echo "⚠️  gitleaks not installed — skipping secret scan."
   echo "    Install: https://github.com/gitleaks/gitleaks  (e.g. 'brew install gitleaks')"
