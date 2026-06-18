@@ -155,6 +155,22 @@ export const api = {
     const qs = limit ? `?limit=${limit}` : '';
     return req<ScorecardRecentCall[]>(`/scorecard/recent${qs}`);
   },
+
+  // Operator admin surface (Day 8) — X-Admin-Key header required
+  getAdminStatus: (adminKey: string) =>
+    req<AdminStatusResponse>(`/admin/status`, {
+      headers: { 'X-Admin-Key': adminKey },
+    }),
+  invalidateCache: (adminKey: string, pattern: string) =>
+    req<{ ok: boolean; pattern: string; invalidatedAt: string }>(
+      `/admin/cache/invalidate?pattern=${encodeURIComponent(pattern)}`,
+      { method: 'POST', headers: { 'X-Admin-Key': adminKey } },
+    ),
+  invalidateAllCache: (adminKey: string) =>
+    req<{ ok: boolean; invalidatedAt: string }>(`/admin/cache/invalidate-all`, {
+      method: 'POST',
+      headers: { 'X-Admin-Key': adminKey },
+    }),
 };
 
 // ── Scorecard types (Day 7) ──────────────────────────────────
@@ -203,6 +219,30 @@ export interface ScorecardResponse {
   byWatchlist: ScorecardByWatchlist[];
   recentCalls: ScorecardRecentCall[];
   generatedAt: string;
+}
+
+// ── Admin types (Day 8) ─────────────────────────────────────
+
+export interface AdminStatusResponse {
+  signals: {
+    last24h: number;
+    last7d: number;
+    latestAt: string | null;
+    latestId: string | null;
+  };
+  agent: {
+    scoresLast24h: number;
+    dailySpendUsd: number;
+    dailyBudgetUsd: number;
+  };
+  trades: {
+    filledAllTime: number;
+  };
+  treasury: {
+    activeWallets: number;
+    defaultChain: string;
+    defaultMode: string;
+  };
 }
 
 // Helpers — re-exported from @/lib/format for backward compatibility.

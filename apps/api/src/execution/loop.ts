@@ -12,6 +12,7 @@ import { logger } from '../logger.js';
 import { runDetectors } from '../services/detectors/registry.js';
 import { recordSignalOnChain } from '../services/evm/signal-registry.js';
 import { FEATURES } from '../features.js';
+import { cacheInvalidate } from '../middleware/cache.js';
 import { buildAgentEnvFromConfig, precedentCount, scoreAndPersist } from '../services/agent.js';
 import type { AgentScore } from '@lenitnes/types';
 import {
@@ -152,6 +153,13 @@ export async function executeCheck(monitor: Monitor): Promise<{
     );
     signalId = txResult.signalId;
     isHeartbeat = txResult.isHeartbeat;
+
+    // Day 8: when a new real signal commits, invalidate the
+    // scorecard cache so the public surface refreshes before its
+    // 60s TTL. Heartbeats (no signal) don't need it.
+    if (signalId && !isHeartbeat) {
+      cacheInvalidate('scorecard:');
+    }
   } catch (err) {
     logger.error({ err, monitorId: monitor.id }, 'monitor check transaction failed');
 

@@ -77,6 +77,14 @@ export const config = {
     dailyBudgetUsd: Number(process.env.DAILY_AGENT_BUDGET_USD ?? 20),
   },
 
+  admin: {
+    // Day 8: single-operator admin surface. When set, the
+    // /admin/* routes are gated by X-Admin-Key. When empty, the
+    // routes return 503 — the human can still operate via direct
+    // SQL + log scraping if needed.
+    apiKey: process.env.ADMIN_API_KEY ?? '',
+  },
+
   treasury: {
     // Day 5: every signal-derived trade runs through one system wallet
     // per chain. Default chain is Arbitrum Sepolia (where signals are

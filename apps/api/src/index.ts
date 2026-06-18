@@ -18,6 +18,7 @@ import { statsRouter } from './routes/stats.js';
 // Day 7: leaderboard router is removed (per-user feature dropped
 // in the pivot). The /scorecard route replaces it.
 import { scorecardRouter } from './routes/scorecard.js';
+import { adminRouter } from './routes/admin.js';
 import { auditMiddleware } from './middleware/audit.js';
 import { renderMetrics, metricsMiddleware } from './middleware/metrics.js';
 import { cacheInvalidate } from './middleware/cache.js';
@@ -126,6 +127,7 @@ app.use('/stats', statsRouter);
 // ── Public endpoints (no auth required) ─────────────────────────
 app.use('/proof', proofRouter);
 app.use('/scorecard', scorecardRouter);
+app.use('/admin', adminRouter);
 // Public backtest stats for landing page (no auth)
 app.get('/backtest/stats', async (req, res) => {
   const { getBacktestStats } = await import('./services/domain/backtest.service.js');
