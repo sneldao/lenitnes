@@ -16,10 +16,14 @@ TinyFish (LLM #1, page eval) → Gate 1: confidence threshold
 → detector pipeline (8 rule-based classifiers, loop.ts:281-317)
 → post-commit (IPFS + HCS + Arbitrum) → rule execution
 
-New pipeline:
+Pipeline after BNB pivot:
 
-TinyFish → Gate 1 → detectors → IF any fired: agent.ts (LLM #2)
-→ Gate 2: conviction threshold → trade + notarize + broadcast
+TinyFish → Gate 1 → detectors → IF any fired:
+→ CMC market context fetch (Fear & Greed, global metrics, asset quotes)
+→ agent.ts (LLM #2, enriched with market_context)
+→ Gate 2: conviction threshold
+→ treasury: BSC → TWAK swap | Arbitrum/Robinhood → ethers Wallet
+→ notarize + broadcast
 
 Most monitor checks never fire a detector. Those never invoke the
 agent. That's the cost discipline. The agent is not in the hot path
@@ -70,13 +74,22 @@ these exist yet. v1 uses only what is real:
 - commit metadata (`signals.evidence_text`, `condition_summary`)
 - precedent_count: NEW, a single SQL aggregate:
   `SELECT COUNT(*) FROM signals s
- JOIN signal_classifications sc ON sc.signal_id = s.id
- WHERE s.monitor_id = $1
-   AND sc.detector_type = ANY($2)
-   AND s.detected_at > now() - interval '90 days'`
+JOIN signal_classifications sc ON sc.signal_id = s.id
+WHERE s.monitor_id = $1
+  AND sc.detector_type = ANY($2)
+  AND s.detected_at > now() - interval '90 days'`
+- market_context: CoinMarketCap market data injected before scoring.
+  Includes global metrics (total cap, BTC/ETH dominance, volume),
+  Fear & Greed index, and asset-specific price quotes with 1h/24h/7d
+  percent changes.
 
-That's the v1 rubric. v2 adds `consensus_critical` and
-`holder_concentration` once the detector that produces them is built.
+The rubric v1 was extended (not replaced) for the BNB Hack pivot. The
+market_context section was added to the prompt, and the rubric now
+instructs the agent to weigh Fear & Greed, funding rates, altcoin
+season, and volume confirmation alongside detector signals. A final
+invariant notes: "Market context is informative, not decisive" —
+strong detector signals in adverse conditions still fire.
+
 The rubric is a versioned file at
 `apps/api/src/services/agent/rubric-v1.md`, imported as a string.
 A v2 swap is infrastructure-free: a new file + bump the import.
@@ -103,9 +116,21 @@ week of activity covers most crypto signal types.
 
 `TREASURY_PRIVATE_KEY` env var (32-byte hex). Lives in `.env`, never
 committed, never logged, never exposed to web. System wallet is a
-single instance per chain (Arbitrum, Robinhood, Hedera). v1 uses a
-single key. v2 moves to a 2-of-3 Gnosis Safe. Documented in
-`docs/OPERATIONS.md` (separate doc, post-hackathon).
+single instance per chain (Arbitrum, Robinhood, Hedera, BSC). v1 uses a
+single key. v2 moves to a 2-of-3 Gnosis Safe.
+
+**BNB Hack:** BSC live trades use TWAK (Trust Wallet Agent Kit) instead
+of the raw `TREASURY_PRIVATE_KEY` when `TWAK_ENABLED=true`. TWAK handles
+self-custody signing — keys never leave the user's device. Configured
+via `TWAK_ACCESS_ID` + `TWAK_HMAC_SECRET` from portal.trustwallet.com.
+
+### x402 pay-per-request
+
+CMC data can be fetched via the x402 protocol instead of the Pro API
+key. When `X402_ENABLED=true`, `cmc.ts` routes through `cmc-x402.ts`
+which uses `@x402/axios` + `@x402/evm` + `viem` to pay $0.01 USDC per
+request on Base (chain 8453). The wallet is configured via
+`X402_PRIVATE_KEY` and must hold USDC + ETH on Base for gas.
 
 ### LLM cost model
 

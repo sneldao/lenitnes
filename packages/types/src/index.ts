@@ -154,11 +154,13 @@ export interface AgentInput {
   evidence_text: string | null;
   condition_summary: string | null;
   precedent_count: number;
+  /** CoinMarketCap market context — injected before agent scores. */
+  market_context?: string;
 }
 
 // ── Treasury (system wallets) ────────────────────────────────
 
-export type Chain = 'hedera' | 'arbitrum' | 'robinhood';
+export type Chain = 'hedera' | 'arbitrum' | 'robinhood' | 'bnb';
 
 export interface TreasuryWallet {
   chain: Chain;

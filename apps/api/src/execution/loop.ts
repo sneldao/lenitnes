@@ -14,6 +14,7 @@ import { recordSignalOnChain } from '../services/evm/signal-registry.js';
 import { FEATURES } from '../features.js';
 import { cacheInvalidate } from '../middleware/cache.js';
 import { buildAgentEnvFromConfig, precedentCount, scoreAndPersist } from '../services/agent.js';
+import { getGlobalMetrics, getQuotes, formatMarketContext } from '../services/cmc.js';
 import type { AgentScore } from '@lenitnes/types';
 import {
   deriveActionFromAgent,
@@ -82,7 +83,7 @@ export interface CheckMetadata {
   agentThesis?: string;
   // Day 5: treasury trade receipt (above-threshold only).
   tradeTxHash?: string;
-  tradeChain?: 'hedera' | 'arbitrum' | 'robinhood';
+  tradeChain?: 'hedera' | 'arbitrum' | 'robinhood' | 'bnb';
   tradePair?: string;
   tradeMode?: 'paper' | 'live';
   orderId?: string;
@@ -325,6 +326,13 @@ export async function executeCheck(monitor: Monitor): Promise<{
         monitor.id,
         detectorResultsFull.map((d) => d.type),
       );
+      const coingeckoId = monitor.asset_mapping.coingeckoId;
+      const [metrics, quotes] = await Promise.all([
+        getGlobalMetrics(),
+        coingeckoId ? getQuotes([coingeckoId]) : Promise.resolve([]),
+      ]);
+      const marketContext = formatMarketContext(metrics, quotes);
+
       agentScore = await scoreAndPersist(
         {
           signal_id: signalId,
@@ -339,6 +347,7 @@ export async function executeCheck(monitor: Monitor): Promise<{
           evidence_text: result.evidence,
           condition_summary: result.summary,
           precedent_count: precedent,
+          market_context: marketContext,
         },
         env,
       );

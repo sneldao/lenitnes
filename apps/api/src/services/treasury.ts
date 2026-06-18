@@ -10,6 +10,7 @@ import type { AgentScore, AssetMapping, Chain } from '@lenitnes/types';
 import { query } from '../db/pool.js';
 import { logger } from '../logger.js';
 import { executeEvmTrade } from './evm/trade.js';
+import { isTwakConfigured, swap as twakSwap } from './twak.js';
 
 export type TradeMode = 'paper' | 'live';
 
@@ -108,6 +109,39 @@ export async function signAndSend(action: TradeAction): Promise<TradeReceipt> {
       'treasury: paper trade receipt',
     );
     return receipt;
+  }
+
+  // For BSC live trades, use TWAK (Trust Wallet Agent Kit) instead of
+  // direct ethers.Wallet signing. This enables self-custody signing
+  // (keys never leave the user's device) and unlocks the TWAK special
+  // prize track in the BNB Hack.
+  if (action.chain === 'bnb' && isTwakConfigured()) {
+    const slippagePct = action.slippageBps / 100;
+    const result = await twakSwap(
+      action.amountIn,
+      action.tokenIn,
+      action.tokenOut,
+      'bsc',
+      slippagePct,
+    );
+    logger.info(
+      {
+        signalId: action.signalId,
+        chain: action.chain,
+        txHash: result.txHash,
+        pair: action.pair,
+      },
+      'treasury: TWAK live trade executed',
+    );
+    return {
+      chain: action.chain,
+      txHash: result.txHash,
+      pair: action.pair,
+      amountIn: action.amountIn,
+      amountOut: result.amountOut,
+      mode: 'live',
+      timestamp,
+    };
   }
 
   // Live EVM path: call the existing TradeExecutor contract.

@@ -14,24 +14,39 @@ export interface ChainConfig {
 
 const chains: Record<string, ChainConfig> = {
   arbitrum: {
-    chainId: 421614,
+    chainId: config.chains.arbitrum.chainId,
     name: 'Arbitrum Sepolia',
-    rpcUrl: config.evm.arbitrumRpcUrl,
+    rpcUrl: config.chains.arbitrum.rpcUrl,
     explorerUrl: 'https://sepolia.arbiscan.io',
-    signalRegistryAddress: config.evm.arbSignalRegistry,
-    tradeExecutorAddress: config.evm.arbTradeExecutor,
-    swapRouterAddress: '0x101F443B4D1b059569C6452319124001853b2156',
+    signalRegistryAddress: config.chains.arbitrum.signalRegistry,
+    tradeExecutorAddress: config.chains.arbitrum.tradeExecutor,
+    swapRouterAddress: config.chains.arbitrum.swapRouter,
     wethAddress: '0x980B62Da83eFf3D4576C647993b0c1D7faf17c73',
   },
   robinhood: {
-    chainId: 46630,
+    chainId: config.chains.robinhood.chainId,
     name: 'Robinhood Chain',
-    rpcUrl: config.evm.robinhoodRpcUrl,
+    rpcUrl: config.chains.robinhood.rpcUrl,
     explorerUrl: 'https://explorer.testnet.chain.robinhood.com',
-    signalRegistryAddress: config.evm.rhSignalRegistry,
-    tradeExecutorAddress: config.evm.rhTradeExecutor,
-    swapRouterAddress: config.evm.robinhoodSwapRouter,
+    signalRegistryAddress: config.chains.robinhood.signalRegistry,
+    tradeExecutorAddress: config.chains.robinhood.tradeExecutor,
+    swapRouterAddress: config.chains.robinhood.swapRouter,
     wethAddress: '0x7943e237c7F95DA44E0301572D358911207852Fa',
+  },
+  bnb: {
+    // BSC testnet. The BNB Hack live-trading window (June 22-28)
+    // uses this chain. TradeExecutor's router-agnostic shape lets
+    // us plug in PancakeSwap without contract changes.
+    chainId: config.chains.bnb.chainId,
+    name: 'BNB Smart Chain Testnet',
+    rpcUrl: config.chains.bnb.rpcUrl,
+    explorerUrl: 'https://testnet.bscscan.com',
+    signalRegistryAddress: config.chains.bnb.signalRegistry,
+    tradeExecutorAddress: config.chains.bnb.tradeExecutor,
+    swapRouterAddress: config.chains.bnb.swapRouter,
+    // WBNB on BSC testnet — the wrapped BNB used by PancakeSwap as
+    // the base asset for swaps. BEP-20 USDC is the quote.
+    wethAddress: '0xae13d989daC2f0dEbFf460aC112a837C89BAa7cd',
   },
 };
 

@@ -1,8 +1,8 @@
-# LENITNES Pivot — 10-Day Hackathon Cut
+# LENITNES — BNB Hack Pivot (June 18-21)
 
-> **Status:** This is the only plan. Supersedes the 18-day version.
-> **Deadline:** Lepton Agents Hackathon, June 29, 2026. 10 dev days
-> from kickoff. Cut anything that doesn't ship publicly by Day 10.
+> **Status:** Pivoted from Lepton Agents Hackathon to BNB Hack:
+> AI Trading Agent Edition (BNB Chain × CoinMarketCap × Trust Wallet).
+> $36k prize pool, deadline June 21, live trading week June 22-28.
 > **Companion doc:** `AGENT_ARCHITECTURE.md` — frozen reference for
 > agent ↔ detector ↔ threshold design.
 
@@ -33,22 +33,61 @@ principles it exercises. A task that exercises none is cut.
 │ fired?
 ▼
 ┌──────────────┐
-│ Agent.ts │
-│ (LLM #2) │
-│ Opus 4.7 │
+│ Agent.ts │◀── CMC market context
+│ (LLM #2) │ (Fear & Greed, global
+│ Kimi K2 │ metrics, asset quotes)
 └──────┬───────┘
 │ conviction ≥ 70?
 ▼
-┌─────────────┐ ┌────────────┐ ┌──────────────┐
-│ Public │◀───│ Treasury │◀───│ Notarize │
-│ Scorecard │ │ (testnet) │ │ (HCS+IPFS+ │
-│ + Telegram │ │ │ │ Arbitrum) │
-└─────────────┘ └────────────┘ └──────────────┘
+┌─────────────────────┐
+│ Treasury │
+│ ├─ Arbitrum: ethers │
+│ ├─ Robinhood: ethers│
+│ └─ BSC: TWAK swap │
+│ (self-custody) │
+└─────────┬───────────┘
+│
+┌─────────▼───────────┐
+│ Public Scorecard │
+│ + Telegram │
+│ + HCS+IPFS+Arbitrum │
+└─────────────────────┘
 
-Three processes. Agent is the only new module. Everything else is
-existing infrastructure with one new wiring per box.
+Three chains. BSC is the live-trading venue for the BNB Hack
+(June 22-28). Arbitrum Sepolia + Robinhood remain as demo surfaces.
 
-## File Layout
+Agent enriched with live CMC market data via Pro API or x402.
+Treasury uses TWAK CLI for self-custody signing on BSC.
+
+## BNB Hack Additions (June 18-20)
+
+```
+File                                    Action    Purpose
+─────                                   ────────  ─────────────────────────────────────
+apps/api/src/config.ts                  [modify]  Refactor evm.* → chains.{arbitrum,robinhood,bnb}
+apps/api/src/services/evm/client.ts     [modify]  Add bnb chain config (BSC testnet, WBNB, PancakeSwap)
+packages/types/src/index.ts             [modify]  Add 'bnb' to Chain union type
+apps/api/src/services/evm/trade.ts      [modify]  Chain-agnostic via config; BSC deploy path
+apps/api/src/execution/loop.ts          [modify]  Add CMC market_context to agent input
+apps/api/src/services/agent/rubric-v1.md [modify]  Add market context section (Fear & Greed, funding, regime)
+
+apps/api/src/services/twak.ts            [create]  TWAK CLI wrapper — swap, wallet, price, compete register
+apps/api/src/services/cmc.ts            [create]  CMC Pro API — global metrics, quotes, formatMarketContext()
+apps/api/src/services/cmc-x402.ts       [create]  x402 CMC data — pay $0.01 USDC/request on Base
+
+apps/api/src/services/treasury.ts        [modify]  BSC live trades → TWAK swap; Arbitrum/Robinhood → ethers
+db/seed/treasury_wallets.sql            [modify]  Add bnb treasury wallet row
+.env.example                            [modify]  Add BSC, TWAK, CMC, x402 env blocks
+contracts/script/Deploy.s.sol           [modify]  Add BSC router + CHAIN=bsc deploy path
+
+scripts/register-bnb-hack.sh            [create]  On-chain agent registration via twak compete register
+```
+
+Three-day build. BSC is a third chain (not a replacement). Agent is
+enriched with CMC market data. Treasury uses TWAK for self-custody
+signing on BSC. x402 pays for CMC data in the trade loop.
+
+## File Layout (pre-BNB)
 
 ```
 apps/
@@ -98,7 +137,7 @@ apps/
 db/
   seed/
     watchlist.sql                      [create]  5 watchlist rows
-    treasury_wallets.sql               [create]  1 wallet per chain
+    treasury_wallets.sql               [create]  1 wallet per chain (now 4: hedera, arbitrum, robinhood, bnb)
 
 docs/
   AGENT_ARCHITECTURE.md                [create]  (this PR)

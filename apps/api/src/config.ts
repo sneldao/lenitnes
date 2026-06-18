@@ -62,13 +62,78 @@ export const config = {
     // and ongoing trade execution. Replaces the per-user EVM_PRIVATE_KEY
     // that was used before the pivot.
     privateKey: process.env.TREASURY_PRIVATE_KEY ?? '',
-    arbitrumRpcUrl: process.env.ARBITRUM_RPC_URL ?? 'https://sepolia-rollup.arbitrum.io/rpc',
-    robinhoodRpcUrl: process.env.ROBINHOOD_RPC_URL ?? 'https://rpc.testnet.chain.robinhood.com',
-    arbSignalRegistry: process.env.ARB_SIGNAL_REGISTRY_ADDRESS ?? '',
-    arbTradeExecutor: process.env.ARB_TRADE_EXECUTOR_ADDRESS ?? '',
-    rhSignalRegistry: process.env.RH_SIGNAL_REGISTRY_ADDRESS ?? '',
-    rhTradeExecutor: process.env.RH_TRADE_EXECUTOR_ADDRESS ?? '',
-    robinhoodSwapRouter: process.env.ROBINHOOD_SWAP_ROUTER ?? '',
+  },
+
+  // Trust Wallet Agent Kit (TWAK) — self-custody signing for BSC trades.
+  // When configured, the treasury uses TWAK instead of direct ethers.Wallet
+  // for BSC live trades. This unlocks the TWAK special prize in the BNB Hack.
+  twak: {
+    accessId: process.env.TWAK_ACCESS_ID ?? '',
+    hmacSecret: process.env.TWAK_HMAC_SECRET ?? '',
+    enabled: process.env.TWAK_ENABLED === 'true',
+  },
+
+  // CoinMarketCap Pro API — market data enrichment for the agent.
+  // When configured, live market context (Fear & Greed, global metrics,
+  // asset quotes) is injected into the agent's input alongside detector
+  // classifications. This unlocks the CMC Agent Hub special prize.
+  cmc: {
+    apiKey: process.env.CMC_API_KEY ?? '',
+  },
+
+  // x402 pay-per-request payments. When X402_ENABLED=true and
+  // X402_PRIVATE_KEY is set, CMC data fetches use the x402 protocol
+  // (pay $0.01 USDC per request on Base) instead of the API key.
+  // Also used for any other x402-gated endpoints in the trade loop.
+  // This unlocks the x402 component inside the TWAK special prize.
+  x402: {
+    enabled: process.env.X402_ENABLED === 'true',
+    privateKey: process.env.X402_PRIVATE_KEY ?? '',
+  },
+
+  // Per-chain EVM config. The treasury is chain-agnostic; this block
+  // just registers the chains the agent can trade on. BNB was added
+  // for the BNB Hack (June 22-28 live trading window). To add a new
+  // chain, add a row to chains: with rpcUrl, chainId, swapRouter,
+  // signalRegistry, tradeExecutor, and the default token addresses.
+  chains: {
+    arbitrum: {
+      chainId: Number(process.env.ARBITRUM_CHAIN_ID ?? 421614),
+      rpcUrl: process.env.ARBITRUM_RPC_URL ?? 'https://sepolia-rollup.arbitrum.io/rpc',
+      signalRegistry: process.env.ARB_SIGNAL_REGISTRY_ADDRESS ?? '',
+      tradeExecutor: process.env.ARB_TRADE_EXECUTOR_ADDRESS ?? '',
+      swapRouter: process.env.ARBITRUM_SWAP_ROUTER ?? '0x101F443B4D1b059569C6452319124001853b2156',
+      defaultTokenIn: process.env.ARBITRUM_DEFAULT_TOKEN_IN ?? '',
+      defaultTokenOut: process.env.ARBITRUM_DEFAULT_TOKEN_OUT ?? '0xUNDERLYING_PLACEHOLDER',
+    },
+    robinhood: {
+      chainId: Number(process.env.ROBINHOOD_CHAIN_ID ?? 84531),
+      rpcUrl: process.env.ROBINHOOD_RPC_URL ?? 'https://rpc.testnet.chain.robinhood.com',
+      signalRegistry: process.env.RH_SIGNAL_REGISTRY_ADDRESS ?? '',
+      tradeExecutor: process.env.RH_TRADE_EXECUTOR_ADDRESS ?? '',
+      swapRouter: process.env.ROBINHOOD_SWAP_ROUTER ?? '',
+      defaultTokenIn: process.env.ROBINHOOD_DEFAULT_TOKEN_IN ?? '',
+      defaultTokenOut: process.env.ROBINHOOD_DEFAULT_TOKEN_OUT ?? '0xUNDERLYING_PLACEHOLDER',
+    },
+    bnb: {
+      // BSC testnet is chainId 97 (mainnet is 56). The hackathon's
+      // live trading window is on the testnet.
+      chainId: Number(process.env.BNB_CHAIN_ID ?? 97),
+      rpcUrl: process.env.BNB_RPC_URL ?? 'https://data-seed-prebsc-1-s1.binance.org:8545/',
+      signalRegistry: process.env.BNB_SIGNAL_REGISTRY_ADDRESS ?? '',
+      tradeExecutor: process.env.BNB_TRADE_EXECUTOR_ADDRESS ?? '',
+      // PancakeSwap V2 router on BSC testnet. TradeExecutor is a
+      // router-agnostic shape (it takes the swap router in the
+      // constructor); we plug in PancakeSwap for the BNB track.
+      swapRouter: process.env.BNB_SWAP_ROUTER ?? '0xD99D1C33f9fC3444f8101754aBC46B524bA2C6BD',
+      // BEP-20 USDC on BSC testnet (placeholder; replaced after
+      // the forge deploy confirms the actual address).
+      defaultTokenIn: process.env.BNB_DEFAULT_TOKEN_IN ?? '',
+      // Trade target placeholder — the eligible BEP-20 list (149
+      // tokens) is per-trade, set at runtime by the agent's
+      // conviction rubric.
+      defaultTokenOut: process.env.BNB_DEFAULT_TOKEN_OUT ?? '0xUNDERLYING_PLACEHOLDER',
+    },
   },
 
   encryptionKey: required('ENCRYPTION_KEY'),
@@ -117,12 +182,13 @@ export const config = {
 
   treasury: {
     // Day 5: every signal-derived trade runs through one system wallet
-    // per chain. Default chain is Arbitrum Sepolia (where signals are
-    // recorded). Mode defaults to 'paper' so the dev loop doesn't
-    // require a funded testnet wallet.
-    defaultChain: (process.env.TREASURY_DEFAULT_CHAIN ?? 'arbitrum') as
+    // per chain. Default chain is BSC for the BNB Hack live-trading
+    // window (June 22-28). Mode defaults to 'paper' so the dev loop
+    // doesn't require a funded testnet wallet.
+    defaultChain: (process.env.TREASURY_DEFAULT_CHAIN ?? 'bnb') as
       | 'arbitrum'
       | 'robinhood'
+      | 'bnb'
       | 'hedera',
     defaultMode: (process.env.TREASURY_MODE ?? 'paper') as 'paper' | 'live',
     defaultTradeAmount: process.env.TREASURY_DEFAULT_AMOUNT ?? '0.01',
