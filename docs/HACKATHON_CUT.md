@@ -14,6 +14,9 @@
 > - Deployer: `0x4dA649DeB07159E791C423bb139e6213e745D138`
 > - Network: BSC Testnet (Chain 97)
 > - Txs: `0x3c75…c1b47a` + `0xab20…02b7a`
+> - TWAK wallet: `0xA1Dd482E4D6C8cf6f5f7BF80FEc6Bd3F11F5888a`
+> - TWAK BNB Hack registration tx: `0x8bd8…cb025`
+> - Paper trade test: ✅ BSC monitor → TinyFish → DB (June 19)
 
 ## Core Principles
 
@@ -96,17 +99,22 @@ Three-day build. BSC is a third chain (not a replacement). Agent is
 enriched with CMC market data. Treasury uses TWAK for self-custody
 signing on BSC. x402 pays for CMC data in the trade loop.
 
-### BSC Deploy (Completed June 18)
+### BSC Deploy + TWAK Registration (Completed June 18-19)
 
 SignalRegistry and TradeExecutor live on BSC Testnet (Chain 97):
 
-| Contract              | Address                                      | Tx Hash                                                              |
-| --------------------- | -------------------------------------------- | -------------------------------------------------------------------- |
-| SignalRegistry        | `0x05177fa11543cEB73cb18883DFb49B17dc23C862` | `0x3c75500493aa024e4b5da637d223f41dd2c8393f81f7516cbf573a1525c1b47a` |
-| TradeExecutor         | `0xE2Ac333ad2BCD6A0389bf95a059fF576d13EbE8F` | `0xab20dd2fb86d5e86ed050a2b4991e3cc6a310d1c20bee780155ba95446702b7a` |
-| PancakeSwap V2 Router | `0xD99D1C33f9fC3444f8101754aBC46B524bA2C6BD` | — (existing)                                                         |
+| Contract                | Address                                      | Tx Hash                                                              |
+| ----------------------- | -------------------------------------------- | -------------------------------------------------------------------- |
+| SignalRegistry          | `0x05177fa11543cEB73cb18883DFb49B17dc23C862` | `0x3c75500493aa024e4b5da637d223f41dd2c8393f81f7516cbf573a1525c1b47a` |
+| TradeExecutor           | `0xE2Ac333ad2BCD6A0389bf95a059fF576d13EbE8F` | `0xab20dd2fb86d5e86ed050a2b4991e3cc6a310d1c20bee780155ba95446702b7a` |
+| PancakeSwap V2 Router   | `0xD99D1C33f9fC3444f8101754aBC46B524bA2C6BD` | — (existing)                                                         |
+| TWAK Agent Wallet (BSC) | `0xA1Dd482E4D6C8cf6f5f7BF80FEc6Bd3F11F5888a` | `0x8bd83d5f47e2957d80ea26dec1f9ecc9de8d9f7291192328baef9558413cb025` |
 
-**Next:** Create TWAK wallet → fund BSC address → run `scripts/register-bnb-hack.sh`.
+**Paper trade test (June 19):** BSC monitor created (`cb0e8a64`) watching `bnb-chain/bsc` releases. `POST /monitors/:id/first-check` → TinyFish fetch (3/12 keywords matched) → signal persisted as heartbeat (confidence 25/50). Full pipeline verified end-to-end on BSC chain in paper mode.
+
+**TWAK:** CLI initialized, wallet created on 25 chains, BNB Hack competition registered (`0x8bd8`). `TWAK_ENABLED=true` in `.env`. BSC trades route through TWAK swap in live mode; paper mode returns mock hash.
+
+**CMC/x402:** `X402_ENABLED=false` (no x402 private key configured). Market context enrichment requires `CMC_API_KEY` or `X402_PRIVATE_KEY` — neither set. Adding either key unlocks the feature; x402 additionally unlocks the x402 prize path ($0.01/request on Base).
 
 ## File Layout (pre-BNB)
 
