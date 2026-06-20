@@ -188,19 +188,17 @@ export const config = {
   },
 
   treasury: {
-    // Day 5: every signal-derived trade runs through one system wallet
-    // per chain. Default chain is BSC for the BNB Hack live-trading
-    // window (June 22-28). Mode defaults to 'paper' so the dev loop
-    // doesn't require a funded testnet wallet.
     defaultChain: env.TREASURY_DEFAULT_CHAIN,
     defaultMode: env.TREASURY_MODE,
     defaultTradeAmount: env.TREASURY_DEFAULT_AMOUNT,
     defaultSlippageBps: env.TREASURY_SLIPPAGE_BPS,
-    // Day 5: tokenIn is the quote (USDC by default) and tokenOut is
-    // the underlying asset. Addresses are placeholders for the MVP —
-    // the live path requires real testnet token addresses. Override
-    // per chain in env (TREASURY_ARBITRUM_TOKEN_OUT etc.) when
-    // deploying with funded wallets.
     defaultTokenIn: env.TREASURY_DEFAULT_TOKEN_IN,
+    defaultTokenOut: (() => {
+      const c = env.TREASURY_DEFAULT_CHAIN;
+      if (c === 'arbitrum') return env.ARBITRUM_DEFAULT_TOKEN_OUT;
+      if (c === 'bnb') return env.BNB_DEFAULT_TOKEN_OUT;
+      if (c === 'robinhood') return env.ROBINHOOD_DEFAULT_TOKEN_OUT;
+      return '0xUNDERLYING_PLACEHOLDER';
+    })(),
   },
 } as const;

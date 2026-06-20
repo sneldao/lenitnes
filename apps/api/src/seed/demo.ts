@@ -267,7 +267,7 @@ async function processCommit(commit: DemoCommit): Promise<DemoResult> {
       amountIn: config.treasury.defaultTradeAmount,
       slippageBps: config.treasury.defaultSlippageBps,
       tokenIn: config.treasury.defaultTokenIn,
-      tokenOut: '0xUNDERLYING_PLACEHOLDER',
+      tokenOut: config.treasury.defaultTokenOut,
     });
     if (derived.trade) {
       const receipt = await signAndSend(derived.trade);

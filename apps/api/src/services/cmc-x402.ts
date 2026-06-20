@@ -21,7 +21,13 @@ function getX402Client() {
   const account = privateKeyToAccount(pk as `0x${string}`);
   const scheme = new ExactEvmScheme(account);
 
-  const instance = axios.create({ baseURL: CMC_X402_BASE });
+  const instance = axios.create({
+    baseURL: CMC_X402_BASE,
+    headers: {
+      'User-Agent':
+        'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0.0.0 Safari/537.36',
+    },
+  });
   x402Client = wrapAxiosWithPaymentFromConfig(instance, {
     schemes: [{ network: 'eip155:8453', client: scheme }],
   });

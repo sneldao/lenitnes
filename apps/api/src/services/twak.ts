@@ -22,9 +22,15 @@ function ensureInit(): void {
   twakInitialized = true;
 }
 
-function runTwak(args: string[]): string {
+const walletPassword = process.env.TWAK_WALLET_PASSWORD ?? '';
+
+function runTwak(args: string[], extraFlags?: string[]): string {
   ensureInit();
-  const cmd = `${TWAK_CLI} ${args.join(' ')} --json`;
+  const allArgs = [...args, ...(extraFlags ?? [])];
+  if (!allArgs.includes('--password') && walletPassword) {
+    allArgs.push('--password', walletPassword);
+  }
+  const cmd = `${TWAK_CLI} ${allArgs.join(' ')} --json`;
   logger.debug({ cmd }, 'twak: executing');
   return execSync(cmd, {
     encoding: 'utf8',
@@ -100,7 +106,9 @@ export async function getPrice(token: string, chain?: string): Promise<number> {
 
 export function competeRegister(): { ok: boolean; txHash?: string } {
   try {
-    const raw = execSync(`${TWAK_CLI} compete register`, {
+    const args = ['compete', 'register'];
+    if (walletPassword) args.push('--password', walletPassword);
+    const raw = execSync(`${TWAK_CLI} ${args.join(' ')}`, {
       encoding: 'utf8',
       timeout: 60_000,
     });
