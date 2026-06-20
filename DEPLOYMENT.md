@@ -22,7 +22,7 @@ Pick the track you want; both can run on the same API instance.
    curl -L https://foundry.paradigm.xyz | bash
    foundryup
    ```
-4. **A Virtuals / OpenAI-compatible LLM key.** The agent defaults to Virtuals (Kimi K2). Get one at https://compute.virtuals.io. For tests, set `MOCK_AGENT=1` and skip this.
+4. **An NVIDIA API key (primary) or Virtuals API key (fallback).** The agent prefers NVIDIA (minimax-m3). Get a key at https://build.nvidia.com. For tests, set `MOCK_AGENT=1` and skip this.
 5. **(BSC track only) Trust Wallet Agent Kit.** Used for self-custody signing on BSC.
    ```bash
    npm install -g @trustwallet/cli
@@ -74,12 +74,15 @@ psql $DATABASE_URL -f db/seed/treasury_wallets.sql
 EVM_PRIVATE_KEY=ac9d...your-key-here...
 TREASURY_PRIVATE_KEY=ac9d...your-key-here...   # same value; config reads TREASURY_PRIVATE_KEY
 
-# LLM provider
+# LLM provider (primary: NVIDIA, fallback: Virtuals)
+NVIDIA_API_KEY=nvapi-...
+NVIDIA_BASE_URL=https://integrate.api.nvidia.com/v1
+AGENT_MODEL=nvidia/minimax-m3
+AGENT_TEMPERATURE=1.00
 VIRTUALS_API_KEY=acp-...
 VIRTUALS_BASE_URL=https://compute.virtuals.io/v1
-AGENT_MODEL=moonshotai/kimi-k2-0905
-# For deterministic tests, set MOCK_AGENT=1 and skip the API key.
-MOCK_AGENT=
+# For deterministic tests, set MOCK_AGENT=1 and skip API keys.
+MOCK_AGENT=0
 
 # Trade execution
 TREASURY_DEFAULT_CHAIN=arbitrum       # 'arbitrum' | 'robinhood' | 'bnb'
@@ -127,7 +130,7 @@ X402_ENABLED=false                  # true to use x402 (USDC on Base, ~$0.01/req
 X402_PRIVATE_KEY=...                # only when X402_ENABLED=true; wallet needs USDC on Base (chain 8453)
 ```
 
-`MOCK_AGENT=1` works with `TREASURY_MODE=live` — the agent returns a deterministic stub and trades still go through, so you can verify the live-trade plumbing without burning budget.
+`MOCK_AGENT=1` works with `TREASURY_MODE=live` — the agent returns a deterministic stub and trades still go through, so you can verify the live-trade plumbing without burning budget. The default is `MOCK_AGENT=0` (real LLM calls).
 
 ## Step 4a — Deploy contracts to Arbitrum Sepolia
 
@@ -197,7 +200,7 @@ Confirm on BSCScan Testnet:
 WEBHOOK_SECRET=... JWT_SECRET=... ENCRYPTION_KEY=... npm run seed:demo -w @lenitnes/api
 ```
 
-This processes 3 real public commits through the actual pipeline (ZCash halo2 soundness fix 2022-04-15, ZCash docs commit 2024-08-22, Bitcoin Core wallet commit 2024-09-12). The MOCK agent scores each, a paper trade is recorded for the above-threshold one, and real CoinGecko (or fallback) prices are fetched for the outcome windows. The scorecard now has real numbers.
+This processes 3 real public commits through the actual pipeline (ZCash halo2 soundness fix 2022-04-15, ZCash docs commit 2024-08-22, Bitcoin Core wallet commit 2024-09-12). The agent (MOCK stub if no API key) scores each, a paper trade is recorded for the above-threshold one, and real CoinGecko (or fallback) prices are fetched for the outcome windows. The scorecard now has real numbers.
 
 Re-running is idempotent.
 

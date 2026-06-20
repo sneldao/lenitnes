@@ -56,19 +56,19 @@ No human input in the steady state. The only operator surfaces are `/admin/*` (X
 
 ## Stack
 
-| Layer          | Choice                                           | Why                                        |
-| -------------- | ------------------------------------------------ | ------------------------------------------ |
-| API            | Express 5 + TypeScript                           | Boring, fast, easy to deploy               |
-| DB             | PostgreSQL 14                                    | Reliable, JSONB, window fns                |
-| Agent          | Frontier model (Kimi K2 / Claude / etc.)         | Pluggable, MOCK for tests                  |
-| Market context | CoinMarketCap Pro API (+ x402 fallback)          | Global metrics, Fear & Greed, asset quotes |
-| Notarize       | Hedera HCS + Arbitrum `SignalRegistry`           | Two-chain proof                            |
-| Store          | IPFS (Grove / Lens)                              | Immutable evidence package                 |
-| Trade          | Arbitrum Sepolia · Robinhood Chain · BSC testnet | Three live venues + paper                  |
-| Sign on BSC    | Trust Wallet Agent Kit (TWAK)                    | Self-custody signing on BSC                |
-| Broadcast      | Telegram public channel                          | Public, timestamped                        |
-| Charts         | CoinGecko historical API (with fallback)         | Real price outcomes                        |
-| Frontend       | Next.js 16 + Tailwind                            | Music-publication aesthetic                |
+| Layer          | Choice                                            | Why                                        |
+| -------------- | ------------------------------------------------- | ------------------------------------------ |
+| API            | Express 5 + TypeScript                            | Boring, fast, easy to deploy               |
+| DB             | PostgreSQL 14                                     | Reliable, JSONB, window fns                |
+| Agent          | NVIDIA minimax-m3 (primary) · Virtuals (fallback) | Pluggable, MOCK for tests                  |
+| Market context | CoinMarketCap Pro API (+ x402 fallback)           | Global metrics, Fear & Greed, asset quotes |
+| Notarize       | Hedera HCS + Arbitrum `SignalRegistry`            | Two-chain proof                            |
+| Store          | IPFS (Grove / Lens)                               | Immutable evidence package                 |
+| Trade          | Arbitrum Sepolia · Robinhood Chain · BSC testnet  | Three live venues + paper                  |
+| Sign on BSC    | Trust Wallet Agent Kit (TWAK)                     | Self-custody signing on BSC                |
+| Broadcast      | Telegram public channel                           | Public, timestamped                        |
+| Charts         | CoinGecko historical API (with fallback)          | Real price outcomes                        |
+| Frontend       | Next.js 16 + Tailwind                             | Music-publication aesthetic                |
 
 See [`docs/AGENT_ARCHITECTURE.md`](./docs/AGENT_ARCHITECTURE.md) for the frozen
 Q1-Q3 design decisions and [`docs/HACKATHON_CUT.md`](./docs/HACKATHON_CUT.md)
@@ -83,7 +83,7 @@ npm install --legacy-peer-deps
 # 2. Configure
 cp .env.example .env
 # Required: JWT_SECRET, ENCRYPTION_KEY, WEBHOOK_SECRET (32-byte hex each)
-# Required: DATABASE_URL, VIRTUALS_API_KEY (or MOCK_AGENT=1 for testing)
+# Required: DATABASE_URL, NVIDIA_API_KEY (or MOCK_AGENT=1 for testing)
 # Optional: TWAK_ACCESS_ID + TWAK_HMAC_SECRET (BSC live trading),
 #           CMC_API_KEY (market context) or X402_PRIVATE_KEY (x402 fallback)
 
