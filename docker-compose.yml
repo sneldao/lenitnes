@@ -90,6 +90,8 @@ services:
       TINYFISH_API_KEY: ${TINYFISH_API_KEY:-}
       GITHUB_TOKEN: ${GITHUB_TOKEN:-}
       PROOF_MODE: ${PROOF_MODE:-hedera}
+    volumes:
+      - twak-data:/root/.twak
     depends_on:
       db:
         condition: service_healthy
@@ -131,6 +133,8 @@ services:
       TINYFISH_API_KEY: ${TINYFISH_API_KEY:-}
       GITHUB_TOKEN: ${GITHUB_TOKEN:-}
       PROOF_MODE: ${PROOF_MODE:-hedera}
+    volumes:
+      - twak-data:/root/.twak
     depends_on:
       db:
         condition: service_healthy
@@ -170,3 +174,4 @@ networks:
 
 volumes:
   lenitnes-db-data:
+  twak-data:
