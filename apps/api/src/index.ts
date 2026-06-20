@@ -122,6 +122,11 @@ app.get('/health', async (_req, res) => {
   });
 });
 
+// Serve demo video for hackathon submission (static file, /app/demo.mp4)
+app.get('/demo.mp4', (_req, res) => {
+  res.sendFile('/app/demo.mp4', { acceptRanges: true });
+});
+
 app.use('/proof', proofRouter);
 app.use('/scorecard', scorecardRouter);
 app.use('/admin', adminRouter);

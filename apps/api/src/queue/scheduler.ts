@@ -3,11 +3,13 @@ import { query } from '../db/pool.js';
 import { enqueueMonitorCheck } from './producer.js';
 import { processSignalOutcomes } from '../services/domain/backtest.service.js';
 import { recordSignalOnChain } from '../services/evm/signal-registry.js';
+import { sendDailyWatchReport } from '../services/watch-report.js';
 import { logger } from '../logger.js';
 
 let monitorJob: cron.ScheduledTask | null = null;
 let backtestJob: cron.ScheduledTask | null = null;
 let proofRetryJob: cron.ScheduledTask | null = null;
+let watchReportJob: cron.ScheduledTask | null = null;
 let monitorRunning = false;
 let backtestRunning = false;
 let proofRetryRunning = false;
@@ -156,10 +158,13 @@ async function retryFailedProofs(): Promise<void> {
 }
 
 export function startScheduler(): void {
-  logger.info('scheduler started — monitors every 30s, backtest every 6h, proof retries every 2m');
+  logger.info(
+    'scheduler started — monitors every 30s, backtest every 6h, proof retries every 2m, watch report daily at 09:00',
+  );
   monitorJob = cron.schedule('*/30 * * * * *', scanAndEnqueue);
   backtestJob = cron.schedule('0 */6 * * *', runBacktest);
   proofRetryJob = cron.schedule('*/2 * * * *', retryFailedProofs);
+  watchReportJob = cron.schedule('0 9 * * *', sendDailyWatchReport);
 }
 
 export function stopScheduler(): void {
@@ -174,5 +179,9 @@ export function stopScheduler(): void {
   if (proofRetryJob) {
     proofRetryJob.stop();
     proofRetryJob = null;
+  }
+  if (watchReportJob) {
+    watchReportJob.stop();
+    watchReportJob = null;
   }
 }

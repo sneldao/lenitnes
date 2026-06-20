@@ -192,10 +192,11 @@ export async function score(input: AgentInput, env: AgentEnv): Promise<AgentScor
   }
 
   const client = new OpenAI({ apiKey: env.apiKey, baseURL: env.baseUrl });
+  const temperature = Number(process.env.AGENT_TEMPERATURE ?? 0);
   const response = await client.chat.completions.create({
     model: env.model,
     messages: [{ role: 'user', content: prompt }],
-    temperature: 0,
+    temperature,
   });
 
   const message = response.choices[0]?.message?.content;
@@ -290,6 +291,19 @@ export async function precedentCount(monitorId: string, detectorTypes: string[])
  * vars; called by loop.ts at request time (not at module load).
  */
 export function buildAgentEnvFromConfig(): AgentEnv {
+  // Prefer NVIDIA API if key is set, fall back to Virtuals.
+  const nvidiaKey = process.env.NVIDIA_API_KEY ?? '';
+  if (nvidiaKey) {
+    return {
+      apiKey: nvidiaKey,
+      baseUrl: process.env.NVIDIA_BASE_URL ?? 'https://integrate.api.nvidia.com/v1',
+      model: process.env.AGENT_MODEL ?? 'minimaxai/minimax-m3',
+      mock: process.env.MOCK_AGENT === '1',
+      dailyBudgetUsd: Number(process.env.DAILY_AGENT_BUDGET_USD ?? 20),
+      inputCostPer1M: Number(process.env.AGENT_INPUT_COST_PER_1M_USD ?? 0.15),
+      outputCostPer1M: Number(process.env.AGENT_OUTPUT_COST_PER_1M_USD ?? 0.6),
+    };
+  }
   return {
     apiKey: process.env.VIRTUALS_API_KEY ?? '',
     baseUrl: process.env.VIRTUALS_BASE_URL ?? 'https://compute.virtuals.io/v1',
