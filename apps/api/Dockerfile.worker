@@ -41,12 +41,8 @@ COPY --from=base /app/node_modules ./node_modules
 COPY --from=base /app/apps/api/node_modules ./apps/api/node_modules
 COPY --from=base /app/packages ./packages
 COPY --from=base /app/apps/api/package.json ./
-# npm workspaces may nest @hashgraph/sdk inside hedera-agent-kit/node_modules.
-# Install it explicitly at the root so ESM resolution from /app/dist works.
-# @x402/axios and @x402/evm are root deps too — must be installed here because
-# npm install --no-save prunes packages not in the root package.json.
-RUN npm install @hashgraph/sdk@2.80.0 @x402/axios@2.15.0 @x402/evm@2.15.0 --no-save --legacy-peer-deps 2>/dev/null || \
-    npm install @hashgraph/sdk@2.80.0 @x402/axios@2.15.0 @x402/evm@2.15.0 --no-save 2>/dev/null || true
+# @hashgraph/sdk, @x402/axios, @x402/evm, and axios are root deps in package.json
+# so npm ci installs them. The root-level install ensures ESM resolution from /app/dist works.
 
 EXPOSE 8741
 # /health/live  → process is up (for k8s liveness probes)

@@ -61,6 +61,12 @@
     "@rolldown/binding-linux-arm64-gnu": "^1.1.1",
     "@rolldown/binding-linux-x64-gnu": "^1.1.1"
   },
+  "dependencies": {
+    "@x402/axios": "^2.15.0",
+    "@x402/evm": "^2.15.0",
+    "axios": "^1.7.9",
+    "@hashgraph/sdk": "2.80.0"
+  },
   "overrides": {
     "@hashgraph/sdk": "2.80.0"
   }
