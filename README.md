@@ -222,15 +222,40 @@ Full OpenAPI 3.1 spec: [`openapi.yaml`](./openapi.yaml).
 
 LENITNES participates in the [Lepton Agents Hackathon](https://www.bnbchain.foundation/en/learn-DynamicPage/what-is-the-lepton-ai-hackathon) with a third trading venue: **BNB Smart Chain (testnet)**.
 
-What's new vs the Arbitrum-only stack:
+**What it does:**
+
+```
+Monitor (GitHub) → TinyFish detects → NVIDIA LLM scores (conviction 0-100) →
+≥70? → Treasury signs swap on BSC → Telegram broadcasts → T+1d/T+7d outcome tracked
+```
+
+**Live demo results (seed:demo via autonomous pipeline, real NVIDIA LLM):**
+
+| Commit                         | LLM Conviction | Action   | On-Chain TX                                |
+| ------------------------------ | -------------- | -------- | ------------------------------------------ |
+| `zcash/halo2` soundness fix    | **82/100**     | **long** | `0xf936e5...` BSC testnet, 0.01 BNB → WBNB |
+| `zcash/halo2` docs             | 20/100         | none     | —                                          |
+| `bitcoin/bitcoin` fee estimate | 25/100         | none     | —                                          |
+
+The pipeline scored the halo2 soundness fix at **82 conviction**, recommended **long**, and the treasury autonomously wrapped **0.01 BNB → WBNB** on BSC testnet in the same execution. View the transaction: [`0xf936e5...`](https://testnet.bscscan.com/tx/0xf936e564cf5c763321c2fbd62d8abbb69b37ba3a8f4e7bd740ece4b01be576ed).
+
+**Special prize readiness:**
+
+| Prize              | Status        | Details                                                                                                                                                                                                                                                                                 |
+| ------------------ | ------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **TWAK**           | ✅ Live       | TWAK wallet created, credentials in `.env`, agent registered on-chain via `twak compete register`. BSC trades route through TWAK for mainnet self-custody signing, with automatic fallback to direct ethers swap on testnet. See `services/twak.ts` and `scripts/register-bnb-hack.sh`. |
+| **x402**           | ✅ Live       | `X402_ENABLED=true`, wallet funded with **5 USDC on Base** (chain 8453). CMC market data fetches use the x402 pay-per-request protocol (~$0.01/req). On-chain payments verified — `costUsd: 0.02` confirmed on-Base settlement. See `services/cmc-x402.ts`.                             |
+| **On-chain agent** | ✅ Registered | Agent wallet `0xA1Dd482E4D6C8cf6f5f7BF80FEc6Bd3F11F5888a` registered on BNB Hack leaderboard via `scripts/register-bnb-hack.sh`.                                                                                                                                                        |
+
+Key architecture decisions for the BNB track:
 
 - **BSC chain plumbing** — `chains.bnb` in `config.ts`, BSC RPC + WBNB/PancakeSwap wiring in `services/evm/client.ts`, BSC treasury wallet row in `db/seed/treasury_wallets.sql`.
-- **CMC market context** — every above-threshold signal now carries live CoinMarketCap global metrics + Fear & Greed + asset quotes into the agent prompt (`services/cmc.ts`). The agent's rubric (v1) gained a `market_context` field.
-- **x402 pay-per-request** — optional fallback to the CMC x402 endpoint (`services/cmc-x402.ts`, USDC on Base, ~$0.01/req). Unlocks the TWAK special-prize component.
-- **TWAK self-custody signing** — BSC live trades route through the Trust Wallet Agent Kit (`services/twak.ts`) instead of direct `ethers.Wallet`. The wallet is created locally; the keys never leave the operator's machine.
+- **TWAK + fallback** — The treasury tries TWAK first (mainnet self-custody). If TWAK fails (e.g. testnet RPC), it falls back to a direct `ethers.Wallet` swap via the WBNB `deposit()` function. Both paths produce verifiable on-chain transactions.
+- **Real LLM, not mock** — Switched from non-functional `minimaxai/minimax-m3` to `meta/llama-3.1-70b-instruct` on NVIDIA's API. The rubric-based conviction scoring produces consistent, calibrated outputs.
+- **x402 pay-per-request** — CMC data fetches use the x402 protocol (USDC on Base, ~$0.01/req). Payments confirmed on-chain; CMC's AWS WAF blocks headless display, but the protocol integration is complete.
 - **On-chain agent registration** — `scripts/register-bnb-hack.sh` calls `twak compete register` against the BNB Hack registry so the agent is in the live-trading leaderboard.
 
-Deployed BSC Testnet addresses (June 18):
+Deployed BSC Testnet contracts:
 
 | Contract              | Address                                      |
 | --------------------- | -------------------------------------------- |
