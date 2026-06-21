@@ -1,5 +1,6 @@
 import dotenv from 'dotenv';
 import path from 'node:path';
+import { ethers } from 'ethers';
 import { validateEnv } from './config-schema.js';
 
 // Load the repo-root .env (monorepo) and a local .env if present.
@@ -193,6 +194,7 @@ export const config = {
     defaultTradeAmount: env.TREASURY_DEFAULT_AMOUNT,
     defaultSlippageBps: env.TREASURY_SLIPPAGE_BPS,
     defaultTokenIn: env.TREASURY_DEFAULT_TOKEN_IN,
+    gasWarningThreshold: ethers.parseEther(env.GAS_WARNING_THRESHOLD),
     defaultTokenOut: (() => {
       const c = env.TREASURY_DEFAULT_CHAIN;
       if (c === 'arbitrum') return env.ARBITRUM_DEFAULT_TOKEN_OUT;

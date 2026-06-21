@@ -94,6 +94,7 @@ export const envSchema = z
     TREASURY_DEFAULT_AMOUNT: z.string().default('0.01'),
     TREASURY_SLIPPAGE_BPS: intFromString(0, 10_000).default(50),
     TREASURY_DEFAULT_TOKEN_IN: z.string().default('0xUSDC_PLACEHOLDER'),
+    GAS_WARNING_THRESHOLD: z.string().default('0.02'),
 
     // ── Notification / webhook ──
     TELEGRAM_BOT_TOKEN: z.string().optional().default(''),

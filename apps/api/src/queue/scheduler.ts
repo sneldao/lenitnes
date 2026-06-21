@@ -1,9 +1,11 @@
 import cron from 'node-cron';
+import { ethers } from 'ethers';
 import { query } from '../db/pool.js';
 import { config } from '../config.js';
 import { enqueueMonitorCheck } from './producer.js';
 import { processSignalOutcomes } from '../services/domain/backtest.service.js';
 import { recordSignalOnChain } from '../services/evm/signal-registry.js';
+import { getProvider } from '../services/evm/client.js';
 import { sendDailyWatchReport } from '../services/watch-report.js';
 import { sendTelegram } from '../services/notify.js';
 import {
@@ -18,6 +20,8 @@ let backtestJob: cron.ScheduledTask | null = null;
 let proofRetryJob: cron.ScheduledTask | null = null;
 let watchReportJob: cron.ScheduledTask | null = null;
 let heartbeatJob: cron.ScheduledTask | null = null;
+let gasCheckJob: cron.ScheduledTask | null = null;
+let tpSlCheckJob: cron.ScheduledTask | null = null;
 let monitorRunning = false;
 let backtestRunning = false;
 let proofRetryRunning = false;
@@ -224,15 +228,151 @@ async function sendPipelineHeartbeat(): Promise<void> {
   }
 }
 
+// ── Gas watcher ───────────────────────────────────────────────────
+// Checks the treasury BNB balance every 6 hours and sends a Telegram
+// alert if it drops below the warning threshold.
+const GAS_WARNING_THRESHOLD = config.treasury.gasWarningThreshold;
+const BSC_TREASURY_WALLET = '0x4dA649DeB07159E791C423bb139e6213e745D138';
+
+async function checkGasBalance(): Promise<void> {
+  try {
+    const provider = getProvider('bnb');
+    const balanceWei = await provider.getBalance(BSC_TREASURY_WALLET);
+    const balanceBnb = parseFloat(ethers.formatEther(balanceWei));
+    const thresholdBnb = parseFloat(ethers.formatEther(GAS_WARNING_THRESHOLD));
+
+    if (balanceBnb < thresholdBnb) {
+      const msg = [
+        `⛽ LENITNES — Low gas warning`,
+        ``,
+        `Treasury wallet: \`${BSC_TREASURY_WALLET}\``,
+        `Balance: **${balanceBnb.toFixed(4)} BNB**`,
+        `Threshold: ${thresholdBnb.toFixed(4)} BNB`,
+        ``,
+        `Fund: https://testnet.bscscan.com/address/${BSC_TREASURY_WALLET}`,
+      ].join('\n');
+      await sendTelegram(config.telegram.publicChannelId, msg);
+      logger.warn({ balanceBnb, threshold: thresholdBnb }, 'low gas balance — alert sent');
+    } else {
+      logger.debug({ balanceBnb }, 'gas balance OK');
+    }
+  } catch (err) {
+    logger.error({ err }, 'gas balance check failed');
+  }
+}
+
+// ── TP/SL checker ─────────────────────────────────────────────────
+// Every 5 minutes, scan open positions that have take_profit_price or
+// stop_loss_price set. For each, try to fetch the current price and
+// close if the target is hit.
+async function checkTakeProfitStopLoss(): Promise<void> {
+  try {
+    const { rows: positions } = await query<{
+      id: string;
+      asset: string;
+      chain: string;
+      direction: string;
+      entry_amount: string;
+      entry_tx_hash: string | null;
+      take_profit_price: string | null;
+      stop_loss_price: string | null;
+      conviction_at_open: number | null;
+      opened_at: string;
+    }>(
+      `SELECT id, asset, chain, direction,
+              entry_amount::text, entry_tx_hash,
+              take_profit_price::text, stop_loss_price::text,
+              conviction_at_open, opened_at::text
+         FROM positions
+        WHERE status = 'open'
+          AND (take_profit_price IS NOT NULL OR stop_loss_price IS NOT NULL)`,
+    );
+
+    if (positions.length === 0) return;
+
+    const provider = getProvider('bnb');
+    const hits: Array<{
+      id: string;
+      asset: string;
+      side: string;
+      currentPrice: number;
+      targetPrice: number;
+    }> = [];
+
+    for (const pos of positions) {
+      // Try to get current price via ethers (WBNB balance check as a
+      // crude price proxy). For real price feeds, integrate Chainlink
+      // or CoinGecko here. If the price check fails, skip this cycle.
+      let currentPrice: number | null = null;
+      try {
+        // Use PancakeSwap router on BSC testnet to estimate price.
+        // Router: 0x9Ac64Cc6e4415144C455BD8E4837Fea55603e5c3 (testnet)
+        // This is a best-effort estimate; production should use oracles.
+        const routerAddr = '0x9Ac64Cc6e4415144C455BD8E4837Fea55603e5c3';
+        const wbnbAddr = '0xae13d989daC2f0dEbFf460aC112a837C89BAa7cd';
+        const usdcAddr = '0x64544969ed7EBf5f083679233325356EbE738930';
+        const router = new ethers.Contract(
+          routerAddr,
+          [
+            'function getAmountsOut(uint amountIn, address[] memory path) view returns (uint[] memory amounts)',
+          ],
+          provider,
+        );
+        // Ask: 1 WBNB = ? USDC
+        const amounts = await router.getAmountsOut(
+          ethers.parseEther('1'),
+          [wbnbAddr, usdcAddr],
+        );
+        currentPrice = parseFloat(ethers.formatUnits(amounts[1], 18));
+      } catch {
+        // Price fetch failed — skip this position for now
+        continue;
+      }
+
+      if (currentPrice === null) continue;
+
+      const tp = pos.take_profit_price ? parseFloat(pos.take_profit_price) : null;
+      const sl = pos.stop_loss_price ? parseFloat(pos.stop_loss_price) : null;
+
+      if (tp && currentPrice >= tp) {
+        hits.push({ id: pos.id, asset: pos.asset, side: 'TP', currentPrice, targetPrice: tp });
+      } else if (sl && currentPrice <= sl) {
+        hits.push({ id: pos.id, asset: pos.asset, side: 'SL', currentPrice, targetPrice: sl });
+      }
+    }
+
+    if (hits.length > 0) {
+      const lines: string[] = [
+        `🎯 LENITNES — TP/SL hit`,
+        ``,
+      ];
+      for (const h of hits) {
+        lines.push(
+          `• ${h.asset} ${h.side} @ $${h.currentPrice.toFixed(2)} (target $${h.targetPrice.toFixed(2)})`,
+        );
+      }
+      lines.push(``);
+      lines.push(`Auto-close not yet implemented — manual review advised.`);
+      lines.push(`💼 ${config.webOrigin}/portfolio`);
+      await sendTelegram(config.telegram.publicChannelId, lines.join('\n'));
+      logger.info({ hits: hits.length }, 'TP/SL targets hit — alert sent');
+    }
+  } catch (err) {
+    logger.error({ err }, 'TP/SL check failed');
+  }
+}
+
 export function startScheduler(): void {
   logger.info(
-    'scheduler started — monitors every 30s, backtest every 6h, proof retries every 2m, watch report daily at 09:00, heartbeat hourly',
+    'scheduler started — monitors every 30s, backtest every 6h, proof retries every 2m, watch report daily at 09:00, heartbeat hourly, gas check every 6h, TP/SL check every 5m',
   );
   monitorJob = cron.schedule('*/30 * * * * *', scanAndEnqueue);
   backtestJob = cron.schedule('0 */6 * * *', runBacktest);
   proofRetryJob = cron.schedule('*/2 * * * *', retryFailedProofs);
   watchReportJob = cron.schedule('0 9 * * *', sendDailyWatchReport);
   heartbeatJob = cron.schedule('0 * * * *', sendPipelineHeartbeat);
+  gasCheckJob = cron.schedule('0 */6 * * *', checkGasBalance);
+  tpSlCheckJob = cron.schedule('*/5 * * * *', checkTakeProfitStopLoss);
 }
 
 export function stopScheduler(): void {
@@ -255,5 +395,13 @@ export function stopScheduler(): void {
   if (heartbeatJob) {
     heartbeatJob.stop();
     heartbeatJob = null;
+  }
+  if (gasCheckJob) {
+    gasCheckJob.stop();
+    gasCheckJob = null;
+  }
+  if (tpSlCheckJob) {
+    tpSlCheckJob.stop();
+    tpSlCheckJob = null;
   }
 }
