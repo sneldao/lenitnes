@@ -92,7 +92,6 @@ function parseAgentResponse(raw: string): {
   recommended_action: 'long' | 'short' | 'none';
   confidence_band: 'low' | 'mid' | 'high';
 } {
-  // Strip code fences if the model wraps the JSON.
   const stripped = raw
     .replace(/^```(?:json)?\s*/i, '')
     .replace(/```\s*$/i, '')
@@ -101,8 +100,23 @@ function parseAgentResponse(raw: string): {
   let parsed: unknown;
   try {
     parsed = JSON.parse(stripped);
-  } catch (err) {
-    throw new AgentScoreError(`Failed to parse agent JSON response: ${(err as Error).message}`);
+  } catch {
+    // Some models append free-text after the JSON object. Try finding the
+    // last '}' and parsing only the JSON portion.
+    const braceIdx = stripped.lastIndexOf('}');
+    if (braceIdx !== -1) {
+      try {
+        parsed = JSON.parse(stripped.slice(0, braceIdx + 1));
+      } catch (innerErr) {
+        throw new AgentScoreError(
+          `Failed to parse agent JSON response: ${(innerErr as Error).message}`,
+        );
+      }
+    } else {
+      throw new AgentScoreError(
+        `Failed to parse agent JSON response: no JSON object found in response`,
+      );
+    }
   }
 
   if (typeof parsed !== 'object' || parsed === null) {
