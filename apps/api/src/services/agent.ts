@@ -144,9 +144,10 @@ function parseAgentResponse(raw: string): {
   ) {
     throw new AgentScoreError(`Invalid confidence_band: ${obj.confidence_band}`);
   }
-  if (obj.recommended_action === 'none' && obj.conviction > 50) {
-    throw new AgentScoreError('recommended_action=none requires conviction <= 50');
-  }
+  // Allow recommended_action=none at any conviction — the agent may
+  // find something significant (conviction 70+) but still recommend
+  // against a trade (e.g. market is closed, no liquid pair, etc.).
+  // The rubric instructs this, but we don't hard-enforce it.
 
   return {
     conviction: Math.round(obj.conviction),
