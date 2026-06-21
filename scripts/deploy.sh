@@ -3,7 +3,7 @@
 set -euo pipefail
 
 SSH_HOST="${SSH_HOST:-nuncio-vultr}"
-REMOTE_DIR="${REMOTE_DIR:-~/lenitnes}"
+REMOTE_DIR="${REMOTE_DIR:-/opt/lenitnes}"
 
 echo "→ pulling on $SSH_HOST"
 ssh "$SSH_HOST" "cd $REMOTE_DIR && git fetch origin && git checkout main && git reset --hard origin/main"

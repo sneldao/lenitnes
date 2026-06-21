@@ -3,7 +3,7 @@
 # Services: postgres (db), redis, api, worker, web.
 # Secrets and public URLs are supplied via Coolify environment variables.
 # SERVICE_FQDN_* are Coolify "magic" vars that auto-generate domains + Traefik
-# routing for the exposed services (api on :8742, web on :3000).
+# routing for the exposed services (api on :8742, web on :8743).
 
 services:
   db:
@@ -160,9 +160,9 @@ services:
       - 'traefik.http.routers.lenitnes-web.tls.certresolver=letsencrypt'
       - 'traefik.http.services.lenitnes-web.loadbalancer.server.port=3000'
     ports:
-      - '3000:3000'
+      - '8743:3000'
     environment:
-      - SERVICE_FQDN_WEB_3000
+      - SERVICE_FQDN_WEB_8743
       - NODE_ENV=production
       - PORT=3000
     depends_on:
