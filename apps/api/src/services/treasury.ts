@@ -292,6 +292,7 @@ export async function recordTrade(
   action: TradeAction,
   receipt: TradeReceipt,
   status: 'filled' | 'failed',
+  convictionAtOpen?: number,
 ): Promise<string> {
   const { rows } = await query<{ id: string }>(
     `INSERT INTO orders
@@ -315,5 +316,59 @@ export async function recordTrade(
       receipt.txHash,
     ],
   );
-  return rows[0]?.id ?? '';
+  const orderId = rows[0]?.id ?? '';
+
+  // Track position lifecycle — long opens, short closes.
+  if (status === 'filled' && orderId) {
+    try {
+      const asset = action.pair ?? action.tokenOut ?? 'unknown';
+      if (action.side === 'long') {
+        await query(
+          `INSERT INTO positions
+             (signal_id, open_order_id, asset, chain, direction,
+              entry_amount, entry_tx_hash, conviction_at_open)
+           VALUES ($1, $2, $3, $4, 'long',
+                   $5, $6, $7)`,
+          [
+            signalId,
+            orderId,
+            asset,
+            action.chain,
+            action.amountIn ?? 0,
+            receipt.txHash,
+            convictionAtOpen ?? null,
+          ],
+        );
+      } else if (action.side === 'short') {
+        // Close the oldest open position for this asset
+        const { rows: openRows } = await query<{ id: string; entry_amount: string }>(
+          `SELECT id, entry_amount::text FROM positions
+            WHERE asset = $1 AND chain = $2 AND status = 'open'
+            ORDER BY opened_at ASC LIMIT 1`,
+          [asset, action.chain],
+        );
+        if (openRows[0]) {
+          const entryAmount = parseFloat(openRows[0].entry_amount);
+          const exitAmount = action.amountIn ? parseFloat(action.amountIn) : 0;
+          const pnlPct = entryAmount > 0 ? ((exitAmount - entryAmount) / entryAmount) * 100 : 0;
+          await query(
+            `UPDATE positions
+               SET status = 'closed',
+                   close_order_id = $2,
+                   exit_amount = $3,
+                   exit_tx_hash = $4,
+                   closed_at = now(),
+                   pnl_usd = $5,
+                   pnl_pct = $6
+             WHERE id = $1`,
+            [openRows[0].id, orderId, exitAmount, receipt.txHash, exitAmount - entryAmount, pnlPct],
+          );
+        }
+      }
+    } catch (err) {
+      logger.warn({ err, orderId }, 'position tracking failed (non-blocking)');
+    }
+  }
+
+  return orderId;
 }

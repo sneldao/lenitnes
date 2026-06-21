@@ -423,7 +423,13 @@ export async function executeCheck(monitor: Monitor): Promise<{
       try {
         tradeReceipt = await signAndSend(derived.trade);
         const status = tradeReceipt.mode === 'paper' || tradeReceipt.txHash ? 'filled' : 'failed';
-        orderId = await recordTrade(signalId, derived.trade, tradeReceipt, status);
+        orderId = await recordTrade(
+          signalId,
+          derived.trade,
+          tradeReceipt,
+          status,
+          agentScore.conviction,
+        );
         logger.info(
           {
             signalId,

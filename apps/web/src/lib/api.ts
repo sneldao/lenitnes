@@ -168,7 +168,54 @@ export const api = {
       method: 'POST',
       headers: { 'X-Admin-Key': adminKey },
     }),
+
+  // Portfolio
+  listPortfolio: () =>
+    req<{
+      summary: PortfolioSummary;
+      open: OpenPosition[];
+      closed: ClosedPosition[];
+    }>(`/portfolio`),
 };
+
+// ── Portfolio types ──────────────────────────────────────────
+
+export interface PortfolioSummary {
+  total_open_positions: number;
+  total_closed_positions: number;
+  realized_pnl_usd: number;
+  win_rate: number | null;
+  best_trade_pct: number | null;
+  worst_trade_pct: number | null;
+  avg_hold_time_hours: number | null;
+}
+
+export interface OpenPosition {
+  id: string;
+  asset: string;
+  chain: string;
+  direction: string;
+  entry_amount: number;
+  entry_price_usd: number | null;
+  entry_tx_hash: string | null;
+  opened_at: string;
+  conviction_at_open: number | null;
+  unrealized_pnl_pct: number | null;
+}
+
+export interface ClosedPosition {
+  id: string;
+  asset: string;
+  chain: string;
+  direction: string;
+  entry_amount: number;
+  exit_amount: number;
+  pnl_pct: number;
+  pnl_usd: number;
+  opened_at: string;
+  closed_at: string;
+  conviction_at_open: number | null;
+}
 
 // ── Scorecard types (Day 7) ──────────────────────────────────
 

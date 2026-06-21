@@ -6,6 +6,11 @@ import { processSignalOutcomes } from '../services/domain/backtest.service.js';
 import { recordSignalOnChain } from '../services/evm/signal-registry.js';
 import { sendDailyWatchReport } from '../services/watch-report.js';
 import { sendTelegram } from '../services/notify.js';
+import {
+  getPortfolioSummary,
+  getOpenPositions,
+  formatPortfolioSummary,
+} from '../services/portfolio.js';
 import { logger } from '../logger.js';
 
 let monitorJob: cron.ScheduledTask | null = null;
@@ -185,21 +190,24 @@ async function sendPipelineHeartbeat(): Promise<void> {
     const signals24h = parseInt(sigs[0]?.c ?? '0', 10);
     const lastThought = scores[0];
 
-    const t1h = await query<{ c: string }>(
-      "SELECT COUNT(*)::text AS c FROM orders WHERE placed_at > now() - interval '7 days'",
-    );
-    const trades7d = parseInt(t1h.rows[0]?.c ?? '0', 10);
+    const [portfolioSummary, openPositions] = await Promise.all([
+      getPortfolioSummary(),
+      getOpenPositions(),
+    ]);
 
     const lines: string[] = [
       `🛡️ LENITNES — Pipeline heartbeat`,
       ``,
-      `📡 ${activeMonitors} monitors · ${signals24h} signals (24h) · ${trades7d} trades (7d)`,
+      `📡 ${activeMonitors} monitors · ${signals24h} signals (24h)`,
     ];
     if (lastThought) {
       lines.push(`🧠 Latest: conviction ${lastThought.conviction} — ${lastThought.thesis}`);
     } else {
       lines.push(`🧠 No agent activity in 24h — watching quietly`);
     }
+    lines.push(``);
+    lines.push(formatPortfolioSummary(portfolioSummary, openPositions));
+    lines.push(``);
     lines.push(`⏱ ${new Date().toISOString().slice(11, 16)} UTC`);
     lines.push(
       `💼 Treasury: https://testnet.bscscan.com/address/0x4dA649DeB07159E791C423bb139e6213e745D138`,
