@@ -1,18 +1,22 @@
 import cron from 'node-cron';
 import { query } from '../db/pool.js';
+import { config } from '../config.js';
 import { enqueueMonitorCheck } from './producer.js';
 import { processSignalOutcomes } from '../services/domain/backtest.service.js';
 import { recordSignalOnChain } from '../services/evm/signal-registry.js';
 import { sendDailyWatchReport } from '../services/watch-report.js';
+import { sendTelegram } from '../services/notify.js';
 import { logger } from '../logger.js';
 
 let monitorJob: cron.ScheduledTask | null = null;
 let backtestJob: cron.ScheduledTask | null = null;
 let proofRetryJob: cron.ScheduledTask | null = null;
 let watchReportJob: cron.ScheduledTask | null = null;
+let heartbeatJob: cron.ScheduledTask | null = null;
 let monitorRunning = false;
 let backtestRunning = false;
 let proofRetryRunning = false;
+let heartbeatRunning = false;
 
 const PROOF_RETRY_MAX_ATTEMPTS = 10;
 
@@ -157,14 +161,61 @@ async function retryFailedProofs(): Promise<void> {
   }
 }
 
+// ── Hourly heartbeat broadcast ─────────────────────────────────
+// Sends a concise "pipeline is alive" message to the public Telegram
+// channel every hour. Shows monitor count, recent activity, and
+// latest agent thought.
+async function sendPipelineHeartbeat(): Promise<void> {
+  if (heartbeatRunning || !config.telegram.botToken || !config.telegram.publicChannelId) return;
+  heartbeatRunning = true;
+  try {
+    const [{ rows: mons }, { rows: sigs }, { rows: scores }] = await Promise.all([
+      query<{ c: string }>("SELECT COUNT(*)::text AS c FROM monitors WHERE status = 'active'"),
+      query<{ c: string }>(
+        "SELECT COUNT(*)::text AS c FROM signals WHERE detected_at > now() - interval '24 hours'",
+      ),
+      query<{ conviction: number; thesis: string }>(
+        `SELECT conviction, LEFT(thesis, 120) AS thesis FROM agent_scores
+          WHERE created_at > now() - interval '24 hours'
+          ORDER BY created_at DESC LIMIT 1`,
+      ),
+    ]);
+
+    const activeMonitors = parseInt(mons[0]?.c ?? '0', 10);
+    const signals24h = parseInt(sigs[0]?.c ?? '0', 10);
+    const lastThought = scores[0];
+
+    const lines: string[] = [
+      `🛡️ LENITNES — Pipeline heartbeat`,
+      ``,
+      `📡 ${activeMonitors} monitors · ${signals24h} signals (24h)`,
+    ];
+    if (lastThought) {
+      lines.push(`🧠 Latest: conviction ${lastThought.conviction} — ${lastThought.thesis}`);
+    } else {
+      lines.push(`🧠 No agent activity in 24h — watching quietly`);
+    }
+    lines.push(`⏱ ${new Date().toISOString().slice(11, 16)} UTC`);
+    lines.push(`🔗 Scorecard: ${config.webOrigin}/scorecard`);
+
+    await sendTelegram(config.telegram.publicChannelId, lines.join('\n'));
+    logger.info('pipeline heartbeat sent to telegram');
+  } catch (err) {
+    logger.error({ err }, 'pipeline heartbeat failed');
+  } finally {
+    heartbeatRunning = false;
+  }
+}
+
 export function startScheduler(): void {
   logger.info(
-    'scheduler started — monitors every 30s, backtest every 6h, proof retries every 2m, watch report daily at 09:00',
+    'scheduler started — monitors every 30s, backtest every 6h, proof retries every 2m, watch report daily at 09:00, heartbeat hourly',
   );
   monitorJob = cron.schedule('*/30 * * * * *', scanAndEnqueue);
   backtestJob = cron.schedule('0 */6 * * *', runBacktest);
   proofRetryJob = cron.schedule('*/2 * * * *', retryFailedProofs);
   watchReportJob = cron.schedule('0 9 * * *', sendDailyWatchReport);
+  heartbeatJob = cron.schedule('0 * * * *', sendPipelineHeartbeat);
 }
 
 export function stopScheduler(): void {
@@ -183,5 +234,9 @@ export function stopScheduler(): void {
   if (watchReportJob) {
     watchReportJob.stop();
     watchReportJob = null;
+  }
+  if (heartbeatJob) {
+    heartbeatJob.stop();
+    heartbeatJob = null;
   }
 }

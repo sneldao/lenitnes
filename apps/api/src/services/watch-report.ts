@@ -115,6 +115,19 @@ export async function buildWatchReport(): Promise<string> {
     "SELECT COUNT(*)::text AS c FROM agent_scores WHERE conviction >= 70 AND created_at > now() - interval '7 days'",
   ).then((r) => parseInt(r.rows[0]?.c ?? '0'));
 
+  const { rows: recentOrders } = await query<{
+    chain: string;
+    chain_tx_hash: string | null;
+    status: string;
+    placed_at: string;
+  }>(
+    `SELECT chain, chain_tx_hash, status, placed_at::text AS placed_at
+       FROM orders
+      WHERE placed_at > now() - interval '7 days'
+      ORDER BY placed_at DESC
+      LIMIT 5`,
+  );
+
   const lines: string[] = [];
 
   // ── Header ──
@@ -178,6 +191,16 @@ export async function buildWatchReport(): Promise<string> {
   lines.push(`\u2022 ${last24hSignals} checks in last 24h`);
   lines.push(`\u2022 ${aboveThreshold7d} above-threshold signals this week`);
   lines.push('');
+
+  // ── Portfolio (recent orders) ──
+  if (recentOrders.length > 0) {
+    lines.push(`💼 Trades (7d)`);
+    for (const o of recentOrders) {
+      const tx = o.chain_tx_hash ? o.chain_tx_hash.slice(0, 10) + '…' : 'pending';
+      lines.push(`  ${o.chain} ${tx} — ${o.status} (${o.placed_at.slice(0, 10)})`);
+    }
+    lines.push('');
+  }
 
   // ── Agent note ──
   lines.push(`\uD83E\uDDE0 Agent note`);

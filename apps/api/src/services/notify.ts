@@ -155,10 +155,10 @@ export function formatSignalMessage(opts: {
 }
 
 /**
- * Format a sub-threshold agent verdict for Telegram. These are signals
- * the agent found interesting enough to score (conviction > 50) but
- * below the trade threshold (default 70). Broadcasting them shows
- * continuous pipeline activity and agent reasoning.
+ * Format any agent verdict for Telegram. Every scored signal is broadcast
+ * — high-conviction gets the full trade broadcast, low-conviction gets a
+ * concise "agent is thinking" message. This keeps the channel alive even
+ * when no trade is warranted.
  */
 export function formatSubThresholdMessage(input: {
   summary: string;
@@ -169,21 +169,36 @@ export function formatSubThresholdMessage(input: {
     recommended_action: 'long' | 'short' | 'none';
     confidence_band: 'low' | 'mid' | 'high';
   };
-  marketContext?: string;
 }): string {
-  const lines: string[] = [];
+  const c = input.agentScore.conviction;
   const actionLabel = input.agentScore.recommended_action.toUpperCase();
   const bandLabel = input.agentScore.confidence_band.toUpperCase();
-  lines.push(`👀 LENITNES watch — below threshold`);
-  lines.push('');
-  lines.push(`🎯 Conviction ${input.agentScore.conviction}/100 (${bandLabel}) → ${actionLabel}`);
-  lines.push(`💭 ${input.agentScore.thesis}`);
-  lines.push('');
-  lines.push(`📡 Monitor: ${input.monitorUrl}`);
-  lines.push(`📝 ${input.summary.slice(0, 200)}`);
-  lines.push('');
-  lines.push(`Threshold: 70 — no trade placed. Full archive: https://lenitnes.ai/signals`);
-  return lines.join('\n');
+
+  if (c <= 30) {
+    return (
+      `👀 LENITNES watch — noise (${c}/100)\n` +
+      `📡 ${input.monitorUrl}\n` +
+      `💭 ${input.agentScore.thesis}\n` +
+      `📝 ${input.summary.slice(0, 200)}`
+    );
+  }
+
+  if (c <= 50) {
+    return (
+      `👀 LENITNES watch — mild (${c}/100, ${bandLabel}) → ${actionLabel}\n` +
+      `💭 ${input.agentScore.thesis}\n` +
+      `📡 ${input.monitorUrl}\n` +
+      `📝 ${input.summary.slice(0, 200)}`
+    );
+  }
+
+  return (
+    `👀 LENITNES watch — interesting (${c}/100, ${bandLabel}) → ${actionLabel}\n` +
+    `💭 ${input.agentScore.thesis}\n` +
+    `📡 ${input.monitorUrl}\n` +
+    `📝 ${input.summary.slice(0, 200)}\n\n` +
+    `Threshold: 70 — no trade. Full archive: https://lenitnes.ai/signals`
+  );
 }
 
 /**
