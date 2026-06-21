@@ -14,7 +14,7 @@ interface MonitorRow {
 
 interface SignalRow {
   id: string;
-  title: string;
+  condition_summary: string;
   asset: string;
   detected_at: string;
   conviction: number;
@@ -90,12 +90,13 @@ export async function buildWatchReport(): Promise<string> {
   const { rows: recentSignals } = await query<SignalRow>(
     `SELECT
        s.id::text,
-       LEFT(s.title, 120) AS title,
-       s.asset::text AS asset,
+       LEFT(COALESCE(s.condition_summary, s.evidence_text, ''), 120) AS condition_summary,
+       COALESCE(m.asset_mapping->>'coingeckoId', 'unknown') AS asset,
        s.detected_at::text AS detected_at,
        COALESCE(a.conviction, 0)::int AS conviction,
        COALESCE(LEFT(a.thesis, 200), '') AS thesis
      FROM signals s
+     LEFT JOIN monitors m ON m.id = s.monitor_id
      LEFT JOIN agent_scores a ON a.signal_id = s.id
      WHERE s.detected_at > now() - interval '24 hours'
      ORDER BY s.detected_at DESC
@@ -143,7 +144,7 @@ export async function buildWatchReport(): Promise<string> {
       const meta = assetMeta(s.asset);
       const score = s.conviction >= 70 ? `\uD83D\uDD25 ${s.conviction}` : `${s.conviction}`;
       const link = s.conviction >= 70 ? `${config.webOrigin}/signals/${s.id}` : null;
-      lines.push(`  ${meta.emoji} ${s.title.replace(/\n/g, ' ')}`);
+      lines.push(`  ${meta.emoji} ${s.condition_summary.replace(/\n/g, ' ')}`);
       if (s.thesis) lines.push(`    \uD83E\uDDE0 ${s.thesis}`);
       lines.push(`    Conviction: ${score}${link ? ` \u00B7 ${link}` : ''}`);
     }
