@@ -1,9 +1,12 @@
 -- ─────────────────────────────────────────────────────────────
--- Seed: 5 watchlist rows for the agent's first week of activity.
+-- Seed: watchlist rows for the agent's monitors.
 -- ZEC is the founding-myth asset; BTC/ETH/SOL give breadth; ARB
 -- ties to the on-chain proof chain.
 -- See docs/AGENT_ARCHITECTURE.md → "Cold start".
 -- ─────────────────────────────────────────────────────────────
+
+-- Unique index prevents duplicate monitors from repeated seed runs.
+CREATE UNIQUE INDEX IF NOT EXISTS idx_monitors_url ON monitors (url);
 
 INSERT INTO monitors (url, condition_text, frequency_seconds, screenshots_enabled, is_public, confidence_threshold, asset_mapping)
 VALUES

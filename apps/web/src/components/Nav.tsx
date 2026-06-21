@@ -13,12 +13,14 @@ import { useAuth } from '@/lib/useAuth';
 // post-pivot authenticated route that would need to exist for the
 // operator surface to make sense again.
 const APP_LINKS = [
+  { href: '/monitors', label: 'Monitors' },
   { href: '/scorecard', label: 'Scorecard' },
   { href: '/case-study/halo2', label: 'Case Study' },
   { href: '/backtest', label: 'Backtest' },
 ];
 
 const LANDING_LINKS = [
+  { href: '/monitors', label: 'Monitors' },
   { href: '/#how-it-works', label: 'Proof Chain' },
   { href: '/#zec-story', label: 'Case Study' },
   { href: '/#demo', label: 'Demo' },

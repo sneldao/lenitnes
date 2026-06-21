@@ -154,6 +154,67 @@ export function formatSignalMessage(opts: {
   return lines.join('\n');
 }
 
+/**
+ * Format a sub-threshold agent verdict for Telegram. These are signals
+ * the agent found interesting enough to score (conviction > 50) but
+ * below the trade threshold (default 70). Broadcasting them shows
+ * continuous pipeline activity and agent reasoning.
+ */
+export function formatSubThresholdMessage(input: {
+  summary: string;
+  monitorUrl: string;
+  agentScore: {
+    conviction: number;
+    thesis: string;
+    recommended_action: 'long' | 'short' | 'none';
+    confidence_band: 'low' | 'mid' | 'high';
+  };
+  marketContext?: string;
+}): string {
+  const lines: string[] = [];
+  const actionLabel = input.agentScore.recommended_action.toUpperCase();
+  const bandLabel = input.agentScore.confidence_band.toUpperCase();
+  lines.push(`👀 LENITNES watch — below threshold`);
+  lines.push('');
+  lines.push(`🎯 Conviction ${input.agentScore.conviction}/100 (${bandLabel}) → ${actionLabel}`);
+  lines.push(`💭 ${input.agentScore.thesis}`);
+  lines.push('');
+  lines.push(`📡 Monitor: ${input.monitorUrl}`);
+  lines.push(`📝 ${input.summary.slice(0, 200)}`);
+  lines.push('');
+  lines.push(`Threshold: 70 — no trade placed. Full archive: https://lenitnes.ai/signals`);
+  return lines.join('\n');
+}
+
+/**
+ * Broadcast a sub-threshold signal to Telegram. Best-effort.
+ * Returns the message text or null if skipped.
+ */
+export async function broadcastSubThreshold(input: {
+  summary: string;
+  monitorUrl: string;
+  agentScore: {
+    conviction: number;
+    thesis: string;
+    recommended_action: 'long' | 'short' | 'none';
+    confidence_band: 'low' | 'mid' | 'high';
+  };
+}): Promise<string | null> {
+  if (!config.telegram.botToken || !config.telegram.publicChannelId) return null;
+  const message = formatSubThresholdMessage(input);
+  try {
+    await sendTelegram(config.telegram.publicChannelId, message);
+    logger.info(
+      { conviction: input.agentScore.conviction },
+      'sub-threshold signal broadcast to telegram',
+    );
+    return message;
+  } catch (err) {
+    logger.error({ err }, 'sub-threshold telegram broadcast failed');
+    return null;
+  }
+}
+
 // ─────────────────────────────────────────────────────────────
 // Day 6: broadcast the agent's verdict to the public Telegram
 // channel. Single channel (publicChannelId); paid/private channels

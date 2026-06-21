@@ -30,6 +30,7 @@ import {
 import {
   buildOutcomeWindows,
   broadcastSignal,
+  broadcastSubThreshold,
   type BroadcastSignalInput,
 } from '../services/notify.js';
 
@@ -364,6 +365,22 @@ export async function executeCheck(monitor: Monitor): Promise<{
           { signalId, monitorId: monitor.id, conviction: agentScore.conviction, threshold },
           'agent below threshold — no trade, signal still public',
         );
+        // Broadcast interesting sub-threshold signals (conviction 51-69)
+        // so the channel shows continuous agent activity.
+        if (agentScore.conviction > 50) {
+          broadcastSubThreshold({
+            summary: result.summary,
+            monitorUrl: monitor.url,
+            agentScore: {
+              conviction: agentScore.conviction,
+              thesis: agentScore.thesis,
+              recommended_action: agentScore.recommended_action,
+              confidence_band: agentScore.confidence_band,
+            },
+          }).catch((err) => {
+            logger.error({ err, signalId }, 'sub-threshold broadcast errored');
+          });
+        }
       } else {
         logger.info(
           { signalId, monitorId: monitor.id, conviction: agentScore.conviction },
