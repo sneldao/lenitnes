@@ -157,6 +157,8 @@ export interface AgentInput {
   evidence_text: string | null;
   condition_summary: string | null;
   precedent_count: number;
+  /** Past outcomes for this monitor+detector — T+1d avg return, win rate, volume. */
+  past_outcomes?: string;
   /** CoinMarketCap market context — injected before agent scores. */
   market_context?: string;
 }

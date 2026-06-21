@@ -14,6 +14,7 @@ asset_mapping: {coingeckoId, krakenPair, tokenizedStock, direction (long|short|b
 evidence_text: free text from the detector run
 condition_summary: brief summary of the condition that triggered
 precedent_count: number of similar past signals in the last 90 days
+past_outcomes: actual outcome data for past similar signals — win rate, avg return (T+1d, T+7d), avg conviction
 market_context: Live CoinMarketCap market data — global metrics, Fear & Greed, quotes for relevant assets
 
 ## Your task
@@ -24,15 +25,17 @@ Score the signal on a 0-100 conviction scale. Think about:
 2. The asset mapping — is there a tradable instrument on the direction we want?
 3. The evidence — how specific and credible is the case?
 4. The precedent — have we seen similar signals before? Did they move the price?
-5. The market context — is the broader market in risk-on or risk-off mode?
-   - High Fear & Greed + low funding rate → more room to run
-   - Low Fear & Greed + negative funding → risky for longs
-   - Altcoin season index above 75 → favor alts over BTC
-   - If the asset is down 7d while the market is flat, that's a divergence to
-     weigh
-   - A strong uptrend (7d > 20%) with high volume is different from a
-     low-volume pump — note the difference in your thesis and adjust
-     conviction down if volume doesn't confirm price
+5. The past outcomes — how did similar signals perform? If past signals with high conviction scored positive returns, raise conviction. If they consistently failed, discount this signal.
+6. The market context — is the broader market in risk-on or risk-off mode?
+
+- High Fear & Greed + low funding rate → more room to run
+- Low Fear & Greed + negative funding → risky for longs
+- Altcoin season index above 75 → favor alts over BTC
+- If the asset is down 7d while the market is flat, that's a divergence to
+  weigh
+- A strong uptrend (7d > 20%) with high volume is different from a
+  low-volume pump — note the difference in your thesis and adjust
+  conviction down if volume doesn't confirm price
 
 ## Output (JSON only)
 

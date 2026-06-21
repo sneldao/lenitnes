@@ -301,6 +301,57 @@ export async function precedentCount(monitorId: string, detectorTypes: string[])
 }
 
 /**
+ * Fetch outcome context for the same monitor+detector combo — avg 1d/7d
+ * returns and win rate. Injected into the LLM prompt so the agent learns
+ * from past hits and misses.
+ */
+export async function fetchOutcomeContext(
+  monitorId: string,
+  detectorTypes: string[],
+): Promise<string | null> {
+  if (detectorTypes.length === 0) return null;
+  const { rows } = await query<{
+    total_signals: string;
+    total_outcomes: string;
+    correct_count: string;
+    avg_1d_return: string;
+    avg_7d_return: string;
+    avg_conviction: string;
+  }>(
+    `SELECT
+       COUNT(*)::text AS total_signals,
+       COUNT(so.id)::text AS total_outcomes,
+       COUNT(so.id) FILTER (WHERE so.window_seconds = 86400 AND so.direction = 'up')::text AS correct_count,
+       COALESCE(AVG(so.pct_change) FILTER (WHERE so.window_seconds = 86400), 0)::text AS avg_1d_return,
+       COALESCE(AVG(so.pct_change) FILTER (WHERE so.window_seconds = 604800), 0)::text AS avg_7d_return,
+       COALESCE(AVG(as2.conviction) FILTER (WHERE so.window_seconds = 86400), 0)::text AS avg_conviction
+      FROM signals s
+      JOIN signal_classifications sc ON sc.signal_id = s.id
+      LEFT JOIN signal_outcomes so ON so.signal_id = s.id
+      LEFT JOIN agent_scores as2 ON as2.signal_id = s.id
+      WHERE s.monitor_id = $1
+        AND sc.detector_type = ANY($2)
+        AND s.detected_at > now() - interval '90 days'`,
+    [monitorId, detectorTypes],
+  );
+  const row = rows[0];
+  if (!row || parseInt(row.total_outcomes, 10) === 0) return null;
+
+  const total = parseInt(row.total_outcomes, 10);
+  const correct = parseInt(row.correct_count, 10);
+  const winRate = total > 0 ? ((correct / total) * 100).toFixed(1) : '0.0';
+  const avg1d = parseFloat(row.avg_1d_return).toFixed(2);
+  const avg7d = parseFloat(row.avg_7d_return).toFixed(2);
+  const avgConv = parseFloat(row.avg_conviction).toFixed(0);
+
+  return (
+    `Past signals: ${row.total_signals} total, ${total} with outcomes. ` +
+    `${winRate}% win rate (T+1d). Avg T+1d return: ${avg1d}%. ` +
+    `Avg T+7d return: ${avg7d}%. Avg conviction of scored signals: ${avgConv}.`
+  );
+}
+
+/**
  * Build AgentEnv from process.env. Single place that reads the env
  * vars; called by loop.ts at request time (not at module load).
  */

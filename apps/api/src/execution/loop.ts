@@ -13,7 +13,12 @@ import { runDetectors } from '../services/detectors/registry.js';
 import { recordSignalOnChain } from '../services/evm/signal-registry.js';
 import { FEATURES } from '../features.js';
 import { cacheInvalidate } from '../middleware/cache.js';
-import { buildAgentEnvFromConfig, precedentCount, scoreAndPersist } from '../services/agent.js';
+import {
+  buildAgentEnvFromConfig,
+  precedentCount,
+  fetchOutcomeContext,
+  scoreAndPersist,
+} from '../services/agent.js';
 import { getGlobalMetrics, getQuotes, formatMarketContext } from '../services/cmc.js';
 import type { AgentScore } from '@lenitnes/types';
 import {
@@ -322,10 +327,11 @@ export async function executeCheck(monitor: Monitor): Promise<{
     const env = buildAgentEnvFromConfig();
     const threshold = config.agent.convictionThreshold;
     try {
-      const precedent = await precedentCount(
-        monitor.id,
-        detectorResultsFull.map((d) => d.type),
-      );
+      const detectorTypes = detectorResultsFull.map((d) => d.type);
+      const [precedent, outcomeContext] = await Promise.all([
+        precedentCount(monitor.id, detectorTypes),
+        fetchOutcomeContext(monitor.id, detectorTypes),
+      ]);
       const coingeckoId = monitor.asset_mapping.coingeckoId;
       const [metrics, quotes] = await Promise.all([
         getGlobalMetrics(),
@@ -347,6 +353,7 @@ export async function executeCheck(monitor: Monitor): Promise<{
           evidence_text: result.evidence,
           condition_summary: result.summary,
           precedent_count: precedent,
+          past_outcomes: outcomeContext ?? undefined,
           market_context: marketContext,
         },
         env,
