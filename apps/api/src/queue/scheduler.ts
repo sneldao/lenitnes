@@ -185,10 +185,15 @@ async function sendPipelineHeartbeat(): Promise<void> {
     const signals24h = parseInt(sigs[0]?.c ?? '0', 10);
     const lastThought = scores[0];
 
+    const t1h = await query<{ c: string }>(
+      "SELECT COUNT(*)::text AS c FROM orders WHERE placed_at > now() - interval '7 days'",
+    );
+    const trades7d = parseInt(t1h.rows[0]?.c ?? '0', 10);
+
     const lines: string[] = [
       `🛡️ LENITNES — Pipeline heartbeat`,
       ``,
-      `📡 ${activeMonitors} monitors · ${signals24h} signals (24h)`,
+      `📡 ${activeMonitors} monitors · ${signals24h} signals (24h) · ${trades7d} trades (7d)`,
     ];
     if (lastThought) {
       lines.push(`🧠 Latest: conviction ${lastThought.conviction} — ${lastThought.thesis}`);
@@ -196,7 +201,11 @@ async function sendPipelineHeartbeat(): Promise<void> {
       lines.push(`🧠 No agent activity in 24h — watching quietly`);
     }
     lines.push(`⏱ ${new Date().toISOString().slice(11, 16)} UTC`);
+    lines.push(
+      `💼 Treasury: https://testnet.bscscan.com/address/0x4dA649DeB07159E791C423bb139e6213e745D138`,
+    );
     lines.push(`🔗 Scorecard: ${config.webOrigin}/scorecard`);
+    lines.push(`📱 Monitors: ${config.webOrigin}/monitors`);
 
     await sendTelegram(config.telegram.publicChannelId, lines.join('\n'));
     logger.info('pipeline heartbeat sent to telegram');

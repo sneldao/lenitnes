@@ -174,12 +174,15 @@ export function formatSubThresholdMessage(input: {
   const actionLabel = input.agentScore.recommended_action.toUpperCase();
   const bandLabel = input.agentScore.confidence_band.toUpperCase();
 
+  const walletLine = `💼 Treasury: https://testnet.bscscan.com/address/${BSC_TREASURY_WALLET}`;
+
   if (c <= 30) {
     return (
       `👀 LENITNES watch — noise (${c}/100)\n` +
       `📡 ${input.monitorUrl}\n` +
       `💭 ${input.agentScore.thesis}\n` +
-      `📝 ${input.summary.slice(0, 200)}`
+      `📝 ${input.summary.slice(0, 200)}\n` +
+      `${walletLine}`
     );
   }
 
@@ -188,7 +191,8 @@ export function formatSubThresholdMessage(input: {
       `👀 LENITNES watch — mild (${c}/100, ${bandLabel}) → ${actionLabel}\n` +
       `💭 ${input.agentScore.thesis}\n` +
       `📡 ${input.monitorUrl}\n` +
-      `📝 ${input.summary.slice(0, 200)}`
+      `📝 ${input.summary.slice(0, 200)}\n` +
+      `${walletLine}`
     );
   }
 
@@ -196,7 +200,8 @@ export function formatSubThresholdMessage(input: {
     `👀 LENITNES watch — interesting (${c}/100, ${bandLabel}) → ${actionLabel}\n` +
     `💭 ${input.agentScore.thesis}\n` +
     `📡 ${input.monitorUrl}\n` +
-    `📝 ${input.summary.slice(0, 200)}\n\n` +
+    `📝 ${input.summary.slice(0, 200)}\n` +
+    `${walletLine}\n` +
     `Threshold: 70 — no trade. Full archive: https://lenitnes.ai/signals`
   );
 }
@@ -247,9 +252,20 @@ function explorerUrlFor(chain: string, txHash: string): string | null {
       return `https://sepolia.arbiscan.io/tx/${txHash}`;
     case 'robinhood':
       return `https://explorer.testnet.chain.robinhood.com/tx/${txHash}`;
+    case 'bsc':
+    case 'bnb':
+      return `https://testnet.bscscan.com/tx/${txHash}`;
     default:
       return null;
   }
+}
+
+/** BSC testnet treasury wallet (public, verifiable on BSC Scan). */
+const BSC_TREASURY_WALLET = '0x4dA649DeB07159E791C423bb139e6213e745D138';
+const BSC_TWAK_WALLET = '0xa5Fa663FB2C989635236F416edCE3308E16a402E';
+
+function walletUrl(address: string): string {
+  return `https://testnet.bscscan.com/address/${address}`;
 }
 
 export interface BroadcastSignalInput {
@@ -338,6 +354,12 @@ export function formatSignalBroadcastMessage(input: BroadcastSignalInput): strin
       lines.push(`  Arbitrum: ${input.proofs.arbitrumTxHash} → ${url}`);
     }
   }
+  lines.push('');
+
+  // Wallets (public, verifiable on BSC Scan)
+  lines.push(`💼 Wallets`);
+  lines.push(`  Treasury: ${BSC_TREASURY_WALLET} → ${walletUrl(BSC_TREASURY_WALLET)}`);
+  lines.push(`  Agent: ${BSC_TWAK_WALLET} → ${walletUrl(BSC_TWAK_WALLET)}`);
   lines.push('');
 
   // Outcome windows

@@ -221,6 +221,9 @@ export async function buildWatchReport(): Promise<string> {
 
   // ── Footer ──
   lines.push(`\uD83D\uDD17 Scorecard: ${config.webOrigin}/scorecard`);
+  lines.push(
+    `\uD83D\uDCB0 Treasury: https://testnet.bscscan.com/address/0x4dA649DeB07159E791C423bb139e6213e745D138`,
+  );
   lines.push(`\uD83D\uDD0D Source: https://github.com/sneldao/lenitnes`);
 
   return lines.join('\n');
