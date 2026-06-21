@@ -57,7 +57,12 @@ export function getProvider(chain: string): ethers.JsonRpcProvider {
   if (!providers[chain]) {
     const cfg = chains[chain];
     if (!cfg) throw new Error(`Unknown chain: ${chain}`);
-    providers[chain] = new ethers.JsonRpcProvider(cfg.rpcUrl, cfg.chainId);
+    const p = new ethers.JsonRpcProvider(cfg.rpcUrl, cfg.chainId, { staticNetwork: true });
+    // Disable ENS resolution for chains that don't support it (e.g. BSC testnet).
+    // ethers v6 throws UNSUPPORTED_OPERATION for networks without ENS, even when
+    // the `to` field is a hex address rather than an ENS name.
+    (p as { ensProvider?: null }).ensProvider = null;
+    providers[chain] = p;
   }
   return providers[chain];
 }

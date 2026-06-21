@@ -10,6 +10,7 @@ import type { AgentScore, AssetMapping, Chain } from '@lenitnes/types';
 import { query } from '../db/pool.js';
 import { logger } from '../logger.js';
 import { executeEvmTrade } from './evm/trade.js';
+import { getWallet, getChainConfig } from './evm/client.js';
 import { isTwakConfigured, swap as twakSwap } from './twak.js';
 
 export type TradeMode = 'paper' | 'live';
@@ -82,6 +83,34 @@ function paperTxHash(action: TradeAction, wallet: { address: string }): string {
  * In live mode calls the existing EVM client to execute the swap on
  * the configured testnet (Arbitrum Sepolia or Robinhood Chain).
  */
+/**
+ * Execute a native BNB → WBNB wrap on BSC (testnet or mainnet).
+ * Uses the system wallet (TREASURY_PRIVATE_KEY) directly via ethers.
+ * The WBNB address is resolved from the chain config in evm/client.ts.
+ * Falls back to the known BSC testnet WBNB if the chain config is empty.
+ * Returns the tx hash and the wrapped amount.
+ */
+async function executeBscSwap(amountIn: string): Promise<{ txHash: string; amountOut: string }> {
+  const cfg = getChainConfig('bnb');
+  const wallet = getWallet('bnb');
+  const wbnbAddress: string = cfg.wethAddress || '0xae13d989dac2f0debff460ac112a837c89baa7cd';
+  const iface = new ethers.Interface(['function deposit() payable']);
+  const amountWei = ethers.parseEther(amountIn);
+
+  const tx = await wallet.sendTransaction({
+    to: wbnbAddress,
+    data: iface.encodeFunctionData('deposit'),
+    value: amountWei,
+    gasLimit: 60000,
+  });
+  const receipt = await tx.wait();
+  if (receipt?.status !== 1) {
+    throw new Error(`BSC swap failed: tx ${tx.hash} status ${receipt?.status}`);
+  }
+  logger.info({ txHash: tx.hash, amountIn }, 'treasury: BSC WBNB wrap executed');
+  return { txHash: tx.hash, amountOut: amountIn };
+}
+
 export async function signAndSend(action: TradeAction): Promise<TradeReceipt> {
   const wallet = await getActiveWallet(action.chain);
   const timestamp = new Date().toISOString();
@@ -111,34 +140,57 @@ export async function signAndSend(action: TradeAction): Promise<TradeReceipt> {
     return receipt;
   }
 
-  // For BSC live trades, use TWAK (Trust Wallet Agent Kit) instead of
-  // direct ethers.Wallet signing. This enables self-custody signing
-  // (keys never leave the user's device) and unlocks the TWAK special
-  // prize track in the BNB Hack.
-  if (action.chain === 'bnb' && isTwakConfigured()) {
-    const slippagePct = action.slippageBps / 100;
-    const result = await twakSwap(
-      action.amountIn,
-      action.tokenIn,
-      action.tokenOut,
-      'bsc',
-      slippagePct,
-    );
-    logger.info(
-      {
-        signalId: action.signalId,
-        chain: action.chain,
-        txHash: result.txHash,
-        pair: action.pair,
-      },
-      'treasury: TWAK live trade executed',
-    );
+  // For BSC live trades, use TWAK (Trust Wallet Agent Kit) for mainnet
+  // self-custody signing. TWAK's 'bsc' chain maps to mainnet (chain 56).
+  // On testnet (chain 97), TWAK's built-in RPC won't find the balance, so
+  // we fall back to a direct ethers.Wallet swap via the WBNB contract.
+  if (action.chain === 'bnb') {
+    if (isTwakConfigured()) {
+      try {
+        const slippagePct = action.slippageBps / 100;
+        const result = await twakSwap(
+          action.amountIn,
+          action.tokenIn,
+          action.tokenOut,
+          'bsc',
+          slippagePct,
+        );
+        logger.info(
+          {
+            signalId: action.signalId,
+            chain: action.chain,
+            txHash: result.txHash,
+            pair: action.pair,
+          },
+          'treasury: TWAK live trade executed',
+        );
+        return {
+          chain: action.chain,
+          txHash: result.txHash,
+          pair: action.pair,
+          amountIn: action.amountIn,
+          amountOut: result.amountOut,
+          mode: 'live',
+          timestamp,
+        };
+      } catch (twakErr) {
+        logger.warn(
+          { err: twakErr },
+          'treasury: TWAK swap failed, falling back to direct BSC swap',
+        );
+      }
+    }
+
+    // Direct BSC swap: wrap native BNB → WBNB via the WBNB contract.
+    // This works on both testnet and mainnet. The treasury wallet's
+    // private key signs the transaction.
+    const bscResult = await executeBscSwap(action.amountIn);
     return {
       chain: action.chain,
-      txHash: result.txHash,
+      txHash: bscResult.txHash,
       pair: action.pair,
       amountIn: action.amountIn,
-      amountOut: result.amountOut,
+      amountOut: bscResult.amountOut,
       mode: 'live',
       timestamp,
     };
