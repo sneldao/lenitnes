@@ -215,6 +215,7 @@ export interface ClosedPosition {
   opened_at: string;
   closed_at: string;
   conviction_at_open: number | null;
+  conviction_at_close: number | null;
 }
 
 // ── Scorecard types (Day 7) ──────────────────────────────────

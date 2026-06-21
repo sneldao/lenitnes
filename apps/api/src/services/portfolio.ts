@@ -32,7 +32,6 @@ export interface ClosedPosition {
   opened_at: string;
   closed_at: string;
   conviction_at_open: number | null;
-  conviction_at_close: number | null;
 }
 
 export interface PortfolioSummary {
@@ -104,14 +103,13 @@ export async function getClosedPositions(limit = 20): Promise<ClosedPosition[]> 
     opened_at: string;
     closed_at: string;
     conviction_at_open: number | null;
-    conviction_at_close: number | null;
   }>(
     `SELECT id, asset, chain, direction,
             entry_amount::text, entry_price_usd::text,
             exit_amount::text, exit_price_usd::text,
             pnl_usd::text, pnl_pct::text,
             opened_at::text, closed_at::text,
-            conviction_at_open, conviction_at_close
+            conviction_at_open
        FROM positions
       WHERE status = 'closed'
       ORDER BY closed_at DESC
@@ -133,7 +131,6 @@ export async function getClosedPositions(limit = 20): Promise<ClosedPosition[]> 
     opened_at: r.opened_at,
     closed_at: r.closed_at,
     conviction_at_open: r.conviction_at_open,
-    conviction_at_close: r.conviction_at_close,
   }));
 }
 

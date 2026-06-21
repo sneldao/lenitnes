@@ -23,6 +23,7 @@ CREATE TABLE IF NOT EXISTS positions (
   take_profit_price NUMERIC,
   stop_loss_price NUMERIC,
   conviction_at_open INTEGER,
+  conviction_at_close INTEGER,
   pnl_usd NUMERIC,
   pnl_pct NUMERIC
 );
