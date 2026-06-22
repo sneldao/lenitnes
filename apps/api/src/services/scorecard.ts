@@ -50,6 +50,11 @@ export interface ScorecardOverall {
   bySignalType: ScorecardBySignalType[];
   byWatchlist: ScorecardByWatchlist[];
   recentCalls: RecentCall[];
+  proofCoverage: {
+    withHederaHcs: number;
+    totalSignals: number;
+    pct: number;
+  };
   generatedAt: string;
 }
 
@@ -106,12 +111,13 @@ interface RecentRow {
 // ── Public API ─────────────────────────────────────────────
 
 export async function overall(): Promise<ScorecardOverall> {
-  const [counts, outcomes, byType, byWatchlist, recent] = await Promise.all([
+  const [counts, outcomes, byType, byWatchlist, recent, proofCoverage] = await Promise.all([
     countsQuery(),
     outcomesQuery(),
     bySignalTypeQuery(),
     byWatchlistQuery(),
     recentCallsQuery(20),
+    proofCoverageQuery(),
   ]);
 
   return {
@@ -124,6 +130,14 @@ export async function overall(): Promise<ScorecardOverall> {
     bySignalType: byType,
     byWatchlist: byWatchlist,
     recentCalls: recent,
+    proofCoverage: {
+      withHederaHcs: Number(proofCoverage.with_hedera),
+      totalSignals: Number(proofCoverage.total),
+      pct:
+        Number(proofCoverage.total) > 0
+          ? Math.round((Number(proofCoverage.with_hedera) / Number(proofCoverage.total)) * 100)
+          : 0,
+    },
     generatedAt: new Date().toISOString(),
   };
 }
@@ -335,4 +349,19 @@ async function recentCallsQuery(limit: number): Promise<RecentCall[]> {
     tradeTxHash: r.trade_tx_hash,
     outcomes: r.outcomes ?? { t1h: null, t1d: null, t7d: null },
   }));
+}
+
+interface ProofCoverageRow {
+  total: string;
+  with_hedera: string;
+}
+
+async function proofCoverageQuery(): Promise<ProofCoverageRow> {
+  const { rows } = await query<ProofCoverageRow>(
+    `SELECT
+       COUNT(*)::text AS total,
+       COUNT(*) FILTER (WHERE hedera_hcs_message_id IS NOT NULL)::text AS with_hedera
+     FROM signals WHERE NOT is_heartbeat`,
+  );
+  return rows[0] ?? { total: '0', with_hedera: '0' };
 }

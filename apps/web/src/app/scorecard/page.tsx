@@ -116,7 +116,7 @@ export default function ScorecardPage() {
       ) : (
         <>
           {/* ── Top stats grid ── */}
-          <section className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
+          <section className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6">
             <Stat
               icon={Activity}
               label="Total signals"
@@ -146,6 +146,12 @@ export default function ScorecardPage() {
               label="Sharpe / max DD"
               value={`${formatSharpe(data.sharpe)} / ${formatUsd(data.maxDrawdownUsd)}`}
               tone="neutral"
+            />
+            <Stat
+              icon={Shield}
+              label="HCS-proofed"
+              value={data.proofCoverage ? `${data.proofCoverage.pct}%` : '—'}
+              tone={data.proofCoverage && data.proofCoverage.pct >= 50 ? 'positive' : 'neutral'}
             />
           </section>
 

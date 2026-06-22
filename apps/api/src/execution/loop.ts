@@ -186,10 +186,12 @@ export async function executeCheck(monitor: Monitor): Promise<{
     };
   }
 
-  // ── 4) Post-commit: IPFS + HCS (best-effort) ──────────────────────
+  // ── 4) Post-commit: IPFS + HCS (best-effort, decoupled) ──────────
   if (!isHeartbeat && signalId) {
+    // IPFS upload — best-effort. If it fails, we still write HCS.
+    let cid: string | null = null;
     try {
-      const { cid } = await ipfs.uploadProofPackage({
+      const ipfsResult = await ipfs.uploadProofPackage({
         signalId,
         monitorId: monitor.id,
         detectedAt: new Date().toISOString(),
@@ -200,26 +202,34 @@ export async function executeCheck(monitor: Monitor): Promise<{
         summary: result.summary,
         screenshots: result.screenshots,
       });
+      cid = ipfsResult.cid;
+    } catch (err) {
+      logger.warn({ err, signalId }, 'IPFS upload failed — HCS write proceeds without CID');
+    }
 
+    // HCS signal proof — includes evidence/summary so the topic message is
+    // independently verifiable even without IPFS. The IPFS CID is appended
+    // when available.
+    try {
       const hcs = await proof.writeHcsMessage!({
         kind: 'signal',
         signalId,
         monitorId: monitor.id,
         ipfsCid: cid,
         ts: new Date().toISOString(),
+        evidence: result.evidence?.slice(0, 500),
+        summary: result.summary,
       });
 
-      await query(`UPDATE signals SET ipfs_cid = $1, hedera_hcs_message_id = $2 WHERE id = $3`, [
-        cid,
-        hcs.hederaTxId,
-        signalId,
-      ]);
+      await query(
+        `UPDATE signals SET ipfs_cid = COALESCE($1, ipfs_cid), hedera_hcs_message_id = COALESCE($2, hedera_hcs_message_id) WHERE id = $3`,
+        [cid, hcs.hederaTxId, signalId],
+      );
     } catch (err) {
-      logger.error({ err, monitorId: monitor.id, signalId }, 'post-commit IPFS/HCS write failed');
-      // Intentional swallow — the signal row is already committed in the DB.
+      logger.error({ err, monitorId: monitor.id, signalId }, 'HCS signal proof write failed');
     }
 
-    // Also write a heartbeat HCS message for the successful signal.
+    // Also write a heartbeat HCS message for the successful check cycle.
     try {
       await proof.writeHcsMessage!({
         kind: 'heartbeat',

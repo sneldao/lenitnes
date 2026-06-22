@@ -194,6 +194,15 @@ async function sendPipelineHeartbeat(): Promise<void> {
     const signals24h = parseInt(sigs[0]?.c ?? '0', 10);
     const lastThought = scores[0];
 
+    // Proof coverage (Hedera HCS timestamps)
+    const { rows: proofRows } = await query<{ total: string; with_hedera: string }>(
+      `SELECT COUNT(*)::text AS total,
+              COUNT(*) FILTER (WHERE hedera_hcs_message_id IS NOT NULL)::text AS with_hedera
+         FROM signals WHERE NOT is_heartbeat`,
+    );
+    const totalSignals = parseInt(proofRows[0]?.total ?? '0', 10);
+    const withHedera = parseInt(proofRows[0]?.with_hedera ?? '0', 10);
+
     const [portfolioSummary, openPositions] = await Promise.all([
       getPortfolioSummary(),
       getOpenPositions(),
@@ -203,6 +212,7 @@ async function sendPipelineHeartbeat(): Promise<void> {
       `🛡️ LENITNES — Pipeline heartbeat`,
       ``,
       `📡 ${activeMonitors} monitors · ${signals24h} signals (24h)`,
+      `🔗 ${withHedera}/${totalSignals} signals HCS-timestamped`,
     ];
     if (lastThought) {
       lines.push(`🧠 Latest: conviction ${lastThought.conviction} — ${lastThought.thesis}`);

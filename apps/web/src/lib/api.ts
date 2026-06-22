@@ -263,6 +263,11 @@ export interface ScorecardResponse {
   bySignalType: ScorecardBySignalType[];
   byWatchlist: ScorecardByWatchlist[];
   recentCalls: ScorecardRecentCall[];
+  proofCoverage: {
+    withHederaHcs: number;
+    totalSignals: number;
+    pct: number;
+  };
   generatedAt: string;
 }
 

@@ -49,6 +49,10 @@ export default function LandingPage() {
             for four days before the market noticed. ZEC then dropped 50%. The signals were public
             the whole time.
           </p>
+          <p className="mt-4 max-w-2xl font-mono text-sm leading-relaxed text-ink/50">
+            Every signal is timestamped on Hedera HCS — immutable proof the agent saw the commit
+            before the market moved. The trade executes on BSC. The record is dual-chain.
+          </p>
           <div className="mt-10 flex flex-wrap items-center gap-3">
             <Link
               href="/case-study/halo2"
@@ -389,8 +393,8 @@ const LOOP_STEPS = [
     body: 'Conviction ≥ 70. Sub-threshold scores still persist — the reasoning archive — but produce no trade, no Telegram post, no on-chain commitment.',
   },
   {
-    title: 'Commit',
-    body: 'Trade from the treasury wallet on testnet, notarize the signal on Hedera HCS + Arbitrum SignalRegistry, broadcast the thesis to the public Telegram channel. All three in the same block.',
+    title: 'Commit + Proof',
+    body: 'Trade from the treasury wallet on BSC testnet, notarize the signal on Hedera HCS (Hashgraph Consensus Service — tamper-evident timestamping with microsecond precision), broadcast the thesis to the public Telegram channel. All three in the same block.',
   },
   {
     title: 'Track outcome',

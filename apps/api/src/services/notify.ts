@@ -308,6 +308,27 @@ export function formatSignalBroadcastMessage(input: BroadcastSignalInput): strin
   lines.push(`🚨 LENITNES signal — ${assetLabel}`);
   lines.push('');
 
+  // Proof anchor — lead with the immutable timestamp
+  if (input.proofs.hederaTxId) {
+    lines.push(
+      `🔗 Hedera HCS: ${input.proofs.hederaTxId} → https://hashscan.io/testnet/transaction/${encodeURIComponent(input.proofs.hederaTxId)}`,
+    );
+  } else {
+    lines.push(`⏳ Hedera HCS: pending`);
+  }
+  if (input.proofs.ipfsCid) {
+    lines.push(
+      `📦 IPFS: ${input.proofs.ipfsCid} → https://grove.lens.xyz/ipfs/${input.proofs.ipfsCid}`,
+    );
+  }
+  if (input.proofs.arbitrumTxHash) {
+    const url = explorerUrlFor('arbitrum', input.proofs.arbitrumTxHash);
+    if (url) {
+      lines.push(`📋 Arbitrum: ${input.proofs.arbitrumTxHash} → ${url}`);
+    }
+  }
+  lines.push('');
+
   // Conviction + action
   const actionLabel = input.agentScore.recommended_action.toUpperCase();
   lines.push(
@@ -332,28 +353,11 @@ export function formatSignalBroadcastMessage(input: BroadcastSignalInput): strin
     lines.push('');
   }
 
-  // Proofs
-  lines.push(`📜 Proofs`);
-  if (input.proofs.hederaTxId) {
-    lines.push(
-      `  Hedera HCS: ${input.proofs.hederaTxId} → https://hashscan.io/testnet/transaction/${encodeURIComponent(input.proofs.hederaTxId)}`,
-    );
-  } else {
-    lines.push(`  Hedera HCS: pending`);
-  }
-  if (input.proofs.ipfsCid) {
-    lines.push(
-      `  IPFS: ${input.proofs.ipfsCid} → https://grove.lens.xyz/ipfs/${input.proofs.ipfsCid}`,
-    );
-  } else {
-    lines.push(`  IPFS: pending`);
-  }
-  if (input.proofs.arbitrumTxHash) {
-    const url = explorerUrlFor('arbitrum', input.proofs.arbitrumTxHash);
-    if (url) {
-      lines.push(`  Arbitrum: ${input.proofs.arbitrumTxHash} → ${url}`);
-    }
-  }
+  // Outcome windows
+  lines.push(`📊 Performance`);
+  lines.push(
+    `  T+1h: ${input.outcomeWindows.t1h} · T+1d: ${input.outcomeWindows.t1d} · T+7d: ${input.outcomeWindows.t7d}`,
+  );
   lines.push('');
 
   // Wallets (public, verifiable on BSC Scan)
@@ -361,12 +365,6 @@ export function formatSignalBroadcastMessage(input: BroadcastSignalInput): strin
   lines.push(`  Treasury: ${BSC_TREASURY_WALLET} → ${walletUrl(BSC_TREASURY_WALLET)}`);
   lines.push(`  Agent: ${BSC_TWAK_WALLET} → ${walletUrl(BSC_TWAK_WALLET)}`);
   lines.push('');
-
-  // Outcome windows
-  lines.push(`📊 Outcomes (scheduled)`);
-  lines.push(`  T+1h: ${input.outcomeWindows.t1h}Z`);
-  lines.push(`  T+1d: ${input.outcomeWindows.t1d}Z`);
-  lines.push(`  T+7d: ${input.outcomeWindows.t7d}Z`);
 
   return lines.join('\n');
 }

@@ -1,6 +1,6 @@
 # LENITNES
 
-**An autonomous AI intelligence operation. Frontier-model agents read public commits to consensus-critical code, score them against a versioned conviction rubric, execute timestamped testnet trades, and broadcast every call to a public Telegram channel — all in the same block, all publicly auditable.**
+**An autonomous AI intelligence operation. Frontier-model agents read public commits to consensus-critical code, score them against a versioned conviction rubric, timestamp every signal on Hedera HCS (immutable proof), execute testnet trades on BSC, and broadcast every call to a public Telegram channel — all in the same block, all publicly auditable across two chains.**
 
 LENITNES is a zero-headcount research desk. No users, no per-monitor staking, no SaaS dashboard to manage. The agents run continuously; their calls become a public track record the system cannot misremember.
 
