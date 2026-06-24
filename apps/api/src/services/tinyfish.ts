@@ -104,7 +104,9 @@ Recent commits since last check:\n${enrichedCommits
         fetch(`${baseUrl}/run`, {
           method: 'POST',
           headers: {
-            Authorization: `Bearer ${config.tinyfish.apiKey}`,
+            // TinyFish Agent API expects X-API-Key. Sending `Authorization: Bearer`
+            // returns 401 MISSING_API_KEY. The Fetch API also uses X-API-Key.
+            'X-API-Key': config.tinyfish.apiKey,
             'Content-Type': 'application/json',
           },
           body: JSON.stringify({

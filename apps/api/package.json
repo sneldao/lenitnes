@@ -13,6 +13,7 @@
     "migrate": "tsx src/db/migrate.ts",
     "migrate:followup": "tsx src/db/migrate-followup.ts",
     "seed:demo": "tsx src/seed/demo.ts",
+    "smoke:hcs": "tsx scripts/smoke-hcs.ts",
     "typecheck": "tsc --noEmit",
     "test": "vitest run"
   },

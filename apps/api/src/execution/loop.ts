@@ -5,6 +5,7 @@ import type { Monitor, TinyFishResult } from '@lenitnes/types';
 import * as tinyfish from '../services/tinyfish.js';
 import * as scraper from '../services/scraper.js';
 import * as ipfs from '../services/ipfs.js';
+import { fetchCommitsSince } from '../services/github.js';
 import { getProofService } from '../services/proof.js';
 import { isCircuitOpen, recordSuccess, recordFailure } from '../services/circuit.js';
 import { incCounter } from '../middleware/metrics.js';
@@ -69,7 +70,7 @@ export async function runDueChecks(): Promise<void> {
 }
 
 export interface CheckMetadata {
-  checkMethod: 'tinyfish' | 'tinyfish-fetch' | 'scraper-fallback';
+  checkMethod: 'tinyfish' | 'tinyfish-fetch' | 'scraper-fallback' | 'github-direct';
   circuitOpen: boolean;
   githubCommitsFetched: number;
   confidence: number;
@@ -108,7 +109,8 @@ export async function executeCheck(monitor: Monitor): Promise<{
   // ── 2) Three-tier scraping: Fetch (free) → Agent (credits) → scraper ─────
   let result: TinyFishResult;
   const agentCircuitOpen = isCircuitOpen(circuitOpts);
-  let checkMethod: 'tinyfish' | 'tinyfish-fetch' | 'scraper-fallback' = 'tinyfish-fetch';
+  let checkMethod: 'tinyfish' | 'tinyfish-fetch' | 'scraper-fallback' | 'github-direct' =
+    'tinyfish-fetch';
 
   // Tier 1: Fetch API (free, Chromium-rendered page content)
   try {
@@ -143,6 +145,71 @@ export async function executeCheck(monitor: Monitor): Promise<{
         result = await scraper.runScraperFallback(monitor.url, monitor.condition_text);
         checkMethod = 'scraper-fallback';
       }
+    }
+  }
+
+  // ── 2b) GitHub-direct enrichment (PRIMARY path for github.com URLs) ──
+  // The 3-tier scrape above only does keyword matching against page
+  // text — it does not produce structured commit data, so the detector
+  // pipeline never fires and the agent never scores anything. For
+  // GitHub URLs we go straight to the GitHub API (cheap, fast, ~1 req/s
+  // unauthenticated, ~30 req/s with a token) to get the real commit
+  // list with hashes, messages, authors, and size stats. The detector
+  // pipeline keys off `result.commits`; populating it unblocks the
+  // entire downstream chain (detectors → agent → treasury → telegram).
+  if (monitor.url.includes('github.com') && config.github.token) {
+    try {
+      const enriched = await fetchCommitsSince(monitor.url, monitor.last_seen_commit_hash ?? null);
+      if (enriched && enriched.length > 0) {
+        const latestHash = enriched[0]?.sha;
+        const priorCommits = result.commits ?? [];
+        // Merge: GitHub data wins on structured fields; scrape evidence
+        // is kept for the LLM. Only override commits when the direct
+        // GitHub call produced at least one row, otherwise keep whatever
+        // TinyFish returned (it does its own enrichment when working).
+        result = {
+          ...result,
+          commits: enriched,
+          latestCommitHash: latestHash ?? result.latestCommitHash,
+          githubCommitsFetched: enriched.length,
+        };
+        // If the scrape layer produced no real signal (e.g. fetch API
+        // returned something that didn't match keywords) but we have
+        // real commits, surface a meaningful summary so the transaction
+        // layer treats it as a real check rather than a 0/13 heartbeat.
+        if (!result.conditionMet || result.confidence < 30) {
+          const keywords = monitor.condition_text
+            .toLowerCase()
+            .split(/\s+/)
+            .filter((w) => w.length > 3);
+          const hit = enriched.filter((c) =>
+            keywords.some((k) => c.message.toLowerCase().includes(k)),
+          );
+          if (hit.length > 0) {
+            result.conditionMet = true;
+            result.confidence = Math.max(result.confidence, 70);
+            result.evidence = hit
+              .slice(0, 3)
+              .map((c) => `${c.sha.slice(0, 7)}: ${c.message.split('\n')[0]}`)
+              .join('\n');
+            result.summary = `github-direct: ${hit.length}/${enriched.length} commits match keywords`;
+            checkMethod = 'github-direct';
+          }
+        }
+        logger.info(
+          {
+            monitorId: monitor.id,
+            commits: enriched.length,
+            latestHash: (latestHash ?? '').slice(0, 7),
+            priorScrapeCommits: priorCommits.length,
+          },
+          'github-direct enrichment populated commits',
+        );
+      } else {
+        logger.debug({ monitorId: monitor.id }, 'github-direct: no new commits');
+      }
+    } catch (err) {
+      logger.warn({ err, monitorId: monitor.id }, 'github-direct enrichment failed (non-blocking)');
     }
   }
 
