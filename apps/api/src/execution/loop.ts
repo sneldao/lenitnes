@@ -626,8 +626,16 @@ async function executeCheckTransaction(
 ): Promise<{ signalId: string | null; isHeartbeat: boolean }> {
   const { monitor, result } = params;
 
-  // Update last_check_at.
-  await client.query(`UPDATE monitors SET last_check_at = now() WHERE id = $1`, [monitor.id]);
+  // Update last_check_at. Always reset status to 'active' so a fired
+  // ('triggered') monitor becomes eligible for the next scheduler tick.
+  // Without this, after the first signal the monitor's status stays
+  // 'triggered' forever and dueMonitors() (which filters status='active')
+  // never schedules it again — the worker silently no-ops every job
+  // for that monitor and logs nothing because the "skipping — monitor
+  // not found" path in queue/worker.ts is at debug level.
+  await client.query(`UPDATE monitors SET last_check_at = now(), status = 'active' WHERE id = $1`, [
+    monitor.id,
+  ]);
 
   // Track the newest commit hash so we only evaluate new commits next cycle.
   if (result.latestCommitHash) {
@@ -685,7 +693,12 @@ async function executeCheckTransaction(
   );
   const signalId = sigRows[0].id;
 
-  // Mark the monitor as triggered.
+  // Mark the monitor as triggered (intermediate state — gets reset to
+  // 'active' on the next check tick, see UPDATE in executeCheckTransaction).
+  // The 'triggered' value is useful as a one-tick "we just fired" signal
+  // for any external observers; it must NOT stick, otherwise the
+  // due-monitors query in scheduler.ts (which filters status='active')
+  // stops scheduling this monitor after its first signal.
   await client.query(`UPDATE monitors SET status = 'triggered' WHERE id = $1`, [monitor.id]);
 
   return { signalId, isHeartbeat: false };

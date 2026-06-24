@@ -19,7 +19,12 @@ async function processCheck(job: Job<CheckJobData>): Promise<void> {
   );
   const monitor = rows[0];
   if (!monitor) {
-    logger.debug({ monitorId }, 'skipping — monitor not found or inactive');
+    // Info level (not debug) so silent scheduler issues surface in
+    // production. The previous "this monitor is silently skipped" bug
+    // (status='triggered' never reset to 'active') only manifested as
+    // a missing signal in the DB; flipping this to info would have
+    // produced one log per skipped job and made the bug obvious.
+    logger.info({ monitorId }, 'skipping — monitor not found or inactive');
     return;
   }
 
