@@ -360,7 +360,17 @@ async function proofCoverageQuery(): Promise<ProofCoverageRow> {
   const { rows } = await query<ProofCoverageRow>(
     `SELECT
        COUNT(*)::text AS total,
-       COUNT(*) FILTER (WHERE hedera_hcs_message_id IS NOT NULL)::text AS with_hedera
+       -- Count only successful HCS writes. The hedera_hcs_message_id
+       -- column is written by a COALESCE update, so a failed attempt
+       -- leaves the previous error JSON in place rather than NULL.
+       -- A successful write stores either a clean 0.0.xxx@123.456
+       -- transaction id (post-Day 17 extract fix) or the agent-kit
+       -- envelope (pre-fix). Both contain a 0.0. account prefix; the
+       -- failing writes contain "INVALID_SIGNATURE" or "Field ''".
+       COUNT(*) FILTER (
+         WHERE hedera_hcs_message_id IS NOT NULL
+           AND hedera_hcs_message_id LIKE '0.0.%'
+       )::text AS with_hedera
      FROM signals WHERE NOT is_heartbeat`,
   );
   return rows[0] ?? { total: '0', with_hedera: '0' };

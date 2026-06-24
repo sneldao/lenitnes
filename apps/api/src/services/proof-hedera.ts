@@ -83,27 +83,40 @@ async function runTool(method: string, arg: unknown): Promise<string> {
   return JSON.stringify(output);
 }
 
-function extractTxId(result: string): string {
+/** Run a tool and pull the transaction id out of the success envelope.
+ *  Returns null on failure (status != "SUCCESS") so callers can store
+ *  the value directly in a nullable column without polluting it with
+ *  error JSON. */
+async function runToolExtractTxId(method: string, arg: unknown): Promise<string | null> {
+  const result = await runTool(method, arg);
+  return extractTxId(result);
+}
+
+function extractTxId(result: string): string | null {
   // hedera-agent-kit returns an envelope like
   //   {"raw":{"status":"SUCCESS","transactionId":"0.0.xxx@123.456"},
   //    "humanMessage":"Message submitted successfully with transaction id 0.0.xxx@123.456"}
-  // Pull the actual transactionId from raw first; fall back to the
-  // humanMessage regex. Last resort: stringify the whole thing so the
-  // DB column is never empty.
+  // OR on failure:
+  //   {"raw":{"status":{"_code":1},"error":"Failed to submit..."},
+  //    "humanMessage":"Failed to submit message to topic: ..."}
+  // Pull the actual transactionId from raw on SUCCESS; return null on
+  // failure so the COALESCE in loop.ts keeps the column NULL rather
+  // than storing an error JSON. (Storing the error was the bug that
+  // made proofCoverage.withHederaHcs read 100% on the demo seed even
+  // when every HCS write had failed.)
   try {
     const parsed = JSON.parse(result);
-    if (parsed?.raw?.transactionId) return String(parsed.raw.transactionId);
-    if (parsed?.transactionId) return String(parsed.transactionId);
-    if (parsed?.txHash) return String(parsed.txHash);
-    if (typeof parsed?.humanMessage === 'string') {
-      const match = parsed.humanMessage.match(/0\.0\.\d+@\d+\.\d+/);
-      if (match) return match[0];
+    if (parsed?.raw?.status === 'SUCCESS') {
+      if (parsed.raw.transactionId) return String(parsed.raw.transactionId);
+      if (typeof parsed.humanMessage === 'string') {
+        const match = parsed.humanMessage.match(/0\.0\.\d+@\d+\.\d+/);
+        if (match) return match[0];
+      }
     }
-    return String(result);
+    return null;
   } catch {
     const match = result.match(/0\.0\.\d+@\d+\.\d+/);
-    if (match) return match[0];
-    return String(result);
+    return match ? match[0] : null;
   }
 }
 
@@ -125,7 +138,7 @@ export const hederaProofService: ProofService = {
   },
 
   writeHcsMessage: async (message: Record<string, unknown>) => {
-    const result = await runTool(
+    const txId = await runToolExtractTxId(
       'submit_topic_message_tool',
       JSON.stringify({
         topicId: config.hedera.hcsTopicId,
@@ -133,7 +146,7 @@ export const hederaProofService: ProofService = {
         transactionMemo: 'LENITNES signal',
       }),
     );
-    return { hederaTxId: extractTxId(result), topicId: config.hedera.hcsTopicId };
+    return { hederaTxId: txId, topicId: config.hedera.hcsTopicId };
   },
 
   createTopic: async (memo = 'LENITNES proof topic') => {

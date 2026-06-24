@@ -3,13 +3,13 @@ export interface ProofService {
   debitPerCheckFee?(params: {
     fromAccountId: string;
     amountHbar: number;
-  }): Promise<{ hederaTxId: string }>;
+  }): Promise<{ hederaTxId: string | null }>;
   writeHcsMessage?(
     message: Record<string, unknown>,
-  ): Promise<{ hederaTxId: string; topicId: string }>;
+  ): Promise<{ hederaTxId: string | null; topicId: string }>;
   releaseEscrow?(params: {
     toWalletAddress: string;
     amountHbar: number;
-  }): Promise<{ hederaTxId: string }>;
+  }): Promise<{ hederaTxId: string | null }>;
   createTopic?(memo?: string): Promise<{ topicId: string }>;
 }
