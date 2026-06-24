@@ -128,6 +128,21 @@ TWAK_ENABLED=true                   # set false to fall back to direct ethers.Wa
 CMC_API_KEY=...                     # Pro API key, OR:
 X402_ENABLED=false                  # true to use x402 (USDC on Base, ~$0.01/req)
 X402_PRIVATE_KEY=...                # only when X402_ENABLED=true; wallet needs USDC on Base (chain 8453)
+
+# ── Hedera HCS proof chain (optional) ──
+# Every signal is committed to a Hedera Consensus Service topic as
+# an immutable public timestamp. The tx id lands in
+# signals.hedera_hcs_message_id and shows up in the scorecard's
+# proofCoverage metric. The on-chain key type for the operator
+# account MUST match HEDERA_OPERATOR_KEY_TYPE — the SDK's fromString
+# auto-detect gets 32-byte raw keys wrong (treats the 0x prefix as
+# a DER signal), so we parse explicitly.
+HEDERA_NETWORK=testnet
+HEDERA_OPERATOR_ID=0.0.xxxxx
+HEDERA_OPERATOR_KEY=...             # 32-byte raw secp256k1 (most EVM-derived) or ED25519
+HEDERA_OPERATOR_KEY_TYPE=ecdsa      # 'ecdsa' (secp256k1) or 'ed25519' — must match the on-chain key type
+HEDERA_TREASURY_ID=0.0.xxxxx
+HEDERA_HCS_TOPIC_ID=0.0.xxxxx
 ```
 
 `MOCK_AGENT=1` works with `TREASURY_MODE=live` — the agent returns a deterministic stub and trades still go through, so you can verify the live-trade plumbing without burning budget. The default is `MOCK_AGENT=0` (real LLM calls).
@@ -285,6 +300,8 @@ The constraint is **time**, not engineering. The system works.
 **BSC trade goes through but no TWAK signature** — `TWAK_ENABLED` is `false` or `TWAK_ACCESS_ID`/`TWAK_HMAC_SECRET` is unset. The treasury will fall back to direct `ethers.Wallet` signing, which works but forfeits the TWAK special-prize component.
 
 **BSC forge deploy reverts with "insufficient funds"** — the deployer wallet needs BSC testnet BNB for gas. Faucet: https://testnet.bnbchain.org/faucet-smart.
+
+**Hedera HCS writes fail with `INVALID_SIGNATURE`** — the configured `HEDERA_OPERATOR_KEY` is being parsed as the wrong algorithm. The @hashgraph/sdk `PrivateKey.fromString()` auto-detect treats the `0x` prefix as a DER signal and picks ED25519, but the on-chain key for the account is likely ECDSA_SECP256K1. Set `HEDERA_OPERATOR_KEY_TYPE=ecdsa` (or `ed25519` if the account was created via the Hedera portal/SDK default) and rebuild. Verify the public key matches the mirror node (`/api/v1/accounts/<id>` returns the key under `key.key`) before troubleshooting any other HCS issue.
 
 ## License
 
