@@ -31,12 +31,28 @@ async function runTool(method: string, arg: unknown): Promise<string> {
     args: unknown,
   ) => Promise<unknown>;
 
+  // The tool.execute signature in hedera-agent-kit v3+ takes a parsed
+  // object, not a JSON string. The old version accepted a string;
+  // passing one now triggers "Field '' - Expected object, received
+  // string". We accept either at the call site (for backward compat)
+  // and normalize to an object before invoking.
+  const normalizedArg =
+    typeof arg === 'string'
+      ? (() => {
+          try {
+            return JSON.parse(arg) as unknown;
+          } catch {
+            return arg;
+          }
+        })()
+      : arg;
+
   const output = await withRetry(
     async () => {
       const ctrl = new AbortController();
       const timeout = setTimeout(() => ctrl.abort(), 20_000);
       try {
-        return await execute(client, {}, arg);
+        return await execute(client, {}, normalizedArg);
       } finally {
         clearTimeout(timeout);
       }
