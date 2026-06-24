@@ -84,10 +84,25 @@ async function runTool(method: string, arg: unknown): Promise<string> {
 }
 
 function extractTxId(result: string): string {
+  // hedera-agent-kit returns an envelope like
+  //   {"raw":{"status":"SUCCESS","transactionId":"0.0.xxx@123.456"},
+  //    "humanMessage":"Message submitted successfully with transaction id 0.0.xxx@123.456"}
+  // Pull the actual transactionId from raw first; fall back to the
+  // humanMessage regex. Last resort: stringify the whole thing so the
+  // DB column is never empty.
   try {
     const parsed = JSON.parse(result);
-    return parsed.txHash || parsed.transactionId || String(result);
+    if (parsed?.raw?.transactionId) return String(parsed.raw.transactionId);
+    if (parsed?.transactionId) return String(parsed.transactionId);
+    if (parsed?.txHash) return String(parsed.txHash);
+    if (typeof parsed?.humanMessage === 'string') {
+      const match = parsed.humanMessage.match(/0\.0\.\d+@\d+\.\d+/);
+      if (match) return match[0];
+    }
+    return String(result);
   } catch {
+    const match = result.match(/0\.0\.\d+@\d+\.\d+/);
+    if (match) return match[0];
     return String(result);
   }
 }
