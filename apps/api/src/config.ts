@@ -53,6 +53,7 @@ export const config = {
     network: env.HEDERA_NETWORK,
     operatorId: env.HEDERA_OPERATOR_ID,
     operatorKey: env.HEDERA_OPERATOR_KEY,
+    operatorKeyType: env.HEDERA_OPERATOR_KEY_TYPE,
     treasuryId: env.HEDERA_TREASURY_ID,
     hcsTopicId: env.HEDERA_HCS_TOPIC_ID,
   },

@@ -3,19 +3,40 @@ import { coreAccountPlugin, coreConsensusPlugin } from 'hedera-agent-kit';
 import type { Tool } from 'hedera-agent-kit';
 import { config } from '../config.js';
 import { withRetry } from './retry.js';
+import { logger } from '../logger.js';
 import type { ProofService } from './proof-interface.js';
 
 let _client: Client | null = null;
 const _tools: Tool[] = [...coreAccountPlugin.tools({}), ...coreConsensusPlugin.tools({})];
 
+// The Hedera SDK's `PrivateKey.fromString` auto-detects between
+// ED25519 and ECDSA, but the heuristic gets it wrong for 32-byte
+// raw keys (treats the 0x prefix as a DER signal and picks ED25519).
+// For account 0.0.9137770 the on-chain key type is ECDSA_SECP256K1,
+// so we have to use `fromStringECDSA` explicitly. The env var
+// HEDERA_OPERATOR_KEY_TYPE allows overriding per-deploy ('ed25519'
+// or 'ecdsa'). Default is 'ecdsa' because that's what current
+// production accounts use.
+function parseOperatorKey(raw: string): PrivateKey {
+  const explicit = (config.hedera.operatorKeyType ?? 'ecdsa').toLowerCase();
+  if (explicit === 'ed25519') return PrivateKey.fromStringED25519(raw);
+  if (explicit === 'ecdsa') return PrivateKey.fromStringECDSA(raw);
+  return PrivateKey.fromString(raw);
+}
+
 function getClient(): Client {
   if (_client) return _client;
   const client = config.hedera.network === 'mainnet' ? Client.forMainnet() : Client.forTestnet();
   if (config.hedera.operatorId && config.hedera.operatorKey) {
-    client.setOperator(
-      AccountId.fromString(config.hedera.operatorId),
-      PrivateKey.fromString(config.hedera.operatorKey),
+    const operatorKey = parseOperatorKey(config.hedera.operatorKey);
+    logger.info(
+      {
+        operatorId: config.hedera.operatorId,
+        keyType: (operatorKey as unknown as { _key?: { _type?: string } })._key?._type ?? 'unknown',
+      },
+      'hedera client operator set',
     );
+    client.setOperator(AccountId.fromString(config.hedera.operatorId), operatorKey);
   }
   _client = client;
   return client;

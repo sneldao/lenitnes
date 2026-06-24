@@ -109,6 +109,12 @@ export const envSchema = z
     HEDERA_OPERATOR_KEY: z.string().optional().default(''),
     HEDERA_TREASURY_ID: z.string().optional().default(''),
     HEDERA_HCS_TOPIC_ID: z.string().optional().default(''),
+    // Algorithm for HEDERA_OPERATOR_KEY. 'ecdsa' (secp256k1) or 'ed25519'.
+    // Default 'ecdsa' matches the production operator account
+    // (0.0.9137770 on testnet, ECDSA_SECP256K1). The Hedera SDK's
+    // fromString auto-detect gets this wrong for 32-byte raw keys
+    // (treats the 0x prefix as a DER signal), so we parse explicitly.
+    HEDERA_OPERATOR_KEY_TYPE: z.enum(['ecdsa', 'ed25519']).default('ecdsa'),
     PROOF_MODE: proofModeEnum.default('hedera'),
 
     // ── Detection integrations ──
