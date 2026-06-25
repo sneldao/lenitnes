@@ -3,6 +3,7 @@ import type { Metadata } from 'next';
 import Link from 'next/link';
 import { Providers } from '@/components/Providers';
 import { ErrorBoundary } from '@/components/ErrorBoundary';
+import { ToastProvider } from '@/components/ui/toast';
 
 import { Nav } from '@/components/Nav';
 import { AgentActivityPanel } from '@/components/AgentActivityPanel';
@@ -51,7 +52,9 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
             <div className="flex flex-1 gap-6 py-6 sm:py-10">
               {/* Main content */}
               <main id="main-content" className="min-w-0 flex-1 animate-fade-in" tabIndex={-1}>
-                <ErrorBoundary>{children}</ErrorBoundary>
+                <ToastProvider>
+                  <ErrorBoundary>{children}</ErrorBoundary>
+                </ToastProvider>
               </main>
 
               {/* Agent activity sidebar — visible from md breakpoint up */}

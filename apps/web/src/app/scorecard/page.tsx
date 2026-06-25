@@ -79,7 +79,7 @@ export default function ScorecardPage() {
               </p>
               <p className="mt-3 text-sm text-slate-500">
                 See the{' '}
-                <Link href="/case-study/halo2" className="text-accent hover:underline">
+                <Link href="/case-study/halo2" className="link-underline text-accent">
                   halo2 case study
                 </Link>{' '}
                 for a full example of a scored signal.

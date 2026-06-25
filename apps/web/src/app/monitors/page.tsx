@@ -37,9 +37,9 @@ export default function MonitorsPage() {
   }
 
   return (
-    <main className="mx-auto max-w-6xl px-4 py-12">
+    <div>
       <div className="mb-8">
-        <h1 className="text-2xl font-bold text-slate-100">Watchlist</h1>
+        <h1 className="font-display text-2xl font-semibold text-slate-100">Watchlist</h1>
         <p className="mt-1 text-sm text-slate-400">
           {monitors.length} active monitors across {grouped.size} repositories
         </p>
@@ -125,6 +125,6 @@ export default function MonitorsPage() {
           <p className="mt-3 text-sm text-slate-400">No monitors yet</p>
         </div>
       )}
-    </main>
+    </div>
   );
 }

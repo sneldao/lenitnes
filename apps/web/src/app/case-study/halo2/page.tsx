@@ -71,22 +71,20 @@ export default function Halo2CaseStudyPage() {
 
   if (isLoading) {
     return (
-      <main className="mx-auto max-w-4xl px-4 py-16">
-        <div className="flex items-center justify-center gap-3 text-slate-500">
-          <Loader2 className="h-4 w-4 animate-spin" />
-          Replaying halo2…
-        </div>
-      </main>
+      <div className="flex items-center justify-center gap-3 text-slate-500 py-20">
+        <Loader2 className="h-4 w-4 animate-spin" />
+        Replaying halo2…
+      </div>
     );
   }
 
   if (isError || !data || data.verdicts.length === 0) {
     return (
-      <main className="mx-auto max-w-4xl px-4 py-16">
-        <div className="card border-danger/30 text-danger">
+      <div className="py-20">
+        <div className="card border-danger/30 text-danger text-center">
           Could not load the replay — the API may be down.
         </div>
-      </main>
+      </div>
     );
   }
 
@@ -98,7 +96,7 @@ export default function Halo2CaseStudyPage() {
   const maxP = Math.max(...ZEC_PRICE_POINTS.map((p) => p.price));
 
   return (
-    <main className="mx-auto max-w-4xl space-y-10 px-4 py-10">
+    <div className="mx-auto max-w-4xl space-y-10 px-4 py-10">
       {/* ── Hero ── */}
       <header>
         <p className="mb-2 font-mono text-[10px] uppercase tracking-widest text-accent">
@@ -294,7 +292,7 @@ export default function Halo2CaseStudyPage() {
           ← Back to home
         </Link>
       </div>
-    </main>
+    </div>
   );
 }
 

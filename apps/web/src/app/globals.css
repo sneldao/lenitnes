@@ -340,7 +340,8 @@ body {
   @apply transition-all duration-300 ease-out;
 }
 .stat-card:hover {
-  @apply border-edge-light/40;
+  @apply border-edge-light/40 shadow-card;
+  transform: translateY(-1px);
 }
 
 .reveal {
@@ -802,6 +803,25 @@ body {
     opacity: 1 !important;
     filter: blur(0) !important;
   }
+}
+
+.link-underline {
+  position: relative;
+  text-decoration: none;
+}
+.link-underline::after {
+  content: '';
+  position: absolute;
+  inset: auto 0 0 0;
+  height: 1px;
+  background: currentColor;
+  transform: scaleX(0);
+  transform-origin: right;
+  transition: transform var(--duration-quick) var(--ease-smooth-out);
+}
+.link-underline:hover::after {
+  transform: scaleX(1);
+  transform-origin: left;
 }
 
 .small-muted {

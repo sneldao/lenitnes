@@ -4,6 +4,9 @@ import { useQuery } from '@tanstack/react-query';
 import { api } from '@/lib/api';
 import { formatWindow, formatPct, scoreColor } from '@/lib/format';
 import { BarChart3, TrendingUp, Target, Activity } from 'lucide-react';
+import { StatCard } from '@/components/ui/stat-card';
+import { SkeletonStatCard, SkeletonTable } from '@/components/ui/skeleton';
+import { Breadcrumbs } from '@/components/ui/breadcrumbs';
 
 // Day 13: the backtest stats endpoint is public (no auth) but the
 // web page was gated behind useAuth().isAuthenticated, which is
@@ -29,27 +32,40 @@ export default function BacktestPage() {
   if (isLoading) {
     return (
       <div className="mx-auto max-w-4xl animate-fade-in space-y-6">
+        <Breadcrumbs crumbs={[{ label: 'Backtest' }]} />
         <div>
-          <h1 className="text-2xl font-bold tracking-tight text-white">Backtest Engine</h1>
+          <h1 className="font-display text-2xl font-semibold tracking-tight text-slate-100">
+            Backtest Engine
+          </h1>
           <p className="mt-1 text-sm text-slate-500">
             Correlation between code-level signals and subsequent price movement.
           </p>
         </div>
-        <div className="h-32 animate-pulse rounded-2xl bg-panel" />
+        <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+          <SkeletonStatCard />
+          <SkeletonStatCard />
+          <SkeletonStatCard />
+          <SkeletonStatCard />
+        </div>
+        <SkeletonTable rows={3} />
       </div>
     );
   }
 
   if (error || !stats) {
     return (
-      <div className="mx-auto max-w-3xl py-20 text-center">
-        <p className="text-sm text-slate-500">
-          No backtest data yet. Run{' '}
-          <code className="rounded bg-panel px-1.5 py-0.5 font-mono text-xs">
-            npm run seed:demo
-          </code>{' '}
-          to populate it.
-        </p>
+      <div className="mx-auto max-w-3xl py-20">
+        <Breadcrumbs crumbs={[{ label: 'Backtest' }]} />
+        <div className="card mt-6 border-dashed border-edge/60 text-center">
+          <BarChart3 className="mx-auto mb-3 h-8 w-8 text-slate-500" />
+          <p className="text-sm text-slate-500">
+            No backtest data yet. Run{' '}
+            <code className="rounded bg-panel px-1.5 py-0.5 font-mono text-xs">
+              npm run seed:demo
+            </code>{' '}
+            to populate it.
+          </p>
+        </div>
       </div>
     );
   }
@@ -57,30 +73,33 @@ export default function BacktestPage() {
   // ... rest unchanged
   return (
     <div className="mx-auto max-w-4xl animate-fade-in space-y-6">
+      <Breadcrumbs crumbs={[{ label: 'Backtest' }]} />
       <div>
-        <h1 className="text-2xl font-bold tracking-tight text-white">Backtest Engine</h1>
+        <h1 className="font-display text-2xl font-semibold tracking-tight text-slate-100">
+          Backtest Engine
+        </h1>
         <p className="mt-1 text-sm text-slate-500">
           Correlation between code-level signals and subsequent price movement.
         </p>
       </div>
 
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-        <Stat
+        <StatCard
           icon={<BarChart3 className="h-4 w-4" />}
           label="Detectors tracked"
           value={stats.length.toString()}
         />
-        <Stat
+        <StatCard
           icon={<Activity className="h-4 w-4" />}
           label="Total signals"
           value={stats.reduce((s, b) => s + b.total_signals, 0).toString()}
         />
-        <Stat
+        <StatCard
           icon={<Target className="h-4 w-4" />}
           label="Total correct"
           value={stats.reduce((s, b) => s + b.correct_count, 0).toString()}
         />
-        <Stat
+        <StatCard
           icon={<TrendingUp className="h-4 w-4" />}
           label="Avg return"
           value={formatPct(
@@ -107,7 +126,8 @@ export default function BacktestPage() {
             {stats.map((row, i) => (
               <tr
                 key={`${row.detector_type}-${row.asset}-${i}`}
-                className="border-b border-edge/20 last:border-b-0 hover:bg-ink-light/20"
+                className="animate-signal-enter border-b border-edge/20 last:border-b-0 hover:bg-ink-light/20"
+                style={{ animationDelay: `${i * 40}ms` }}
               >
                 <td className="px-4 py-3">
                   <code className="rounded bg-ink-light/50 px-1.5 py-0.5 font-mono text-xs text-slate-300">
@@ -127,9 +147,9 @@ export default function BacktestPage() {
                   <span
                     className={
                       parseFloat(row.avg_pct_change) > 0
-                        ? 'text-green-400'
+                        ? 'text-signal'
                         : parseFloat(row.avg_pct_change) < 0
-                          ? 'text-red-400'
+                          ? 'text-danger'
                           : 'text-slate-400'
                     }
                   >
@@ -144,18 +164,6 @@ export default function BacktestPage() {
           </tbody>
         </table>
       </div>
-    </div>
-  );
-}
-
-function Stat({ icon, label, value }: { icon: React.ReactNode; label: string; value: string }) {
-  return (
-    <div className="rounded-2xl border border-edge/40 bg-panel/60 p-4 backdrop-blur-xl">
-      <div className="mb-1 flex items-center gap-2 text-xs uppercase tracking-wider text-slate-500">
-        {icon}
-        {label}
-      </div>
-      <div className="font-mono text-2xl font-medium text-white">{value}</div>
     </div>
   );
 }

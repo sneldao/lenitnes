@@ -14,6 +14,9 @@ import {
 } from 'lucide-react';
 import { api } from '@/lib/api';
 import { formatPct, formatUsd, timeAgo, explorerUrl } from '@/lib/format';
+import { StatCard } from '@/components/ui/stat-card';
+import { SkeletonStatCard, SkeletonList } from '@/components/ui/skeleton';
+import { Breadcrumbs } from '@/components/ui/breadcrumbs';
 
 interface PortfolioSummary {
   total_open_positions: number;
@@ -67,86 +70,82 @@ export default function PortfolioPage() {
 
   if (isLoading) {
     return (
-      <main className="mx-auto max-w-6xl px-4 py-12">
-        <div className="flex items-center justify-center gap-3 text-slate-500">
-          <Loader2 className="h-4 w-4 animate-spin" />
-          Loading portfolio...
+      <div className="animate-fade-in space-y-8">
+        <Breadcrumbs crumbs={[{ label: 'Portfolio' }]} />
+        <div className="mb-8">
+          <h1 className="font-display text-2xl font-semibold text-slate-100">Portfolio</h1>
         </div>
-      </main>
+        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+          <SkeletonStatCard />
+          <SkeletonStatCard />
+          <SkeletonStatCard />
+          <SkeletonStatCard />
+        </div>
+        <SkeletonList rows={2} />
+        <SkeletonList rows={3} />
+      </div>
     );
   }
 
   if (isError || !data) {
     return (
-      <main className="mx-auto max-w-6xl px-4 py-12">
-        <div className="flex items-center justify-center gap-3 text-red-400">
-          <AlertCircle className="h-4 w-4" />
-          Failed to load portfolio
+      <div className="py-20">
+        <Breadcrumbs crumbs={[{ label: 'Portfolio' }]} />
+        <div className="card mx-auto mt-6 max-w-md border-danger/30 bg-danger/5 text-center">
+          <AlertCircle className="mx-auto mb-3 h-5 w-5 text-danger" />
+          <p className="text-sm text-danger">Failed to load portfolio</p>
+          <button onClick={() => window.location.reload()} className="btn-danger mt-4 text-xs">
+            Try Again
+          </button>
         </div>
-      </main>
+      </div>
     );
   }
 
   const { summary, open: openPositions, closed: closedPositions } = data;
 
   return (
-    <main className="mx-auto max-w-6xl px-4 py-12">
-      <div className="mb-8">
-        <h1 className="text-2xl font-bold text-slate-100">Portfolio</h1>
+    <div className="animate-fade-in space-y-8">
+      <Breadcrumbs crumbs={[{ label: 'Portfolio' }]} />
+      <div>
+        <h1 className="font-display text-2xl font-semibold text-slate-100">Portfolio</h1>
         <p className="mt-1 text-sm text-slate-400">
           {summary.total_open_positions} open · {summary.total_closed_positions} closed
         </p>
       </div>
 
       {/* Summary cards */}
-      <div className="mb-8 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-        <div className="rounded-xl border border-edge/60 bg-panel p-4">
-          <div className="flex items-center gap-2 text-sm text-slate-400">
-            <Wallet className="h-4 w-4" />
-            Realized P&L
-          </div>
-          <p
-            className={`mt-1 text-xl font-bold ${summary.realized_pnl_usd >= 0 ? 'text-green-400' : 'text-red-400'}`}
-          >
-            {formatUsd(summary.realized_pnl_usd)}
-          </p>
-        </div>
-
-        <div className="rounded-xl border border-edge/60 bg-panel p-4">
-          <div className="flex items-center gap-2 text-sm text-slate-400">
-            <BarChart3 className="h-4 w-4" />
-            Win Rate
-          </div>
-          <p className="mt-1 text-xl font-bold text-slate-100">
-            {summary.win_rate !== null ? `${summary.win_rate.toFixed(0)}%` : '—'}
-          </p>
-        </div>
-
-        <div className="rounded-xl border border-edge/60 bg-panel p-4">
-          <div className="flex items-center gap-2 text-sm text-slate-400">
-            <TrendingUp className="h-4 w-4" />
-            Best Trade
-          </div>
-          <p className="mt-1 text-xl font-bold text-green-400">
-            {summary.best_trade_pct !== null ? formatPct(summary.best_trade_pct) : '—'}
-          </p>
-        </div>
-
-        <div className="rounded-xl border border-edge/60 bg-panel p-4">
-          <div className="flex items-center gap-2 text-sm text-slate-400">
-            <Clock className="h-4 w-4" />
-            Avg Hold
-          </div>
-          <p className="mt-1 text-xl font-bold text-slate-100">
-            {summary.avg_hold_time_hours !== null
+      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+        <StatCard
+          icon={<Wallet className="h-4 w-4" />}
+          label="Realized P&L"
+          value={formatUsd(summary.realized_pnl_usd)}
+          tone={summary.realized_pnl_usd >= 0 ? 'positive' : 'negative'}
+        />
+        <StatCard
+          icon={<BarChart3 className="h-4 w-4" />}
+          label="Win Rate"
+          value={summary.win_rate !== null ? `${summary.win_rate.toFixed(0)}%` : '—'}
+        />
+        <StatCard
+          icon={<TrendingUp className="h-4 w-4" />}
+          label="Best Trade"
+          value={summary.best_trade_pct !== null ? formatPct(summary.best_trade_pct) : '—'}
+          tone="positive"
+        />
+        <StatCard
+          icon={<Clock className="h-4 w-4" />}
+          label="Avg Hold"
+          value={
+            summary.avg_hold_time_hours !== null
               ? `${Math.round(summary.avg_hold_time_hours)}h`
-              : '—'}
-          </p>
-        </div>
+              : '—'
+          }
+        />
       </div>
 
       {/* Open positions */}
-      <h2 className="mb-3 text-lg font-semibold text-slate-200">Open Positions</h2>
+      <h2 className="section-title">Open Positions</h2>
       {openPositions.length === 0 ? (
         <div className="mb-8 rounded-xl border border-dashed border-edge/60 p-8 text-center">
           <p className="text-sm text-slate-500">
@@ -161,10 +160,11 @@ export default function PortfolioPage() {
         </div>
       ) : (
         <div className="mb-8 space-y-2">
-          {openPositions.map((p) => (
+          {openPositions.map((p, i) => (
             <div
               key={p.id}
-              className="flex items-center justify-between rounded-xl border border-edge/60 bg-panel p-4"
+              className="animate-signal-enter flex items-center justify-between rounded-xl border border-edge/60 bg-panel p-4"
+              style={{ animationDelay: `${i * 60}ms` }}
             >
               <div className="flex items-center gap-3">
                 <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-accent/10">
@@ -199,7 +199,7 @@ export default function PortfolioPage() {
       )}
 
       {/* Closed positions */}
-      <h2 className="mb-3 text-lg font-semibold text-slate-200">Trade History</h2>
+      <h2 className="section-title">Trade History</h2>
       {closedPositions.length === 0 ? (
         <div className="rounded-xl border border-dashed border-edge/60 p-8 text-center">
           <p className="text-sm text-slate-500">
@@ -215,21 +215,22 @@ export default function PortfolioPage() {
         </div>
       ) : (
         <div className="space-y-2">
-          {closedPositions.map((p) => (
+          {closedPositions.map((p, i) => (
             <div
               key={p.id}
-              className="flex items-center justify-between rounded-xl border border-edge/60 bg-panel p-4"
+              className="animate-signal-enter flex items-center justify-between rounded-xl border border-edge/60 bg-panel p-4"
+              style={{ animationDelay: `${i * 60}ms` }}
             >
               <div className="flex items-center gap-3">
                 <div
                   className={`flex h-8 w-8 items-center justify-center rounded-lg ${
-                    p.pnl_usd >= 0 ? 'bg-green-500/10' : 'bg-red-500/10'
+                    p.pnl_usd >= 0 ? 'bg-signal/10' : 'bg-danger/10'
                   }`}
                 >
                   {p.pnl_usd >= 0 ? (
-                    <TrendingUp className="h-4 w-4 text-green-400" />
+                    <TrendingUp className="h-4 w-4 text-signal" />
                   ) : (
-                    <TrendingDown className="h-4 w-4 text-red-400" />
+                    <TrendingDown className="h-4 w-4 text-danger" />
                   )}
                 </div>
                 <div>
@@ -242,13 +243,11 @@ export default function PortfolioPage() {
               </div>
               <div className="text-right">
                 <p
-                  className={`text-sm font-bold ${p.pnl_usd >= 0 ? 'text-green-400' : 'text-red-400'}`}
+                  className={`text-sm font-bold ${p.pnl_usd >= 0 ? 'text-signal' : 'text-danger'}`}
                 >
                   {formatPct(p.pnl_pct)}
                 </p>
-                <p
-                  className={`text-xs ${p.pnl_usd >= 0 ? 'text-green-400/70' : 'text-red-400/70'}`}
-                >
+                <p className={`text-xs ${p.pnl_usd >= 0 ? 'text-signal/70' : 'text-danger/70'}`}>
                   {formatUsd(p.pnl_usd)}
                 </p>
               </div>
@@ -256,6 +255,6 @@ export default function PortfolioPage() {
           ))}
         </div>
       )}
-    </main>
+    </div>
   );
 }
