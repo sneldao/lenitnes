@@ -13,6 +13,23 @@ import {
   BarChart3,
 } from 'lucide-react';
 import { api } from '@/lib/api';
+import { formatPct, formatUsd, timeAgo, explorerUrl } from '@/lib/format';
+
+interface PortfolioSummary {
+  total_open_positions: number;
+  total_closed_positions: number;
+  realized_pnl_usd: number;
+  win_rate: number | null;
+  best_trade_pct: number | null;
+  worst_trade_pct: number | null;
+  avg_hold_time_hours: number | null;
+}
+
+interface PortfolioData {
+  summary: PortfolioSummary;
+  open: OpenPosition[];
+  closed: ClosedPosition[];
+}
 
 interface OpenPosition {
   id: string;
@@ -39,49 +56,6 @@ interface ClosedPosition {
   opened_at: string;
   closed_at: string;
   conviction_at_open: number | null;
-}
-
-interface PortfolioSummary {
-  total_open_positions: number;
-  total_closed_positions: number;
-  realized_pnl_usd: number;
-  win_rate: number | null;
-  best_trade_pct: number | null;
-  worst_trade_pct: number | null;
-  avg_hold_time_hours: number | null;
-}
-
-interface PortfolioData {
-  summary: PortfolioSummary;
-  open: OpenPosition[];
-  closed: ClosedPosition[];
-}
-
-function formatPct(n: number): string {
-  const sign = n >= 0 ? '+' : '';
-  return `${sign}${n.toFixed(2)}%`;
-}
-
-function formatUsd(n: number): string {
-  const sign = n < 0 ? '-' : '';
-  const abs = Math.abs(n);
-  if (abs >= 1000) return `${sign}$${(abs / 1000).toFixed(2)}k`;
-  return `${sign}$${abs.toFixed(4)}`;
-}
-
-function timeAgo(iso: string): string {
-  const diff = Date.now() - new Date(iso).getTime();
-  const mins = Math.floor(diff / 60000);
-  if (mins < 1) return 'just now';
-  if (mins < 60) return `${mins}m ago`;
-  const hours = Math.floor(mins / 60);
-  if (hours < 24) return `${hours}h ago`;
-  return `${Math.floor(hours / 24)}d ago`;
-}
-
-function explorerUrl(chain: string, txHash: string): string {
-  if (chain === 'bsc' || chain === 'bnb') return `https://testnet.bscscan.com/tx/${txHash}`;
-  return '#';
 }
 
 export default function PortfolioPage() {
@@ -174,8 +148,16 @@ export default function PortfolioPage() {
       {/* Open positions */}
       <h2 className="mb-3 text-lg font-semibold text-slate-200">Open Positions</h2>
       {openPositions.length === 0 ? (
-        <div className="mb-8 rounded-xl border border-dashed border-edge/60 p-8 text-center text-sm text-slate-500">
-          No open positions
+        <div className="mb-8 rounded-xl border border-dashed border-edge/60 p-8 text-center">
+          <p className="text-sm text-slate-500">
+            No open positions — the agent hasn&apos;t triggered a trade yet.
+          </p>
+          <Link
+            href="/scorecard"
+            className="mt-2 inline-flex items-center gap-1.5 text-xs text-accent hover:underline"
+          >
+            View the scorecard →
+          </Link>
         </div>
       ) : (
         <div className="mb-8 space-y-2">
@@ -219,8 +201,17 @@ export default function PortfolioPage() {
       {/* Closed positions */}
       <h2 className="mb-3 text-lg font-semibold text-slate-200">Trade History</h2>
       {closedPositions.length === 0 ? (
-        <div className="rounded-xl border border-dashed border-edge/60 p-8 text-center text-sm text-slate-500">
-          No closed trades yet
+        <div className="rounded-xl border border-dashed border-edge/60 p-8 text-center">
+          <p className="text-sm text-slate-500">
+            No closed trades yet — outcomes will appear here after the agent executes and closes
+            positions.
+          </p>
+          <Link
+            href="/case-study/halo2"
+            className="mt-2 inline-flex items-center gap-1.5 text-xs text-accent hover:underline"
+          >
+            See a full example trade →
+          </Link>
         </div>
       ) : (
         <div className="space-y-2">

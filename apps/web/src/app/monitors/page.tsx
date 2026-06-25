@@ -2,58 +2,18 @@
 
 import { useQuery } from '@tanstack/react-query';
 import Link from 'next/link';
-import {
-  Activity,
-  Clock,
-  Shield,
-  ExternalLink,
-  GitBranch,
-  Loader2,
-  AlertCircle,
-} from 'lucide-react';
+import { Activity, Clock, Shield, ExternalLink, GitBranch } from 'lucide-react';
 import { api, type Monitor } from '@/lib/api';
-
-function shortUrl(url: string): { label: string; type: 'release' | 'commits' } {
-  try {
-    const u = new URL(url);
-    const path = u.pathname.replace(/\/+$/, '');
-    if (path.includes('/releases')) return { label: path, type: 'release' };
-    if (path.includes('/commits')) return { label: path, type: 'commits' };
-    return { label: path, type: 'release' };
-  } catch {
-    return { label: url, type: 'release' };
-  }
-}
-
-function timeAgo(iso: string | null): string {
-  if (!iso) return 'never';
-  const diff = Date.now() - new Date(iso).getTime();
-  const mins = Math.floor(diff / 60000);
-  if (mins < 1) return 'just now';
-  if (mins < 60) return `${mins}m ago`;
-  const hours = Math.floor(mins / 60);
-  if (hours < 24) return `${hours}h ago`;
-  return `${Math.floor(hours / 24)}d ago`;
-}
-
-function freqLabel(seconds: number): string {
-  const mins = Math.round(seconds / 60);
-  if (mins < 60) return `Every ${mins}m`;
-  const hours = Math.round(mins / 60);
-  return `Every ${hours}h`;
-}
-
-function assetIcon(asset: string): string {
-  const icons: Record<string, string> = {
-    zcash: 'ZEC',
-    bitcoin: 'BTC',
-    ethereum: 'ETH',
-    solana: 'SOL',
-    arbitrum: 'ARB',
-    sui: 'SUI',
-  };
-  return icons[asset] ?? asset.slice(0, 3).toUpperCase();
-}
+import {
+  shortUrl,
+  urlType,
+  repoLabel,
+  timeAgo,
+  freqLabel,
+  assetTicker,
+  statusDotColor,
+} from '@/lib/format';
+import { PageLoader, PageError } from '@/components/ui/page-states';
 
 export default function MonitorsPage() {
   const {
@@ -66,31 +26,12 @@ export default function MonitorsPage() {
     refetchInterval: 30_000,
   });
 
-  if (isLoading) {
-    return (
-      <main className="mx-auto max-w-6xl px-4 py-12">
-        <div className="flex items-center justify-center gap-3 text-slate-500">
-          <Loader2 className="h-4 w-4 animate-spin" />
-          Loading monitors...
-        </div>
-      </main>
-    );
-  }
-
-  if (isError || !monitors) {
-    return (
-      <main className="mx-auto max-w-6xl px-4 py-12">
-        <div className="flex items-center justify-center gap-3 text-red-400">
-          <AlertCircle className="h-4 w-4" />
-          Failed to load monitors
-        </div>
-      </main>
-    );
-  }
+  if (isLoading) return <PageLoader label="Loading monitors…" />;
+  if (isError || !monitors) return <PageError message="Failed to load monitors." />;
 
   const grouped = new Map<string, Monitor[]>();
   for (const m of monitors) {
-    const key = shortUrl(m.url).label.split('/').slice(0, 2).join('/');
+    const key = repoLabel(m.url);
     if (!grouped.has(key)) grouped.set(key, []);
     grouped.get(key)!.push(m);
   }
@@ -106,7 +47,6 @@ export default function MonitorsPage() {
 
       <div className="space-y-6">
         {[...grouped.entries()].map(([repo, mons]) => {
-          const totalSignals = 0; // would need a separate query
           const latestCheck = mons.reduce(
             (latest, m) =>
               !latest || (m.last_check_at && m.last_check_at > latest) ? m.last_check_at : latest,
@@ -127,7 +67,7 @@ export default function MonitorsPage() {
               </div>
               <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
                 {mons.map((m) => {
-                  const urlInfo = shortUrl(m.url);
+                  const type = urlType(m.url);
                   const asset = m.asset_mapping?.coingeckoId ?? '?';
                   return (
                     <Link
@@ -138,19 +78,13 @@ export default function MonitorsPage() {
                       <div className="flex items-start justify-between">
                         <div className="flex items-center gap-2">
                           <span className="flex h-6 w-6 items-center justify-center rounded bg-accent/10 text-[10px] font-bold text-accent">
-                            {assetIcon(asset)}
+                            {assetTicker(asset)}
                           </span>
-                          <span className="text-xs font-medium text-slate-400">{urlInfo.type}</span>
+                          <span className="text-xs font-medium text-slate-400">{type}</span>
                         </div>
                         <div className="flex items-center gap-1.5">
                           <span
-                            className={`inline-block h-1.5 w-1.5 rounded-full ${
-                              m.status === 'active'
-                                ? 'bg-green-500'
-                                : m.status === 'paused'
-                                  ? 'bg-amber-500'
-                                  : 'bg-red-500'
-                            }`}
+                            className={`inline-block h-1.5 w-1.5 rounded-full ${statusDotColor(m.status)}`}
                           />
                           <span className="text-[10px] uppercase text-slate-500">{m.status}</span>
                         </div>
@@ -171,7 +105,7 @@ export default function MonitorsPage() {
                         </span>
                         <span className="flex items-center gap-1">
                           <Activity className="h-3 w-3" />
-                          {m.last_check_at ? timeAgo(m.last_check_at) : 'pending'}
+                          {timeAgo(m.last_check_at)}
                         </span>
                       </div>
 

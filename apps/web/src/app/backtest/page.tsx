@@ -2,20 +2,8 @@
 
 import { useQuery } from '@tanstack/react-query';
 import { api } from '@/lib/api';
+import { formatWindow, formatPct, scoreColor } from '@/lib/format';
 import { BarChart3, TrendingUp, Target, Activity } from 'lucide-react';
-
-function formatWindow(seconds: number | null): string {
-  if (!seconds) return '—';
-  if (seconds < 3600) return `${Math.round(seconds / 60)}m`;
-  if (seconds < 86400) return `${Math.round(seconds / 3600)}h`;
-  return `${Math.round(seconds / 86400)}d`;
-}
-
-function formatPct(value: string): string {
-  const n = parseFloat(value);
-  if (isNaN(n)) return '—';
-  return (n >= 0 ? '+' : '') + n.toFixed(2) + '%';
-}
 
 // Day 13: the backtest stats endpoint is public (no auth) but the
 // web page was gated behind useAuth().isAuthenticated, which is
@@ -97,10 +85,8 @@ export default function BacktestPage() {
           label="Avg return"
           value={formatPct(
             stats.length === 0
-              ? '0'
-              : (
-                  stats.reduce((s, b) => s + parseFloat(b.avg_pct_change || '0'), 0) / stats.length
-                ).toFixed(2),
+              ? 0
+              : stats.reduce((s, b) => s + parseFloat(b.avg_pct_change || '0'), 0) / stats.length,
           )}
         />
       </div>
@@ -133,15 +119,7 @@ export default function BacktestPage() {
                   {row.total_signals}
                 </td>
                 <td className="px-4 py-3 text-right font-mono text-sm">
-                  <span
-                    className={
-                      parseFloat(row.accuracy) >= 0.6
-                        ? 'text-green-400'
-                        : parseFloat(row.accuracy) >= 0.4
-                          ? 'text-yellow-400'
-                          : 'text-red-400'
-                    }
-                  >
+                  <span className={scoreColor(parseFloat(row.accuracy) * 100)}>
                     {(parseFloat(row.accuracy) * 100).toFixed(0)}%
                   </span>
                 </td>
@@ -155,7 +133,7 @@ export default function BacktestPage() {
                           : 'text-slate-400'
                     }
                   >
-                    {formatPct(row.avg_pct_change)}
+                    {formatPct(parseFloat(row.avg_pct_change))}
                   </span>
                 </td>
                 <td className="px-4 py-3 text-right font-mono text-sm text-slate-400">

@@ -1,7 +1,7 @@
 'use client';
 
 import { use, useEffect, useMemo, useState } from 'react';
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import Link from 'next/link';
 import { usePathname, useSearchParams } from 'next/navigation';
 import { api, type Signal } from '@/lib/api';
@@ -23,19 +23,12 @@ import {
   Fingerprint,
   X,
   Loader2,
-  Info,
   AlertTriangle,
   TrendingUp,
-  MessageSquarePlus,
-  Send,
-  Pencil,
-  Trash2,
-  X as XIcon,
-  Check as CheckIcon,
-  Sparkles,
 } from 'lucide-react';
 import ProofChain from '@/components/ProofChain';
 import { getProofChainSteps } from '@/lib/proof-chain';
+import { AgentReasoningCard } from '@/components/AgentReasoningCard';
 
 // Public-facing proof explorer for a single signal.
 // Supports both authenticated (private) and public (shareable) modes.
@@ -335,122 +328,21 @@ export default function SignalDetailPage({ params }: { params: Promise<{ id: str
         </div>
       </div>
 
-      {/* ── Classification hero — shown before proof chain ── */}
-      {Array.isArray(signal.classifications) &&
-        signal.classifications.length > 0 &&
-        (() => {
-          const top = signal.classifications[0] as {
-            detector_type: string;
-            score: number;
-            confidence: number;
-            label: string;
-          };
-          const colorMap: Record<
-            string,
-            { border: string; bg: string; text: string; badge: string }
-          > = {
-            emergency_patch: {
-              border: 'border-danger/40',
-              bg: 'bg-danger/8',
-              text: 'text-danger',
-              badge: 'bg-danger/15 text-danger',
-            },
-            security_critical_patch: {
-              border: 'border-warn/40',
-              bg: 'bg-warn/8',
-              text: 'text-warn',
-              badge: 'bg-warn/15 text-warn',
-            },
-            governance_shift: {
-              border: 'border-violet/40',
-              bg: 'bg-violet/8',
-              text: 'text-violet',
-              badge: 'bg-violet/15 text-violet',
-            },
-            protocol_upgrade: {
-              border: 'border-signal/40',
-              bg: 'bg-signal/8',
-              text: 'text-signal',
-              badge: 'bg-signal/15 text-signal',
-            },
-          };
-          const c = colorMap[top.detector_type] ?? {
-            border: 'border-accent/40',
-            bg: 'bg-accent/8',
-            text: 'text-accent',
-            badge: 'bg-accent/15 text-accent',
-          };
-          return (
-            <div className={`rounded-2xl border ${c.border} ${c.bg} px-5 py-4`}>
-              <div className="flex items-center justify-between gap-4">
-                <div className="space-y-1">
-                  <p className="font-mono text-[10px] uppercase tracking-widest text-slate-600">
-                    Signal type
-                  </p>
-                  <p className={`text-xl font-bold capitalize ${c.text}`}>
-                    {top.detector_type.replace(/_/g, ' ')}
-                  </p>
-                  {top.label && <p className="text-sm text-slate-400">{top.label}</p>}
-                </div>
-                <div className="shrink-0 text-right space-y-1">
-                  <span className={`badge text-base font-bold ${c.badge}`}>
-                    {top.score}
-                    <span className="text-[10px] font-normal opacity-60">/100</span>
-                  </span>
-                  <p className="font-mono text-[10px] text-slate-600">
-                    {top.confidence}% confidence
-                  </p>
-                </div>
-              </div>
-              {signal.classifications.length > 1 && (
-                <div className="mt-3 flex flex-wrap gap-1.5 border-t border-white/5 pt-3">
-                  {signal.classifications.slice(1).map((c2: typeof top) => (
-                    <span
-                      key={c2.detector_type}
-                      className="badge bg-edge/60 text-slate-400 text-[9px]"
-                    >
-                      {c2.detector_type.replace(/_/g, ' ')} · {c2.score}
-                    </span>
-                  ))}
-                </div>
-              )}
-            </div>
-          );
-        })()}
-
-      {/* ── Agent verdict — shown when the agent has scored this signal ── */}
+      {/* ── Agent Reasoning — combines classification + verdict in one card ── */}
       {signal.agent_score && (
-        <div className="card border-accent/20">
-          <div className="mb-4 flex items-start justify-between gap-4">
-            <div className="min-w-0 flex-1">
-              <h2 className="section-title flex items-center gap-2">
-                <Sparkles className="h-3.5 w-3.5 text-accent" />
-                Agent verdict
-              </h2>
-              <p className="mt-1 max-w-xl text-sm leading-relaxed text-slate-400">
-                Frontier-model scoring of the detector output against a versioned conviction rubric.
-                Persisted regardless of threshold — the sub-threshold archive is part of the public
-                surface.
-              </p>
-            </div>
-            <div className="shrink-0 text-right">
-              <div className="font-mono text-3xl font-bold text-accent">
-                {signal.agent_score.conviction}
-                <span className="text-base text-slate-500">/100</span>
-              </div>
-              <div className="mt-1 font-mono text-[10px] uppercase tracking-wider text-slate-500">
-                {signal.agent_score.confidence_band} · {signal.agent_score.recommended_action}
-              </div>
-            </div>
-          </div>
-          <blockquote className="rounded-lg border border-accent/10 bg-accent/5 p-4 text-sm italic leading-relaxed text-slate-300">
-            {signal.agent_score.thesis}
-          </blockquote>
-          <div className="mt-3 flex items-center justify-between font-mono text-[10px] text-slate-600">
-            <span>rubric {signal.agent_score.rubric_version}</span>
-            <span>{new Date(signal.agent_score.created_at).toISOString().slice(0, 19)}Z</span>
-          </div>
-        </div>
+        <AgentReasoningCard
+          agentScore={signal.agent_score}
+          classifications={
+            Array.isArray(signal.classifications)
+              ? (signal.classifications as Array<{
+                  detector_type: string;
+                  score: number;
+                  confidence: number;
+                  label: string;
+                }>)
+              : []
+          }
+        />
       )}
 
       {/* ── Price impact — always shown ── */}

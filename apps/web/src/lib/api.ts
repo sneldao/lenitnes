@@ -300,4 +300,4 @@ export interface AdminStatusResponse {
 }
 
 // Helpers — re-exported from @/lib/format for backward compatibility.
-export { burnRate, statusColor } from '@/lib/format';
+export { statusColor } from '@/lib/format';
