@@ -6,12 +6,9 @@ import { usePathname } from 'next/navigation';
 import { Menu, X } from 'lucide-react';
 import { AgentActivityPanel } from '@/components/AgentActivityPanel';
 
-// Primary public nav — only the surfaces that have real content for a visitor.
 const NAV_LINKS = [
   { href: '/scorecard', label: 'Scorecard' },
   { href: '/case-study/halo2', label: 'Case Study' },
-  { href: '/monitors', label: 'Watchlist' },
-  { href: '/backtest', label: 'Backtest' },
 ];
 
 export function Nav() {
@@ -50,8 +47,8 @@ export function Nav() {
           </Link>
         ))}
         <div className="ml-3 h-5 w-px bg-edge" />
-        <Link href="/case-study/halo2" className="btn ml-3 py-2 text-xs">
-          Read the case study
+        <Link href="/scorecard" className="btn ml-3 py-2 text-xs">
+          Live Feed
         </Link>
       </nav>
 
@@ -75,11 +72,11 @@ export function Nav() {
             ))}
             <div className="border-t border-edge/40 pt-3">
               <Link
-                href="/case-study/halo2"
+                href="/scorecard"
                 onClick={() => setOpen(false)}
                 className="btn w-full justify-center py-2.5 text-xs"
               >
-                Read the case study
+                Live Feed
               </Link>
             </div>
             {/* Agent activity on mobile — shown in the drawer */}

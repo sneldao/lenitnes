@@ -12,7 +12,7 @@ async function req<T>(path: string, init?: RequestInit): Promise<T> {
       'Content-Type': 'application/json',
       ...(init?.headers ?? {}),
     },
-    cache: 'no-store',
+    cache: process.env.NODE_ENV === 'development' ? 'no-store' : 'default',
   });
   if (res.status === 401) {
     throw new Error('session_expired');

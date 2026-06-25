@@ -9,7 +9,6 @@ import {
   Shield,
   Clock,
   ArrowLeft,
-  ExternalLink,
   Copy,
   Check,
   Eye,
@@ -21,14 +20,17 @@ import {
   Globe,
   Hash,
   Fingerprint,
-  X,
-  Loader2,
   AlertTriangle,
   TrendingUp,
 } from 'lucide-react';
 import ProofChain from '@/components/ProofChain';
 import { getProofChainSteps } from '@/lib/proof-chain';
 import { AgentReasoningCard } from '@/components/AgentReasoningCard';
+import { ProofRow } from '@/components/ui/ProofRow';
+import { CheckItem } from '@/components/signal/CheckItem';
+import { SignalRow } from '@/components/signal/SignalRow';
+import { ProofProgress } from '@/components/signal/ProofProgress';
+import { ProofLink } from '@/components/signal/ProofLink';
 
 // Public-facing proof explorer for a single signal.
 // Supports both authenticated (private) and public (shareable) modes.
@@ -313,18 +315,22 @@ export default function SignalDetailPage({ params }: { params: Promise<{ id: str
 
       <div className="card space-y-4">
         <div className="grid gap-4 sm:grid-cols-2">
-          <Row
+          <SignalRow
             icon={Clock}
             label="Detected at"
             value={new Date(signal.detected_at).toLocaleString()}
           />
-          <Row icon={Eye} label="Target URL" value={signal.monitor?.url ?? '\u2014'} mono />
+          <SignalRow icon={Eye} label="Target URL" value={signal.monitor?.url ?? '\u2014'} mono />
         </div>
         <div className="border-t border-edge/40 pt-4">
-          <Row icon={Eye} label="Condition" value={signal.monitor?.condition_text ?? '\u2014'} />
+          <SignalRow
+            icon={Eye}
+            label="Condition"
+            value={signal.monitor?.condition_text ?? '\u2014'}
+          />
         </div>
         <div className="border-t border-edge/40 pt-4">
-          <Row icon={Zap} label="Summary" value={signal.condition_summary ?? '\u2014'} />
+          <SignalRow icon={Zap} label="Summary" value={signal.condition_summary ?? '\u2014'} />
         </div>
       </div>
 
@@ -422,151 +428,70 @@ export default function SignalDetailPage({ params }: { params: Promise<{ id: str
             <Shield className="h-3.5 w-3.5 text-signal" />
             Proof Chain
           </h2>
-          <ProofChainProgress signal={signal as Signal} />
+          <ProofProgress signal={signal as Signal} />
         </div>
         <div className="space-y-3">
-          {/* HCS transaction status */}
-          <div className="flex items-center gap-3 rounded-xl border border-edge/40 bg-ink-light/30 p-3">
-            <div
-              className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-lg ${signal.hedera_tx_id ? 'bg-signal/10 text-signal' : 'bg-warn/10 text-warn'}`}
-            >
-              <Shield className="h-4 w-4" />
-            </div>
-            <div className="min-w-0 flex-1">
-              <p className="text-xs font-semibold text-slate-200">Hedera Consensus</p>
-              <p className="text-[10px] text-slate-500">
-                {signal.hedera_tx_id
-                  ? 'Transaction recorded on HashScan'
-                  : 'Pending on-chain submission'}
-              </p>
-            </div>
-            {signal.proof?.hashscanUrl ? (
-              <a
-                href={signal.proof.hashscanUrl}
-                target="_blank"
-                rel="noreferrer"
-                className="flex items-center gap-1 rounded-lg bg-signal/10 px-2.5 py-1.5 text-[10px] font-semibold text-signal transition-colors hover:bg-signal/20"
-              >
-                <ExternalLink className="h-3 w-3" />
-                View
-              </a>
-            ) : (
-              <span className="flex items-center gap-1 rounded-lg bg-edge/40 px-2.5 py-1.5 text-[10px] text-slate-500">
-                <Loader2 className="h-3 w-3 animate-spin" />
-                Pending
-              </span>
-            )}
-          </div>
+          <ProofRow
+            icon={Shield}
+            iconClass={signal.hedera_tx_id ? 'bg-signal/10 text-signal' : 'bg-warn/10 text-warn'}
+            label="Hedera Consensus"
+            detail={
+              signal.hedera_tx_id
+                ? 'Transaction recorded on HashScan'
+                : 'Pending on-chain submission'
+            }
+            href={signal.proof?.hashscanUrl}
+            pending={!signal.proof?.hashscanUrl}
+          />
 
-          {/* Grove CID with copy */}
           {signal.ipfs_cid && (
-            <div className="flex items-center gap-3 rounded-xl border border-edge/40 bg-ink-light/30 p-3">
-              <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-cyan-400/10 text-cyan-400">
-                <Fingerprint className="h-4 w-4" />
-              </div>
-              <div className="min-w-0 flex-1">
-                <p className="text-xs font-semibold text-slate-200">Grove CID</p>
-                <p className="truncate font-mono text-[10px] text-slate-500">{signal.ipfs_cid}</p>
-              </div>
-              <button
-                onClick={() => {
-                  navigator.clipboard.writeText(signal.ipfs_cid!);
-                  setCopied('cid');
-                  setTimeout(() => setCopied(null), 1500);
-                }}
-                className="flex items-center gap-1 rounded-lg bg-cyan-400/10 px-2.5 py-1.5 text-[10px] font-semibold text-cyan-400 transition-colors hover:bg-cyan-400/20"
-              >
-                {copied === 'cid' ? <Check className="h-3 w-3" /> : <Copy className="h-3 w-3" />}
-                {copied === 'cid' ? 'Copied' : 'Copy'}
-              </button>
-            </div>
+            <ProofRow
+              icon={Fingerprint}
+              iconClass="bg-cyan-400/10 text-cyan-400"
+              label="Grove CID"
+              detail={signal.ipfs_cid}
+              copyValue={signal.ipfs_cid}
+              mono
+            />
           )}
 
-          {/* Arbitrum on-chain proof */}
-          <div className="flex items-center gap-3 rounded-xl border border-edge/40 bg-ink-light/30 p-3">
-            <div
-              className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-lg ${signal.arb_tx_hash ? 'bg-violet/10 text-violet' : 'bg-edge/40 text-slate-600'}`}
-            >
-              <LinkIcon className="h-4 w-4" />
-            </div>
-            <div className="min-w-0 flex-1">
-              <p className="text-xs font-semibold text-slate-200">Arbitrum Sepolia</p>
-              <p className="text-[10px] text-slate-500">
-                {signal.arb_tx_hash
-                  ? 'Signal hash recorded on SignalRegistry'
-                  : 'Pending on-chain submission'}
-              </p>
-              {signal.arb_tx_hash && (
-                <p className="truncate font-mono text-[10px] text-slate-600">
-                  {signal.arb_tx_hash.slice(0, 20)}…
-                </p>
-              )}
-            </div>
-            {signal.arb_tx_hash ? (
-              <a
-                href={`https://sepolia.arbiscan.io/tx/${signal.arb_tx_hash}`}
-                target="_blank"
-                rel="noreferrer"
-                className="flex items-center gap-1 rounded-lg bg-violet/10 px-2.5 py-1.5 text-[10px] font-semibold text-violet transition-colors hover:bg-violet/20"
-              >
-                <ExternalLink className="h-3 w-3" />
-                Arbiscan
-              </a>
-            ) : (
-              <span className="flex items-center gap-1 rounded-lg bg-edge/40 px-2.5 py-1.5 text-[10px] text-slate-500">
-                <Loader2 className="h-3 w-3 animate-spin" />
-                Pending
-              </span>
-            )}
-          </div>
+          <ProofRow
+            icon={LinkIcon}
+            iconClass={
+              signal.arb_tx_hash ? 'bg-violet/10 text-violet' : 'bg-edge/40 text-slate-600'
+            }
+            label="Arbitrum Sepolia"
+            detail={
+              signal.arb_tx_hash
+                ? `Signal hash recorded on SignalRegistry · ${signal.arb_tx_hash.slice(0, 20)}…`
+                : 'Pending on-chain submission'
+            }
+            href={
+              signal.arb_tx_hash ? `https://sepolia.arbiscan.io/tx/${signal.arb_tx_hash}` : null
+            }
+            hrefLabel={signal.arb_tx_hash ? 'Arbiscan' : undefined}
+            pending={!signal.arb_tx_hash}
+          />
 
-          {/* Evidence hash */}
           {signal.evidence_hash && (
-            <div className="flex items-center gap-3 rounded-xl border border-edge/40 bg-ink-light/30 p-3">
-              <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-accent/10 text-accent">
-                <Hash className="h-4 w-4" />
-              </div>
-              <div className="min-w-0 flex-1">
-                <p className="text-xs font-semibold text-slate-200">Evidence SHA-256</p>
-                <p className="truncate font-mono text-[10px] text-slate-500">
-                  {signal.evidence_hash}
-                </p>
-              </div>
-              <button
-                onClick={() => {
-                  navigator.clipboard.writeText(signal.evidence_hash!);
-                  setCopied('hash');
-                  setTimeout(() => setCopied(null), 1500);
-                }}
-                className="flex items-center gap-1 rounded-lg bg-accent/10 px-2.5 py-1.5 text-[10px] font-semibold text-accent transition-colors hover:bg-accent/20"
-              >
-                {copied === 'hash' ? <Check className="h-3 w-3" /> : <Copy className="h-3 w-3" />}
-                {copied === 'hash' ? 'Copied' : 'Copy'}
-              </button>
-            </div>
+            <ProofRow
+              icon={Hash}
+              iconClass="bg-accent/10 text-accent"
+              label="Evidence SHA-256"
+              detail={signal.evidence_hash}
+              copyValue={signal.evidence_hash}
+              mono
+            />
           )}
 
-          {/* Source URL */}
-          <div className="flex items-center gap-3 rounded-xl border border-edge/40 bg-ink-light/30 p-3">
-            <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-accent/10 text-accent">
-              <Globe className="h-4 w-4" />
-            </div>
-            <div className="min-w-0 flex-1">
-              <p className="text-xs font-semibold text-slate-200">Source URL</p>
-              <p className="truncate text-[10px] text-slate-500">{signal.monitor?.url ?? '—'}</p>
-            </div>
-            {signal.monitor?.url && (
-              <a
-                href={signal.monitor.url}
-                target="_blank"
-                rel="noreferrer"
-                className="flex items-center gap-1 rounded-lg bg-accent/10 px-2.5 py-1.5 text-[10px] font-semibold text-accent transition-colors hover:bg-accent/20"
-              >
-                <ExternalLink className="h-3 w-3" />
-                Visit
-              </a>
-            )}
-          </div>
+          <ProofRow
+            icon={Globe}
+            iconClass="bg-accent/10 text-accent"
+            label="Source URL"
+            detail={signal.monitor?.url ?? '—'}
+            href={signal.monitor?.url ?? null}
+            hrefLabel="Visit"
+          />
         </div>
       </div>
 
@@ -726,122 +651,6 @@ export default function SignalDetailPage({ params }: { params: Promise<{ id: str
             Create Your Own Monitor
           </Link>
         </div>
-      )}
-    </div>
-  );
-}
-
-function CheckItem({ label, ok, detail }: { label: string; ok: boolean; detail: string }) {
-  return (
-    <div className="stat-card flex items-start gap-3">
-      <div
-        className={
-          'mt-0.5 flex h-6 w-6 shrink-0 items-center justify-center rounded-lg ' +
-          (ok ? 'bg-signal/15 text-signal' : 'bg-danger/10 text-danger')
-        }
-      >
-        {ok ? <Check className="h-3.5 w-3.5" /> : <X className="h-3.5 w-3.5" />}
-      </div>
-      <div className="min-w-0">
-        <p className="text-sm font-medium text-slate-200">{label}</p>
-        <p className={`mt-0.5 line-clamp-2 text-xs ${ok ? 'text-slate-500' : 'text-danger/70'}`}>
-          {detail}
-        </p>
-      </div>
-    </div>
-  );
-}
-
-function Row({
-  icon: Icon,
-  label,
-  value,
-  mono,
-}: {
-  icon: typeof Clock;
-  label: string;
-  value: string;
-  mono?: boolean;
-}) {
-  return (
-    <div className="flex flex-col gap-1">
-      <span className="section-title flex items-center gap-1.5">
-        <Icon className="h-3 w-3" />
-        {label}
-      </span>
-      <span className={'text-sm text-slate-200 ' + (mono ? 'font-mono text-xs' : '')}>{value}</span>
-    </div>
-  );
-}
-
-/* ── Compact proof chain progress dots ─────────────────────── */
-
-function ProofChainProgress({ signal }: { signal: Signal }) {
-  const steps = [
-    { label: 'Hedera', done: Boolean(signal.hedera_tx_id), color: 'bg-signal' },
-    { label: 'IPFS', done: Boolean(signal.ipfs_cid), color: 'bg-cyan-400' },
-    { label: 'Arbitrum', done: Boolean(signal.arb_tx_hash), color: 'bg-violet' },
-    { label: 'Trade', done: (signal.orders_count ?? 0) > 0, color: 'bg-warn' },
-  ];
-
-  const completed = steps.filter((s) => s.done).length;
-  const total = steps.length;
-
-  return (
-    <div className="flex items-center gap-1.5">
-      {steps.map((step, i) => (
-        <div key={step.label} className="flex items-center gap-0">
-          <div
-            className={`h-1.5 w-1.5 rounded-full transition-all duration-300 ${
-              step.done ? step.color : 'bg-edge'
-            } ${step.done ? 'shadow-glow-sm' : ''}`}
-            title={`${step.label}: ${step.done ? 'Done' : 'Pending'}`}
-          />
-          {i < steps.length - 1 && (
-            <div
-              className={`h-px w-2 transition-all duration-300 ${
-                step.done ? 'bg-edge-light' : 'bg-edge/50'
-              }`}
-            />
-          )}
-        </div>
-      ))}
-      <span className="ml-1 text-[9px] font-mono text-slate-600">
-        {completed}/{total}
-      </span>
-    </div>
-  );
-}
-
-function ProofLink({
-  icon: Icon,
-  label,
-  href,
-  color,
-}: {
-  icon: typeof Shield;
-  label: string;
-  href: string | null;
-  color: string;
-}) {
-  return (
-    <div className="stat-card flex items-center justify-between">
-      <div className="flex items-center gap-3">
-        <Icon className={'h-4 w-4 ' + color} />
-        <span className="text-sm text-slate-300">{label}</span>
-      </div>
-      {href ? (
-        <a
-          href={href}
-          target="_blank"
-          rel="noreferrer"
-          className="flex items-center gap-1.5 text-xs font-medium text-accent transition-colors hover:text-accent-glow"
-        >
-          Verify
-          <ExternalLink className="h-3 w-3" />
-        </a>
-      ) : (
-        <span className="text-xs text-slate-600">pending</span>
       )}
     </div>
   );

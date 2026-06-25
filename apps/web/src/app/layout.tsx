@@ -36,7 +36,9 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
                   L
                 </div>
                 <div className="flex flex-col">
-                  <span className="text-sm font-bold tracking-tight text-slate-100">LENITNES</span>
+                  <span className="font-display text-sm font-bold tracking-tight text-slate-100">
+                    LENITNES
+                  </span>
                   <span className="hidden text-[10px] font-medium text-slate-500 sm:block">
                     autonomous signal intelligence
                   </span>
