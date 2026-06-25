@@ -1,16 +1,19 @@
 import type { SignalClassification } from '@lenitnes/types';
 import type { DetectorInput, SignalDetector } from './types.js';
-import { matchKeywords } from './types.js';
+import { matchKeywords, containsKeyword } from './types.js';
 
+// "team" and "remove" removed — too common in unrelated commits.
+// Plural forms ("codeowners", "maintainers") added explicitly because the
+// word-boundary matcher would not match singular against plural.
 const MAINTAINER_KEYWORDS = [
   'codeowner',
+  'codeowners',
   'maintainer',
+  'maintainers',
   'contributor',
-  'team',
   'resign',
   'step down',
   'depart',
-  'remove',
   'emeritus',
 ];
 
@@ -33,9 +36,7 @@ export const maintainerDepartureDetector: SignalDetector = {
       MAINTAINER_KEYWORDS,
     );
 
-    const evidenceMatch = MAINTAINER_KEYWORDS.filter((k) =>
-      result.evidence.toLowerCase().includes(k),
-    );
+    const evidenceMatch = MAINTAINER_KEYWORDS.filter((k) => containsKeyword(result.evidence, k));
 
     const hasRosterChange = maintainerMentions.length > 0 || evidenceMatch.length > 0;
     const uniqueAuthors = authorCounts.size;

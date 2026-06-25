@@ -202,7 +202,7 @@ export function formatSubThresholdMessage(input: {
     `📡 ${input.monitorUrl}\n` +
     `📝 ${input.summary.slice(0, 200)}\n` +
     `${walletLine}\n` +
-    `Threshold: 70 — no trade. Full archive: https://lenitnes.ai/signals`
+    `Threshold: 70 — no trade. Full archive: https://lenitnes.persidian.com/signals`
   );
 }
 

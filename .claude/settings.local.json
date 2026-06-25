@@ -1,0 +1,8 @@
+{
+  "permissions": {
+    "allow": [
+      "WebFetch(domain:dorahacks.io)",
+      "Bash(git -C /Users/udingethe/Dev/lenitnes log --oneline -30)"
+    ]
+  }
+}

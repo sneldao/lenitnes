@@ -1,6 +1,6 @@
 import type { SignalClassification } from '@lenitnes/types';
 import type { DetectorInput, SignalDetector } from './types.js';
-import { commitScore } from './types.js';
+import { commitScore, containsKeyword } from './types.js';
 
 const KEYWORDS = [
   'crypto',
@@ -40,7 +40,7 @@ export const securityCriticalDetector: SignalDetector = {
       size: 0.03,
     });
 
-    const evidenceMatch = KEYWORDS.filter((k) => result.evidence.toLowerCase().includes(k));
+    const evidenceMatch = KEYWORDS.filter((k) => containsKeyword(result.evidence, k));
 
     if (matchedCommits.length === 0 && evidenceMatch.length === 0) return null;
 

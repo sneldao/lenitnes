@@ -10,7 +10,7 @@ In 2026, a frontier-model researcher discovered that Zcash's `halo2` proving cir
 
 The signals were public the whole time: an unusually large, urgent commit to consensus-critical code with no preceding bug report or discussion, landing during a quiet hour. **No human was watching with the right rubric. An AI could have been.** LENITNES is what watches.
 
-We replayed the agent against that exact commit. It would have flagged it 92/100, multi-detector consensus, paper-trade long ZEC, broadcast the thesis in 280 characters. [Read the replay →](https://lenitnes.com/case-study/halo2)
+We replayed the agent against that exact commit. It would have flagged it 92/100, multi-detector consensus, paper-trade long ZEC, broadcast the thesis in 280 characters. [Read the replay →](https://lenitnes.persidian.com/case-study/halo2)
 
 ## The credibility surface
 
@@ -21,15 +21,15 @@ The hard problem in AI trading agents isn't the inference — it's the **track r
 - The agent's thesis + conviction + recommended action
 - The mainnet price outcome at T+1h, T+1d, and T+7d
 
-The system cannot misremember its own performance. The [public scorecard](https://lenitnes.com/scorecard) recomputes hit ratio, Sharpe, drawdown, and by-signal-type breakdown from the same tables that the trade receipts point at. Cached 60s, invalidated on every new signal.
+The system cannot misremember its own performance. The [public scorecard](https://lenitnes.persidian.com/scorecard) recomputes hit ratio, Sharpe, drawdown, and by-signal-type breakdown from the same tables that the trade receipts point at. Cached 60s, invalidated on every new signal.
 
 ## Live demo
 
 Three public surfaces — no signup, no auth:
 
-- **[`/scorecard`](https://lenitnes.com/scorecard)** — the live track record. Hit ratio, P&L, Sharpe, by-signal-type, by-watchlist, recent calls.
-- **[`/case-study/halo2`](https://lenitnes.com/case-study/halo2)** — the founding myth. The agent's actual verdict on the 2022 halo2 soundness fix + the ZEC price chart that followed.
-- **[`/signals/:id`](https://lenitnes.com/signals/)** — every committed signal, with the full proof chain (Hedera HCS, IPFS, Arbitrum).
+- **[`/scorecard`](https://lenitnes.persidian.com/scorecard)** — the live track record. Hit ratio, P&L, Sharpe, by-signal-type, by-watchlist, recent calls.
+- **[`/case-study/halo2`](https://lenitnes.persidian.com/case-study/halo2)** — the founding myth. The agent's actual verdict on the 2022 halo2 soundness fix + the ZEC price chart that followed.
+- **[`/signals/:id`](https://lenitnes.persidian.com/signals/)** — every committed signal, with the full proof chain (Hedera HCS, IPFS, Arbitrum).
 
 ## How it works (autonomous loop)
 

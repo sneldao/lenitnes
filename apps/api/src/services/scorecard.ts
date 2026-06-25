@@ -47,6 +47,15 @@ export interface ScorecardOverall {
   cumulativePnlUsd: number;
   sharpe: number;
   maxDrawdownUsd: number;
+  // The denominator behind hitRatio / cumulativePnl / sharpe. `closed` is the
+  // number of above-threshold calls with a T+1d outcome row; `pending` is the
+  // number that traded but haven't reached T+1d yet. Together they let the
+  // public scorecard render an honest "n=X of Y" caveat instead of presenting
+  // a hit ratio based on a tiny denominator without context.
+  outcomesSummary: {
+    closed: number;
+    pending: number;
+  };
   bySignalType: ScorecardBySignalType[];
   byWatchlist: ScorecardByWatchlist[];
   recentCalls: RecentCall[];
@@ -85,6 +94,11 @@ function isHitPredicate(): string {
 interface CountsRow {
   total_signals: string;
   total_trades: string;
+  // Number of filled orders whose originating signal also has a T+1d
+  // outcome row. The complement (total_trades − closed_trades) is the
+  // count of trades still waiting on their T+1d snapshot — the caveat
+  // the public scorecard needs so judges read the hit ratio in context.
+  closed_trades: string;
 }
 
 interface OutcomesRow {
@@ -120,6 +134,9 @@ export async function overall(): Promise<ScorecardOverall> {
     proofCoverageQuery(),
   ]);
 
+  const closed = Number(counts.closed_trades);
+  const pending = Math.max(0, Number(counts.total_trades) - closed);
+
   return {
     totalSignals: Number(counts.total_signals),
     totalTrades: Number(counts.total_trades),
@@ -127,6 +144,7 @@ export async function overall(): Promise<ScorecardOverall> {
     cumulativePnlUsd: Number(outcomes.cumulative_pnl ?? 0),
     sharpe: Number(outcomes.sharpe ?? 0),
     maxDrawdownUsd: Number(outcomes.max_drawdown ?? 0),
+    outcomesSummary: { closed, pending },
     bySignalType: byType,
     byWatchlist: byWatchlist,
     recentCalls: recent,
@@ -152,9 +170,14 @@ async function countsQuery(): Promise<CountsRow> {
   const { rows } = await query<CountsRow>(
     `SELECT
        (SELECT COUNT(*) FROM signals WHERE is_heartbeat = false)::text AS total_signals,
-       (SELECT COUNT(*) FROM orders WHERE status = 'filled')::text AS total_trades`,
+       (SELECT COUNT(*) FROM orders WHERE status = 'filled')::text AS total_trades,
+       (SELECT COUNT(DISTINCT o.signal_id)
+          FROM orders o
+          JOIN signal_outcomes so ON so.signal_id = o.signal_id
+         WHERE o.status = 'filled' AND so.window_seconds = $1)::text AS closed_trades`,
+    [T1D_WINDOW],
   );
-  return rows[0] ?? { total_signals: '0', total_trades: '0' };
+  return rows[0] ?? { total_signals: '0', total_trades: '0', closed_trades: '0' };
 }
 
 async function outcomesQuery(): Promise<OutcomesRow> {
@@ -175,9 +198,14 @@ async function outcomesQuery(): Promise<OutcomesRow> {
        WHERE so.window_seconds = $1
      ),
      hits AS (
-       SELECT COUNT(*)::text AS hits, COUNT(*)::text AS total
+       -- total = every closed T+1d outcome with a scored recommendation (the
+       -- denominator). hits = the subset that moved in the predicted direction
+       -- (the numerator). Computing both off the same predicate-filtered set
+       -- would force hitRatio to 1.0.
+       SELECT
+         COUNT(*) FILTER (WHERE ${isHitPredicate()})::text AS hits,
+         COUNT(*) FILTER (WHERE recommended_action IS NOT NULL)::text AS total
        FROM t1d
-       WHERE ${isHitPredicate()}
      ),
      pnl AS (
        SELECT

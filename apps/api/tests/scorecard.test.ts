@@ -38,7 +38,10 @@ describe('scorecard.overall — empty DB', () => {
     //   4. byWatchlistQuery → []
     //   5. recentCallsQuery → []
     mockQuery
-      .mockResolvedValueOnce({ rows: [{ total_signals: '0', total_trades: '0' }], rowCount: 1 })
+      .mockResolvedValueOnce({
+        rows: [{ total_signals: '0', total_trades: '0', closed_trades: '0' }],
+        rowCount: 1,
+      })
       .mockResolvedValueOnce({
         rows: [
           {
@@ -54,7 +57,8 @@ describe('scorecard.overall — empty DB', () => {
       })
       .mockResolvedValueOnce({ rows: [], rowCount: 0 })
       .mockResolvedValueOnce({ rows: [], rowCount: 0 })
-      .mockResolvedValueOnce({ rows: [], rowCount: 0 });
+      .mockResolvedValueOnce({ rows: [], rowCount: 0 })
+      .mockResolvedValueOnce({ rows: [{ total: '0', with_hedera: '0' }], rowCount: 1 });
   });
 
   it('returns zeroed metrics for an empty DB', async () => {
@@ -76,7 +80,10 @@ describe('scorecard.overall — with signals + trades', () => {
   beforeEach(() => {
     mockQuery.mockReset();
     mockQuery
-      .mockResolvedValueOnce({ rows: [{ total_signals: '7', total_trades: '4' }], rowCount: 1 })
+      .mockResolvedValueOnce({
+        rows: [{ total_signals: '7', total_trades: '4', closed_trades: '2' }],
+        rowCount: 1,
+      })
       .mockResolvedValueOnce({
         rows: [
           {
@@ -119,7 +126,8 @@ describe('scorecard.overall — with signals + trades', () => {
           },
         ],
         rowCount: 1,
-      });
+      })
+      .mockResolvedValueOnce({ rows: [{ total: '7', with_hedera: '3' }], rowCount: 1 });
   });
 
   it('returns the metrics with the right types', async () => {

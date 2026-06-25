@@ -10,7 +10,7 @@
 // The fixture data is shaped like the real halo2 demo seed
 // (3 signals, 1 above-threshold trade, 1 hit + 1 miss + 1
 // sub-threshold). The expected response is what an operator
-// with this state would see at https://lenitnes.com/scorecard.
+// with this state would see at https://lenitnes.persidian.com/scorecard.
 // ─────────────────────────────────────────────────────────────
 
 import { describe, it, expect, beforeEach, vi } from 'vitest';
@@ -54,12 +54,14 @@ function mockScorecardQueries(opts: {
   const hitRatio = opts.t1dTotal > 0 ? opts.t1dHits / opts.t1dTotal : null;
 
   mockQuery
-    // 1. countsQuery
+    // 1. countsQuery (totalSignals, totalTrades, closed_trades = trades whose
+    //    T+1d outcome has resolved). Approximated as min(totalTrades, t1dTotal).
     .mockResolvedValueOnce({
       rows: [
         {
           total_signals: String(opts.totalSignals),
           total_trades: String(opts.totalTrades),
+          closed_trades: String(Math.min(opts.totalTrades, opts.t1dTotal)),
         },
       ],
       rowCount: 1,
@@ -101,6 +103,11 @@ function mockScorecardQueries(opts: {
     .mockResolvedValueOnce({
       rows: opts.recent,
       rowCount: opts.recent.length,
+    })
+    // 6. proofCoverageQuery — keyed to totalSignals (post-Day 17 addition)
+    .mockResolvedValueOnce({
+      rows: [{ total: String(opts.totalSignals), with_hedera: '0' }],
+      rowCount: 1,
     });
 }
 
@@ -203,6 +210,11 @@ describe('scorecard — end-to-end integration', () => {
 
     // ── Hit ratio: 1 hit out of 3 T+1d outcomes ──
     expect(result.hitRatio).toBeCloseTo(1 / 3, 4);
+
+    // ── outcomesSummary surfaces the n=X closed denominator so the public
+    //    scorecard can render an honest caveat. Halo2 demo: 1 trade placed,
+    //    1 T+1d outcome resolved against it → 1 closed, 0 pending.
+    expect(result.outcomesSummary).toEqual({ closed: 1, pending: 0 });
 
     // ── Recent calls come back in fixture order (DESC by detected_at) ──
     expect(result.recentCalls).toHaveLength(3);
@@ -310,7 +322,7 @@ describe('scorecard — end-to-end integration', () => {
     expect(result[0]?.outcomes.t1d).toBe(5.0);
   });
 
-  it('issues exactly 5 parallel queries (not 5 sequential)', async () => {
+  it('issues exactly 6 parallel queries (not sequential)', async () => {
     mockScorecardQueries({
       totalSignals: 0,
       totalTrades: 0,
@@ -325,9 +337,9 @@ describe('scorecard — end-to-end integration', () => {
     });
 
     await overall();
-    // 5 mockResolvedValueOnce calls were queued — the queries ran in
-    // parallel via Promise.all, so all 5 mocks should have been consumed.
-    expect(mockQuery).toHaveBeenCalledTimes(5);
+    // counts, outcomes, bySignalType, byWatchlist, recentCalls, proofCoverage
+    // all run via Promise.all → 6 mocks consumed.
+    expect(mockQuery).toHaveBeenCalledTimes(6);
   });
 
   it('uses the same T+1d window constant (86400s) across all outcome queries', async () => {
@@ -345,14 +357,12 @@ describe('scorecard — end-to-end integration', () => {
     });
 
     await overall();
-    // The T+1d constant 86400 must appear as the [0] param in the
-    // outcomes / by-type / by-watchlist queries. Promise.all may
-    // resolve them in any order, so we check the call log globally.
+    // The T+1d constant 86400 appears as the [0] param in 4 queries:
+    // counts (closed_trades sub-select), outcomes, bySignalType, byWatchlist.
     const calls = mockQuery.mock.calls as Array<[string, unknown[]]>;
     const t1dCalls = calls.filter(
       ([sql, params]) => params?.[0] === 86400 && /window_seconds/.test(sql),
     );
-    // outcomes + byType + byWatchlist all filter on window_seconds = $1
-    expect(t1dCalls.length).toBe(3);
+    expect(t1dCalls.length).toBe(4);
   });
 });

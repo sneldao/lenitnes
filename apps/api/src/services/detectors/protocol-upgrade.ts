@@ -1,22 +1,19 @@
 import type { SignalClassification } from '@lenitnes/types';
 import type { DetectorInput, SignalDetector } from './types.js';
-import { commitScore } from './types.js';
+import { commitScore, containsKeyword } from './types.js';
 
+// Removed bare "remove", "major", "version", "upgrade", "deprecated", "fork"
+// — too common as substrings in unrelated commit text. Specific multi-token
+// forms like "hardfork" and "network upgrade" stay.
 const KEYWORDS = [
   'breaking',
   'migration',
-  'upgrade',
-  'version',
   'v2',
   'v3',
   'v4',
   'hardfork',
   'softfork',
-  'fork',
   'deprecate',
-  'deprecated',
-  'remove',
-  'major',
   'protocol',
   'consensus',
   'network upgrade',
@@ -36,7 +33,7 @@ export const protocolUpgradeDetector: SignalDetector = {
       size: 0.02,
     });
 
-    const evidenceMatch = KEYWORDS.filter((k) => result.evidence.toLowerCase().includes(k));
+    const evidenceMatch = KEYWORDS.filter((k) => containsKeyword(result.evidence, k));
 
     if (matchedCommits.length === 0 && evidenceMatch.length === 0) return null;
 

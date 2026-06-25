@@ -22,9 +22,18 @@ export interface SignalDetector {
   detect(input: DetectorInput): SignalClassification | null;
 }
 
-export function matchKeywords(text: string, keywords: string[]): string[] {
+// Word-boundary match for single tokens; literal substring match for phrases
+// and tokens containing punctuation (e.g. "step down", "package-lock", "v2").
+// Avoids false positives like "ci" matching "critical" or "sign" matching "design".
+export function containsKeyword(text: string, keyword: string): boolean {
   const lower = text.toLowerCase();
-  return keywords.filter((k) => lower.includes(k));
+  if (/[\s.\-_/]/.test(keyword)) return lower.includes(keyword);
+  const escaped = keyword.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  return new RegExp(`\\b${escaped}\\b`, 'i').test(lower);
+}
+
+export function matchKeywords(text: string, keywords: string[]): string[] {
+  return keywords.filter((k) => containsKeyword(text, k));
 }
 
 export function commitScore(

@@ -1,18 +1,14 @@
 import type { SignalClassification } from '@lenitnes/types';
 import type { DetectorInput, SignalDetector } from './types.js';
-import { commitScore } from './types.js';
+import { commitScore, containsKeyword } from './types.js';
 
+// Removed bare tokens that appear in routine commits: "ci", "cd", "build",
+// "install", "script", "action", "pipeline". Kept only specific tool names
+// and the high-signal install hooks.
 const KEYWORDS = [
-  'ci',
-  'cd',
-  'pipeline',
   'workflow',
-  'action',
-  'build',
-  'install',
   'postinstall',
   'preinstall',
-  'script',
   'github-action',
   'jenkins',
   'circleci',
@@ -35,7 +31,7 @@ export const supplyChainRiskDetector: SignalDetector = {
       size: 0.02,
     });
 
-    const evidenceMatch = KEYWORDS.filter((k) => result.evidence.toLowerCase().includes(k));
+    const evidenceMatch = KEYWORDS.filter((k) => containsKeyword(result.evidence, k));
 
     if (matchedCommits.length === 0 && evidenceMatch.length === 0) return null;
 

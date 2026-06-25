@@ -1,21 +1,19 @@
 import type { SignalClassification } from '@lenitnes/types';
 import type { DetectorInput, SignalDetector } from './types.js';
-import { commitScore } from './types.js';
+import { commitScore, containsKeyword } from './types.js';
 
+// Removed "admin", "owner", "upgrade", "threshold" — too common in unrelated
+// contexts (config admin, file owner, generic threshold values).
 const KEYWORDS = [
   'governance',
   'vote',
   'quorum',
   'timelock',
   'proposal',
-  'threshold',
   'delegate',
   'voting',
   'dao',
   'multisig',
-  'admin',
-  'owner',
-  'upgrade',
   'proxy',
   'governor',
 ];
@@ -34,7 +32,7 @@ export const governanceShiftDetector: SignalDetector = {
       size: 0.02,
     });
 
-    const evidenceMatch = KEYWORDS.filter((k) => result.evidence.toLowerCase().includes(k));
+    const evidenceMatch = KEYWORDS.filter((k) => containsKeyword(result.evidence, k));
 
     if (matchedCommits.length === 0 && evidenceMatch.length === 0) return null;
 

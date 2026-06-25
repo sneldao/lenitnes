@@ -260,6 +260,10 @@ export interface ScorecardResponse {
   cumulativePnlUsd: number;
   sharpe: number;
   maxDrawdownUsd: number;
+  outcomesSummary: {
+    closed: number;
+    pending: number;
+  };
   bySignalType: ScorecardBySignalType[];
   byWatchlist: ScorecardByWatchlist[];
   recentCalls: ScorecardRecentCall[];

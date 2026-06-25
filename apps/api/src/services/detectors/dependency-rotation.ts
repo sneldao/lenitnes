@@ -2,12 +2,12 @@ import type { SignalClassification } from '@lenitnes/types';
 import type { DetectorInput, SignalDetector } from './types.js';
 import { commitScore } from './types.js';
 
+// Removed bare "update", "version", "upgrade" — they appear in nearly every
+// commit message and are not specific to dependency changes.
 const KEYWORDS = [
   'bump',
-  'upgrade',
-  'update',
   'dependency',
-  'version',
+  'dependencies',
   'deps',
   'lockfile',
   'package-lock',

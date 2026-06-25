@@ -1,16 +1,15 @@
 import type { SignalClassification } from '@lenitnes/types';
 import type { DetectorInput, SignalDetector } from './types.js';
-import { commitScore } from './types.js';
+import { commitScore, containsKeyword } from './types.js';
 
+// "fix" removed — appears in ~80% of all commits, was the dominant false-positive driver.
 const KEYWORDS = [
-  'fix',
+  'hotfix',
   'patch',
   'critical',
   'vulnerability',
   'cve',
-  'security',
   'urgent',
-  'hotfix',
   'emergency',
   'exploit',
   'disclosure',
@@ -50,7 +49,7 @@ export const emergencyPatchDetector: SignalDetector = {
 
     const hasLargeDiff = matchedCommits.some((c) => c.total > 200);
     const hasSecurityPath =
-      result.evidence && SECURITY_PATHS.some((p) => result.evidence.toLowerCase().includes(p));
+      !!result.evidence && SECURITY_PATHS.some((p) => containsKeyword(result.evidence, p));
     const highConfidence = result.confidence >= 70;
 
     let finalScore = score;

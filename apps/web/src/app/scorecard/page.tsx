@@ -132,14 +132,32 @@ export default function ScorecardPage() {
             <Stat
               icon={Target}
               label="Hit ratio (T+1d)"
-              value={formatPct(data.hitRatio)}
-              tone={data.hitRatio >= 0.5 ? 'positive' : 'negative'}
+              value={data.outcomesSummary.closed > 0 ? formatPct(data.hitRatio) : '—'}
+              tone={
+                data.outcomesSummary.closed === 0
+                  ? 'neutral'
+                  : data.hitRatio >= 0.5
+                    ? 'positive'
+                    : 'negative'
+              }
+              caveat={`n=${data.outcomesSummary.closed} closed · ${data.outcomesSummary.pending} pending`}
             />
             <Stat
               icon={data.cumulativePnlUsd >= 0 ? TrendingUp : TrendingDown}
               label="Cumulative P&L"
-              value={formatUsd(data.cumulativePnlUsd)}
-              tone={data.cumulativePnlUsd >= 0 ? 'positive' : 'negative'}
+              value={data.outcomesSummary.closed > 0 ? formatUsd(data.cumulativePnlUsd) : '—'}
+              tone={
+                data.outcomesSummary.closed === 0
+                  ? 'neutral'
+                  : data.cumulativePnlUsd >= 0
+                    ? 'positive'
+                    : 'negative'
+              }
+              caveat={
+                data.outcomesSummary.closed === 0
+                  ? `${data.outcomesSummary.pending} trades pending T+1d`
+                  : undefined
+              }
             />
             <Stat
               icon={Layers}
@@ -302,11 +320,13 @@ function Stat({
   label,
   value,
   tone,
+  caveat,
 }: {
   icon: typeof Activity;
   label: string;
   value: string;
   tone: 'positive' | 'negative' | 'neutral';
+  caveat?: string;
 }) {
   const valueColor =
     tone === 'positive' ? 'text-signal' : tone === 'negative' ? 'text-danger' : 'text-slate-100';
@@ -317,6 +337,7 @@ function Stat({
         {label}
       </div>
       <div className={`font-mono text-2xl font-bold ${valueColor}`}>{value}</div>
+      {caveat && <div className="font-mono text-[10px] text-slate-500">{caveat}</div>}
     </div>
   );
 }
