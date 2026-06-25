@@ -2,7 +2,19 @@
   "permissions": {
     "allow": [
       "WebFetch(domain:dorahacks.io)",
-      "Bash(git -C /Users/udingethe/Dev/lenitnes log --oneline -30)"
+      "Bash(git -C /Users/udingethe/Dev/lenitnes log --oneline -30)",
+      "Bash(git fetch *)",
+      "Bash(npm run *)",
+      "Bash(ssh nuncio-vultr *)",
+      "Bash(npm install *)",
+      "Bash(npm ci *)",
+      "Bash(npm ls *)",
+      "Bash(git add *)",
+      "Bash(git commit -m ' *)",
+      "Bash(git push *)",
+      "Bash(/usr/bin/curl -sk --max-time 12 \"https://lenitnes.persidian.com/api/scorecard\")",
+      "Bash(/usr/bin/wc -c /tmp/sc-live.json)",
+      "Bash(/usr/bin/python3 *)"
     ]
   }
 }

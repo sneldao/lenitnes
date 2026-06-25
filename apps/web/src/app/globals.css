@@ -1,13 +1,211 @@
 @import url('https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,300;9..144,400;9..144,500;9..144,600;9..144,700&family=JetBrains+Mono:wght@300;400;500;600&display=swap');
 
-/* ── Motion tokens (from transitions.dev) ── */
+/* ── Motion tokens (from transitions.dev) ──
+     https://transitions.dev — copy this :root block into your project once.
+     Every transition snippet reads from these semantic names. */
 :root {
-  --ease-smooth: cubic-bezier(0.16, 1, 0.3, 1);
-  --ease-spring: cubic-bezier(0.34, 1.56, 0.64, 1);
-  --ease-shake: cubic-bezier(0.36, 0, 0.66, -0.56);
-  --duration-fast: 150ms;
-  --duration-normal: 250ms;
+  /* Durations */
+  --duration-stagger: 40ms;
+  --duration-micro: 80ms;
+  --duration-quick: 150ms;
+  --duration-fast: 250ms;
+  --duration-medium: 350ms;
   --duration-slow: 400ms;
+  --duration-very-slow: 500ms;
+  /* Easings */
+  --ease-smooth-out: cubic-bezier(0.22, 1, 0.36, 1);
+  --ease-in-out: ease-in-out;
+  --ease-out: ease-out;
+  --ease-linear: linear;
+  --ease-bounce: cubic-bezier(0.34, 1.36, 0.64, 1);
+  --ease-bounce-strong: cubic-bezier(0.34, 3.85, 0.64, 1);
+  /* Distances */
+  --distance-micro: 4px;
+  --distance-small: 6px;
+  --distance-base: 8px;
+  --distance-medium: 12px;
+  --distance-large: 30px;
+  /* Scales */
+  --scale-large: 0.96;
+  --scale-medium: 0.97;
+  --scale-small: 0.98;
+  --scale-tiny: 0.99;
+  /* Blur */
+  --blur-small: 2px;
+  --blur-medium: 3px;
+  --blur-large: 8px;
+
+  /* Card resize */
+  --resize-dur: 300ms;
+  --resize-ease: var(--ease-smooth-out);
+  /* Number pop-in */
+  --digit-dur: 500ms;
+  --digit-distance: 8px;
+  --digit-stagger: 70ms;
+  --digit-blur: var(--blur-small);
+  --digit-ease: cubic-bezier(0.34, 1.45, 0.64, 1);
+  --digit-dir-x: 0;
+  --digit-dir-y: 1;
+  /* Notification badge */
+  --badge-slide-dur: 260ms;
+  --badge-pop-dur: 500ms;
+  --badge-pop-close-dur: 180ms;
+  --badge-fade-dur: 400ms;
+  --badge-fade-close-dur: 180ms;
+  --badge-blur: var(--blur-small);
+  --badge-offset-x: -8.2px;
+  --badge-offset-y: 12.4px;
+  --badge-slide-ease: var(--ease-smooth-out);
+  --badge-pop-ease: var(--ease-bounce);
+  --badge-close-ease: cubic-bezier(0.4, 0, 0.2, 1);
+  /* Text states swap */
+  --text-swap-dur: var(--duration-quick);
+  --text-swap-translate-y: var(--distance-micro);
+  --text-swap-blur: var(--blur-small);
+  --text-swap-ease: var(--ease-in-out);
+  /* Menu dropdown */
+  --dropdown-open-dur: var(--duration-fast);
+  --dropdown-close-dur: var(--duration-quick);
+  --dropdown-pre-scale: var(--scale-medium);
+  --dropdown-closing-scale: var(--scale-tiny);
+  --dropdown-ease: var(--ease-smooth-out);
+  /* Modal open / close */
+  --modal-open-dur: var(--duration-fast);
+  --modal-close-dur: var(--duration-quick);
+  --modal-scale: var(--scale-large);
+  --modal-scale-close: var(--scale-large);
+  --modal-ease: var(--ease-smooth-out);
+  /* Panel reveal */
+  --panel-open-dur: 400ms;
+  --panel-close-dur: 350ms;
+  --panel-translate-y: 100px;
+  --panel-blur: var(--blur-small);
+  --panel-ease: var(--ease-smooth-out);
+  /* Page side-by-side */
+  --page-slide-dur: var(--duration-fast);
+  --page-fade-dur: var(--duration-fast);
+  --page-slide-distance: var(--distance-base);
+  --page-blur: var(--blur-medium);
+  --page-stagger: 0ms;
+  --page-exit-enabled: 1;
+  --page-slide-ease: var(--ease-smooth-out);
+  --page-fade-ease: var(--ease-smooth-out);
+  /* Icon swap */
+  --icon-swap-dur: var(--duration-fast);
+  --icon-swap-blur: var(--blur-small);
+  --icon-swap-start-scale: 0.25;
+  --icon-swap-ease: var(--ease-in-out);
+  /* Success check */
+  --check-opacity-dur: 500ms;
+  --check-rotate-dur: 500ms;
+  --check-rotate-from: 80deg;
+  --check-bob-dur: 500ms;
+  --check-y-amount: 40px;
+  --check-blur-dur: 500ms;
+  --check-blur-from: 10px;
+  --check-path-dur: 500ms;
+  --check-path-delay: 80ms;
+  --check-ease-out: var(--ease-smooth-out);
+  --check-ease-opacity: var(--ease-smooth-out);
+  --check-ease-rotate: var(--ease-smooth-out);
+  --check-ease-bob: cubic-bezier(0.34, 1.35, 0.64, 1);
+  --check-ease-path: var(--ease-smooth-out);
+  /* Avatar group hover */
+  --avatar-lift: -4px;
+  --avatar-dur: 320ms;
+  --avatar-scale: 1.05;
+  --avatar-falloff: 0.45;
+  --avatar-ease-in: var(--ease-smooth-out);
+  --avatar-ease-out: var(--ease-bounce-strong);
+  /* Error state shake */
+  --shake-distance: var(--distance-small);
+  --shake-overshoot: 4px;
+  --shake-dur-a: 80ms;
+  --shake-dur-b: 60ms;
+  --shake-ease: var(--ease-smooth-out);
+  --revert-hold: 3000ms;
+  --revert-dur: 280ms;
+  /* Input clear with dissolve */
+  --clear-dur: 1000ms;
+  --clear-out-dur: 400ms;
+  --clear-in-dur: 400ms;
+  --clear-out-fly: 12px;
+  --clear-in-fly: 12px;
+  --clear-out-ease: var(--ease-smooth-out);
+  --clear-in-ease: var(--ease-smooth-out);
+  --clear-blur: var(--blur-small);
+  --glow-delay: 50ms;
+  --glow-peak-at: 0.15;
+  --glow-opacity: 0.42;
+  --glow-spread: 1.5;
+  /* Skeleton loader and reveal */
+  --pulse-dur: 1000ms;
+  --pulse-count: 1;
+  --pulse-min: 0.5;
+  --reveal-dur: 400ms;
+  --reveal-blur: var(--blur-small);
+  --reveal-ease: var(--ease-in-out);
+  /* Shimmer text */
+  --shimmer-dur: 2000ms;
+  --shimmer-base: #3a3a3a;
+  --shimmer-highlight: #aaaaaa;
+  --shimmer-band: 400%;
+  --shimmer-ease: var(--ease-linear);
+  /* Tabs sliding */
+  --tabs-dur: var(--duration-fast);
+  --tabs-ease: var(--ease-smooth-out);
+  --tabs-text-muted: rgba(255, 255, 255, 0.6);
+  --tabs-text-active: #ffffff;
+  --tabs-bar-bg: #1a2332;
+  --tabs-pill-bg: #243044;
+  /* Tooltip open/close */
+  --tt-in-dur: var(--duration-quick);
+  --tt-out-dur: var(--duration-micro);
+  --tt-scale: var(--scale-small);
+  --tt-delay: 80ms;
+  --tt-in-ease: var(--ease-out);
+  --tt-out-ease: var(--ease-out);
+  --tt-bg: #1a2332;
+  --tt-fg: #e2e8f0;
+  /* Texts reveal */
+  --stagger-dur: 500ms;
+  --stagger-distance: var(--distance-medium);
+  --stagger-stagger: var(--duration-stagger);
+  --stagger-blur: var(--blur-medium);
+  --stagger-ease: var(--ease-smooth-out);
+  /* Card hover tilt */
+  --tilt-perspective: 1000px;
+  --tilt-return: 1000ms;
+  --tilt-return-ease: var(--ease-smooth-out);
+  --tilt-follow: 400ms;
+  --tilt-follow-ease: var(--ease-smooth-out);
+  --tilt-glare-opacity: 0.32;
+  --tilt-glare-fade: 300ms;
+  --tilt-glare-ease: var(--ease-smooth-out);
+  /* Plus to menu morph */
+  --morph-open-dur: 350ms;
+  --morph-close-dur: var(--duration-fast);
+  --morph-ease: cubic-bezier(0.34, 1.25, 0.64, 1);
+  --morph-close-ease: var(--ease-smooth-out);
+  --morph-r-closed: 40px;
+  --morph-r-open: 20px;
+  --morph-fade-dur: 200ms;
+  --morph-slide: 40px;
+  --morph-rotate: 45deg;
+  --morph-scale: var(--scale-medium);
+  --morph-blur: var(--blur-small);
+  /* Accordion expand */
+  --acc-expand: var(--duration-fast);
+  --acc-collapse: var(--duration-fast);
+  --acc-chevron: var(--duration-fast);
+  --acc-ease: var(--ease-smooth-out);
+
+  /* ── Backward compatibility aliases ── */
+  --ease-smooth: var(--ease-smooth-out);
+  --ease-spring: var(--ease-bounce);
+  --ease-shake: var(--ease-smooth-out);
+  --duration-fast-legacy: var(--duration-quick);
+  --duration-normal: var(--duration-fast);
 }
 
 @tailwind base;
@@ -149,8 +347,8 @@ body {
   opacity: 0;
   transform: translateY(16px);
   transition:
-    opacity 0.5s ease-out,
-    transform 0.5s ease-out;
+    opacity var(--duration-very-slow) var(--ease-smooth-out),
+    transform var(--duration-very-slow) var(--ease-smooth-out);
 }
 .reveal.in-view {
   opacity: 1;
@@ -181,32 +379,35 @@ body {
   transition-delay: 1200ms;
 }
 
-/* ─── Radix Collapsible ─── */
-@keyframes collapsible-down {
-  from {
-    height: 0;
-    opacity: 0;
-  }
-  to {
-    height: var(--radix-collapsible-content-height);
-    opacity: 1;
-  }
-}
-@keyframes collapsible-up {
-  from {
-    height: var(--radix-collapsible-content-height);
-    opacity: 1;
-  }
-  to {
-    height: 0;
-    opacity: 0;
-  }
-}
-.animate-collapsible-down {
-  animation: collapsible-down 0.2s ease-out;
-}
+/* ─── Radix Collapsible (transitions.dev accordion) ───
+     Uses grid-template-rows 0fr ↔ 1fr so no JS height
+     measuring — the content clips overflow naturally.
+     Inner element cross-fades opacity + blur for the reveal. */
+.animate-collapsible-down,
 .animate-collapsible-up {
-  animation: collapsible-up 0.15s ease-in;
+  display: grid;
+  grid-template-rows: 0fr;
+  transition: grid-template-rows var(--acc-collapse) var(--acc-ease);
+}
+.animate-collapsible-down[data-state='open'] {
+  grid-template-rows: 1fr;
+  transition: grid-template-rows var(--acc-expand) var(--acc-ease);
+}
+.animate-collapsible-down > *,
+.animate-collapsible-up > * {
+  overflow: hidden;
+  opacity: 0;
+  filter: blur(var(--blur-small));
+  transition:
+    opacity var(--acc-collapse) var(--acc-ease),
+    filter var(--acc-collapse) var(--acc-ease);
+}
+.animate-collapsible-down[data-state='open'] > * {
+  opacity: 1;
+  filter: blur(0);
+  transition:
+    opacity var(--acc-expand) var(--acc-ease),
+    filter var(--acc-expand) var(--acc-ease);
 }
 
 /* ─── Landing Page Cinematic Animations ─── */
@@ -452,18 +653,15 @@ body {
 }
 
 .animate-signal-enter {
-  animation: signal-enter var(--duration-slow, 400ms)
-    var(--ease-smooth, cubic-bezier(0.16, 1, 0.3, 1)) both;
+  animation: signal-enter var(--duration-slow) var(--ease-smooth-out) both;
 }
 
 .animate-conviction-pop {
-  animation: conviction-pop var(--duration-slow, 400ms)
-    var(--ease-spring, cubic-bezier(0.34, 1.56, 0.64, 1)) both;
+  animation: conviction-pop var(--duration-slow) var(--ease-bounce) both;
 }
 
 .animate-check-reveal {
-  animation: check-reveal var(--duration-normal, 250ms)
-    var(--ease-smooth, cubic-bezier(0.16, 1, 0.3, 1)) both;
+  animation: check-reveal var(--duration-fast) var(--ease-smooth-out) both;
 }
 
 .animate-glitch-text {
@@ -514,7 +712,7 @@ body {
 }
 
 .animate-cinematic-entrance {
-  animation: cinematic-entrance 0.8s cubic-bezier(0.16, 1, 0.3, 1) both;
+  animation: cinematic-entrance 0.8s var(--ease-smooth-out) both;
 }
 
 .animate-data-flow {
@@ -525,8 +723,8 @@ body {
   opacity: 0;
   transform: scale(0.85);
   transition:
-    opacity 0.4s ease-out,
-    transform 0.4s ease-out;
+    opacity var(--duration-slow) var(--ease-smooth-out),
+    transform var(--duration-slow) var(--ease-smooth-out);
 }
 .proof-step.in-view {
   opacity: 1;
@@ -562,7 +760,7 @@ body {
 }
 
 .animate-toast-in {
-  animation: toastIn 0.25s ease-out;
+  animation: toastIn var(--duration-fast) var(--ease-smooth-out);
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -593,6 +791,16 @@ body {
     transition-delay: 0ms !important;
     opacity: 1 !important;
     transform: none !important;
+  }
+  /* Keep collapsible content visible when motion is reduced */
+  .animate-collapsible-down,
+  .animate-collapsible-up {
+    grid-template-rows: 1fr !important;
+  }
+  .animate-collapsible-down > *,
+  .animate-collapsible-up > * {
+    opacity: 1 !important;
+    filter: blur(0) !important;
   }
 }
 
