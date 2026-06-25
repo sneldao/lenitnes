@@ -223,10 +223,11 @@ export default function ScorecardPage() {
                 Recent calls
               </h2>
               <ul className="space-y-3">
-                {data.recentCalls.map((call) => (
+                {data.recentCalls.map((call, i) => (
                   <li
                     key={call.signalId}
-                    className="group rounded-xl border border-edge/30 bg-ink-light/40 p-4 transition-colors hover:border-accent/30"
+                    className="group animate-signal-enter rounded-xl border border-edge/30 bg-ink-light/40 p-4 transition-colors hover:border-accent/30"
+                    style={{ animationDelay: `${i * 60}ms` }}
                   >
                     <div className="mb-2 flex items-start justify-between gap-3">
                       <div className="min-w-0 flex-1">

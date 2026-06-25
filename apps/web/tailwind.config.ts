@@ -13,6 +13,9 @@ const config: Config = {
         'panel-hover': '#141c2a',
         edge: '#1a2332',
         'edge-light': '#243044',
+        rust: '#c84a1f',
+        'rust-glow': '#e05a2e',
+        cream: '#f4efe5',
         accent: '#06b6d4',
         'accent-glow': '#22d3ee',
         signal: '#10b981',
@@ -26,6 +29,7 @@ const config: Config = {
       fontFamily: {
         sans: ['Space Grotesk', 'ui-sans-serif', 'system-ui', 'sans-serif'],
         mono: ['Fira Code', 'ui-monospace', 'SFMono-Regular', 'monospace'],
+        display: ['Fraunces', 'ui-serif', 'Georgia', 'serif'],
       },
       backgroundImage: {
         'grid-pattern':

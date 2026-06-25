@@ -2,18 +2,7 @@
 
 import { useQuery } from '@tanstack/react-query';
 import Link from 'next/link';
-import {
-  ArrowUpRight,
-  GitCommit,
-  Sparkles,
-  TrendingUp,
-  Activity,
-  Shield,
-  Zap,
-  Target,
-  Layers,
-  ExternalLink,
-} from 'lucide-react';
+import { ArrowUpRight } from 'lucide-react';
 import { api, type ScorecardResponse } from '@/lib/api';
 
 // ─────────────────────────────────────────────────────────────
@@ -29,41 +18,41 @@ const REVEAL_CLASS = 'reveal in-view';
 
 export default function LandingPage() {
   return (
-    <main className="min-h-screen bg-cream text-ink bg-noise">
+    <main className="min-h-screen">
       <div className="mx-auto max-w-5xl px-6 py-12 sm:py-20">
         {/* ── Hero — the founding myth as the lede ── */}
         <header className="mb-24 sm:mb-32">
           <p className="mb-4 font-mono text-[10px] uppercase tracking-[0.25em] text-rust">
             An autonomous AI intelligence operation · 2026
           </p>
-          <h1 className="font-display text-5xl font-medium leading-[1.05] tracking-tight text-ink sm:text-7xl lg:text-8xl">
+          <h1 className="font-display text-5xl font-medium leading-[1.05] tracking-tight text-slate-100 sm:text-7xl lg:text-8xl">
             The agent
             <br />
             <em className="not-italic text-rust">would have caught</em>
             <br />
-            <span className="text-ink">halo2.</span>
+            <span className="text-slate-100">halo2.</span>
           </h1>
-          <p className="mt-8 max-w-2xl font-mono text-sm leading-relaxed text-ink/70">
+          <p className="mt-8 max-w-2xl font-mono text-sm leading-relaxed text-slate-400">
             In April 2022, a critical soundness fix landed in the ZCash halo2 proving system — the
             cryptographic primitive that backs ZEC's shielded transactions. The commit was public
             for four days before the market noticed. ZEC then dropped 50%. The signals were public
             the whole time.
           </p>
-          <p className="mt-4 max-w-2xl font-mono text-sm leading-relaxed text-ink/50">
+          <p className="mt-4 max-w-2xl font-mono text-sm leading-relaxed text-slate-500">
             Every signal is timestamped on Hedera HCS — immutable proof the agent saw the commit
             before the market moved. The trade executes on BSC. The record is dual-chain.
           </p>
           <div className="mt-10 flex flex-wrap items-center gap-3">
             <Link
               href="/case-study/halo2"
-              className="group inline-flex items-center gap-2 rounded-sm bg-ink px-6 py-3 font-mono text-xs uppercase tracking-wider text-cream transition-colors hover:bg-rust"
+              className="btn group inline-flex items-center gap-2 px-6 py-3 text-xs uppercase tracking-wider"
             >
               Read the replay
               <ArrowUpRight className="h-3.5 w-3.5 transition-transform group-hover:translate-x-0.5" />
             </Link>
             <Link
               href="/scorecard"
-              className="inline-flex items-center gap-2 rounded-sm border border-ink/30 bg-cream px-6 py-3 font-mono text-xs uppercase tracking-wider text-ink transition-colors hover:border-ink hover:bg-ink/5"
+              className="btn-ghost inline-flex items-center gap-2 px-6 py-3 text-xs uppercase tracking-wider"
             >
               Live scorecard
             </Link>
@@ -76,12 +65,12 @@ export default function LandingPage() {
           className={`mb-24 scroll-mt-24 sm:mb-32 sm:scroll-mt-28 ${REVEAL_CLASS}`}
         >
           <SectionLabel number="01" label="The track record" />
-          <h2 className="mb-10 max-w-2xl font-display text-3xl font-medium leading-tight text-ink sm:text-4xl">
+          <h2 className="mb-10 max-w-2xl font-display text-3xl font-medium leading-tight text-slate-100 sm:text-4xl">
             The public scorecard says
             <span className="italic"> everything</span>.
           </h2>
           <TrackRecordStrip />
-          <p className="mt-6 max-w-prose font-mono text-xs leading-relaxed text-ink/50">
+          <p className="mt-6 max-w-prose font-mono text-xs leading-relaxed text-slate-500">
             Every signal the agent has scored. Every trade the treasury has recorded. Every price
             outcome at T+1h, T+1d, and T+7d. The system cannot misremember its own performance — the
             receipts are on-chain, the scorecard is computed from the same tables, and the cache is
@@ -95,7 +84,7 @@ export default function LandingPage() {
           className={`mb-24 scroll-mt-24 sm:mb-32 sm:scroll-mt-28 ${REVEAL_CLASS}`}
         >
           <SectionLabel number="02" label="How it works" />
-          <h2 className="mb-12 max-w-2xl font-display text-3xl font-medium leading-tight text-ink sm:text-4xl">
+          <h2 className="mb-12 max-w-2xl font-display text-3xl font-medium leading-tight text-slate-100 sm:text-4xl">
             One loop.
             <br />
             <span className="italic text-rust">No human input.</span>
@@ -104,14 +93,16 @@ export default function LandingPage() {
             {LOOP_STEPS.map((step, i) => (
               <li
                 key={i}
-                className="grid grid-cols-[auto_1fr] gap-6 border-t border-ink/15 pt-8 first:border-t-0 first:pt-0"
+                className="grid grid-cols-[auto_1fr] gap-6 border-t border-edge/40 pt-8 first:border-t-0 first:pt-0"
               >
                 <div className="font-mono text-3xl font-light text-rust sm:text-4xl">
                   {String(i + 1).padStart(2, '0')}
                 </div>
                 <div>
-                  <h3 className="mb-2 font-display text-xl font-medium text-ink">{step.title}</h3>
-                  <p className="font-mono text-sm leading-relaxed text-ink/70">{step.body}</p>
+                  <h3 className="mb-2 font-display text-xl font-medium text-slate-200">
+                    {step.title}
+                  </h3>
+                  <p className="font-mono text-sm leading-relaxed text-slate-400">{step.body}</p>
                 </div>
               </li>
             ))}
@@ -126,25 +117,25 @@ export default function LandingPage() {
           <SectionLabel number="03" label="The case study" />
           <div className="grid gap-10 lg:grid-cols-[1.4fr_1fr]">
             <div>
-              <h2 className="mb-6 font-display text-3xl font-medium leading-tight text-ink sm:text-4xl">
+              <h2 className="mb-6 font-display text-3xl font-medium leading-tight text-slate-100 sm:text-4xl">
                 The 2022-04-15 commit
                 <br />
                 <span className="italic text-rust">the model scored at 92.</span>
               </h2>
-              <p className="mb-4 font-mono text-sm leading-relaxed text-ink/70">
+              <p className="mb-4 font-mono text-sm leading-relaxed text-slate-400">
                 The fix landed as{' '}
-                <code className="rounded bg-ink/5 px-1.5 py-0.5 font-mono text-xs text-ink">
+                <code className="rounded bg-edge/30 px-1.5 py-0.5 font-mono text-xs text-slate-300">
                   halo2_gadgets: Anchor variable-base scalar-mul incomplete-addition base
-                </code>{' '}
+                </code>
                 — technical, understated, easy to scroll past.
               </p>
-              <p className="mb-6 font-mono text-sm leading-relaxed text-ink/70">
+              <p className="mb-6 font-mono text-sm leading-relaxed text-slate-400">
                 We replayed the agent against the commit. The detector pipeline fired three signals
                 (security_critical_patch, consensus_relevant, emergency_patch). The agent's
                 conviction was 92/100, recommended action long ZEC, paper trade recorded with a
                 deterministic tx hash.
               </p>
-              <p className="mb-8 font-mono text-sm leading-relaxed text-ink/70">
+              <p className="mb-8 font-mono text-sm leading-relaxed text-slate-400">
                 T+1d: ZEC went up 2.15%. The trade was a hit.
               </p>
               <Link
@@ -155,33 +146,33 @@ export default function LandingPage() {
                 <ArrowUpRight className="h-4 w-4" />
               </Link>
             </div>
-            <div className="rounded-sm border border-ink/15 bg-ink/[0.02] p-6">
-              <p className="mb-3 font-mono text-[10px] uppercase tracking-[0.2em] text-ink/50">
+            <div className="card">
+              <p className="mb-3 font-mono text-[10px] uppercase tracking-[0.2em] text-slate-500">
                 Agent verdict
               </p>
               <div className="mb-4 flex items-baseline gap-3">
                 <div className="font-display text-6xl font-medium text-rust">92</div>
-                <div className="font-mono text-sm text-ink/60">/100</div>
+                <div className="font-mono text-sm text-slate-500">/100</div>
               </div>
               <div className="mb-4 space-y-1 font-mono text-xs">
                 <div className="flex justify-between">
-                  <span className="text-ink/60">Action</span>
-                  <span className="font-medium text-ink">LONG ZEC</span>
+                  <span className="text-slate-500">Action</span>
+                  <span className="font-medium text-slate-200">LONG ZEC</span>
                 </div>
                 <div className="flex justify-between">
-                  <span className="text-ink/60">Confidence</span>
-                  <span className="font-medium text-ink">HIGH</span>
+                  <span className="text-slate-500">Confidence</span>
+                  <span className="font-medium text-slate-200">HIGH</span>
                 </div>
                 <div className="flex justify-between">
-                  <span className="text-ink/60">Detectors fired</span>
-                  <span className="font-medium text-ink">3 of 8</span>
+                  <span className="text-slate-500">Detectors fired</span>
+                  <span className="font-medium text-slate-200">3 of 8</span>
                 </div>
                 <div className="flex justify-between">
-                  <span className="text-ink/60">T+1d outcome</span>
+                  <span className="text-slate-500">T+1d outcome</span>
                   <span className="font-medium text-rust">+2.15% ↑</span>
                 </div>
                 <div className="flex justify-between">
-                  <span className="text-ink/60">Hit?</span>
+                  <span className="text-slate-500">Hit?</span>
                   <span className="font-medium text-rust">YES</span>
                 </div>
               </div>
@@ -192,42 +183,13 @@ export default function LandingPage() {
         {/* ── Recent signals — live from the API ── */}
         <section className={`mb-24 sm:mb-32 ${REVEAL_CLASS}`}>
           <SectionLabel number="04" label="Recent calls" />
-          <h2 className="mb-10 max-w-2xl font-display text-3xl font-medium leading-tight text-ink sm:text-4xl">
+          <h2 className="mb-10 max-w-2xl font-display text-3xl font-medium leading-tight text-slate-100 sm:text-4xl">
             Every signal,
             <br />
             <span className="italic">with the receipts.</span>
           </h2>
           <RecentCalls />
         </section>
-
-        {/* ── Footer — open source, MIT, fork it ── */}
-        <footer className="border-t border-ink/15 pt-10">
-          <div className="flex flex-wrap items-center justify-between gap-4">
-            <p className="font-mono text-xs text-ink/60">
-              LENITNES · MIT · zero-headcount · since 2026
-            </p>
-            <div className="flex items-center gap-4 font-mono text-xs">
-              <a
-                href="https://github.com/sneldao/lenitnes"
-                target="_blank"
-                rel="noreferrer"
-                className="inline-flex items-center gap-1.5 text-ink/70 transition-colors hover:text-rust"
-              >
-                <ExternalLink className="h-3.5 w-3.5" />
-                Source
-              </a>
-              <Link href="/scorecard" className="text-ink/70 transition-colors hover:text-rust">
-                Scorecard
-              </Link>
-              <Link
-                href="/case-study/halo2"
-                className="text-ink/70 transition-colors hover:text-rust"
-              >
-                Halo2
-              </Link>
-            </div>
-          </div>
-        </footer>
       </div>
     </main>
   );
@@ -237,9 +199,9 @@ export default function LandingPage() {
 
 function SectionLabel({ number, label }: { number: string; label: string }) {
   return (
-    <div className="mb-6 flex items-baseline gap-3 font-mono text-[10px] uppercase tracking-[0.25em] text-ink/50">
+    <div className="mb-6 flex items-baseline gap-3 font-mono text-[10px] uppercase tracking-[0.25em] text-slate-500">
       <span className="text-rust">{number}</span>
-      <span className="h-px w-8 bg-ink/20" />
+      <span className="h-px w-8 bg-edge" />
       <span>{label}</span>
     </div>
   );
@@ -254,13 +216,13 @@ function TrackRecordStrip() {
 
   if (isLoading || !data) {
     return (
-      <div className="grid gap-px overflow-hidden rounded-sm border border-ink/15 bg-ink/15 sm:grid-cols-5">
+      <div className="grid gap-px overflow-hidden rounded-lg border border-edge/40 bg-edge/30 sm:grid-cols-5">
         {['Signals', 'Trades', 'Hit ratio', 'Sharpe', 'P&L'].map((label) => (
-          <div key={label} className="bg-cream p-6">
-            <div className="font-mono text-[10px] uppercase tracking-wider text-ink/50">
+          <div key={label} className="bg-panel p-6">
+            <div className="font-mono text-[10px] uppercase tracking-wider text-slate-500">
               {label}
             </div>
-            <div className="mt-2 font-display text-3xl font-light text-ink/30">—</div>
+            <div className="mt-2 font-display text-3xl font-light text-slate-600">—</div>
           </div>
         ))}
       </div>
@@ -289,13 +251,13 @@ function TrackRecordStrip() {
   ];
 
   return (
-    <div className="grid gap-px overflow-hidden rounded-sm border border-ink/15 bg-ink/15 sm:grid-cols-5">
+    <div className="grid gap-px overflow-hidden rounded-lg border border-edge/40 bg-edge/30 sm:grid-cols-5">
       {stats.map((s) => (
-        <div key={s.label} className="bg-cream p-6">
-          <div className="font-mono text-[10px] uppercase tracking-wider text-ink/50">
+        <div key={s.label} className="bg-panel p-6">
+          <div className="font-mono text-[10px] uppercase tracking-wider text-slate-500">
             {s.label}
           </div>
-          <div className={`mt-2 font-display text-3xl font-light ${s.color ?? 'text-ink'}`}>
+          <div className={`mt-2 font-display text-3xl font-light ${s.color ?? 'text-slate-100'}`}>
             {s.value}
           </div>
         </div>
@@ -312,11 +274,11 @@ function RecentCalls() {
   });
 
   if (isLoading) {
-    return <div className="font-mono text-sm text-ink/40">Loading recent calls…</div>;
+    return <div className="font-mono text-sm text-slate-500">Loading recent calls…</div>;
   }
   if (!data || data.length === 0) {
     return (
-      <div className="font-mono text-sm text-ink/40">
+      <div className="font-mono text-sm text-slate-500">
         No signals yet — the agent is monitoring the watchlist.
       </div>
     );
@@ -329,11 +291,12 @@ function RecentCalls() {
         return (
           <li
             key={call.signalId}
-            className="grid grid-cols-[auto_1fr_auto] items-center gap-4 border-t border-ink/10 py-5 first:border-t-0"
+            className="animate-signal-enter grid grid-cols-[auto_1fr_auto] items-center gap-4 border-t border-edge/30 py-5 first:border-t-0"
+            style={{ animationDelay: `${i * 80}ms` }}
           >
-            <div className="font-mono text-xs text-ink/40">{String(i + 1).padStart(2, '0')}</div>
+            <div className="font-mono text-xs text-slate-600">{String(i + 1).padStart(2, '0')}</div>
             <div className="min-w-0">
-              <div className="mb-1 flex flex-wrap items-center gap-2 font-mono text-[10px] uppercase tracking-wider text-ink/50">
+              <div className="mb-1 flex flex-wrap items-center gap-2 font-mono text-[10px] uppercase tracking-wider text-slate-500">
                 <span>{new Date(call.detectedAt).toISOString().slice(0, 10)}</span>
                 <span>·</span>
                 <span className="truncate">{call.detectorTypes.join(', ') || 'no detector'}</span>
@@ -346,14 +309,16 @@ function RecentCalls() {
               </div>
               <Link
                 href={`/signals/${call.signalId}`}
-                className="block truncate font-display text-lg text-ink transition-colors hover:text-rust"
+                className="block truncate font-display text-lg text-slate-100 transition-colors hover:text-rust"
               >
                 {call.thesis ?? 'No thesis recorded'}
               </Link>
             </div>
             <div className="shrink-0 text-right">
               {call.conviction != null && (
-                <div className="font-display text-2xl font-light text-ink">{call.conviction}</div>
+                <div className="font-display text-2xl font-light text-slate-100">
+                  {call.conviction}
+                </div>
               )}
               {call.outcomes.t1d != null && (
                 <div
