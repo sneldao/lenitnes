@@ -220,3 +220,159 @@ Kraken anywhere in the runtime path. Trades are chain-native
 (Arbitrum / Robinhood / BSC), self-custody (TWAK on BSC) or
 operator-key (ethers on Arbitrum / RH), and the price oracle is
 CoinGecko only.
+
+---
+
+## Day 24+: post-audit safety layer + calibration loop
+
+Audit on 2026-06-26 found the trade path was inert in a load-
+bearing way — the BSC fallback swap was a `WBNB.deposit()` no-op
+(BNB → WBNB wrap, never to the target token), `amountOutMin=0`
+allowed infinite slippage, no asset registry meant the agent
+would happily try to swap into a placeholder address, and
+positions had no TP/SL. The whole live trade path was a single
+config flip away from catastrophic loss.
+
+The post-audit work split into three layers: a **safety stack**
+that gates every trade, a **complete position lifecycle** that
+captures entry prices and realizes PnL on close, and a
+**calibration loop** that turns the system from "we ship and
+hope" into "we ship and measure".
+
+### Safety stack (services/treasury/)
+
+Three new modules, all under `services/treasury/`:
+
+- **`asset-registry.ts`** — coingeckoId → per-chain verified
+  token address + liquidity floors. BSC mainnet only (BTCB, ETH);
+  L1s (SOL/SUI/ZEC) deliberately omitted. The registry is the
+  single source of truth for what's safe to trade live.
+- **`risk.ts`** — `evaluateTradeRisk()` runs every gate in order
+  before the swap is signed. The kill switch
+  (`TRADING_ENABLED=false` default), asset-registry membership,
+  BSC chainId === 56 check, treasury balance preflight (covers
+  amountIn + 0.005 BNB gas), position-count caps, on-chain TVL
+  floor, and CMC 24h-volume floor. Failure on any gate forces
+  paper mode; the signal still ships to Telegram.
+- **`quote.ts`** — `getQuote()` reads the PancakeSwap V2 router's
+  `getAmountsOut` and computes `amountOutMin = quote × (1 −
+slippageBps/10000)`. `getPoolTvlUsd()` reads the pair's
+  reserves directly from the LP contract. Both are mainnet-only
+  by design.
+- **`swap.ts`** — `openSwap()` does
+  `router.swapExactETHForTokens` with the quoted `amountOutMin`
+  (replacing the old WBNB-wrap no-op). `closeSwap()` does
+  `swapExactTokensForETH` for the wallet's full balance with a
+  per-trade approval (no max-uint blast radius).
+
+The risk gate runs in `execution/loop.ts` before `signAndSend`.
+Every trade goes through it; bypass requires editing the call site.
+
+### Position lifecycle (treasury.ts)
+
+`recordTrade` now writes the full position row at open:
+
+- `entry_price_usd` from CoinGecko historical at swap time
+- `take_profit_price` + `stop_loss_price` from
+  `computeTpSlLevels(entryPrice, conviction, side)` — TP is
+  conviction-scaled (+15% base, +33bps per conviction-point
+  above 70, clamped ±10pp), SL is fixed (−7%).
+
+`closePositionById(id, exitPrice, reason)` is the new close
+path, called by both the TP/SL scheduler and the
+`POST /admin/positions/:id/close` admin endpoint. It:
+
+1. Looks up the position, asset, chain, entry data
+2. Decides paper vs live: paper if the open was paper
+   (`0xpap` tx hash prefix), live if `TRADING_ENABLED` + registry
+   match
+3. For live closes, calls `closeSwap()` — real on-chain reverse
+   swap with bounded `amountOutMin`
+4. Always updates `positions` row with `exit_price_usd`,
+   `pnl_usd`, `pnl_pct`, `closed_at`, `exit_tx_hash`
+
+A swap failure is logged but does NOT block the bookkeeping
+update — better to record the intent + alert the operator than
+leave a position in limbo.
+
+The scheduler's `checkTakeProfitStopLoss()` runs every 5
+minutes. It uses CoinGecko per-asset prices (was a broken
+WBNB→USDC router query before) and now actually closes
+positions on hit instead of just alerting. A
+`backfillMissingTpSl()` pass at the top of every tick is the
+self-healing path for positions that opened before the at-open
+TP/SL writes landed.
+
+### Calibration loop (scorecard.ts + /calibration page)
+
+The original scorecard had `bySignalType` (hit-count per
+detector) and `byWatchlist` (hit-count per repo). Neither
+answered the "is conviction predictive?" question.
+
+`scorecard.ts` now adds:
+
+- **`byConvictionBand`** — six buckets (0-29 noise → 90-100
+  maximum). Per band: total scored, traded, hit ratio, avg
+  directional pct change at T+1h/T+1d/T+7d. The pct change is
+  sign-flipped for short trades so positive = trade was right
+  regardless of long/short.
+- **`bySignalType` enriched** — adds the same avg directional
+  pct change per outcome window per detector. Lets us see
+  which detectors carry predictive weight vs. which are noise.
+
+Both surfaces are public on `/scorecard`. The dedicated
+`/calibration` page is the long-form narrative — how to read
+the table, what well-calibrated vs poorly-calibrated looks
+like, the open questions.
+
+Two strategy adjustments shipped alongside the measurement
+surface:
+
+- **`CONVICTION_THRESHOLD` 70 → 80** — cohort 1 ran 0% win
+  rate at 70+; raise floor while measuring.
+- **`MIN_COMMIT_AGE_MINUTES = 30`** — commits younger than the
+  settling window are skipped this tick and re-evaluated next.
+  Tests the "already priced in" hypothesis for cohort 1's
+  negative T+1h avg.
+
+See [`CALIBRATION.md`](./CALIBRATION.md) for the per-knob
+empirical rationale and the change log.
+
+### Storytelling surfaces
+
+Three public pages frame the system for non-technical readers:
+
+- **`/methodology`** — top-to-bottom: what we watch, all 8
+  detectors with examples, how the agent scores, every safety
+  gate in plain English, position lifecycle, why paper-trade
+  first. The "we are here on the maturity arc" reference.
+- **`/calibration`** — the live measurement table + an
+  honest "early sample" warning when n is small.
+- **`/scorecard`** — now leads with a "We are here:
+  observation phase" banner that frames the raw numbers in
+  context (paper trades, observation phase, conditions for
+  going live).
+- **`/signals/[id]`** — new VerdictCard between the outcomes
+  block and the proof chain. "Agent called LONG at 82/100,
+  expected price up. Price moved −0.78% at t+1d. Verdict:
+  agent was wrong."
+
+The Telegram editorial pass (hourly heartbeat, signal
+broadcasts, sub-threshold, TP/SL hit, daily report) uses the
+same verdict-forward voice — every dispatch leads with the
+agent's call, not infrastructure status.
+
+### What's open
+
+- **Real on-chain validation of the live path.** The safety
+  scaffolding exists; the first-live-trade dry run (documented
+  in [`RUNBOOK.md`](./RUNBOOK.md)) hasn't been executed because
+  it requires moving real funds + flipping production env.
+- **Asset registry expansion.** BTC + ETH only today. Adding
+  LINK / UNI / CAKE / etc. is one entry per asset after
+  BscScan verification.
+- **Rubric v2.** Hypothesis: the agent's 80+ band still won't
+  outperform if the rubric weights the wrong inputs. The
+  calibration loop will surface this within 2-4 weeks of data;
+  the response will be a versioned rubric bump (file swap, no
+  code change).

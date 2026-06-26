@@ -25,34 +25,43 @@ The system cannot misremember its own performance. The [public scorecard](https:
 
 ## Live demo
 
-Three public surfaces — no signup, no auth:
+Public surfaces — no signup, no auth:
 
-- **[`/scorecard`](https://lenitnes.persidian.com/scorecard)** — the live track record. Hit ratio, P&L, Sharpe, by-signal-type, by-watchlist, recent calls.
+- **[`/scorecard`](https://lenitnes.persidian.com/scorecard)** — the live track record. Leads with the "We are here: observation phase" banner. Conviction-band calibration table, per-detector outcomes, recent calls.
+- **[`/calibration`](https://lenitnes.persidian.com/calibration)** — long-form view of the conviction calibration loop. Is higher conviction actually predictive? Honest "early sample" framing while N is small.
+- **[`/methodology`](https://lenitnes.persidian.com/methodology)** — top-to-bottom narrative: what we watch and why, all 8 detectors with examples, how the agent scores, every safety gate in plain English, position lifecycle, why paper-trade first.
+- **[`/portfolio`](https://lenitnes.persidian.com/portfolio)** — open + closed positions with entry price, current price, unrealized P&L, TP/SL levels.
 - **[`/case-study/halo2`](https://lenitnes.persidian.com/case-study/halo2)** — the founding myth. The agent's actual verdict on the 2022 halo2 soundness fix + the ZEC price chart that followed.
-- **[`/signals/:id`](https://lenitnes.persidian.com/signals/)** — every committed signal, with the full proof chain (Hedera HCS, IPFS, Arbitrum).
+- **[`/signals/:id`](https://lenitnes.persidian.com/signals/)** — every committed signal, with the full proof chain (Hedera HCS, IPFS, Arbitrum) and a "was the agent right?" verdict card.
 
 ## How it works (autonomous loop)
 
 1. **Watchlist** — a curated set of consensus-critical and security-critical repositories. Admin-managed, not user-facing.
-2. **Detect** — TinyFish + scraper pulls each new commit; 8 typed detectors classify it (`emergency_patch`, `security_critical`, `consensus_relevant`, `governance_shift`, etc.).
+2. **Detect** — TinyFish + scraper pulls each new commit (with a 30-minute settling delay so we don't fire on already-priced-in news); 8 typed detectors classify it (`emergency_patch`, `security_critical`, `consensus_relevant`, `governance_shift`, etc.).
 3. **Score** — a frontier-model agent evaluates the commit against a versioned rubric. Outputs a conviction score (0–100), 280-char thesis, recommended action (`long` | `short` | `none`), and confidence band.
-4. **Gate** — conviction ≥ 70. Sub-threshold scores still persist (the reasoning archive) but produce no trade and no Telegram post.
-5. **Commit** (if above threshold) — all three happen together:
-   - **Trade** the call from the treasury wallet on testnet (Arbitrum / Robinhood Chain / paper).
+4. **Gate** — conviction ≥ 80 (raised from 70 on 2026-06-26 after cohort 1 ran 0% win rate). Sub-threshold scores still persist in the reasoning archive but produce no trade and no Telegram post.
+5. **Safety stack** — every live trade passes through a gated risk evaluator before the swap is signed: master kill switch, asset-registry membership, BSC chain-ID guard, treasury balance preflight, on-chain TVL floor, CMC 24h-volume floor, position-count + per-asset caps. Failure on any gate forces paper mode; the signal still ships.
+6. **Commit** (if above threshold + safety passes):
+   - **Trade** via PancakeSwap V2 on BSC with `amountOutMin` derived from an on-chain quote × the configured slippage (no `=0` foot-gun). Conviction-scaled TP/SL written at open.
    - **Notarize** the signal: Hedera HCS message + Arbitrum `SignalRegistry` write + Grove proof package.
-   - **Broadcast** to the public Telegram channel with thesis, tx hash, and outcome window timestamps.
-6. **Track outcome** — at T+1h, T+1d, T+7d, the mainnet price is snapshotted and attributed back to the originating signal.
+   - **Broadcast** to the public Telegram channel with the verdict-forward editorial dispatch voice (asset + action + conviction + thesis, no infra noise).
+7. **Settle** — every 5 minutes, the TP/SL scheduler reads CoinGecko per-asset prices, closes any position whose target is hit via a real reverse swap, and records realized P&L. At T+1h / T+1d / T+7d, the price is also snapshotted as backtest outcome data.
 
 No human input in the steady state. The only operator surfaces are `/admin/*` (X-Admin-Key gated) and the watchlist seed.
+
+See **[`docs/RUNBOOK.md`](./docs/RUNBOOK.md)** for the operator runbook (preflight checks, first-live-trade dry run, emergency exit) and **[`docs/CALIBRATION.md`](./docs/CALIBRATION.md)** for the per-knob empirical rationale + change log.
 
 ## Core concepts
 
 - **Watchlist entry** — system-curated repository + monitored paths + asset mapping. Not user-owned.
 - **Signal** — a scored commit that crossed the conviction threshold. Carries agent verdict, on-chain proof, paper trade receipt, and the eventual price outcome.
-- **Conviction score** — frontier-model 0–100 evaluation. Only signals at threshold trigger the commit step.
-- **Treasury wallet** — single server-side wallet per chain (testnet). All trades are paper / testnet during the credibility-building phase. v2 = 2-of-3 Gnosis Safe.
-- **Outcome window** — fixed T+1h / T+1d / T+7d mainnet price snapshots. Drives the public scorecard.
+- **Conviction score** — frontier-model 0–100 evaluation. Only signals at the configured threshold (currently 80) trigger the commit step.
+- **Calibration band** — buckets of conviction scores (0-29 noise → 90-100 maximum). The `/calibration` page shows hit ratio + avg directional pct change per band, so we can see whether higher conviction = better outcomes.
+- **Asset registry** — single source of truth for which `coingeckoId → on-chain token address` pairs are safe to swap live. BSC mainnet only (BTCB, ETH); L1s and small caps route to paper. New assets require BscScan verification + manual entry.
+- **Treasury wallet** — single server-side wallet per chain. All trades are paper / testnet during the observation phase. v2 = 2-of-3 Gnosis Safe.
+- **Outcome window** — fixed T+1h / T+1d / T+7d mainnet price snapshots. Drives the public scorecard and calibration views.
 - **Reasoning archive** — every agent score, above and below threshold. The "would have said" log.
+- **Position lifecycle** — open (swap + entry price capture + conviction-scaled TP/SL writes) → settle (5-min scheduler reads price, closes on TP/SL hit via real reverse swap) → recorded realized PnL.
 
 ## Stack
 
@@ -236,7 +245,7 @@ Monitor (GitHub) → TinyFish detects → NVIDIA LLM scores (conviction 0-100) �
 ≥70? → Treasury signs swap on BSC → Telegram broadcasts → T+1d/T+7d outcome tracked
 ```
 
-**Live demo results (seed:demo via autonomous pipeline, real NVIDIA LLM):**
+**Live demo results (seed:demo via autonomous pipeline):**
 
 | Commit                         | LLM Conviction | Action   | Mode                                      |
 | ------------------------------ | -------------- | -------- | ----------------------------------------- |
@@ -248,10 +257,13 @@ When the registry lists the asset on BSC (BTC, ETH today), the
 treasury fires a real PancakeSwap V2 `swapExactETHForTokens` with
 `amountOutMin` from an on-chain quote — not a sanity-free wrap. The
 [trading safety layer](./apps/api/src/services/treasury/) gates every
-live swap on: master kill switch (`TRADING_ENABLED`), asset-registry
-membership, on-chain pool TVL floor, CMC 24h-volume floor, and
+live swap on: master kill switch (`TRADING_ENABLED=false` by
+default), asset-registry membership, BSC chain-ID guard, treasury
+balance preflight, on-chain pool TVL floor, CMC 24h-volume floor, and
 position-count + per-asset-concentration caps. Failure on any gate
-forces paper mode.
+forces paper mode. Live trading flips on only after the
+[`/calibration`](https://lenitnes.persidian.com/calibration) page
+shows the 80+ band visibly outperforming for a meaningful sample.
 
 **Special prize readiness:**
 

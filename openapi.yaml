@@ -629,6 +629,109 @@ paths:
                   ok: { type: boolean }
                   invalidatedAt: { type: string, format: date-time }
 
+  /admin/risk-check:
+    get:
+      tags: [Operator]
+      summary: Dry-run the trade risk gate without firing a trade
+      description: |
+        Runs the full risk gate chain (kill switch, asset registry,
+        BSC chain-ID guard, balance preflight, position caps, TVL
+        floor, volume floor) against the given inputs and returns
+        the decision. Used during the first-live-trade preflight
+        and ongoing debugging when an expected trade routes to
+        paper and the operator wants to know which gate tripped.
+      security:
+        - adminKey: []
+      parameters:
+        - name: asset
+          in: query
+          description: CoinGecko id of the asset (e.g. "bitcoin")
+          schema: { type: string }
+        - name: chain
+          in: query
+          description: Chain to evaluate (defaults to bnb)
+          schema:
+            type: string
+            enum: [hedera, arbitrum, robinhood, bnb]
+        - name: side
+          in: query
+          description: Trade side
+          schema:
+            type: string
+            enum: [long, short]
+            default: long
+        - name: amount
+          in: query
+          description: Trade size in native chain units (defaults to TREASURY_DEFAULT_AMOUNT)
+          schema: { type: string }
+      responses:
+        '200':
+          description: Gate decision (effectiveMode + reason)
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  input:
+                    type: object
+                    properties:
+                      asset: { type: string }
+                      chain: { type: string }
+                      side: { type: string }
+                      amountIn: { type: string }
+                      intendedMode: { type: string, enum: [paper, live] }
+                  decision:
+                    type: object
+                    properties:
+                      effectiveMode: { type: string, enum: [paper, live] }
+                      reason: { type: string }
+                      downgraded: { type: boolean }
+                  tradingEnabled: { type: boolean }
+        '401':
+          description: Invalid admin key
+        '503':
+          description: Admin not configured
+
+  /admin/positions/{id}/close:
+    post:
+      tags: [Operator]
+      summary: Manually close an open position
+      description: |
+        Fetches the current CoinGecko price for the position's
+        asset, then closes the position. Fires a real on-chain
+        reverse swap when TRADING_ENABLED + the asset is in the
+        registry + the open was on-chain; otherwise records a
+        paper close. Returns realized PnL + close tx hash.
+      security:
+        - adminKey: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: Position UUID
+          schema: { type: string, format: uuid }
+      responses:
+        '200':
+          description: Close result
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  ok: { type: boolean }
+                  positionId: { type: string, format: uuid }
+                  asset: { type: string }
+                  exitPriceUsd: { type: number, nullable: true }
+                  pnlUsd: { type: number, nullable: true }
+                  closeTxHash:
+                    { type: string, nullable: true, description: 'Null for paper closes' }
+        '404':
+          description: Position not found
+        '409':
+          description: Position is not open
+        '500':
+          description: Close failed (swap reverted or DB error)
+
   # ───────────────────────────────────────────────────────────
   # Webhooks
   # ───────────────────────────────────────────────────────────
@@ -733,6 +836,15 @@ components:
         byWatchlist:
           type: array
           items: { $ref: '#/components/schemas/ScorecardByWatchlist' }
+        byConvictionBand:
+          type: array
+          description: |
+            Calibration breakdown — six conviction bands (0-29 → 90-100)
+            each showing hit ratio + avg directional pct change at
+            T+1h/T+1d/T+7d. The directional pct is sign-flipped for
+            short trades so positive = trade was right regardless of
+            long/short. Drives the public /calibration page.
+          items: { $ref: '#/components/schemas/ScorecardByConvictionBand' }
         recentCalls:
           type: array
           items: { $ref: '#/components/schemas/RecentCall' }
@@ -746,6 +858,37 @@ components:
         total: { type: integer }
         hits: { type: integer }
         hitRatio: { type: number }
+        avgT1hPct:
+          type: number
+          nullable: true
+          description: Avg directional pct change at T+1h (sign-flipped for shorts)
+        avgT1dPct:
+          type: number
+          nullable: true
+          description: Avg directional pct change at T+1d
+        avgT7dPct:
+          type: number
+          nullable: true
+          description: Avg directional pct change at T+7d
+
+    ScorecardByConvictionBand:
+      type: object
+      required: [bandMin, bandMax, label, total, traded, hits, hitRatio]
+      properties:
+        bandMin: { type: integer, minimum: 0, maximum: 100 }
+        bandMax: { type: integer, minimum: 0, maximum: 100 }
+        label: { type: string, description: 'Human label like "70-79"' }
+        total: { type: integer, description: 'Scored signals in this band' }
+        traded: { type: integer, description: 'Subset that fired a trade' }
+        hits:
+          {
+            type: integer,
+            description: 'Traded signals whose t1d outcome matched the predicted direction',
+          }
+        hitRatio: { type: number }
+        avgT1hPct: { type: number, nullable: true }
+        avgT1dPct: { type: number, nullable: true }
+        avgT7dPct: { type: number, nullable: true }
 
     ScorecardByWatchlist:
       type: object
