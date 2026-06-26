@@ -18,6 +18,13 @@ Submission checklist:
 - ✅ **Public demo (90+ days)** — https://lenitnes.persidian.com
 - ✅ **Feedback document** — [`docs/HEDERA_FEEDBACK.md`](./HEDERA_FEEDBACK.md)
   (concrete bugs + ideas from running the kit in production)
+- ✅ **Upstream feedback issue** —
+  [hashgraph/hedera-agent-kit-js#967](https://github.com/hashgraph/hedera-agent-kit-js/issues/967)
+  (5 numbered bugs + 3 ideas, filed against the kit repo)
+- ✅ **Upstream pull request** —
+  [hashgraph/hedera-agent-kit-js#968](https://github.com/hashgraph/hedera-agent-kit-js/pull/968)
+  (`classifyToolResult` helper for typed tool result envelopes — pure
+  additive, +97 src lines, 12 new unit tests, DCO-signed)
 - 🟡 **X post** — to be posted with tags `#HederaAgent #HederaAIBounty`
   and mentions `@hedera @hedera_devs`
 
@@ -158,7 +165,8 @@ See [`docs/HEDERA_FEEDBACK.md`](./HEDERA_FEEDBACK.md). High-impact
 items in our view:
 
 1. A typed result envelope for tool invocations (success / failure
-   are currently mixed shapes that bit us in production).
+   are currently mixed shapes that bit us in production). **PR'd:**
+   [hashgraph/hedera-agent-kit-js#968](https://github.com/hashgraph/hedera-agent-kit-js/pull/968).
 2. A first-class LangChain / OpenAI-function-calling adapter so
    the kit's tools can be passed directly to an LLM's tool loop.
 3. Documented retry / timeout policy (or built-in `maxRetries`).
