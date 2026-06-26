@@ -32,6 +32,13 @@ vi.mock('../src/db/pool.js', () => ({
   pool: { query: mockQuery, end: vi.fn() },
 }));
 
+// The treasury now calls getPriceAt() at trade time to capture
+// entry_price_usd. The real implementation hits CoinGecko over
+// HTTP; mock it so unit tests don't make network calls.
+vi.mock('../src/services/price.js', () => ({
+  getPriceAt: vi.fn().mockResolvedValue(null),
+}));
+
 describe('treasury.deriveActionFromAgent', () => {
   it('returns a long trade when agent says long and asset is tradeable long', () => {
     const result = deriveActionFromAgent(baseAgentScore, baseAssetMapping, baseTradeConfig);

@@ -196,6 +196,13 @@ export const config = {
     defaultSlippageBps: env.TREASURY_SLIPPAGE_BPS,
     defaultTokenIn: env.TREASURY_DEFAULT_TOKEN_IN,
     gasWarningThreshold: ethers.parseEther(env.GAS_WARNING_THRESHOLD),
+    // Master kill switch — see config-schema.ts. The execution loop
+    // honors this independently of TREASURY_MODE.
+    tradingEnabled: env.TRADING_ENABLED,
+    maxConcurrentPositions: env.MAX_CONCURRENT_POSITIONS,
+    maxPerAssetPositions: env.MAX_PER_ASSET_POSITIONS,
+    takeProfitBps: env.POSITION_TAKE_PROFIT_BPS,
+    stopLossBps: env.POSITION_STOP_LOSS_BPS,
     defaultTokenOut: (() => {
       const c = env.TREASURY_DEFAULT_CHAIN;
       if (c === 'arbitrum') return env.ARBITRUM_DEFAULT_TOKEN_OUT;

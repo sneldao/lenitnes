@@ -320,6 +320,8 @@ export function formatSignalBroadcastMessage(input: BroadcastSignalInput): strin
     lines.push(
       `📦 IPFS: ${input.proofs.ipfsCid} → https://grove.lens.xyz/ipfs/${input.proofs.ipfsCid}`,
     );
+  } else {
+    lines.push(`⏳ IPFS: pending`);
   }
   if (input.proofs.arbitrumTxHash) {
     const url = explorerUrlFor('arbitrum', input.proofs.arbitrumTxHash);

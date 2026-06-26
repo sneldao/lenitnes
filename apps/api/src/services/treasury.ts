@@ -12,6 +12,8 @@ import { logger } from '../logger.js';
 import { executeEvmTrade } from './evm/trade.js';
 import { getWallet, getChainConfig } from './evm/client.js';
 import { isTwakConfigured, swap as twakSwap } from './twak.js';
+import { getPriceAt } from './price.js';
+import { computeTpSlLevels } from './treasury/risk.js';
 
 export type TradeMode = 'paper' | 'live';
 
@@ -323,45 +325,91 @@ export async function recordTrade(
     try {
       const asset = action.pair ?? action.tokenOut ?? 'unknown';
       if (action.side === 'long') {
+        // Fetch the entry price at trade time so the portfolio
+        // page + auto-close can compute PnL without backfill.
+        // Best-effort: a price-fetch failure leaves entry_price_usd
+        // NULL and the portfolio service backfills lazily.
+        const entryPriceUsd = await getPriceAt(asset, new Date(receipt.timestamp));
+
+        // TP/SL levels are conviction-scaled and only written when
+        // we have a real entry price. Without entry price the
+        // levels are meaningless, so we leave them NULL and the
+        // auto-close scheduler skips this position.
+        let takeProfitUsd: number | null = null;
+        let stopLossUsd: number | null = null;
+        if (entryPriceUsd && convictionAtOpen != null) {
+          const levels = computeTpSlLevels(entryPriceUsd, convictionAtOpen, 'long');
+          takeProfitUsd = levels.takeProfitUsd;
+          stopLossUsd = levels.stopLossUsd;
+        }
+
         await query(
           `INSERT INTO positions
              (signal_id, open_order_id, asset, chain, direction,
-              entry_amount, entry_tx_hash, conviction_at_open)
+              entry_amount, entry_price_usd, entry_tx_hash,
+              conviction_at_open, take_profit_price, stop_loss_price)
            VALUES ($1, $2, $3, $4, 'long',
-                   $5, $6, $7)`,
+                   $5, $6, $7, $8, $9, $10)`,
           [
             signalId,
             orderId,
             asset,
             action.chain,
             action.amountIn ?? 0,
+            entryPriceUsd,
             receipt.txHash,
             convictionAtOpen ?? null,
+            takeProfitUsd,
+            stopLossUsd,
           ],
         );
       } else if (action.side === 'short') {
-        // Close the oldest open position for this asset
-        const { rows: openRows } = await query<{ id: string; entry_amount: string }>(
-          `SELECT id, entry_amount::text FROM positions
+        // Close the oldest open position for this asset.
+        // Capture exit price for realized-PnL computation.
+        const { rows: openRows } = await query<{
+          id: string;
+          entry_amount: string;
+          entry_price_usd: string | null;
+        }>(
+          `SELECT id, entry_amount::text, entry_price_usd::text FROM positions
             WHERE asset = $1 AND chain = $2 AND status = 'open'
             ORDER BY opened_at ASC LIMIT 1`,
           [asset, action.chain],
         );
         if (openRows[0]) {
           const entryAmount = parseFloat(openRows[0].entry_amount);
+          const entryPriceUsd = openRows[0].entry_price_usd
+            ? parseFloat(openRows[0].entry_price_usd)
+            : null;
           const exitAmount = action.amountIn ? parseFloat(action.amountIn) : 0;
-          const pnlPct = entryAmount > 0 ? ((exitAmount - entryAmount) / entryAmount) * 100 : 0;
+          const exitPriceUsd = await getPriceAt(asset, new Date(receipt.timestamp));
+
+          // Prefer USD-based PnL when both entry and exit prices
+          // are known. Falls back to the amount-delta computation
+          // the original implementation used (less meaningful but
+          // preserves history).
+          let pnlUsd: number;
+          let pnlPct: number;
+          if (entryPriceUsd != null && exitPriceUsd != null && entryAmount > 0) {
+            pnlPct = ((exitPriceUsd - entryPriceUsd) / entryPriceUsd) * 100;
+            pnlUsd = (exitPriceUsd - entryPriceUsd) * entryAmount;
+          } else {
+            pnlPct = entryAmount > 0 ? ((exitAmount - entryAmount) / entryAmount) * 100 : 0;
+            pnlUsd = exitAmount - entryAmount;
+          }
+
           await query(
             `UPDATE positions
                SET status = 'closed',
                    close_order_id = $2,
                    exit_amount = $3,
-                   exit_tx_hash = $4,
+                   exit_price_usd = $4,
+                   exit_tx_hash = $5,
                    closed_at = now(),
-                   pnl_usd = $5,
-                   pnl_pct = $6
+                   pnl_usd = $6,
+                   pnl_pct = $7
              WHERE id = $1`,
-            [openRows[0].id, orderId, exitAmount, receipt.txHash, exitAmount - entryAmount, pnlPct],
+            [openRows[0].id, orderId, exitAmount, exitPriceUsd, receipt.txHash, pnlUsd, pnlPct],
           );
         }
       }
@@ -371,4 +419,72 @@ export async function recordTrade(
   }
 
   return orderId;
+}
+
+/**
+ * Close a specific open position by id. Used by the TP/SL
+ * scheduler when a target is hit. Mirrors the 'short'-side path
+ * of recordTrade but takes the position_id directly so the
+ * scheduler doesn't depend on "oldest open" lookups.
+ */
+export async function closePositionById(
+  positionId: string,
+  exitPriceUsd: number | null,
+  reason: 'take_profit' | 'stop_loss' | 'manual',
+): Promise<{ closed: boolean; pnlUsd: number | null }> {
+  const { rows } = await query<{
+    asset: string;
+    chain: string;
+    entry_amount: string;
+    entry_price_usd: string | null;
+    signal_id: string | null;
+  }>(
+    `SELECT asset, chain, entry_amount::text, entry_price_usd::text, signal_id
+       FROM positions WHERE id = $1 AND status = 'open'`,
+    [positionId],
+  );
+  const row = rows[0];
+  if (!row) return { closed: false, pnlUsd: null };
+
+  const entryAmount = parseFloat(row.entry_amount);
+  const entryPriceUsd = row.entry_price_usd ? parseFloat(row.entry_price_usd) : null;
+
+  // Build the close trade. For BNB→underlying open, the close is
+  // underlying→BNB. We swap tokenIn/tokenOut; the registry-resolved
+  // address is what we long'd into, so we sell it back to WBNB.
+  // For now this only supports paper mode — the live close path
+  // needs the same swap-router plumbing as open and is wired in a
+  // follow-up. The scheduler still alerts on every close so ops
+  // can manually exit if needed.
+  let pnlUsd: number | null = null;
+  let pnlPct: number | null = null;
+  if (entryPriceUsd != null && exitPriceUsd != null && entryAmount > 0) {
+    pnlPct = ((exitPriceUsd - entryPriceUsd) / entryPriceUsd) * 100;
+    pnlUsd = (exitPriceUsd - entryPriceUsd) * entryAmount;
+  }
+
+  await query(
+    `UPDATE positions
+       SET status = 'closed',
+           exit_price_usd = $2,
+           closed_at = now(),
+           pnl_usd = $3,
+           pnl_pct = $4
+     WHERE id = $1`,
+    [positionId, exitPriceUsd, pnlUsd, pnlPct],
+  );
+
+  logger.info(
+    {
+      positionId,
+      asset: row.asset,
+      reason,
+      entryPriceUsd,
+      exitPriceUsd,
+      pnlUsd,
+      pnlPct,
+    },
+    'position closed',
+  );
+  return { closed: true, pnlUsd };
 }

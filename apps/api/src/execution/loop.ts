@@ -28,6 +28,8 @@ import {
   signAndSend,
   type TradeReceipt,
 } from '../services/treasury.js';
+import { resolveTradeableToken } from '../services/treasury/asset-registry.js';
+import { applyRiskGate } from '../services/treasury/risk.js';
 import {
   buildOutcomeWindows,
   broadcastSignal,
@@ -484,16 +486,35 @@ export async function executeCheck(monitor: Monitor): Promise<{
   let tradeReceipt: TradeReceipt | null = null;
   let orderId: string | null = null;
   if (agentScore && !gate2Blocked && !isHeartbeat && signalId) {
+    const chain = config.treasury.defaultChain;
+    const coingeckoId = monitor.asset_mapping.coingeckoId;
+
+    // Resolve the real on-chain token address from the registry.
+    // If the asset isn't tradeable on this chain, we still derive
+    // the action — but with the placeholder token. The risk gate
+    // below will catch this and force paper mode so the swap
+    // never actually fires for a junk address.
+    const tradeable = resolveTradeableToken(coingeckoId, chain);
+    const tokenOut = tradeable?.tokenAddress ?? '0xUNTRADEABLE_PLACEHOLDER';
+
+    // Risk gate — applies the kill switch, asset registry, and
+    // position limits. Returns the mode the treasury should
+    // actually execute as (may be downgraded to paper).
+    const risk = await applyRiskGate({
+      coingeckoId,
+      chain,
+      side: agentScore.recommended_action === 'short' ? 'short' : 'long',
+      signalId,
+      intendedMode: config.treasury.defaultMode,
+    });
+
     const derived = deriveActionFromAgent(agentScore, monitor.asset_mapping, {
-      chain: config.treasury.defaultChain,
-      mode: config.treasury.defaultMode,
+      chain,
+      mode: risk.effectiveMode,
       amountIn: config.treasury.defaultTradeAmount,
       slippageBps: config.treasury.defaultSlippageBps,
       tokenIn: config.treasury.defaultTokenIn,
-      // The underlying token is intentionally a placeholder. The
-      // live path requires the watchlist to carry per-chain token
-      // addresses (Day 10 launch task).
-      tokenOut: '0xUNDERLYING_PLACEHOLDER',
+      tokenOut,
     });
 
     if (derived.trade) {

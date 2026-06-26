@@ -95,6 +95,20 @@ export const envSchema = z
     TREASURY_SLIPPAGE_BPS: intFromString(0, 10_000).default(50),
     TREASURY_DEFAULT_TOKEN_IN: z.string().default('0xUSDC_PLACEHOLDER'),
     GAS_WARNING_THRESHOLD: z.string().default('0.02'),
+    // Master kill switch. TREASURY_MODE=live alone is NOT enough —
+    // the operator must also flip this to true. Lets us deploy
+    // safety code first and turn on live trading only when the
+    // safety story is fully verified.
+    TRADING_ENABLED: z
+      .string()
+      .optional()
+      .transform((v) => v === 'true'),
+    MAX_CONCURRENT_POSITIONS: intFromString(1, 1_000).default(5),
+    MAX_PER_ASSET_POSITIONS: intFromString(1, 100).default(1),
+    // TP/SL defaults applied at open. Conviction-adjusted at the
+    // call site (see treasury/risk.ts:computeTpSlLevels).
+    POSITION_TAKE_PROFIT_BPS: intFromString(0, 10_000).default(1500),
+    POSITION_STOP_LOSS_BPS: intFromString(0, 10_000).default(700),
 
     // ── Notification / webhook ──
     TELEGRAM_BOT_TOKEN: z.string().optional().default(''),

@@ -8,11 +8,9 @@ import { recordSignalOnChain } from '../services/evm/signal-registry.js';
 import { getProvider } from '../services/evm/client.js';
 import { sendDailyWatchReport } from '../services/watch-report.js';
 import { sendTelegram } from '../services/notify.js';
-import {
-  getPortfolioSummary,
-  getOpenPositions,
-  formatPortfolioSummary,
-} from '../services/portfolio.js';
+import { getPortfolioSummary, getOpenPositions } from '../services/portfolio.js';
+import { closePositionById } from '../services/treasury.js';
+import { getPriceAt } from '../services/price.js';
 import { logger } from '../logger.js';
 
 let monitorJob: cron.ScheduledTask | null = null;
@@ -170,64 +168,125 @@ async function retryFailedProofs(): Promise<void> {
   }
 }
 
-// ── Hourly heartbeat broadcast ─────────────────────────────────
-// Sends a concise "pipeline is alive" message to the public Telegram
-// channel every hour. Shows monitor count, recent activity, and
-// latest agent thought.
+// ── Hourly editorial dispatch ──────────────────────────────────
+// Posts a single "what the agent is doing right now" message to
+// the public Telegram channel every hour. Voice = editorial
+// dispatch, not sysadmin status. Leads with the top thesis,
+// shows repo velocity, surfaces book state. Drops the redundant
+// /monitors link and the "HCS-timestamped" infra noise.
 async function sendPipelineHeartbeat(): Promise<void> {
   if (heartbeatRunning || !config.telegram.botToken || !config.telegram.publicChannelId) return;
   heartbeatRunning = true;
   try {
-    const [{ rows: mons }, { rows: sigs }, { rows: scores }] = await Promise.all([
-      query<{ c: string }>("SELECT COUNT(*)::text AS c FROM monitors WHERE status = 'active'"),
+    const [
+      { rows: topThoughts },
+      { rows: repoActivity },
+      { rows: signals24h },
+      portfolioSummary,
+      openPositions,
+    ] = await Promise.all([
+      // Top thesis in last 24h — by conviction, falling back to most-recent.
+      query<{
+        conviction: number;
+        thesis: string;
+        asset: string | null;
+        recommended_action: string;
+      }>(
+        `SELECT a.conviction,
+                LEFT(a.thesis, 180) AS thesis,
+                m.asset_mapping->>'coingeckoId' AS asset,
+                a.recommended_action
+           FROM agent_scores a
+           JOIN signals s ON s.id = a.signal_id
+           JOIN monitors m ON m.id = s.monitor_id
+          WHERE a.created_at > now() - interval '24 hours'
+          ORDER BY a.conviction DESC, a.created_at DESC
+          LIMIT 1`,
+      ),
+      // Repo velocity — commits seen in the last 24h, top 3.
+      query<{ url: string; commits: string }>(
+        `SELECT m.url, COUNT(s.id)::text AS commits
+           FROM monitors m
+           LEFT JOIN signals s
+             ON s.monitor_id = m.id
+            AND s.detected_at > now() - interval '24 hours'
+            AND NOT s.is_heartbeat
+          WHERE m.status = 'active'
+          GROUP BY m.id, m.url
+         HAVING COUNT(s.id) > 0
+          ORDER BY COUNT(s.id) DESC
+          LIMIT 3`,
+      ),
       query<{ c: string }>(
-        "SELECT COUNT(*)::text AS c FROM signals WHERE detected_at > now() - interval '24 hours'",
+        "SELECT COUNT(*)::text AS c FROM signals WHERE detected_at > now() - interval '24 hours' AND NOT is_heartbeat",
       ),
-      query<{ conviction: number; thesis: string }>(
-        `SELECT conviction, LEFT(thesis, 120) AS thesis FROM agent_scores
-          WHERE created_at > now() - interval '24 hours'
-          ORDER BY created_at DESC LIMIT 1`,
-      ),
-    ]);
-
-    const activeMonitors = parseInt(mons[0]?.c ?? '0', 10);
-    const signals24h = parseInt(sigs[0]?.c ?? '0', 10);
-    const lastThought = scores[0];
-
-    // Proof coverage (Hedera HCS timestamps)
-    const { rows: proofRows } = await query<{ total: string; with_hedera: string }>(
-      `SELECT COUNT(*)::text AS total,
-              COUNT(*) FILTER (WHERE hedera_hcs_message_id IS NOT NULL)::text AS with_hedera
-         FROM signals WHERE NOT is_heartbeat`,
-    );
-    const totalSignals = parseInt(proofRows[0]?.total ?? '0', 10);
-    const withHedera = parseInt(proofRows[0]?.with_hedera ?? '0', 10);
-
-    const [portfolioSummary, openPositions] = await Promise.all([
       getPortfolioSummary(),
       getOpenPositions(),
     ]);
 
-    const lines: string[] = [
-      `🛡️ LENITNES — Pipeline heartbeat`,
-      ``,
-      `📡 ${activeMonitors} monitors · ${signals24h} signals (24h)`,
-      `🔗 ${withHedera}/${totalSignals} signals HCS-timestamped`,
-    ];
-    if (lastThought) {
-      lines.push(`🧠 Latest: conviction ${lastThought.conviction} — ${lastThought.thesis}`);
+    const top = topThoughts[0];
+    const sigCount = parseInt(signals24h[0]?.c ?? '0', 10);
+
+    // Lead: agent posture as a verb. Falls through to "watching"
+    // when there's no scored signal in the last 24h.
+    const lines: string[] = [];
+    if (top) {
+      const action = top.recommended_action.toUpperCase();
+      const asset = top.asset ?? 'watchlist';
+      lines.push(
+        `🛡️ LENITNES · ${asset.toUpperCase()} ${action} · conviction ${top.conviction}/100`,
+      );
+      lines.push('');
+      lines.push(`💭 ${top.thesis}`);
     } else {
-      lines.push(`🧠 No agent activity in 24h — watching quietly`);
+      lines.push(`🛡️ LENITNES · watching · ${sigCount} signals scanned (24h)`);
+      lines.push('');
+      lines.push(`💭 No conviction above threshold — quiet hour.`);
     }
-    lines.push(``);
-    lines.push(formatPortfolioSummary(portfolioSummary, openPositions));
-    lines.push(``);
-    lines.push(`⏱ ${new Date().toISOString().slice(11, 16)} UTC`);
-    lines.push(
-      `💼 Treasury: https://testnet.bscscan.com/address/0x4dA649DeB07159E791C423bb139e6213e745D138`,
-    );
-    lines.push(`🔗 Scorecard: ${config.webOrigin}/scorecard`);
-    lines.push(`📱 Monitors: ${config.webOrigin}/monitors`);
+    lines.push('');
+
+    // Watchlist velocity — only when something fired today.
+    if (repoActivity.length > 0) {
+      lines.push(`📊 Watchlist (24h)`);
+      for (const r of repoActivity) {
+        const repo = r.url.replace(/^https?:\/\/(www\.)?github\.com\//, '').replace(/\/.*$/, '');
+        lines.push(`   ${repo} · ${r.commits} signal(s)`);
+      }
+      lines.push('');
+    }
+
+    // Book state — number of opens, oldest age, realized PnL.
+    const openCount = portfolioSummary.total_open_positions;
+    const closedCount = portfolioSummary.total_closed_positions;
+    const realized = portfolioSummary.realized_pnl_usd;
+    const unrealized = portfolioSummary.unrealized_pnl_usd;
+    const realizedLine =
+      closedCount > 0
+        ? `${realized >= 0 ? '+' : ''}$${realized.toFixed(2)} realized · ${closedCount} closed`
+        : '0 closed';
+    const unrealizedLine =
+      openCount > 0 ? `${unrealized >= 0 ? '+' : ''}$${unrealized.toFixed(2)} unrealized` : '';
+    lines.push(`💼 Book · ${openCount} open · ${realizedLine}`);
+    if (unrealizedLine) lines.push(`   ${unrealizedLine}`);
+
+    if (openPositions.length > 0) {
+      const oldest = openPositions.reduce(
+        (acc, p) => (p.opened_at < acc.opened_at ? p : acc),
+        openPositions[0],
+      );
+      const ageHrs = Math.round((Date.now() - new Date(oldest.opened_at).getTime()) / 3_600_000);
+      lines.push(`   oldest: ${oldest.asset} · ${ageHrs}h`);
+      // Surface the safety state so readers know whether positions
+      // have auto-close armed.
+      const armed = openPositions.filter(
+        (p) => p.take_profit_price != null || p.stop_loss_price != null,
+      ).length;
+      if (armed < openPositions.length) {
+        lines.push(`   ⚠ ${openPositions.length - armed} position(s) without TP/SL`);
+      }
+    }
+    lines.push('');
+    lines.push(`🔗 ${config.webOrigin}/scorecard`);
 
     await sendTelegram(config.telegram.publicChannelId, lines.join('\n'));
     logger.info('pipeline heartbeat sent to telegram');
@@ -273,8 +332,12 @@ async function checkGasBalance(): Promise<void> {
 
 // ── TP/SL checker ─────────────────────────────────────────────────
 // Every 5 minutes, scan open positions that have take_profit_price or
-// stop_loss_price set. For each, try to fetch the current price and
-// close if the target is hit.
+// stop_loss_price set. Use the CoinGecko oracle for each asset's
+// current USD price (the old PancakeSwap router query was actually
+// returning WBNB→USDC, which is irrelevant to e.g. a BTC position).
+// When a target is hit: close the position via closePositionById
+// (paper-mode book-keeping for now; the live-mode swap is a
+// follow-up tied to the asset-registry roll-out), then broadcast.
 async function checkTakeProfitStopLoss(): Promise<void> {
   try {
     const { rows: positions } = await query<{
@@ -283,16 +346,15 @@ async function checkTakeProfitStopLoss(): Promise<void> {
       chain: string;
       direction: string;
       entry_amount: string;
-      entry_tx_hash: string | null;
+      entry_price_usd: string | null;
       take_profit_price: string | null;
       stop_loss_price: string | null;
-      conviction_at_open: number | null;
       opened_at: string;
     }>(
       `SELECT id, asset, chain, direction,
-              entry_amount::text, entry_tx_hash,
+              entry_amount::text, entry_price_usd::text,
               take_profit_price::text, stop_loss_price::text,
-              conviction_at_open, opened_at::text
+              opened_at::text
          FROM positions
         WHERE status = 'open'
           AND (take_profit_price IS NOT NULL OR stop_loss_price IS NOT NULL)`,
@@ -300,72 +362,80 @@ async function checkTakeProfitStopLoss(): Promise<void> {
 
     if (positions.length === 0) return;
 
-    const provider = getProvider('bnb');
-    const hits: Array<{
+    // Deduplicate price lookups across positions sharing the same
+    // asset. CoinGecko free tier is rate-limited; one fetch per
+    // distinct asset keeps the cycle cheap.
+    const uniqueAssets = Array.from(new Set(positions.map((p) => p.asset)));
+    const now = new Date();
+    const priceMap = new Map<string, number>();
+    await Promise.all(
+      uniqueAssets.map(async (asset) => {
+        const p = await getPriceAt(asset, now);
+        if (p != null) priceMap.set(asset, p);
+      }),
+    );
+
+    interface Hit {
       id: string;
       asset: string;
-      side: string;
+      side: 'TP' | 'SL';
       currentPrice: number;
       targetPrice: number;
-    }> = [];
+      pnlUsd: number | null;
+    }
+    const hits: Hit[] = [];
 
     for (const pos of positions) {
-      // Try to get current price via ethers (WBNB balance check as a
-      // crude price proxy). For real price feeds, integrate Chainlink
-      // or CoinGecko here. If the price check fails, skip this cycle.
-      let currentPrice: number | null = null;
-      try {
-        // Use PancakeSwap router on BSC testnet to estimate price.
-        // Router: 0x9Ac64Cc6e4415144C455BD8E4837Fea55603e5c3 (testnet)
-        // This is a best-effort estimate; production should use oracles.
-        const routerAddr = '0x9Ac64Cc6e4415144C455BD8E4837Fea55603e5c3';
-        const wbnbAddr = '0xae13d989daC2f0dEbFf460aC112a837C89BAa7cd';
-        const usdcAddr = '0x64544969ed7EBf5f083679233325356EbE738930';
-        const router = new ethers.Contract(
-          routerAddr,
-          [
-            'function getAmountsOut(uint amountIn, address[] memory path) view returns (uint[] memory amounts)',
-          ],
-          provider,
-        );
-        // Ask: 1 WBNB = ? USDC
-        const amounts = await router.getAmountsOut(
-          ethers.parseEther('1'),
-          [wbnbAddr, usdcAddr],
-        );
-        currentPrice = parseFloat(ethers.formatUnits(amounts[1], 18));
-      } catch {
-        // Price fetch failed — skip this position for now
-        continue;
-      }
-
-      if (currentPrice === null) continue;
+      const currentPrice = priceMap.get(pos.asset);
+      if (currentPrice == null) continue;
 
       const tp = pos.take_profit_price ? parseFloat(pos.take_profit_price) : null;
       const sl = pos.stop_loss_price ? parseFloat(pos.stop_loss_price) : null;
+      const side = pos.direction === 'short' ? 'short' : 'long';
 
-      if (tp && currentPrice >= tp) {
-        hits.push({ id: pos.id, asset: pos.asset, side: 'TP', currentPrice, targetPrice: tp });
-      } else if (sl && currentPrice <= sl) {
-        hits.push({ id: pos.id, asset: pos.asset, side: 'SL', currentPrice, targetPrice: sl });
+      // Long: TP above, SL below. Short: TP below, SL above.
+      let hit: { kind: 'TP' | 'SL'; target: number } | null = null;
+      if (side === 'long') {
+        if (tp != null && currentPrice >= tp) hit = { kind: 'TP', target: tp };
+        else if (sl != null && currentPrice <= sl) hit = { kind: 'SL', target: sl };
+      } else {
+        if (tp != null && currentPrice <= tp) hit = { kind: 'TP', target: tp };
+        else if (sl != null && currentPrice >= sl) hit = { kind: 'SL', target: sl };
       }
+      if (!hit) continue;
+
+      // Close the position. Book-keeping path: writes exit_price_usd
+      // and computes realized PnL. Live-mode swap is wired in a
+      // follow-up; for now the operator gets the alert and the
+      // position is marked closed so it doesn't re-trigger.
+      const closeResult = await closePositionById(
+        pos.id,
+        currentPrice,
+        hit.kind === 'TP' ? 'take_profit' : 'stop_loss',
+      );
+
+      hits.push({
+        id: pos.id,
+        asset: pos.asset,
+        side: hit.kind,
+        currentPrice,
+        targetPrice: hit.target,
+        pnlUsd: closeResult.pnlUsd,
+      });
     }
 
     if (hits.length > 0) {
-      const lines: string[] = [
-        `🎯 LENITNES — TP/SL hit`,
-        ``,
-      ];
+      const lines: string[] = [`🎯 LENITNES — TP/SL hit · ${hits.length} position(s) closed`, ``];
       for (const h of hits) {
+        const pnl = h.pnlUsd != null ? ` · ${h.pnlUsd >= 0 ? '+' : ''}$${h.pnlUsd.toFixed(2)}` : '';
         lines.push(
-          `• ${h.asset} ${h.side} @ $${h.currentPrice.toFixed(2)} (target $${h.targetPrice.toFixed(2)})`,
+          `• ${h.asset} ${h.side} @ $${h.currentPrice.toFixed(2)} (target $${h.targetPrice.toFixed(2)})${pnl}`,
         );
       }
       lines.push(``);
-      lines.push(`Auto-close not yet implemented — manual review advised.`);
       lines.push(`💼 ${config.webOrigin}/portfolio`);
       await sendTelegram(config.telegram.publicChannelId, lines.join('\n'));
-      logger.info({ hits: hits.length }, 'TP/SL targets hit — alert sent');
+      logger.info({ hits: hits.length }, 'TP/SL targets hit — positions closed and alert sent');
     }
   } catch (err) {
     logger.error({ err }, 'TP/SL check failed');
