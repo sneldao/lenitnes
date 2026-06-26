@@ -281,6 +281,14 @@ export interface BroadcastSignalInput {
     thesis: string;
     recommended_action: 'long' | 'short' | 'none';
     confidence_band: 'low' | 'mid' | 'high';
+    /**
+     * Agent's first-person dispatch — written to Hedera HCS via
+     * hedera-agent-kit. The broadcast appends this verbatim so
+     * readers see the same words anchored on chain.
+     */
+    hcs_dispatch?: string;
+    /** True when the agent minted a dedicated HCS topic for this signal. */
+    dedicated_topic?: boolean;
   };
   tradeReceipt: {
     chain: string;
@@ -326,6 +334,18 @@ export function formatSignalBroadcastMessage(input: BroadcastSignalInput): strin
     } else {
       lines.push(`📈 ${t.mode} · ${t.chain} · ${t.txHash}`);
     }
+    lines.push('');
+  }
+
+  // The agent's on-chain dispatch — its first-person words
+  // anchored on Hedera HCS via hedera-agent-kit. Shown verbatim
+  // so the broadcast and the HCS message say the same thing.
+  if (input.agentScore.hcs_dispatch) {
+    const tag = input.agentScore.dedicated_topic
+      ? '🪶 Anchored on Hedera (dedicated topic)'
+      : '🪶 Anchored on Hedera';
+    lines.push(tag);
+    lines.push(`   "${input.agentScore.hcs_dispatch}"`);
     lines.push('');
   }
 

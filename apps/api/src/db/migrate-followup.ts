@@ -75,6 +75,26 @@ const MIGRATIONS: string[] = [
     is_active  BOOLEAN NOT NULL DEFAULT true
   );
   `,
+
+  // ── 0004: Agent rubric v2 — Hedera-aware fields ──
+  // The agent now produces a tamper-evident dispatch (its own
+  // first-person words, anchored on HCS) and a proof_action
+  // (whether to create a dedicated topic for the highest-
+  // conviction calls). Older rows keep hcs_dispatch=NULL and
+  // proof_action='standard' — the application code handles
+  // both shapes.
+  //
+  // The signals table gains hedera_dedicated_topic_id for when
+  // the agent's proof_action is 'dedicated_topic' — stores the
+  // newly-created topic ID so the signal page can link to it
+  // alongside the main HCS message.
+  `
+  ALTER TABLE agent_scores
+    ADD COLUMN IF NOT EXISTS hcs_dispatch TEXT,
+    ADD COLUMN IF NOT EXISTS proof_action TEXT NOT NULL DEFAULT 'standard';
+  ALTER TABLE signals
+    ADD COLUMN IF NOT EXISTS hedera_dedicated_topic_id TEXT;
+  `,
 ];
 
 async function migrate() {

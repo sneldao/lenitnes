@@ -329,6 +329,67 @@ export default function SignalDetailPage({ params }: { params: Promise<{ id: str
         />
       )}
 
+      {/* ── The agent's on-chain dispatch ──
+          The agent.hcs_dispatch field is the agent's first-person
+          commitment, written to Hedera HCS via hedera-agent-kit's
+          submit_topic_message_tool. This is its on-chain voice —
+          permanent, tamper-evident, independently verifiable.
+          When proof_action === 'dedicated_topic', the agent also
+          minted a new HCS topic for this signal (rare; only on
+          conviction ≥ 90 reference-quality calls). */}
+      {signal.agentScore?.hcsDispatch && (
+        <div className="card border-violet/25 bg-violet/[0.04]">
+          <div className="mb-3 flex items-baseline justify-between gap-3">
+            <h2 className="section-title flex items-center gap-2">
+              <FileCheck2 className="h-3.5 w-3.5 text-violet" />
+              On-chain dispatch · the agent&apos;s words on Hedera
+            </h2>
+            {signal.agentScore.proofAction === 'dedicated_topic' && (
+              <span className="badge bg-violet/20 text-violet text-[10px] uppercase tracking-wider">
+                dedicated topic
+              </span>
+            )}
+          </div>
+          <blockquote className="rounded-xl border-l-2 border-violet/40 bg-ink-light/40 px-4 py-3 text-sm italic leading-relaxed text-slate-200">
+            &ldquo;{signal.agentScore.hcsDispatch}&rdquo;
+          </blockquote>
+          <div className="mt-3 grid gap-1.5 text-[11px] font-mono text-slate-500">
+            <div>
+              Written via{' '}
+              <a
+                href="https://github.com/hashgraph/hedera-agent-kit"
+                target="_blank"
+                rel="noreferrer"
+                className="text-accent hover:text-accent-glow"
+              >
+                hedera-agent-kit
+              </a>
+              {' · '}rubric {signal.agentScore.rubricVersion}
+            </div>
+            {signal.hederaTxId && (
+              <a
+                href={`https://hashscan.io/testnet/transaction/${encodeURIComponent(signal.hederaTxId)}`}
+                target="_blank"
+                rel="noreferrer"
+                className="text-accent hover:text-accent-glow"
+              >
+                default topic · {signal.hederaTxId.slice(0, 24)}… ↗
+              </a>
+            )}
+            {signal.hederaDedicatedTopicId && (
+              <a
+                href={`https://hashscan.io/testnet/topic/${encodeURIComponent(signal.hederaDedicatedTopicId)}`}
+                target="_blank"
+                rel="noreferrer"
+                className="text-violet hover:text-violet-glow"
+              >
+                dedicated topic · {signal.hederaDedicatedTopicId} ↗
+              </a>
+            )}
+          </div>
+        </div>
+      )}
+
       {/* ── Price impact — always shown ── */}
       <div className="card">
         <div className="mb-4 flex items-center justify-between">

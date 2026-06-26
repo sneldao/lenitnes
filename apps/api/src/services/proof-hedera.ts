@@ -137,22 +137,47 @@ export const hederaProofService: ProofService = {
     return { hederaTxId: extractTxId(result) };
   },
 
-  writeHcsMessage: async (message: Record<string, unknown>) => {
+  writeHcsMessage: async (
+    message: Record<string, unknown>,
+    opts?: { topicId?: string; memo?: string },
+  ) => {
+    const topicId = opts?.topicId ?? config.hedera.hcsTopicId;
     const txId = await runToolExtractTxId(
       'submit_topic_message_tool',
       JSON.stringify({
-        topicId: config.hedera.hcsTopicId,
+        topicId,
         message: JSON.stringify(message),
-        transactionMemo: 'LENITNES signal',
+        transactionMemo: opts?.memo ?? 'LENITNES signal',
       }),
     );
-    return { hederaTxId: txId, topicId: config.hedera.hcsTopicId };
+    return { hederaTxId: txId, topicId };
   },
 
   createTopic: async (memo = 'LENITNES proof topic') => {
+    // hedera-agent-kit's create_topic_tool returns an envelope like
+    //   {"raw":{"status":"SUCCESS","topicId":"0.0.123456"},
+    //    "humanMessage":"Topic created: 0.0.123456"}
+    // We pull the topicId directly from the SUCCESS envelope, falling
+    // back to a humanMessage regex (same belt-and-braces as extractTxId).
     const result = await runTool('create_topic_tool', JSON.stringify({ topicMemo: memo }));
-    const parsed = JSON.parse(result);
-    return { topicId: parsed.topicId || String(result) };
+    try {
+      const parsed = JSON.parse(result);
+      if (parsed?.raw?.status === 'SUCCESS') {
+        if (parsed.raw.topicId) return { topicId: String(parsed.raw.topicId) };
+        if (typeof parsed.humanMessage === 'string') {
+          const match = parsed.humanMessage.match(/0\.0\.\d+/);
+          if (match) return { topicId: match[0] };
+        }
+      }
+      // Legacy fallback for older agent-kit versions that surfaced topicId
+      // at the top level. Preserves behavior with v2 → v3 upgrades.
+      if (parsed?.topicId) return { topicId: String(parsed.topicId) };
+    } catch {
+      // Fall through to raw match.
+    }
+    const match = result.match(/0\.0\.\d+/);
+    if (match) return { topicId: match[0] };
+    throw new Error(`createTopic: could not extract topicId from result: ${result.slice(0, 200)}`);
   },
 
   releaseEscrow: async (params: { toWalletAddress: string; amountHbar: number }) => {

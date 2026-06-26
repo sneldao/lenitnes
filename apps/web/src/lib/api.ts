@@ -80,6 +80,17 @@ export interface AgentScore {
   confidenceBand: 'low' | 'mid' | 'high';
   rubricVersion: string;
   createdAt: string;
+  /**
+   * The agent's first-person dispatch anchored on Hedera HCS via
+   * hedera-agent-kit. v2+ scores carry this; legacy v1 rows fall
+   * back to "[legacy v1] <thesis>".
+   */
+  hcsDispatch: string;
+  /**
+   * Whether the agent requested a dedicated HCS topic for this
+   * signal. Only granted at conviction ≥ 90.
+   */
+  proofAction: 'standard' | 'dedicated_topic';
 }
 
 export interface AssetMapping {
@@ -119,6 +130,8 @@ export interface Signal {
   monitorId: string;
   detectedAt: string;
   hederaTxId: string | null;
+  /** Topic ID minted by the agent's dedicated_topic proof_action. */
+  hederaDedicatedTopicId: string | null;
   ipfsCid: string | null;
   evidenceText: string | null;
   screenshotUrls: string[];

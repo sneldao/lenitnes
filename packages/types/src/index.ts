@@ -64,6 +64,13 @@ export interface Signal {
   detected_at: string;
   hedera_tx_id: string | null;
   hedera_hcs_message_id: string | null;
+  /**
+   * Topic ID of the dedicated HCS topic the agent minted for this
+   * signal (only when agent_score.proof_action === 'dedicated_topic').
+   * Created via hedera-agent-kit's create_topic_tool when the agent
+   * chooses to mint a reference-quality proof artifact.
+   */
+  hedera_dedicated_topic_id?: string | null;
   tinyfish_run_id: string | null;
   ipfs_cid: string | null;
   evidence_text: string | null;
@@ -140,6 +147,25 @@ export interface AgentScore {
   thesis: string; // ≤280 chars for Telegram
   recommended_action: AgentAction;
   confidence_band: ConfidenceBand;
+  /**
+   * Tamper-evident dispatch — the agent's own words, written to
+   * Hedera HCS as part of the signal's proof envelope. Lives
+   * separately from `thesis` because the thesis is broadcast
+   * voice (telegram-ready) while the dispatch is on-chain voice
+   * (more formal, includes self-attestation). Max 600 chars to
+   * fit comfortably inside an HCS topic message.
+   */
+  hcs_dispatch: string;
+  /**
+   * Agent's decision about how to anchor the proof on Hedera.
+   * - 'standard': single write to the default LENITNES topic
+   * - 'dedicated_topic': agent also requests a new HCS topic be
+   *   created for this signal; the agent commits the dispatch
+   *   to that topic too. Used by the agent on the highest-
+   *   conviction calls where a permanent, isolated record is
+   *   warranted.
+   */
+  proof_action: 'standard' | 'dedicated_topic';
   raw_response: Record<string, unknown>;
   created_at: string;
 }

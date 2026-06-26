@@ -505,6 +505,90 @@ export async function executeCheck(monitor: Monitor): Promise<{
     }
   }
 
+  // ── 5b) Anchor the agent's dispatch on Hedera ──────────────────
+  // The agent's hcs_dispatch is its on-chain voice — a 600-char
+  // first-person commitment written via hedera-agent-kit's
+  // submit_topic_message_tool. The timestamp-only HCS message
+  // (step 4 above) anchors WHEN we saw the signal; this dispatch
+  // anchors WHAT THE AGENT THOUGHT about it.
+  //
+  // If the agent's proof_action is 'dedicated_topic' (conviction
+  // ≥ 90 + the agent decided it's reference-quality), we ALSO
+  // call create_topic_tool to mint a new HCS topic and write the
+  // dispatch there. The default topic always gets a copy + a
+  // pointer to the dedicated one, so no record is lost.
+  if (agentScore && !isHeartbeat && signalId && proof.writeHcsMessage) {
+    try {
+      let dedicatedTopicId: string | null = null;
+      if (agentScore.proof_action === 'dedicated_topic' && proof.createTopic) {
+        const topicMemo = `LENITNES dedicated proof · ${monitor.asset_mapping.coingeckoId ?? 'unknown'} · conviction ${agentScore.conviction}`;
+        try {
+          const { topicId } = await proof.createTopic(topicMemo);
+          dedicatedTopicId = topicId;
+          // Write the dispatch into the new topic so the dedicated
+          // record is independently verifiable. Memo distinguishes
+          // it from the default-topic write below.
+          await proof.writeHcsMessage(
+            {
+              kind: 'agent_dispatch',
+              signalId,
+              conviction: agentScore.conviction,
+              recommendedAction: agentScore.recommended_action,
+              confidenceBand: agentScore.confidence_band,
+              rubricVersion: agentScore.rubric_version,
+              dispatch: agentScore.hcs_dispatch,
+              dedicatedTopic: true,
+            },
+            { topicId, memo: `LENITNES dedicated dispatch · ${signalId.slice(0, 8)}` },
+          );
+          await query(`UPDATE signals SET hedera_dedicated_topic_id = $1 WHERE id = $2`, [
+            topicId,
+            signalId,
+          ]);
+          logger.info(
+            {
+              signalId,
+              dedicatedTopicId,
+              conviction: agentScore.conviction,
+            },
+            'hedera: agent requested dedicated topic, created and anchored',
+          );
+        } catch (err) {
+          logger.warn(
+            { err, signalId },
+            'hedera: dedicated topic creation failed — falling back to standard write',
+          );
+        }
+      }
+
+      // Default-topic dispatch write — happens for every scored
+      // signal regardless of proof_action. References the dedicated
+      // topic ID if one was created so a single subscriber sees
+      // the full picture.
+      await proof.writeHcsMessage(
+        {
+          kind: 'agent_dispatch',
+          signalId,
+          conviction: agentScore.conviction,
+          recommendedAction: agentScore.recommended_action,
+          confidenceBand: agentScore.confidence_band,
+          rubricVersion: agentScore.rubric_version,
+          dispatch: agentScore.hcs_dispatch,
+          dedicatedTopicRef: dedicatedTopicId,
+        },
+        { memo: `LENITNES dispatch · ${signalId.slice(0, 8)}` },
+      );
+    } catch (err) {
+      // Dispatch-anchor failure is non-fatal — the timestamp HCS
+      // write from step 4 still gives us a proof anchor. The
+      // signal still ships to Telegram.
+      logger.error(
+        { err, signalId },
+        'hedera: agent dispatch HCS write failed (best-effort, signal still public)',
+      );
+    }
+  }
+
   // ── 6) Treasury trade (above-threshold only) ────────────────────
   // Derives a single trade action from the agent's recommendation +
   // the watchlist entry's asset_mapping. Skipped when:
@@ -617,6 +701,8 @@ export async function executeCheck(monitor: Monitor): Promise<{
         thesis: agentScore.thesis,
         recommended_action: agentScore.recommended_action,
         confidence_band: agentScore.confidence_band,
+        hcs_dispatch: agentScore.hcs_dispatch,
+        dedicated_topic: agentScore.proof_action === 'dedicated_topic',
       },
       tradeReceipt: {
         chain: tradeReceipt.chain,

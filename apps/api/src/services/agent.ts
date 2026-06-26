@@ -16,10 +16,15 @@ import { query } from '../db/pool.js';
 import { logger } from '../logger.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
-const RUBRIC_PATH = path.resolve(__dirname, 'agent/rubric-v1.md');
+const RUBRIC_PATH = path.resolve(__dirname, 'agent/rubric-v2.md');
 
-const RUBRIC_VERSION = 'v1';
-const EXPECTED_OUTPUT_TOKENS = 500;
+// v2 (2026-06-26): adds `hcs_dispatch` and `proof_action` outputs.
+// The agent now controls what gets anchored on Hedera, not just
+// whether to trade. v1 prompts still parse (the new fields fall
+// back to a templated default) so the version bump is non-breaking
+// for replay.
+const RUBRIC_VERSION = 'v2';
+const EXPECTED_OUTPUT_TOKENS = 700;
 
 export interface AgentEnv {
   apiKey: string;
@@ -91,6 +96,8 @@ function parseAgentResponse(raw: string): {
   thesis: string;
   recommended_action: 'long' | 'short' | 'none';
   confidence_band: 'low' | 'mid' | 'high';
+  hcs_dispatch: string;
+  proof_action: 'standard' | 'dedicated_topic';
 } {
   const stripped = raw
     .replace(/^```(?:json)?\s*/i, '')
@@ -149,11 +156,50 @@ function parseAgentResponse(raw: string): {
   // against a trade (e.g. market is closed, no liquid pair, etc.).
   // The rubric instructs this, but we don't hard-enforce it.
 
+  // v2 fields. Fall back to templated defaults if the model is on
+  // the older rubric (e.g. mid-deploy, or a replay against a
+  // historical v1 transcript). The dispatch fallback uses the
+  // thesis verbatim — adequate but not the agent's "on-chain voice".
+  const conviction = Math.round(obj.conviction);
+  const thesis = obj.thesis;
+  const recommended_action = obj.recommended_action;
+  const confidence_band = obj.confidence_band;
+
+  let hcs_dispatch: string;
+  if (typeof obj.hcs_dispatch === 'string' && obj.hcs_dispatch.length > 0) {
+    if (obj.hcs_dispatch.length > 600) {
+      // Truncate rather than reject — the dispatch fitting in an HCS
+      // message is the actual physical constraint, and the agent's
+      // 600-char rule from the rubric is advisory.
+      hcs_dispatch = obj.hcs_dispatch.slice(0, 600);
+    } else {
+      hcs_dispatch = obj.hcs_dispatch;
+    }
+  } else {
+    // v1 fallback: synthesize a dispatch from the thesis. Marked
+    // with [legacy] so the on-chain record makes the fallback
+    // visible — readers shouldn't mistake a synthesized dispatch
+    // for the agent's first-person voice.
+    hcs_dispatch = `[legacy v1] ${thesis}`;
+  }
+
+  let proof_action: 'standard' | 'dedicated_topic';
+  if (obj.proof_action === 'dedicated_topic' && conviction >= 90) {
+    proof_action = 'dedicated_topic';
+  } else {
+    // Default to standard. Either the rubric is v1 (no proof_action
+    // field), or conviction is below the dedicated-topic floor and
+    // we refuse the agent's request as a safety invariant.
+    proof_action = 'standard';
+  }
+
   return {
-    conviction: Math.round(obj.conviction),
-    thesis: obj.thesis,
-    recommended_action: obj.recommended_action,
-    confidence_band: obj.confidence_band,
+    conviction,
+    thesis,
+    recommended_action,
+    confidence_band,
+    hcs_dispatch,
+    proof_action,
   };
 }
 
@@ -172,14 +218,17 @@ function mockScore(input: AgentInput): AgentScore {
         : 'none';
   const confidence_band: 'low' | 'mid' | 'high' =
     topScore < 40 ? 'low' : topScore < 70 ? 'mid' : 'high';
+  const asset = input.asset_mapping.coingeckoId ?? 'unknown';
   return {
     id: '',
     signal_id: input.signal_id,
     rubric_version: RUBRIC_VERSION,
     conviction: topScore,
-    thesis: `MOCK: top detector ${topScore} on ${input.asset_mapping.coingeckoId ?? 'unknown'}.`,
+    thesis: `MOCK: top detector ${topScore} on ${asset}.`,
     recommended_action,
     confidence_band,
+    hcs_dispatch: `[MOCK] I observed detector activity on ${asset} (top score ${topScore}). Recommending ${recommended_action}. This is a deterministic mock for test/replay; no real agent reasoning was performed.`,
+    proof_action: 'standard',
     raw_response: { mock: true, input },
     created_at: new Date().toISOString(),
   };
@@ -234,6 +283,8 @@ export async function score(input: AgentInput, env: AgentEnv): Promise<AgentScor
     thesis: parsed.thesis,
     recommended_action: parsed.recommended_action,
     confidence_band: parsed.confidence_band,
+    hcs_dispatch: parsed.hcs_dispatch,
+    proof_action: parsed.proof_action,
     raw_response: { model: env.model, response: parsed, content: message },
     created_at: new Date().toISOString(),
   };
@@ -261,8 +312,9 @@ export async function saveAgentScore(signalId: string, score: AgentScore): Promi
   await query(
     `INSERT INTO agent_scores
        (signal_id, rubric_version, conviction, thesis,
-        recommended_action, confidence_band, raw_response)
-     VALUES ($1, $2, $3, $4, $5, $6, $7)`,
+        recommended_action, confidence_band, hcs_dispatch,
+        proof_action, raw_response)
+     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)`,
     [
       signalId,
       score.rubric_version,
@@ -270,6 +322,8 @@ export async function saveAgentScore(signalId: string, score: AgentScore): Promi
       score.thesis,
       score.recommended_action,
       score.confidence_band,
+      score.hcs_dispatch,
+      score.proof_action,
       JSON.stringify(score.raw_response),
     ],
   );
@@ -395,11 +449,15 @@ export async function fetchAgentScore(signalId: string): Promise<AgentScore | nu
     thesis: string;
     recommended_action: 'long' | 'short' | 'none';
     confidence_band: 'low' | 'mid' | 'high';
+    hcs_dispatch: string | null;
+    proof_action: string | null;
     raw_response: Record<string, unknown>;
     created_at: string;
   }>(
     `SELECT id, signal_id, rubric_version, conviction, thesis,
-            recommended_action, confidence_band, raw_response, created_at
+            recommended_action, confidence_band,
+            hcs_dispatch, proof_action,
+            raw_response, created_at
        FROM agent_scores
       WHERE signal_id = $1
       ORDER BY created_at DESC
@@ -416,6 +474,10 @@ export async function fetchAgentScore(signalId: string): Promise<AgentScore | nu
     thesis: row.thesis,
     recommended_action: row.recommended_action,
     confidence_band: row.confidence_band,
+    // Legacy rows (pre-v2) lack these columns — synthesize stable
+    // defaults so downstream consumers don't need to null-check.
+    hcs_dispatch: row.hcs_dispatch ?? `[legacy v1] ${row.thesis}`,
+    proof_action: row.proof_action === 'dedicated_topic' ? 'dedicated_topic' : 'standard',
     raw_response: row.raw_response,
     created_at: row.created_at,
   };

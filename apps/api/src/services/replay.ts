@@ -89,6 +89,9 @@ export const HALO2_REPLAY: ReplayCommitVerdict = {
       'A critical soundness fix landed in halo2 — PLONK argument completion changes the verifier path. High confidence based on multi-detector consensus (emergency_patch + security_critical + consensus_relevant). Long ZEC, small size.',
     recommended_action: 'long',
     confidence_band: 'high',
+    hcs_dispatch:
+      'I observed a critical soundness fix on zcash/halo2 at 2022-04-15T14:32Z — the PLONK argument-completion change touches the verifier path, a consensus-critical surface. Multi-detector consensus fired (emergency_patch, security_critical, consensus_relevant). Conviction 92/100, recommending long ZEC. I am committing this thesis on-chain because the change is the kind of soundness work that historically precedes price reaction once the security community parses it. I acknowledge that the immediate market may not react.',
+    proof_action: 'dedicated_topic',
     raw_response: {
       model: 'replay-stub',
       input: 'halo2 soundness fix replay',

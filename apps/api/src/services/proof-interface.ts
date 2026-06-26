@@ -6,6 +6,7 @@ export interface ProofService {
   }): Promise<{ hederaTxId: string | null }>;
   writeHcsMessage?(
     message: Record<string, unknown>,
+    opts?: { topicId?: string; memo?: string },
   ): Promise<{ hederaTxId: string | null; topicId: string }>;
   releaseEscrow?(params: {
     toWalletAddress: string;
