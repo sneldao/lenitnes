@@ -27,6 +27,19 @@ import { StatCard } from '@/components/ui/stat-card';
 import { OutcomePill } from '@/components/ui/outcome-pill';
 import { PageLoader, PageError } from '@/components/ui/page-states';
 
+function fmtPct(n: number | null): string {
+  if (n == null) return '—';
+  const sign = n >= 0 ? '+' : '';
+  return `${sign}${n.toFixed(2)}%`;
+}
+
+function pctTone(n: number | null): string {
+  if (n == null) return 'text-slate-500';
+  if (n > 0.1) return 'text-signal';
+  if (n < -0.1) return 'text-danger';
+  return 'text-slate-400';
+}
+
 export default function ScorecardPage() {
   const { data, isLoading, isError, dataUpdatedAt } = useQuery<ScorecardResponse>({
     queryKey: qk.scorecard(),
@@ -61,6 +74,44 @@ export default function ScorecardPage() {
           generated {formatDate(data.generatedAt)} · refreshed every 60s
         </p>
       </header>
+
+      {/* ── Learning-phase banner ──
+          Honest framing of where the system is in its maturity arc.
+          The scorecard's raw hit-ratio number doesn't carry enough
+          context on its own; readers need to know whether they're
+          looking at a proven track record or an in-progress
+          experiment. This banner is the answer. */}
+      <section className="card border-accent/30 bg-accent/[0.04]">
+        <div className="flex items-start gap-4">
+          <div className="hidden rounded-xl bg-accent/10 p-3 sm:block">
+            <Sparkles className="h-5 w-5 text-accent" />
+          </div>
+          <div className="flex-1 space-y-2">
+            <div className="flex items-baseline gap-3">
+              <h2 className="text-base font-semibold text-slate-100">
+                We are here: observation phase
+              </h2>
+              <Link
+                href="/methodology"
+                className="font-mono text-[10px] uppercase tracking-wider text-accent transition-colors hover:text-accent-glow"
+              >
+                how it works →
+              </Link>
+            </div>
+            <p className="max-w-2xl text-sm leading-relaxed text-slate-400">
+              Every trade you see below is paper. The agent picks signals, opens positions, hits
+              take-profit or stop-loss, and records the realized P&amp;L — but no real money moves.
+              We&apos;re building the track record first. Live trading flips on only after the
+              calibration table (right) shows higher conviction = better outcomes for a meaningful
+              sample.
+            </p>
+            <p className="font-mono text-[10px] text-slate-500">
+              conviction floor: 80/100 · settling delay: 30m · two assets in the live registry (BTC,
+              ETH) — others fire as paper
+            </p>
+          </div>
+        </div>
+      </section>
 
       {isEmpty ? (
         <div className="card border-edge/30">
@@ -151,33 +202,126 @@ export default function ScorecardPage() {
             />
           </section>
 
-          {/* ── By signal type ── */}
+          {/* ── Calibration: does higher conviction = better outcomes? ──
+              The reason the learning banner says "observation phase".
+              If conviction is well-calibrated, the avg T+1d column
+              should trend up as the band increases. If it doesn't,
+              the rubric needs work. */}
+          {data.byConvictionBand && data.byConvictionBand.some((b) => b.total > 0) && (
+            <section className="card">
+              <h2 className="section-title mb-1 flex items-center gap-2">
+                <Target className="h-3.5 w-3.5 text-accent" />
+                Calibration · is conviction predictive?
+              </h2>
+              <p className="mb-4 max-w-2xl text-xs text-slate-500">
+                Each row is a band of agent conviction scores. <strong>Avg T+1d</strong> is
+                sign-adjusted for the recommended direction — positive numbers mean the trade was
+                right. A well-calibrated rubric trends up as the band rises.
+              </p>
+              <div className="overflow-x-auto">
+                <table className="w-full font-mono text-xs">
+                  <thead>
+                    <tr className="border-b border-edge/30 text-left text-slate-500">
+                      <th className="py-2 pr-4 font-normal">Conviction band</th>
+                      <th className="py-2 px-3 text-right font-normal">Scored</th>
+                      <th className="py-2 px-3 text-right font-normal">Traded</th>
+                      <th className="py-2 px-3 text-right font-normal">Hit ratio</th>
+                      <th className="py-2 px-3 text-right font-normal">Avg T+1h</th>
+                      <th className="py-2 px-3 text-right font-normal">Avg T+1d</th>
+                      <th className="py-2 pl-3 text-right font-normal">Avg T+7d</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {data.byConvictionBand.map((band) => {
+                      const isFireBand = band.bandMin >= 80;
+                      return (
+                        <tr
+                          key={band.label}
+                          className={`border-b border-edge/20 last:border-0 ${
+                            isFireBand ? 'bg-accent/[0.03]' : ''
+                          }`}
+                        >
+                          <td className="py-2 pr-4 text-slate-300">
+                            {band.label}
+                            {isFireBand && (
+                              <span className="ml-2 rounded bg-accent/15 px-1.5 py-0.5 text-[9px] text-accent">
+                                FIRES
+                              </span>
+                            )}
+                          </td>
+                          <td className="py-2 px-3 text-right text-slate-400">
+                            {band.total > 0 ? band.total : '—'}
+                          </td>
+                          <td className="py-2 px-3 text-right text-slate-400">
+                            {band.traded > 0 ? band.traded : '—'}
+                          </td>
+                          <td className="py-2 px-3 text-right font-semibold text-slate-200">
+                            {band.traded > 0 ? formatRatio(band.hitRatio) : '—'}
+                          </td>
+                          <td className={`py-2 px-3 text-right ${pctTone(band.avgT1hPct)}`}>
+                            {fmtPct(band.avgT1hPct)}
+                          </td>
+                          <td
+                            className={`py-2 px-3 text-right font-semibold ${pctTone(band.avgT1dPct)}`}
+                          >
+                            {fmtPct(band.avgT1dPct)}
+                          </td>
+                          <td className={`py-2 pl-3 text-right ${pctTone(band.avgT7dPct)}`}>
+                            {fmtPct(band.avgT7dPct)}
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            </section>
+          )}
+
+          {/* ── By signal type, with directional outcomes ── */}
           {data.bySignalType.length > 0 && (
             <section className="card">
-              <h2 className="section-title mb-4 flex items-center gap-2">
+              <h2 className="section-title mb-1 flex items-center gap-2">
                 <Sparkles className="h-3.5 w-3.5 text-accent" />
-                By signal type
+                By detector
               </h2>
-              <div className="space-y-2">
-                {data.bySignalType.map((row) => (
-                  <div key={row.detectorType} className="flex items-center gap-3 font-mono text-xs">
-                    <span className="w-44 truncate text-slate-300">
-                      {formatDetectorType(row.detectorType)}
-                    </span>
-                    <div className="relative h-1.5 flex-1 overflow-hidden rounded-full bg-edge/30">
-                      <div
-                        className="absolute inset-y-0 left-0 bg-accent"
-                        style={{ width: `${row.hitRatio * 100}%` }}
-                      />
-                    </div>
-                    <span className="w-16 text-right text-slate-400">
-                      {row.hits} / {row.total}
-                    </span>
-                    <span className="w-14 text-right font-semibold text-slate-200">
-                      {formatRatio(row.hitRatio)}
-                    </span>
-                  </div>
-                ))}
+              <p className="mb-4 max-w-2xl text-xs text-slate-500">
+                Which detectors actually predict price moves? Hit ratio is binary (right / wrong);
+                the avg pct column is the actual size of the move at T+1d, sign-adjusted.
+              </p>
+              <div className="overflow-x-auto">
+                <table className="w-full font-mono text-xs">
+                  <thead>
+                    <tr className="border-b border-edge/30 text-left text-slate-500">
+                      <th className="py-2 pr-4 font-normal">Detector</th>
+                      <th className="py-2 px-3 text-right font-normal">Signals</th>
+                      <th className="py-2 px-3 text-right font-normal">Hit ratio</th>
+                      <th className="py-2 px-3 text-right font-normal">Avg T+1h</th>
+                      <th className="py-2 pl-3 text-right font-normal">Avg T+1d</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {data.bySignalType.map((row) => (
+                      <tr key={row.detectorType} className="border-b border-edge/20 last:border-0">
+                        <td className="py-2 pr-4 text-slate-300">
+                          {formatDetectorType(row.detectorType)}
+                        </td>
+                        <td className="py-2 px-3 text-right text-slate-400">{row.total}</td>
+                        <td className="py-2 px-3 text-right font-semibold text-slate-200">
+                          {row.total > 0 ? `${row.hits}/${row.total}` : '—'}
+                        </td>
+                        <td className={`py-2 px-3 text-right ${pctTone(row.avgT1hPct)}`}>
+                          {fmtPct(row.avgT1hPct)}
+                        </td>
+                        <td
+                          className={`py-2 pl-3 text-right font-semibold ${pctTone(row.avgT1dPct)}`}
+                        >
+                          {fmtPct(row.avgT1dPct)}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
               </div>
             </section>
           )}

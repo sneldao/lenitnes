@@ -30,6 +30,12 @@ export interface ScorecardBySignalType {
   total: number;
   hits: number;
   hitRatio: number;
+  // Average directional pct change at each window — sign-adjusted
+  // for the agent's recommended action so positive = trade was right.
+  // Null when no T+1d outcome data exists for this detector yet.
+  avgT1hPct: number | null;
+  avgT1dPct: number | null;
+  avgT7dPct: number | null;
 }
 
 export interface ScorecardByWatchlist {
@@ -38,6 +44,26 @@ export interface ScorecardByWatchlist {
   total: number;
   hits: number;
   hitRatio: number;
+}
+
+export interface ScorecardByConvictionBand {
+  /** Inclusive lower bound of the conviction range. */
+  bandMin: number;
+  /** Inclusive upper bound of the conviction range. */
+  bandMax: number;
+  /** Human-readable label (e.g. "70-79"). */
+  label: string;
+  /** Total scored signals in this band. */
+  total: number;
+  /** Subset that traded at all (above the firing threshold). */
+  traded: number;
+  /** Subset of traded calls whose t1d outcome matched the recommended direction. */
+  hits: number;
+  hitRatio: number;
+  /** Directional avg pct change (positive = trade was right). */
+  avgT1hPct: number | null;
+  avgT1dPct: number | null;
+  avgT7dPct: number | null;
 }
 
 export interface ScorecardOverall {
@@ -58,6 +84,8 @@ export interface ScorecardOverall {
   };
   bySignalType: ScorecardBySignalType[];
   byWatchlist: ScorecardByWatchlist[];
+  /** Calibration breakdown: how well does conviction predict outcomes? */
+  byConvictionBand: ScorecardByConvictionBand[];
   recentCalls: RecentCall[];
   proofCoverage: {
     withHederaHcs: number;
@@ -125,11 +153,12 @@ interface RecentRow {
 // ── Public API ─────────────────────────────────────────────
 
 export async function overall(): Promise<ScorecardOverall> {
-  const [counts, outcomes, byType, byWatchlist, recent, proofCoverage] = await Promise.all([
+  const [counts, outcomes, byType, byWatchlist, byBand, recent, proofCoverage] = await Promise.all([
     countsQuery(),
     outcomesQuery(),
     bySignalTypeQuery(),
     byWatchlistQuery(),
+    byConvictionBandQuery(),
     recentCallsQuery(20),
     proofCoverageQuery(),
   ]);
@@ -147,6 +176,7 @@ export async function overall(): Promise<ScorecardOverall> {
     outcomesSummary: { closed, pending },
     bySignalType: byType,
     byWatchlist: byWatchlist,
+    byConvictionBand: byBand,
     recentCalls: recent,
     proofCoverage: {
       withHederaHcs: Number(proofCoverage.with_hedera),
@@ -252,41 +282,170 @@ async function outcomesQuery(): Promise<OutcomesRow> {
 }
 
 async function bySignalTypeQuery(): Promise<ScorecardBySignalType[]> {
-  // Compute on the fly (not from detector_backtest_stats) so the
-  // scorecard is always accurate even before the backtest cron runs.
-  // The isHitPredicate now uses unqualified column names — it
-  // expects the CTE to expose `recommended_action` and `direction`.
+  // For each detector, compute the count of signals that fired with
+  // it + the count that were "right" (price moved in the agent's
+  // recommended direction at T+1d) + the average directional pct
+  // change at each outcome window. The directional pct change is
+  // sign-flipped for short trades so positive = the trade made money.
   const { rows } = await query<{
     detector_type: string;
     total: string;
     hits: string;
+    avg_t1h_pct: string | null;
+    avg_t1d_pct: string | null;
+    avg_t7d_pct: string | null;
   }>(
-    `WITH t1d_per_signal AS (
-       SELECT DISTINCT ON (so.signal_id)
+    `WITH outcomes_per_signal AS (
+       SELECT
          so.signal_id,
-         so.direction,
-         ag.recommended_action
+         MAX(so.pct_change) FILTER (WHERE so.window_seconds = 3600)::float AS t1h_pct,
+         MAX(so.pct_change) FILTER (WHERE so.window_seconds = 86400)::float AS t1d_pct,
+         MAX(so.pct_change) FILTER (WHERE so.window_seconds = 604800)::float AS t7d_pct,
+         MAX(so.direction) FILTER (WHERE so.window_seconds = 86400) AS direction,
+         MAX(ag.recommended_action) AS recommended_action
        FROM signal_outcomes so
        LEFT JOIN agent_scores ag ON ag.signal_id = so.signal_id
-       WHERE so.window_seconds = $1
-       ORDER BY so.signal_id, so.created_at DESC
+       GROUP BY so.signal_id
+     ),
+     directional AS (
+       -- Sign-flip the pct change so positive = trade was right.
+       -- For 'long': keep pct as-is. For 'short': negate.
+       SELECT
+         signal_id,
+         direction,
+         recommended_action,
+         CASE WHEN recommended_action = 'short' THEN -t1h_pct ELSE t1h_pct END AS d_t1h,
+         CASE WHEN recommended_action = 'short' THEN -t1d_pct ELSE t1d_pct END AS d_t1d,
+         CASE WHEN recommended_action = 'short' THEN -t7d_pct ELSE t7d_pct END AS d_t7d
+       FROM outcomes_per_signal
      )
      SELECT
        sc.detector_type,
        COUNT(DISTINCT sc.signal_id)::text AS total,
-       COUNT(DISTINCT CASE WHEN ${isHitPredicate()} THEN sc.signal_id END)::text AS hits
+       COUNT(DISTINCT CASE WHEN ${isHitPredicate()} THEN sc.signal_id END)::text AS hits,
+       AVG(d.d_t1h)::text AS avg_t1h_pct,
+       AVG(d.d_t1d)::text AS avg_t1d_pct,
+       AVG(d.d_t7d)::text AS avg_t7d_pct
      FROM signal_classifications sc
-     LEFT JOIN t1d_per_signal t ON t.signal_id = sc.signal_id
+     LEFT JOIN directional d ON d.signal_id = sc.signal_id
      GROUP BY sc.detector_type
      ORDER BY total DESC`,
-    [T1D_WINDOW],
   );
   return rows.map((r) => ({
     detectorType: r.detector_type,
     total: Number(r.total),
     hits: Number(r.hits),
     hitRatio: Number(r.total) > 0 ? Number(r.hits) / Number(r.total) : 0,
+    avgT1hPct: r.avg_t1h_pct != null ? Number(r.avg_t1h_pct) : null,
+    avgT1dPct: r.avg_t1d_pct != null ? Number(r.avg_t1d_pct) : null,
+    avgT7dPct: r.avg_t7d_pct != null ? Number(r.avg_t7d_pct) : null,
   }));
+}
+
+// ── Conviction-band calibration ───────────────────────────────
+// Buckets every scored signal by its conviction score and reports
+// how the cohort performed. The story this answers:
+// "does higher conviction = better outcomes, or is the agent's
+//  confidence uncalibrated?"
+//
+// Bands:
+//   0-29   noise          (agent considered, declined)
+//   30-49  weak           (agent leaned but didn't act)
+//   50-69  borderline     (close to threshold)
+//   70-79  threshold      (just over; lowest conviction acted on)
+//   80-89  high           (the typical "fire" zone)
+//   90-100 maximum        (rare; agent is most certain)
+const CONVICTION_BANDS: Array<{ min: number; max: number; label: string }> = [
+  { min: 0, max: 29, label: '0-29' },
+  { min: 30, max: 49, label: '30-49' },
+  { min: 50, max: 69, label: '50-69' },
+  { min: 70, max: 79, label: '70-79' },
+  { min: 80, max: 89, label: '80-89' },
+  { min: 90, max: 100, label: '90-100' },
+];
+
+async function byConvictionBandQuery(): Promise<ScorecardByConvictionBand[]> {
+  const { rows } = await query<{
+    band_label: string;
+    total: string;
+    traded: string;
+    hits: string;
+    avg_t1h_pct: string | null;
+    avg_t1d_pct: string | null;
+    avg_t7d_pct: string | null;
+  }>(
+    `WITH scored AS (
+       SELECT
+         ag.signal_id,
+         ag.conviction,
+         ag.recommended_action,
+         o.id IS NOT NULL AS traded,
+         MAX(so.pct_change) FILTER (WHERE so.window_seconds = 3600)::float AS t1h_pct,
+         MAX(so.pct_change) FILTER (WHERE so.window_seconds = 86400)::float AS t1d_pct,
+         MAX(so.pct_change) FILTER (WHERE so.window_seconds = 604800)::float AS t7d_pct,
+         MAX(so.direction) FILTER (WHERE so.window_seconds = 86400) AS direction
+       FROM agent_scores ag
+       LEFT JOIN orders o ON o.signal_id = ag.signal_id AND o.status = 'filled'
+       LEFT JOIN signal_outcomes so ON so.signal_id = ag.signal_id
+       GROUP BY ag.signal_id, ag.conviction, ag.recommended_action, o.id
+     ),
+     directional AS (
+       SELECT
+         signal_id,
+         conviction,
+         recommended_action,
+         direction,
+         traded,
+         CASE WHEN recommended_action = 'short' THEN -t1h_pct ELSE t1h_pct END AS d_t1h,
+         CASE WHEN recommended_action = 'short' THEN -t1d_pct ELSE t1d_pct END AS d_t1d,
+         CASE WHEN recommended_action = 'short' THEN -t7d_pct ELSE t7d_pct END AS d_t7d
+       FROM scored
+     ),
+     bands AS (
+       SELECT * FROM (VALUES
+         (0, 29, '0-29'),
+         (30, 49, '30-49'),
+         (50, 69, '50-69'),
+         (70, 79, '70-79'),
+         (80, 89, '80-89'),
+         (90, 100, '90-100')
+       ) AS b(b_min, b_max, b_label)
+     )
+     SELECT
+       b.b_label AS band_label,
+       COUNT(d.signal_id)::text AS total,
+       COUNT(d.signal_id) FILTER (WHERE d.traded)::text AS traded,
+       COUNT(d.signal_id) FILTER (WHERE d.traded AND ${isHitPredicate()})::text AS hits,
+       AVG(d.d_t1h)::text AS avg_t1h_pct,
+       AVG(d.d_t1d)::text AS avg_t1d_pct,
+       AVG(d.d_t7d)::text AS avg_t7d_pct
+     FROM bands b
+     LEFT JOIN directional d
+       ON d.conviction BETWEEN b.b_min AND b.b_max
+     GROUP BY b.b_label, b.b_min
+     ORDER BY b.b_min ASC`,
+  );
+
+  // Hydrate every band even if there are no signals — frontend
+  // renders the empty rows so the table shape is stable.
+  return CONVICTION_BANDS.map((band) => {
+    const row = rows.find((r) => r.band_label === band.label);
+    const total = row ? Number(row.total) : 0;
+    const traded = row ? Number(row.traded) : 0;
+    const hits = row ? Number(row.hits) : 0;
+    return {
+      bandMin: band.min,
+      bandMax: band.max,
+      label: band.label,
+      total,
+      traded,
+      hits,
+      hitRatio: traded > 0 ? hits / traded : 0,
+      avgT1hPct: row?.avg_t1h_pct != null ? Number(row.avg_t1h_pct) : null,
+      avgT1dPct: row?.avg_t1d_pct != null ? Number(row.avg_t1d_pct) : null,
+      avgT7dPct: row?.avg_t7d_pct != null ? Number(row.avg_t7d_pct) : null,
+    };
+  });
 }
 
 async function byWatchlistQuery(): Promise<ScorecardByWatchlist[]> {

@@ -161,8 +161,38 @@ export async function executeCheck(monitor: Monitor): Promise<{
   // entire downstream chain (detectors → agent → treasury → telegram).
   if (monitor.url.includes('github.com') && config.github.token) {
     try {
-      const enriched = await fetchCommitsSince(monitor.url, monitor.last_seen_commit_hash ?? null);
+      const allCommits = await fetchCommitsSince(
+        monitor.url,
+        monitor.last_seen_commit_hash ?? null,
+      );
+      // Settling delay: drop commits younger than MIN_COMMIT_AGE_MINUTES.
+      // Many high-conviction signals fire on commits already priced
+      // in within the hour, so the youngest commits are the noisiest.
+      // We also leave `latestCommitHash` at the oldest-settled SHA so
+      // the unsettled commits get re-evaluated on the next tick when
+      // they age past the cutoff.
+      const settlingMs = config.agent.minCommitAgeMinutes * 60_000;
+      const cutoff = Date.now() - settlingMs;
+      const enriched = (allCommits ?? []).filter((c) => {
+        const ts = new Date(c.date).getTime();
+        // Keep commits with unparseable dates so we don't silently
+        // drop them — the agent can still reason about them and the
+        // miscalibration is logged below.
+        return isNaN(ts) || ts <= cutoff;
+      });
+      const skipped = (allCommits?.length ?? 0) - enriched.length;
+      if (skipped > 0) {
+        logger.debug(
+          { monitorId: monitor.id, skipped, settlingMs },
+          'github-direct: settling delay filtered young commits',
+        );
+      }
       if (enriched && enriched.length > 0) {
+        // latestHash is the SETTLED commit we want to mark as "seen"
+        // — younger unsettled ones aren't yet considered processed,
+        // so they remain eligible next tick. enriched[0] is the
+        // newest settled commit because allCommits is sorted newest-first
+        // and we filtered to settled ones.
         const latestHash = enriched[0]?.sha;
         const priorCommits = result.commits ?? [];
         // Merge: GitHub data wins on structured fields; scrape evidence

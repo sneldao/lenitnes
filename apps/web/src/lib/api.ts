@@ -165,6 +165,24 @@ export interface ScorecardBySignalType {
   total: number;
   hits: number;
   hitRatio: number;
+  // Directional avg pct change at each window (sign-flipped so
+  // positive = trade was right). Null until enough outcomes settle.
+  avgT1hPct: number | null;
+  avgT1dPct: number | null;
+  avgT7dPct: number | null;
+}
+
+export interface ScorecardByConvictionBand {
+  bandMin: number;
+  bandMax: number;
+  label: string;
+  total: number;
+  traded: number;
+  hits: number;
+  hitRatio: number;
+  avgT1hPct: number | null;
+  avgT1dPct: number | null;
+  avgT7dPct: number | null;
 }
 
 export interface ScorecardByWatchlist {
@@ -185,6 +203,7 @@ export interface ScorecardResponse {
   outcomesSummary: { closed: number; pending: number };
   bySignalType: ScorecardBySignalType[];
   byWatchlist: ScorecardByWatchlist[];
+  byConvictionBand: ScorecardByConvictionBand[];
   recentCalls: ScorecardRecentCall[];
   proofCoverage: { withHederaHcs: number; totalSignals: number; pct: number };
   generatedAt: string;

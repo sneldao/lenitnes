@@ -86,6 +86,9 @@ function mockScorecardQueries(opts: {
         detector_type: b.detector_type,
         total: String(b.total),
         hits: String(b.hits),
+        avg_t1h_pct: null,
+        avg_t1d_pct: null,
+        avg_t7d_pct: null,
       })),
       rowCount: opts.byType.length,
     })
@@ -99,12 +102,15 @@ function mockScorecardQueries(opts: {
       })),
       rowCount: opts.byWatchlist.length,
     })
-    // 5. recentCallsQuery(20)
+    // 5. byConvictionBandQuery — empty rows; the service hydrates
+    //    all 6 bands from the CONVICTION_BANDS table regardless.
+    .mockResolvedValueOnce({ rows: [], rowCount: 0 })
+    // 6. recentCallsQuery(20)
     .mockResolvedValueOnce({
       rows: opts.recent,
       rowCount: opts.recent.length,
     })
-    // 6. proofCoverageQuery — keyed to totalSignals (post-Day 17 addition)
+    // 7. proofCoverageQuery — keyed to totalSignals (post-Day 17 addition)
     .mockResolvedValueOnce({
       rows: [{ total: String(opts.totalSignals), with_hedera: '0' }],
       rowCount: 1,
@@ -228,11 +234,47 @@ describe('scorecard — end-to-end integration', () => {
     expect(result.recentCalls[1]?.outcomes).toEqual({ t1h: 0.1, t1d: 1.41, t7d: 6.42 });
 
     // ── Detector-type breakdown matches fixture ──
+    // bySignalType now carries avg pct-change fields per outcome
+    // window so the calibration view can show directional outcomes
+    // per detector. Mock data sets them to null since this fixture
+    // doesn't exercise outcomes.
     expect(result.bySignalType).toEqual([
-      { detectorType: 'security_critical_patch', total: 1, hits: 1, hitRatio: 1 },
-      { detectorType: 'consensus_relevant', total: 1, hits: 1, hitRatio: 1 },
-      { detectorType: 'documentation_only', total: 1, hits: 0, hitRatio: 0 },
-      { detectorType: 'minor_improvement', total: 1, hits: 0, hitRatio: 0 },
+      {
+        detectorType: 'security_critical_patch',
+        total: 1,
+        hits: 1,
+        hitRatio: 1,
+        avgT1hPct: null,
+        avgT1dPct: null,
+        avgT7dPct: null,
+      },
+      {
+        detectorType: 'consensus_relevant',
+        total: 1,
+        hits: 1,
+        hitRatio: 1,
+        avgT1hPct: null,
+        avgT1dPct: null,
+        avgT7dPct: null,
+      },
+      {
+        detectorType: 'documentation_only',
+        total: 1,
+        hits: 0,
+        hitRatio: 0,
+        avgT1hPct: null,
+        avgT1dPct: null,
+        avgT7dPct: null,
+      },
+      {
+        detectorType: 'minor_improvement',
+        total: 1,
+        hits: 0,
+        hitRatio: 0,
+        avgT1hPct: null,
+        avgT1dPct: null,
+        avgT7dPct: null,
+      },
     ]);
 
     // ── Watchlist breakdown matches fixture ──
@@ -322,7 +364,7 @@ describe('scorecard — end-to-end integration', () => {
     expect(result[0]?.outcomes.t1d).toBe(5.0);
   });
 
-  it('issues exactly 6 parallel queries (not sequential)', async () => {
+  it('issues exactly 7 parallel queries (not sequential)', async () => {
     mockScorecardQueries({
       totalSignals: 0,
       totalTrades: 0,
@@ -337,9 +379,9 @@ describe('scorecard — end-to-end integration', () => {
     });
 
     await overall();
-    // counts, outcomes, bySignalType, byWatchlist, recentCalls, proofCoverage
-    // all run via Promise.all → 6 mocks consumed.
-    expect(mockQuery).toHaveBeenCalledTimes(6);
+    // counts, outcomes, bySignalType, byWatchlist, byConvictionBand,
+    // recentCalls, proofCoverage all run via Promise.all → 7 mocks consumed.
+    expect(mockQuery).toHaveBeenCalledTimes(7);
   });
 
   it('uses the same T+1d window constant (86400s) across all outcome queries', async () => {
@@ -357,12 +399,16 @@ describe('scorecard — end-to-end integration', () => {
     });
 
     await overall();
-    // The T+1d constant 86400 appears as the [0] param in 4 queries:
-    // counts (closed_trades sub-select), outcomes, bySignalType, byWatchlist.
+    // The T+1d constant 86400 appears as the [0] param in 3 queries:
+    // counts (closed_trades sub-select), outcomes, byWatchlist.
+    // bySignalTypeQuery and byConvictionBandQuery now take no params
+    // because they compute outcomes across ALL windows (t1h/t1d/t7d)
+    // rather than filtering on one — the calibration view needs the
+    // full window set, not just t1d.
     const calls = mockQuery.mock.calls as Array<[string, unknown[]]>;
     const t1dCalls = calls.filter(
       ([sql, params]) => params?.[0] === 86400 && /window_seconds/.test(sql),
     );
-    expect(t1dCalls.length).toBe(4);
+    expect(t1dCalls.length).toBe(3);
   });
 });

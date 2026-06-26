@@ -179,6 +179,7 @@ export const config = {
   agent: {
     convictionThreshold: env.CONVICTION_THRESHOLD,
     dailyBudgetUsd: env.DAILY_AGENT_BUDGET_USD,
+    minCommitAgeMinutes: env.MIN_COMMIT_AGE_MINUTES,
   },
 
   admin: {

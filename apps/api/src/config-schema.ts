@@ -81,8 +81,17 @@ export const envSchema = z
     AGENT_MODEL: z.string().default('moonshotai/kimi-k2-0905'),
     AGENT_INPUT_COST_PER_1M_USD: floatFromString().default(0.6),
     AGENT_OUTPUT_COST_PER_1M_USD: floatFromString().default(2.5),
-    CONVICTION_THRESHOLD: intFromString(0, 100).default(70),
+    // Raised from 70 → 80 on 2026-06-26 after the first conviction
+    // cohort (5 trades, 0% win rate, avg t1h −0.5%). Higher floor =
+    // fewer trades but each one carries more agent confidence.
+    // Re-evaluate after a 4-week paper-trade run shows what the
+    // calibration curve looks like.
+    CONVICTION_THRESHOLD: intFromString(0, 100).default(80),
     DAILY_AGENT_BUDGET_USD: floatFromString().default(20),
+    // Minimum age in minutes for a commit to be considered. Many
+    // signals fire on commits that are already priced in within
+    // 30-60 minutes; a settling window filters those out.
+    MIN_COMMIT_AGE_MINUTES: intFromString(0, 24 * 60).default(30),
 
     // ── Admin ──
     ADMIN_API_KEY: z.string().optional().default(''),

@@ -391,6 +391,18 @@ export default function SignalDetailPage({ params }: { params: Promise<{ id: str
         )}
       </div>
 
+      {/* ── Verdict — was the agent right? ──
+          Renders only when there's an agent score and a recommended
+          action to verify against. Defers to the T+1d outcome as the
+          canonical check; T+1h is shown when t1d hasn't landed yet. */}
+      {signal.agentScore && signal.agentScore.recommendedAction !== 'none' && (
+        <VerdictCard
+          recommendedAction={signal.agentScore.recommendedAction}
+          conviction={signal.agentScore.conviction}
+          outcomes={signal.outcomes}
+        />
+      )}
+
       {/* ── Proof Chain — single canonical surface.
           Previously this section showed the same artifacts three
           different ways (row list, stepper, checklist). The stepper
@@ -530,6 +542,101 @@ export default function SignalDetailPage({ params }: { params: Promise<{ id: str
           </Link>
         </div>
       )}
+    </div>
+  );
+}
+
+// ── Verdict card ──
+// "Was the agent right?" Lives between the outcomes block and the
+// proof chain. Reads the T+1d outcome as the canonical check; falls
+// back to T+1h while T+1d is pending. Sign-adjusts the pct change
+// for short trades (negative = good for shorts).
+function VerdictCard({
+  recommendedAction,
+  conviction,
+  outcomes,
+}: {
+  recommendedAction: 'long' | 'short' | 'none';
+  conviction: number;
+  outcomes: { windowSeconds: number; pctChange: string; direction: string }[];
+}) {
+  // Pick the strongest window we have data for, in order of preference.
+  const t1d = outcomes.find((o) => o.windowSeconds === 86400);
+  const t1h = outcomes.find((o) => o.windowSeconds === 3600);
+  const chosen = t1d ?? t1h;
+  const windowLabel = chosen?.windowSeconds === 86400 ? 'T+1d' : 'T+1h';
+
+  if (!chosen) {
+    // Both windows still pending.
+    return (
+      <div className="card border-edge/40 bg-ink-light/30">
+        <div className="flex items-start gap-3">
+          <div className="rounded-lg bg-edge/30 p-2">
+            <Clock className="h-4 w-4 text-slate-400" />
+          </div>
+          <div className="flex-1">
+            <h2 className="text-sm font-semibold uppercase tracking-wider text-slate-300">
+              Verdict pending
+            </h2>
+            <p className="mt-1 text-sm text-slate-400">
+              The T+1h price snapshot will land within the hour; T+1d is the canonical check.
+              Outcomes are auto-recorded by the backtest scheduler — no manual update needed.
+            </p>
+            <p className="mt-2 font-mono text-[10px] uppercase tracking-wider text-slate-500">
+              Agent called {recommendedAction.toUpperCase()} · {conviction}/100
+            </p>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  const pct = parseFloat(chosen.pctChange);
+  // Sign-adjust for the trade direction so positive = trade was right.
+  const directionalPct = recommendedAction === 'short' ? -pct : pct;
+  const isRight = directionalPct > 0.5;
+  const isWrong = directionalPct < -0.5;
+  const isFlat = !isRight && !isWrong;
+
+  const tone = isRight
+    ? { border: 'border-signal/30', bg: 'bg-signal/[0.04]', icon: 'bg-signal/15 text-signal' }
+    : isWrong
+      ? { border: 'border-danger/30', bg: 'bg-danger/[0.04]', icon: 'bg-danger/15 text-danger' }
+      : { border: 'border-edge/40', bg: 'bg-ink-light/30', icon: 'bg-edge/30 text-slate-400' };
+
+  const verdict = isRight ? 'Agent was right' : isWrong ? 'Agent was wrong' : 'Inconclusive';
+  const PriceIcon = isRight ? Check : isWrong ? AlertTriangle : TrendingUp;
+  const priceMoveLabel =
+    pct >= 0 ? `Price moved +${pct.toFixed(2)}%` : `Price moved ${pct.toFixed(2)}%`;
+  const agentExpected = recommendedAction === 'long' ? 'price up' : 'price down';
+
+  return (
+    <div className={`card ${tone.border} ${tone.bg}`}>
+      <div className="flex items-start gap-3">
+        <div className={`rounded-lg p-2 ${tone.icon}`}>
+          <PriceIcon className="h-4 w-4" />
+        </div>
+        <div className="flex-1 space-y-2">
+          <div className="flex items-baseline justify-between gap-3">
+            <h2 className="text-sm font-semibold uppercase tracking-wider text-slate-100">
+              Verdict · {verdict}
+            </h2>
+            <span className="font-mono text-[10px] uppercase tracking-wider text-slate-500">
+              {windowLabel} {windowLabel === 'T+1h' && t1d == null ? '(t+1d pending)' : ''}
+            </span>
+          </div>
+          <p className="text-sm leading-relaxed text-slate-300">
+            Agent called{' '}
+            <strong className="text-slate-100">{recommendedAction.toUpperCase()}</strong> at{' '}
+            <strong className="text-slate-100">{conviction}/100</strong> — expected {agentExpected}.{' '}
+            {priceMoveLabel} at {windowLabel.toLowerCase()}.
+          </p>
+          <p className="font-mono text-[10px] text-slate-500">
+            directional pct change: {directionalPct >= 0 ? '+' : ''}
+            {directionalPct.toFixed(2)}% (sign-adjusted for {recommendedAction})
+          </p>
+        </div>
+      </div>
     </div>
   );
 }

@@ -8,9 +8,10 @@ import { AgentActivityPanel } from '@/components/AgentActivityPanel';
 
 const NAV_LINKS = [
   { href: '/scorecard', label: 'Scorecard' },
+  { href: '/calibration', label: 'Calibration' },
   { href: '/portfolio', label: 'Portfolio' },
-  { href: '/backtest', label: 'Backtest' },
   { href: '/monitors', label: 'Watchlist' },
+  { href: '/methodology', label: 'How it works' },
   { href: '/case-study/halo2', label: 'Case Study' },
 ];
 

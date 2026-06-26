@@ -31,12 +31,14 @@ function queryCall(rowSet: RowSet | unknown[]): () => QueryCall {
 describe('scorecard.overall — empty DB', () => {
   beforeEach(() => {
     mockQuery.mockReset();
-    // Five queries in parallel:
-    //   1. countsQuery → { total_signals: '0', total_trades: '0' }
-    //   2. outcomesQuery → { total, hits, hit_ratio, cumulative_pnl, sharpe, max_drawdown }
-    //   3. bySignalTypeQuery → []
-    //   4. byWatchlistQuery → []
-    //   5. recentCallsQuery → []
+    // Seven queries in parallel:
+    //   1. countsQuery
+    //   2. outcomesQuery
+    //   3. bySignalTypeQuery
+    //   4. byWatchlistQuery
+    //   5. byConvictionBandQuery (rows hydrated by service into 6 bands)
+    //   6. recentCallsQuery
+    //   7. proofCoverageQuery
     mockQuery
       .mockResolvedValueOnce({
         rows: [{ total_signals: '0', total_trades: '0', closed_trades: '0' }],
@@ -55,6 +57,7 @@ describe('scorecard.overall — empty DB', () => {
         ],
         rowCount: 1,
       })
+      .mockResolvedValueOnce({ rows: [], rowCount: 0 })
       .mockResolvedValueOnce({ rows: [], rowCount: 0 })
       .mockResolvedValueOnce({ rows: [], rowCount: 0 })
       .mockResolvedValueOnce({ rows: [], rowCount: 0 })
@@ -99,8 +102,22 @@ describe('scorecard.overall — with signals + trades', () => {
       })
       .mockResolvedValueOnce({
         rows: [
-          { detector_type: 'emergency_patch', total: '3', hits: '2' },
-          { detector_type: 'security_critical_patch', total: '2', hits: '1' },
+          {
+            detector_type: 'emergency_patch',
+            total: '3',
+            hits: '2',
+            avg_t1h_pct: null,
+            avg_t1d_pct: null,
+            avg_t7d_pct: null,
+          },
+          {
+            detector_type: 'security_critical_patch',
+            total: '2',
+            hits: '1',
+            avg_t1h_pct: null,
+            avg_t1d_pct: null,
+            avg_t7d_pct: null,
+          },
         ],
         rowCount: 2,
       })
@@ -111,6 +128,8 @@ describe('scorecard.overall — with signals + trades', () => {
         ],
         rowCount: 2,
       })
+      // byConvictionBandQuery — empty result; service hydrates the 6 bands
+      .mockResolvedValueOnce({ rows: [], rowCount: 0 })
       .mockResolvedValueOnce({
         rows: [
           {
@@ -148,13 +167,32 @@ describe('scorecard.overall — with signals + trades', () => {
       total: 3,
       hits: 2,
       hitRatio: 2 / 3,
+      avgT1hPct: null,
+      avgT1dPct: null,
+      avgT7dPct: null,
     });
     expect(result.bySignalType[1]).toEqual({
       detectorType: 'security_critical_patch',
       total: 2,
       hits: 1,
       hitRatio: 0.5,
+      avgT1hPct: null,
+      avgT1dPct: null,
+      avgT7dPct: null,
     });
+  });
+
+  it('returns byConvictionBand with all 6 bands hydrated', async () => {
+    const result = await overall();
+    expect(result.byConvictionBand).toHaveLength(6);
+    expect(result.byConvictionBand.map((b) => b.label)).toEqual([
+      '0-29',
+      '30-49',
+      '50-69',
+      '70-79',
+      '80-89',
+      '90-100',
+    ]);
   });
 
   it('returns byWatchlist', async () => {
