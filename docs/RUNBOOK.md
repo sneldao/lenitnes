@@ -52,9 +52,9 @@ on the same log line include `bnbBalance`, `bnbChainId`, `bnbWallet`.
    would revert against the mainnet-only registry addresses.
 
 3. **Treasury wallet funded.** The risk gate's balance preflight
-   refuses any trade that wouldn't cover `TREASURY_DEFAULT_AMOUNT
-   - 0.005 BNB`(gas buffer). The gas check job also alerts
-below`GAS_WARNING_THRESHOLD` (default 0.02 BNB).
+   refuses any trade that wouldn't cover `TREASURY_DEFAULT_AMOUNT`
+   plus a 0.005 BNB gas buffer. The gas check job also alerts
+   below `GAS_WARNING_THRESHOLD` (default 0.02 BNB).
 
 4. **Slippage + liquidity defaults.** Sane out of the box:
    - `TREASURY_SLIPPAGE_BPS=50` (0.5%) — derives `amountOutMin`
@@ -73,7 +73,7 @@ below`GAS_WARNING_THRESHOLD` (default 0.02 BNB).
    - `MAX_PER_ASSET_POSITIONS=1` — no concentration
 
 7. **Admin API key.** `ADMIN_API_KEY` non-empty so manual close
-   - risk-check are reachable.
+   and risk-check are reachable.
 
 ---
 
