@@ -10,6 +10,7 @@ import { sendDailyWatchReport } from '../services/watch-report.js';
 import { sendTelegram } from '../services/notify.js';
 import { getPortfolioSummary, getOpenPositions } from '../services/portfolio.js';
 import { closePositionById } from '../services/treasury.js';
+import { computeTpSlLevels } from '../services/treasury/risk.js';
 import { getPriceAt } from '../services/price.js';
 import { logger } from '../logger.js';
 
@@ -330,6 +331,73 @@ async function checkGasBalance(): Promise<void> {
   }
 }
 
+// ── TP/SL backfill ────────────────────────────────────────────────
+// Self-healing: any open position missing TP/SL levels gets them
+// derived from entry_price_usd + conviction_at_open at the top of
+// every TP/SL tick. Two cases we want this to catch:
+//   1. The 5 positions opened before the at-open TP/SL writes
+//      landed — they have conviction but no levels.
+//   2. Any future position that somehow opens without levels
+//      (shouldn't happen, but defense in depth).
+//
+// For positions also missing entry_price_usd, we fetch the
+// historical CoinGecko price for opened_at first, then derive.
+// A failed price lookup just defers the backfill to the next
+// tick — never throws, never blocks the TP/SL check below.
+async function backfillMissingTpSl(): Promise<void> {
+  const { rows: needsBackfill } = await query<{
+    id: string;
+    asset: string;
+    direction: string;
+    entry_price_usd: string | null;
+    opened_at: string;
+    conviction_at_open: number | null;
+  }>(
+    `SELECT id, asset, direction, entry_price_usd::text, opened_at::text, conviction_at_open
+       FROM positions
+      WHERE status = 'open'
+        AND conviction_at_open IS NOT NULL
+        AND (take_profit_price IS NULL OR stop_loss_price IS NULL)`,
+  );
+
+  if (needsBackfill.length === 0) return;
+
+  let filled = 0;
+  for (const pos of needsBackfill) {
+    try {
+      let entryPrice = pos.entry_price_usd ? parseFloat(pos.entry_price_usd) : null;
+
+      // Backfill entry_price_usd first if missing — same path the
+      // portfolio service uses on read.
+      if (entryPrice == null) {
+        entryPrice = await getPriceAt(pos.asset, new Date(pos.opened_at));
+        if (entryPrice == null) continue;
+        await query(`UPDATE positions SET entry_price_usd = $2 WHERE id = $1`, [
+          pos.id,
+          entryPrice,
+        ]);
+      }
+
+      const side = pos.direction === 'short' ? 'short' : 'long';
+      const levels = computeTpSlLevels(entryPrice, pos.conviction_at_open!, side);
+      await query(
+        `UPDATE positions
+            SET take_profit_price = COALESCE(take_profit_price, $2),
+                stop_loss_price   = COALESCE(stop_loss_price,   $3)
+          WHERE id = $1`,
+        [pos.id, levels.takeProfitUsd, levels.stopLossUsd],
+      );
+      filled++;
+    } catch (err) {
+      logger.warn({ err, positionId: pos.id }, 'TP/SL backfill failed for position');
+    }
+  }
+
+  if (filled > 0) {
+    logger.info({ filled, attempted: needsBackfill.length }, 'TP/SL backfill: filled positions');
+  }
+}
+
 // ── TP/SL checker ─────────────────────────────────────────────────
 // Every 5 minutes, scan open positions that have take_profit_price or
 // stop_loss_price set. Use the CoinGecko oracle for each asset's
@@ -340,6 +408,10 @@ async function checkGasBalance(): Promise<void> {
 // follow-up tied to the asset-registry roll-out), then broadcast.
 async function checkTakeProfitStopLoss(): Promise<void> {
   try {
+    // Self-heal first — any position missing levels gets them now,
+    // so this same tick can immediately check them.
+    await backfillMissingTpSl();
+
     const { rows: positions } = await query<{
       id: string;
       asset: string;
