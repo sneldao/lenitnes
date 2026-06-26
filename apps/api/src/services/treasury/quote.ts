@@ -18,7 +18,7 @@
 
 import { ethers } from 'ethers';
 import type { Chain } from '@lenitnes/types';
-import { getProvider, getChainConfig } from '../evm/client.js';
+import { getProvider } from '../evm/client.js';
 import { getPriceAt } from '../price.js';
 import { logger } from '../../logger.js';
 
@@ -132,20 +132,17 @@ export async function getPoolTvlUsd(
     const reserves = (await pair.getReserves()) as [bigint, bigint, number];
     const [reserve0, reserve1] = reserves;
 
-    // Identify which side is WBNB (always 18 decimals) and which is
-    // the asset. Token order in a UniswapV2 pair is keyed by
-    // address bytes, not by which token was deposited first.
+    // Identify which side is the asset (token order in a UniswapV2
+    // pair is keyed by address bytes, not by deposit order). We
+    // only need the asset side — a balanced V2 pool has equal USD
+    // value on both legs, so 2× one side gives total TVL.
     const wbnbIsToken0 = token0Addr === WBNB_BSC_MAINNET.toLowerCase();
-    const wbnbReserve = wbnbIsToken0 ? reserve0 : reserve1;
     const tokenReserve = wbnbIsToken0 ? reserve1 : reserve0;
 
     // Token decimals — most BSC bluechips are 18, but we read to
-    // be safe (USDC on BSC is 18, but USDT is 18 on BSC vs 6 on ETH,
-    // so we don't want to hardcode).
+    // be safe (USDT is 18 on BSC vs 6 on ETH, so we don't hardcode).
     const tokenContract = new ethers.Contract(tokenAddress, ERC20_ABI, provider);
     const tokenDecimals = (await tokenContract.decimals()) as number;
-
-    const wbnbAmount = parseFloat(ethers.formatUnits(wbnbReserve, 18));
     const tokenAmount = parseFloat(ethers.formatUnits(tokenReserve, tokenDecimals));
 
     // Price both sides. WBNB price = bnb-binance-coin via CG, asset
