@@ -28,19 +28,21 @@ export default function LandingPage() {
           <h1 className="font-display text-5xl font-semibold leading-[1.05] tracking-tight text-slate-100 sm:text-7xl lg:text-8xl">
             The agent
             <br />
-            <em className="not-italic text-accent">would have caught</em>
+            <em className="not-italic text-accent">would have shorted</em>
             <br />
             <span className="text-slate-100">halo2.</span>
           </h1>
           <p className="mt-8 max-w-2xl text-sm leading-relaxed text-slate-400">
-            In April 2022, a critical soundness fix landed in the ZCash halo2 proving system — the
-            cryptographic primitive that backs ZEC's shielded transactions. The commit was public
-            for four days before the market noticed. ZEC then dropped 50%. The signals were public
-            the whole time.
+            In June 2026, Shielded Labs disclosed a four-year-old soundness bug in ZCash's halo2
+            circuit. The fix shipped via an emergency soft fork on 2-Jun and a hard fork on 3-Jun —
+            both public in the Zebra repo. The formal disclosure landed 4-5 Jun. ZEC dropped ~50% in
+            48 hours.
           </p>
           <p className="mt-4 max-w-2xl text-sm leading-relaxed text-slate-500">
-            Every signal is timestamped on Hedera HCS — immutable proof the agent saw the commit
-            before the market moved. The trade executes on BSC. The record is dual-chain.
+            We didn't find the bug — Shielded Labs and Anthropic's Opus 4.8 did. The emergency
+            response in the public repos was the signal LENITNES is built to catch. Every thesis is
+            anchored on Hedera HCS via the Hedera Agent Kit — immutable proof of what the agent saw,
+            in its own words, before the market moved.
           </p>
           <div className="mt-10 flex flex-wrap items-center gap-3">
             <Link
@@ -118,25 +120,27 @@ export default function LandingPage() {
           <div className="grid gap-10 lg:grid-cols-[1.4fr_1fr]">
             <div>
               <h2 className="mb-6 font-display text-3xl font-semibold leading-tight text-slate-100 sm:text-4xl">
-                The 2022-04-15 commit
+                The 2026-06-02 emergency release
                 <br />
-                <span className="italic text-accent">the model scored at 92.</span>
+                <span className="italic text-accent">the model scored at 95.</span>
               </h2>
               <p className="mb-4 text-sm leading-relaxed text-slate-400">
-                The fix landed as{' '}
+                Shielded Labs shipped{' '}
                 <code className="rounded bg-edge/30 px-1.5 py-0.5 font-mono text-xs text-slate-300">
-                  halo2_gadgets: Anchor variable-base scalar-mul incomplete-addition base
+                  Zebra 4.5.3: emergency soft fork at block 3,363,426 disabling Orchard actions
                 </code>
-                — technical, understated, easy to scroll past.
+                — a surprise release with no preceding bug report.
               </p>
               <p className="mb-6 text-sm leading-relaxed text-slate-400">
-                We replayed the agent against the commit. The detector pipeline fired three signals
-                (security_critical_patch, consensus_relevant, emergency_patch). The agent's
-                conviction was 92/100, recommended action long ZEC, paper trade recorded with a
-                deterministic tx hash.
+                We replayed the agent against the release. Four detectors fired (emergency_patch 98,
+                security_critical_patch 95, protocol_upgrade 92, consensus_relevant 90). Conviction
+                95/100, recommended action SHORT ZEC, the agent's first-person thesis anchored on
+                Hedera HCS via the Hedera Agent Kit.
               </p>
               <p className="mb-8 text-sm leading-relaxed text-slate-400">
-                T+1d: ZEC went up 2.15%. The trade was a hit.
+                Entry ~$600 (2-Jun). Trough $309 on the 5-Jun disclosure.{' '}
+                <span className="text-accent">+48.5% directional return</span> at T+3d. Settled
+                ~$425 at T+7d.
               </p>
               <Link
                 href="/case-study/halo2"
@@ -151,13 +155,13 @@ export default function LandingPage() {
                 Agent verdict
               </p>
               <div className="mb-4 flex items-baseline gap-3">
-                <div className="font-display text-6xl font-medium text-accent">92</div>
+                <div className="font-display text-6xl font-medium text-accent">95</div>
                 <div className="font-mono text-sm text-slate-500">/100</div>
               </div>
               <div className="mb-4 space-y-1 font-mono text-xs">
                 <div className="flex justify-between">
                   <span className="text-slate-500">Action</span>
-                  <span className="font-medium text-slate-200">LONG ZEC</span>
+                  <span className="font-medium text-slate-200">SHORT ZEC</span>
                 </div>
                 <div className="flex justify-between">
                   <span className="text-slate-500">Confidence</span>
@@ -165,11 +169,11 @@ export default function LandingPage() {
                 </div>
                 <div className="flex justify-between">
                   <span className="text-slate-500">Detectors fired</span>
-                  <span className="font-medium text-slate-200">3 of 8</span>
+                  <span className="font-medium text-slate-200">4 of 8</span>
                 </div>
                 <div className="flex justify-between">
-                  <span className="text-slate-500">T+1d outcome</span>
-                  <span className="font-medium text-accent">+2.15% ↑</span>
+                  <span className="text-slate-500">T+3d outcome</span>
+                  <span className="font-medium text-accent">+48.5% ↓</span>
                 </div>
                 <div className="flex justify-between">
                   <span className="text-slate-500">Hit?</span>

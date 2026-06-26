@@ -62,9 +62,14 @@ export default function MethodologyPage() {
             code moves the largest USD volume.
           </li>
           <li>
-            <strong className="text-slate-200">zcash/halo2</strong> — the founding myth. The agent
-            was built after the 2026 halo2 soundness fix went unflagged for four days; this is the
-            canonical &quot;what we&apos;d have caught&quot; reference.
+            <strong className="text-slate-200">zcash/halo2</strong> — the founding case study. The
+            2026 Orchard soundness emergency response (Zebra 4.5.3 + NU6.2) is the canonical
+            &quot;the agent would have caught the short&quot; reference. See the
+            <Link href="/case-study/halo2" className="link-underline text-accent">
+              {' '}
+              halo2 case study
+            </Link>
+            .
           </li>
           <li>
             <strong className="text-slate-200">solana-labs/solana</strong>,{' '}
