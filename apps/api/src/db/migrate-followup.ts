@@ -16,18 +16,27 @@ import { pool } from './pool.js';
  */
 const MIGRATIONS: string[] = [
   // ── 0001: Add `viewed_at` + `viewed_by` to signals ──
-  // Introduced so the dashboard can distinguish a fresh, unread signal
-  // from an old one the user has already opened. The endpoint
-  // `POST /signals/:id/viewed` populates these columns and re-arms
-  // the parent monitor's `triggered` status to `active`.
-  `ALTER TABLE signals
-     ADD COLUMN IF NOT EXISTS viewed_at TIMESTAMPTZ,
-     ADD COLUMN IF NOT EXISTS viewed_by UUID REFERENCES users(id) ON DELETE SET NULL`,
-
-  // Index for the dashboard's "unviewed signal" lookup.
-  `CREATE INDEX IF NOT EXISTS idx_signals_unviewed
-     ON signals(monitor_id, detected_at DESC)
-     WHERE is_heartbeat = false AND viewed_at IS NULL`,
+  // Introduced so the dashboard could distinguish a fresh, unread
+  // signal from an old one the user had opened. Post-pivot (0003)
+  // the users table is dropped and these columns are removed.
+  //
+  // Gated on `users` table existence so a fresh post-pivot DB
+  // doesn't fail this migration on the FK reference. The 0003
+  // migration cleans up regardless.
+  `
+  DO $$
+  BEGIN
+    IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_name = 'users') THEN
+      ALTER TABLE signals
+        ADD COLUMN IF NOT EXISTS viewed_at TIMESTAMPTZ,
+        ADD COLUMN IF NOT EXISTS viewed_by UUID REFERENCES users(id) ON DELETE SET NULL;
+      CREATE INDEX IF NOT EXISTS idx_signals_unviewed
+        ON signals(monitor_id, detected_at DESC)
+        WHERE is_heartbeat = false AND viewed_at IS NULL;
+    END IF;
+  END
+  $$;
+  `,
 
   // ── 0003: Pivot to zero-headcount operator (Day 2) ──
   // Full SQL lives at db/migrations/003_pivot.sql. Inlined here
