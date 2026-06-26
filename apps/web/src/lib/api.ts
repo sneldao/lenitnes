@@ -195,6 +195,9 @@ export interface ScorecardResponse {
 export interface PortfolioSummary {
   totalOpenPositions: number;
   totalClosedPositions: number;
+  totalInvestedUsd: number;
+  currentValueUsd: number;
+  unrealizedPnlUsd: number;
   realizedPnlUsd: number;
   winRate: number | null;
   bestTradePct: number | null;
@@ -212,7 +215,11 @@ export interface OpenPosition {
   entryTxHash: string | null;
   openedAt: string;
   convictionAtOpen: number | null;
+  currentPriceUsd: number | null;
+  unrealizedPnlUsd: number | null;
   unrealizedPnlPct: number | null;
+  takeProfitPrice: number | null;
+  stopLossPrice: number | null;
 }
 
 export interface ClosedPosition {
@@ -221,7 +228,9 @@ export interface ClosedPosition {
   chain: string;
   direction: string;
   entryAmount: number;
+  entryPriceUsd: number | null;
   exitAmount: number;
+  exitPriceUsd: number | null;
   pnlPct: number;
   pnlUsd: number;
   openedAt: string;

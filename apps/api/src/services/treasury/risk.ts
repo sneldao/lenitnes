@@ -24,7 +24,63 @@ import { config } from '../../config.js';
 import { logger } from '../../logger.js';
 import { isTradeable, resolveTradeableToken } from './asset-registry.js';
 import { getPoolTvlUsd } from './quote.js';
+import { getQuotes } from '../cmc.js';
 import type { TradeMode } from '../treasury.js';
+
+// Map our coingecko_id to the CMC symbol used by getQuotes. CMC's
+// /quotes/latest endpoint takes symbols (BTC/ETH/etc.), not their
+// coingecko slugs.
+const COINGECKO_TO_CMC_SYMBOL: Record<string, string> = {
+  bitcoin: 'BTC',
+  ethereum: 'ETH',
+  zcash: 'ZEC',
+  solana: 'SOL',
+  sui: 'SUI',
+  arbitrum: 'ARB',
+};
+
+/**
+ * Check CMC's 24h trading volume for the asset against the
+ * registry's minDailyVolumeUsd floor. A stale pool can have deep
+ * TVL but zero recent volume — that's a sign the market has
+ * abandoned the pair and our slippage estimate is unreliable.
+ * Returns true if the gate passes (or no floor configured).
+ */
+async function passesVolumeFloor(
+  coingeckoId: string,
+  minDailyVolumeUsd: number,
+): Promise<{ ok: boolean; reason: string }> {
+  if (!process.env.CMC_API_KEY) {
+    // No CMC key configured — skip the check rather than failing
+    // closed. The TVL floor is the primary gate; volume is the
+    // secondary signal.
+    return { ok: true, reason: 'CMC not configured (volume gate skipped)' };
+  }
+  const symbol = COINGECKO_TO_CMC_SYMBOL[coingeckoId];
+  if (!symbol) {
+    return { ok: true, reason: `no CMC symbol mapping for ${coingeckoId}` };
+  }
+  try {
+    const quotes = await getQuotes([symbol]);
+    const quote = quotes.find((q) => q.symbol === symbol);
+    const volume24h = quote?.quote?.USD?.volume_24h;
+    if (volume24h == null) {
+      return { ok: false, reason: `CMC: no 24h volume returned for ${symbol}` };
+    }
+    if (volume24h < minDailyVolumeUsd) {
+      return {
+        ok: false,
+        reason: `24h volume $${volume24h.toFixed(0)} < min $${minDailyVolumeUsd.toFixed(0)}`,
+      };
+    }
+    return { ok: true, reason: 'ok' };
+  } catch (err) {
+    logger.warn({ err, coingeckoId }, 'volume floor: CMC quote failed');
+    // Failing closed is safer than failing open — we'd rather
+    // skip a trade than execute one without confirmation.
+    return { ok: false, reason: 'CMC quote failed (treating as below floor)' };
+  }
+}
 
 export interface RiskGateInput {
   coingeckoId: string | undefined;
@@ -130,6 +186,24 @@ export async function evaluateTradeRisk(input: RiskGateInput): Promise<RiskGateD
       return {
         effectiveMode: PAPER,
         reason: `liquidity floor: TVL $${tvl.toFixed(0)} < min $${tradeableEntry.minPoolTvlUsd.toFixed(0)}`,
+        downgraded: true,
+      };
+    }
+  }
+
+  // 6) Market-level 24h volume floor. TVL can be deep while the
+  //    pair is dead (stale liquidity from a market-maker that's
+  //    given up). CMC's volume is the orthogonal signal: real
+  //    flow vs. parked liquidity.
+  if (tradeableEntry?.minDailyVolumeUsd != null && input.coingeckoId) {
+    const volumeCheck = await passesVolumeFloor(
+      input.coingeckoId,
+      tradeableEntry.minDailyVolumeUsd,
+    );
+    if (!volumeCheck.ok) {
+      return {
+        effectiveMode: PAPER,
+        reason: `volume floor (${input.coingeckoId}): ${volumeCheck.reason}`,
         downgraded: true,
       };
     }

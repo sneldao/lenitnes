@@ -31,35 +31,39 @@ const baseInput: BroadcastSignalInput = {
   },
 };
 
+// The broadcast voice is editorial: verdict-forward header, thesis
+// lead, evidence collapsed into a compact proof block. Tests below
+// assert the parts that matter for the public channel (verdict +
+// proof links survive); the chrome that used to be there (pair label,
+// "Mode:" prefix, T+ timestamps in-message) is intentionally gone.
 describe('formatSignalBroadcastMessage', () => {
-  it('includes the thesis, conviction, action, and trade', () => {
+  it('leads with asset, action, and conviction in the header', () => {
     const msg = formatSignalBroadcastMessage(baseInput);
-    expect(msg).toContain('🚨 LENITNES signal — ZECUSD');
-    expect(msg).toContain('Conviction 85/100 (high) → LONG');
+    expect(msg).toContain('🛡️ LENITNES · ZECUSD LONG · 85/100 (high)');
     expect(msg).toContain('Critical soundness fix merged');
-    expect(msg).toContain('Pair: ZECUSD');
-    expect(msg).toContain('Chain: arbitrum');
-    expect(msg).toContain('Mode: paper');
   });
 
-  it('marks paper trades as paper (no explorer link)', () => {
+  it('shows trade mode + chain inline on a single line', () => {
     const msg = formatSignalBroadcastMessage(baseInput);
-    expect(msg).toContain('(paper)');
+    // Paper tx hash has no explorer URL, so it appears verbatim.
+    expect(msg).toContain('📈 paper · arbitrum · 0xpapabc123def456');
+    // Don't link a paper tx to an explorer (that would 404).
     expect(msg).not.toContain('https://sepolia.arbiscan.io/tx/0xpap');
   });
 
-  it('includes explorer links for live trades', () => {
+  it('links the explorer for live trades', () => {
     const msg = formatSignalBroadcastMessage({
       ...baseInput,
-      tradeReceipt: { ...baseInput.tradeReceipt, txHash: '0xREAL_TX_HASH', mode: 'live' },
+      tradeReceipt: { ...baseInput.tradeReceipt!, txHash: '0xREAL_TX_HASH', mode: 'live' },
     });
-    expect(msg).toContain('https://sepolia.arbiscan.io/tx/0xREAL_TX_HASH');
+    expect(msg).toContain('📈 live · arbitrum · https://sepolia.arbiscan.io/tx/0xREAL_TX_HASH');
   });
 
   it('includes Hedera HCS explorer link when hederaTxId is set', () => {
     const msg = formatSignalBroadcastMessage(baseInput);
-    expect(msg).toContain('Hedera HCS: 0.0.12345@1717700000.000');
-    expect(msg).toContain('https://hashscan.io/testnet/transaction/0.0.12345%401717700000.000');
+    expect(msg).toContain(
+      '⛓ HashScan: https://hashscan.io/testnet/transaction/0.0.12345%401717700000.000',
+    );
   });
 
   it('falls back to "pending" when proof fields are null', () => {
@@ -67,28 +71,25 @@ describe('formatSignalBroadcastMessage', () => {
       ...baseInput,
       proofs: { ipfsCid: null, hederaTxId: null, arbitrumTxHash: null },
     });
-    expect(msg).toContain('Hedera HCS: pending');
-    expect(msg).toContain('IPFS: pending');
-    expect(msg).not.toContain('Arbitrum:');
+    expect(msg).toContain('⛓ HashScan: pending');
+    expect(msg).toContain('📦 Grove: pending');
+    // Arbitrum line is only added when the hash exists.
+    expect(msg).not.toContain('🔗 Arbitrum:');
   });
 
-  it('includes IPFS CID with grove gateway link', () => {
+  it('includes IPFS CID via grove gateway link', () => {
     const msg = formatSignalBroadcastMessage(baseInput);
-    expect(msg).toContain('bafkreihello');
-    expect(msg).toContain('https://grove.lens.xyz/ipfs/bafkreihello');
+    expect(msg).toContain('📦 Grove: https://grove.lens.xyz/ipfs/bafkreihello');
   });
 
-  it('includes outcome window timestamps', () => {
+  it('surfaces the outcome-window schedule (T+1h/1d/7d)', () => {
     const msg = formatSignalBroadcastMessage(baseInput);
-    expect(msg).toContain('T+1h: 2026-06-17T21:00:00.000Z');
-    expect(msg).toContain('T+1d: 2026-06-18T20:00:00.000Z');
-    expect(msg).toContain('T+7d: 2026-06-24T20:00:00.000Z');
+    expect(msg).toContain('T+1h · T+1d · T+7d');
   });
 
-  it('omits the trade section when no receipt', () => {
+  it('omits the trade line when no receipt', () => {
     const msg = formatSignalBroadcastMessage({ ...baseInput, tradeReceipt: null });
-    expect(msg).not.toContain('🔗 Trade');
-    expect(msg).not.toContain('Pair:');
+    expect(msg).not.toContain('📈');
   });
 });
 

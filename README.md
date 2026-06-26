@@ -56,19 +56,19 @@ No human input in the steady state. The only operator surfaces are `/admin/*` (X
 
 ## Stack
 
-| Layer          | Choice                                            | Why                                        |
-| -------------- | ------------------------------------------------- | ------------------------------------------ |
-| API            | Express 5 + TypeScript                            | Boring, fast, easy to deploy               |
-| DB             | PostgreSQL 14                                     | Reliable, JSONB, window fns                |
-| Agent          | NVIDIA minimax-m3 (primary) · Virtuals (fallback) | Pluggable, MOCK for tests                  |
-| Market context | CoinMarketCap Pro API (+ x402 fallback)           | Global metrics, Fear & Greed, asset quotes |
-| Notarize       | Hedera HCS + Arbitrum `SignalRegistry`            | Two-chain proof                            |
-| Store          | IPFS (Grove / Lens)                               | Immutable evidence package                 |
-| Trade          | Arbitrum Sepolia · Robinhood Chain · BSC testnet  | Three live venues + paper                  |
-| Sign on BSC    | Trust Wallet Agent Kit (TWAK)                     | Self-custody signing on BSC                |
-| Broadcast      | Telegram public channel                           | Public, timestamped                        |
-| Charts         | CoinGecko historical API (with fallback)          | Real price outcomes                        |
-| Frontend       | Next.js 16 + Tailwind                             | Music-publication aesthetic                |
+| Layer          | Choice                                           | Why                                        |
+| -------------- | ------------------------------------------------ | ------------------------------------------ |
+| API            | Express 5 + TypeScript                           | Boring, fast, easy to deploy               |
+| DB             | PostgreSQL 14                                    | Reliable, JSONB, window fns                |
+| Agent          | Kimi K2 via Virtuals · MOCK for tests            | Versioned rubric, conviction 0-100         |
+| Market context | CoinMarketCap Pro API (+ x402 fallback)          | Global metrics, Fear & Greed, asset quotes |
+| Notarize       | Hedera HCS + Arbitrum `SignalRegistry`           | Two-chain proof                            |
+| Store          | IPFS (Grove / Lens)                              | Immutable evidence package                 |
+| Trade          | Arbitrum Sepolia · Robinhood Chain · BSC testnet | Three live venues + paper                  |
+| Sign on BSC    | Trust Wallet Agent Kit (TWAK)                    | Self-custody signing on BSC                |
+| Broadcast      | Telegram public channel                          | Public, timestamped                        |
+| Charts         | CoinGecko historical API (with fallback)         | Real price outcomes                        |
+| Frontend       | Next.js 16 + Tailwind                            | Dark dashboard, Fraunces + Space Grotesk   |
 
 See [`docs/AGENT_ARCHITECTURE.md`](./docs/AGENT_ARCHITECTURE.md) for the frozen
 Q1-Q3 design decisions and [`docs/HACKATHON_CUT.md`](./docs/HACKATHON_CUT.md)
@@ -168,6 +168,7 @@ lenitnes/
 │   │       │   ├── cmc.ts        CoinMarketCap Pro API (global metrics, Fear & Greed, quotes)
 │   │       │   ├── cmc-x402.ts   x402 pay-per-request CMC fallback (USDC on Base)
 │   │       │   ├── twak.ts       Trust Wallet Agent Kit wrapper (BSC self-custody swap)
+│   │       │   ├── treasury/    asset-registry · risk gate · PancakeSwap quote/swap
 │   │       │   └── evm/         client · trade · signal-registry
 │   │       ├── execution/       loop.ts (the autonomous loop, sections 1-7)
 │   │       ├── seed/            demo.ts (real-evidence seed, 3 public commits)
@@ -183,7 +184,8 @@ lenitnes/
 ├── scripts/                    register-bnb-hack.sh — on-chain agent registration
 ├── docs/
 │   ├── AGENT_ARCHITECTURE.md   Frozen decision doc (Q1-Q3)
-│   └── HACKATHON_CUT.md        10-day plan + BNB Hack pivot
+│   ├── HACKATHON_CUT.md        10-day plan + BNB Hack pivot
+│   └── RUNBOOK.md              Operator runbook (preflight, first trade, emergency exit)
 ├── DEPLOYMENT.md               Testnet deploy guide (Arbitrum + BSC)
 ├── openapi.yaml                REST API spec (post-pivot, 27 paths)
 └── README.md                   You are here
@@ -214,7 +216,12 @@ GET  /metrics                    Prometheus metrics
 GET  /admin/status               Signal counts, agent budget, treasury wallets
 POST /admin/cache/invalidate     Drop cache entries by pattern
 POST /admin/cache/invalidate-all Nuke every cache entry
+POST /admin/positions/:id/close  Manually close an open position (fires real on-chain swap if live)
 ```
+
+See **[docs/RUNBOOK.md](./docs/RUNBOOK.md)** for the operator runbook —
+preflight checks, first-live-trade dry run, and emergency exit
+procedure.
 
 Full OpenAPI 3.1 spec: [`openapi.yaml`](./openapi.yaml).
 
@@ -231,13 +238,20 @@ Monitor (GitHub) → TinyFish detects → NVIDIA LLM scores (conviction 0-100) �
 
 **Live demo results (seed:demo via autonomous pipeline, real NVIDIA LLM):**
 
-| Commit                         | LLM Conviction | Action   | On-Chain TX                                |
-| ------------------------------ | -------------- | -------- | ------------------------------------------ |
-| `zcash/halo2` soundness fix    | **82/100**     | **long** | `0xf936e5...` BSC testnet, 0.01 BNB → WBNB |
-| `zcash/halo2` docs             | 20/100         | none     | —                                          |
-| `bitcoin/bitcoin` fee estimate | 25/100         | none     | —                                          |
+| Commit                         | LLM Conviction | Action   | Mode                                      |
+| ------------------------------ | -------------- | -------- | ----------------------------------------- |
+| `zcash/halo2` soundness fix    | **82/100**     | **long** | paper — registry does not list ZEC on BSC |
+| `zcash/halo2` docs             | 20/100         | none     | —                                         |
+| `bitcoin/bitcoin` fee estimate | 25/100         | none     | —                                         |
 
-The pipeline scored the halo2 soundness fix at **82 conviction**, recommended **long**, and the treasury autonomously wrapped **0.01 BNB → WBNB** on BSC testnet in the same execution. View the transaction: [`0xf936e5...`](https://testnet.bscscan.com/tx/0xf936e564cf5c763321c2fbd62d8abbb69b37ba3a8f4e7bd740ece4b01be576ed).
+When the registry lists the asset on BSC (BTC, ETH today), the
+treasury fires a real PancakeSwap V2 `swapExactETHForTokens` with
+`amountOutMin` from an on-chain quote — not a sanity-free wrap. The
+[trading safety layer](./apps/api/src/services/treasury/) gates every
+live swap on: master kill switch (`TRADING_ENABLED`), asset-registry
+membership, on-chain pool TVL floor, CMC 24h-volume floor, and
+position-count + per-asset-concentration caps. Failure on any gate
+forces paper mode.
 
 **Special prize readiness:**
 
@@ -250,7 +264,7 @@ The pipeline scored the halo2 soundness fix at **82 conviction**, recommended **
 Key architecture decisions for the BNB track:
 
 - **BSC chain plumbing** — `chains.bnb` in `config.ts`, BSC RPC + WBNB/PancakeSwap wiring in `services/evm/client.ts`, BSC treasury wallet row in `db/seed/treasury_wallets.sql`.
-- **TWAK + fallback** — The treasury tries TWAK first (mainnet self-custody). If TWAK fails (e.g. testnet RPC), it falls back to a direct `ethers.Wallet` swap via the WBNB `deposit()` function. Both paths produce verifiable on-chain transactions.
+- **TWAK + fallback** — The treasury tries TWAK first (mainnet self-custody, slippage handled via the `--slippage` CLI flag). If TWAK isn't configured, it falls back to a direct `ethers.Wallet` swap that calls PancakeSwap V2's `swapExactETHForTokens` with `amountOutMin` derived from an on-chain `getAmountsOut` quote × the configured slippage tolerance. Both paths produce verifiable on-chain transactions.
 - **Real LLM, not mock** — Switched from non-functional `minimaxai/minimax-m3` to `meta/llama-3.1-70b-instruct` on NVIDIA's API. The rubric-based conviction scoring produces consistent, calibrated outputs.
 - **x402 pay-per-request** — CMC data fetches use the x402 protocol (USDC on Base, ~$0.01/req). Payments confirmed on-chain; CMC's AWS WAF blocks headless display, but the protocol integration is complete.
 - **On-chain agent registration** — `scripts/register-bnb-hack.sh` calls `twak compete register` against the BNB Hack registry so the agent is in the live-trading leaderboard.

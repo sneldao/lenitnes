@@ -171,39 +171,42 @@ export function formatSubThresholdMessage(input: {
   };
 }): string {
   const c = input.agentScore.conviction;
-  const actionLabel = input.agentScore.recommended_action.toUpperCase();
-  const bandLabel = input.agentScore.confidence_band.toUpperCase();
+  const action = input.agentScore.recommended_action.toUpperCase();
 
-  const walletLine = `💼 Treasury: https://testnet.bscscan.com/address/${BSC_TREASURY_WALLET}`;
+  // Three tiers. Voice is "agent considered, declined" — short.
+  // Repo URL replaces the chunky monitorUrl footer; readers can
+  // click through to read the commit themselves.
+  const repoLabel = input.monitorUrl
+    .replace(/^https?:\/\/(www\.)?github\.com\//, '')
+    .replace(/\/.*$/, '');
 
   if (c <= 30) {
-    return (
-      `👀 LENITNES watch — noise (${c}/100)\n` +
-      `📡 ${input.monitorUrl}\n` +
-      `💭 ${input.agentScore.thesis}\n` +
-      `📝 ${input.summary.slice(0, 200)}\n` +
-      `${walletLine}`
-    );
+    return [
+      `🛡️ LENITNES · ${repoLabel} · ${c}/100 (noise)`,
+      ``,
+      `💭 ${input.agentScore.thesis}`,
+      ``,
+      `🔗 ${input.monitorUrl}`,
+    ].join('\n');
   }
 
   if (c <= 50) {
-    return (
-      `👀 LENITNES watch — mild (${c}/100, ${bandLabel}) → ${actionLabel}\n` +
-      `💭 ${input.agentScore.thesis}\n` +
-      `📡 ${input.monitorUrl}\n` +
-      `📝 ${input.summary.slice(0, 200)}\n` +
-      `${walletLine}`
-    );
+    return [
+      `🛡️ LENITNES · ${repoLabel} · ${c}/100 — would ${action}, declined`,
+      ``,
+      `💭 ${input.agentScore.thesis}`,
+      ``,
+      `🔗 ${input.monitorUrl}`,
+    ].join('\n');
   }
 
-  return (
-    `👀 LENITNES watch — interesting (${c}/100, ${bandLabel}) → ${actionLabel}\n` +
-    `💭 ${input.agentScore.thesis}\n` +
-    `📡 ${input.monitorUrl}\n` +
-    `📝 ${input.summary.slice(0, 200)}\n` +
-    `${walletLine}\n` +
-    `Threshold: 70 — no trade. Full archive: https://lenitnes.persidian.com/signals`
-  );
+  return [
+    `🛡️ LENITNES · ${repoLabel} · ${c}/100 — close miss (${action})`,
+    ``,
+    `💭 ${input.agentScore.thesis}`,
+    ``,
+    `🔗 ${input.monitorUrl}  ·  threshold 70`,
+  ].join('\n');
 }
 
 /**
@@ -294,79 +297,63 @@ export interface BroadcastSignalInput {
 }
 
 /**
- * Format the public broadcast. Plain text (Telegram auto-links URLs).
- * Sections, in order:
- *   - header + thesis
- *   - conviction + action
- *   - trade (pair, chain, tx, mode)
- *   - proofs (Hedera HCS, IPFS, Arbitrum)
- *   - outcome windows (T+1h, T+1d, T+7d)
+ * Format the public broadcast — editorial dispatch voice. Lead
+ * with the verdict, then the thesis, then evidence. Footers
+ * (wallets, outcome windows) collapsed to a single line each
+ * since repeat readers already know the schedule.
  */
 export function formatSignalBroadcastMessage(input: BroadcastSignalInput): string {
   const lines: string[] = [];
-  const assetLabel = input.tradeReceipt?.pair ?? 'WATCHLIST';
-  lines.push(`🚨 LENITNES signal — ${assetLabel}`);
+  const asset = (input.tradeReceipt?.pair ?? 'watchlist').toUpperCase();
+  const action = input.agentScore.recommended_action.toUpperCase();
+  const conviction = input.agentScore.conviction;
+  const band = input.agentScore.confidence_band;
+
+  // Header — verdict-forward, no banner.
+  lines.push(`🛡️ LENITNES · ${asset} ${action} · ${conviction}/100 (${band})`);
   lines.push('');
 
-  // Proof anchor — lead with the immutable timestamp
-  if (input.proofs.hederaTxId) {
-    lines.push(
-      `🔗 Hedera HCS: ${input.proofs.hederaTxId} → https://hashscan.io/testnet/transaction/${encodeURIComponent(input.proofs.hederaTxId)}`,
-    );
-  } else {
-    lines.push(`⏳ Hedera HCS: pending`);
-  }
-  if (input.proofs.ipfsCid) {
-    lines.push(
-      `📦 IPFS: ${input.proofs.ipfsCid} → https://grove.lens.xyz/ipfs/${input.proofs.ipfsCid}`,
-    );
-  } else {
-    lines.push(`⏳ IPFS: pending`);
-  }
-  if (input.proofs.arbitrumTxHash) {
-    const url = explorerUrlFor('arbitrum', input.proofs.arbitrumTxHash);
-    if (url) {
-      lines.push(`📋 Arbitrum: ${input.proofs.arbitrumTxHash} → ${url}`);
-    }
-  }
-  lines.push('');
-
-  // Conviction + action
-  const actionLabel = input.agentScore.recommended_action.toUpperCase();
-  lines.push(
-    `🎯 Conviction ${input.agentScore.conviction}/100 (${input.agentScore.confidence_band}) → ${actionLabel}`,
-  );
+  // Thesis is the story; lead with it.
   lines.push(`💭 ${input.agentScore.thesis}`);
   lines.push('');
 
-  // Trade
+  // Trade — one line. Mode + tx in the link.
   if (input.tradeReceipt) {
     const t = input.tradeReceipt;
-    lines.push(`🔗 Trade`);
-    lines.push(`  Pair: ${t.pair}`);
-    lines.push(`  Chain: ${t.chain}`);
     const url = explorerUrlFor(t.chain, t.txHash);
     if (url) {
-      lines.push(`  Tx: ${t.txHash} → ${url}`);
+      lines.push(`📈 ${t.mode} · ${t.chain} · ${url}`);
     } else {
-      lines.push(`  Tx: ${t.txHash} (paper)`);
+      lines.push(`📈 ${t.mode} · ${t.chain} · ${t.txHash}`);
     }
-    lines.push(`  Mode: ${t.mode}`);
     lines.push('');
   }
 
-  // Outcome windows
-  lines.push(`📊 Performance`);
-  lines.push(
-    `  T+1h: ${input.outcomeWindows.t1h} · T+1d: ${input.outcomeWindows.t1d} · T+7d: ${input.outcomeWindows.t7d}`,
-  );
+  // Proof chain — compact. Pending sides shown only on first signal of the day.
+  const proofLines: string[] = [];
+  if (input.proofs.hederaTxId) {
+    proofLines.push(
+      `   ⛓ HashScan: https://hashscan.io/testnet/transaction/${encodeURIComponent(input.proofs.hederaTxId)}`,
+    );
+  } else {
+    proofLines.push(`   ⛓ HashScan: pending`);
+  }
+  if (input.proofs.ipfsCid) {
+    proofLines.push(`   📦 Grove: https://grove.lens.xyz/ipfs/${input.proofs.ipfsCid}`);
+  } else {
+    proofLines.push(`   📦 Grove: pending`);
+  }
+  if (input.proofs.arbitrumTxHash) {
+    const url = explorerUrlFor('arbitrum', input.proofs.arbitrumTxHash);
+    if (url) proofLines.push(`   🔗 Arbitrum: ${url}`);
+  }
+  lines.push(`📋 Proof`);
+  lines.push(...proofLines);
   lines.push('');
 
-  // Wallets (public, verifiable on BSC Scan)
-  lines.push(`💼 Wallets`);
-  lines.push(`  Treasury: ${BSC_TREASURY_WALLET} → ${walletUrl(BSC_TREASURY_WALLET)}`);
-  lines.push(`  Agent: ${BSC_TWAK_WALLET} → ${walletUrl(BSC_TWAK_WALLET)}`);
-  lines.push('');
+  // Outcome schedule + scorecard pointer — one line each.
+  lines.push(`⏱ Outcome at T+1h · T+1d · T+7d (auto-snapshot)`);
+  lines.push(`🔗 ${config.webOrigin}/scorecard`);
 
   return lines.join('\n');
 }

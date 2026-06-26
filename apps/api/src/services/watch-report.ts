@@ -29,19 +29,19 @@ interface RepoGroup {
 }
 
 const ASSET_META: Record<string, { emoji: string; label: string }> = {
-  zcash: { emoji: '\uD83D\uDCB0', label: 'Zcash' },
-  bitcoin: { emoji: '\uD83D\uDC51', label: 'Bitcoin' },
-  ethereum: { emoji: '\u26A1', label: 'Ethereum' },
-  solana: { emoji: '\uD83D\uDC0A', label: 'Solana' },
-  bnb: { emoji: '\uD83D\uDD25', label: 'BNB' },
-  filecoin: { emoji: '\uD83D\uDCC1', label: 'Filecoin' },
-  near: { emoji: '\uD83C\uDF0D', label: 'NEAR' },
+  zcash: { emoji: '💰', label: 'Zcash' },
+  bitcoin: { emoji: '👑', label: 'Bitcoin' },
+  ethereum: { emoji: '⚡', label: 'Ethereum' },
+  solana: { emoji: '🐊', label: 'Solana' },
+  bnb: { emoji: '🔥', label: 'BNB' },
+  filecoin: { emoji: '📁', label: 'Filecoin' },
+  near: { emoji: '🌍', label: 'NEAR' },
 };
 
 function assetMeta(asset: string) {
   return (
     ASSET_META[asset] ?? {
-      emoji: '\uD83D\uDD17',
+      emoji: '🔗',
       label: asset.charAt(0).toUpperCase() + asset.slice(1),
     }
   );
@@ -61,16 +61,6 @@ function groupMonitors(rows: MonitorRow[]): RepoGroup[] {
     groups.get(repoName)!.monitors.push(r);
   }
   return [...groups.values()];
-}
-
-function timeAgo(iso: string | null): string {
-  if (!iso) return 'never';
-  const diff = Date.now() - new Date(iso).getTime();
-  const mins = Math.floor(diff / 60000);
-  if (mins < 60) return `${mins}m ago`;
-  const hours = Math.floor(mins / 60);
-  if (hours < 24) return `${hours}h ago`;
-  return `${Math.floor(hours / 24)}d ago`;
 }
 
 export async function buildWatchReport(): Promise<string> {
@@ -129,102 +119,73 @@ export async function buildWatchReport(): Promise<string> {
   );
 
   const lines: string[] = [];
-
-  // ── Header ──
   const today = new Date().toISOString().slice(0, 10);
-  lines.push(`\uD83D\uDEE1\uFE0F LENITNES \u2014 Daily Report \u00B7 ${today}`);
-  lines.push('');
-
-  // ── Quick summary line ──
-  const activeCount = monitorRows.length;
-  const groupsWithSignals = groups.filter((g) => g.monitors.some((m) => m.signals_7d > 0)).length;
   const groupsTotal = groups.length;
+  const activeCount = monitorRows.length;
+
+  // ── Lead: state-of-the-agent in one line ──
+  // Same voice as the hourly heartbeat — verdict first, infra last.
+  // Daily is "what happened today"; hourly is "where are we now".
   if (aboveThreshold7d > 0) {
-    lines.push(`\uD83D\uDD25 ${aboveThreshold7d} high-conviction signal(s) this week`);
     lines.push(
-      `\uD83D\uDCCA ${totalSignals} total \u00B7 ${last24hSignals} last 24h \u00B7 ${activeCount} monitors active across ${groupsTotal} repos`,
+      `🛡️ LENITNES · daily · ${today} · ${aboveThreshold7d} high-conviction signal(s) this week`,
+    );
+  } else if (recentSignals.length > 0) {
+    const top = recentSignals[0];
+    const topMeta = assetMeta(top.asset);
+    lines.push(
+      `🛡️ LENITNES · daily · ${today} · ${topMeta.label} ${top.conviction}/100 (close miss)`,
     );
   } else {
-    lines.push(`\u2705 All ${groupsTotal} repos clean \u00B7 ${activeCount} monitors active`);
-    lines.push(`\uD83D\uDCCA ${totalSignals} total signals \u00B7 ${last24hSignals} last 24h`);
+    lines.push(`🛡️ LENITNES · daily · ${today} · all ${groupsTotal} repos clean`);
   }
   lines.push('');
 
-  // ── Recent signals (if any) ──
+  // ── Top signals — show the actual thesis, not a count ──
   if (recentSignals.length > 0) {
-    lines.push(`\uD83D\uDCE1 Signals last 24h`);
-    for (const s of recentSignals) {
+    lines.push(`💭 Top signals (24h)`);
+    for (const s of recentSignals.slice(0, 3)) {
       const meta = assetMeta(s.asset);
-      const score = s.conviction >= 70 ? `\uD83D\uDD25 ${s.conviction}` : `${s.conviction}`;
-      const link = s.conviction >= 70 ? `${config.webOrigin}/signals/${s.id}` : null;
-      lines.push(`  ${meta.emoji} ${s.condition_summary.replace(/\n/g, ' ')}`);
-      if (s.thesis) lines.push(`    \uD83E\uDDE0 ${s.thesis}`);
-      lines.push(`    Conviction: ${score}${link ? ` \u00B7 ${link}` : ''}`);
+      const link = s.conviction >= 70 ? ` · ${config.webOrigin}/signals/${s.id}` : '';
+      lines.push(`   ${meta.emoji} ${meta.label} · ${s.conviction}/100${link}`);
+      if (s.thesis) lines.push(`     "${s.thesis.replace(/\n/g, ' ')}"`);
     }
     lines.push('');
   }
 
-  // ── Watchlist summary (compact, one line per repo) ──
-  for (const group of groups) {
-    const meta = assetMeta(group.asset);
-    const maxSignals = Math.max(...group.monitors.map((m) => m.signals_7d));
-    const maxAgo = group.monitors.reduce(
-      (latest, m) =>
-        !latest || (m.last_check_at && m.last_check_at > latest) ? m.last_check_at : latest,
-      null as string | null,
-    );
+  // ── Watchlist roll-up — only show movers ──
+  const noisy = groups
+    .map((g) => ({ group: g, total: g.monitors.reduce((s, m) => s + m.signals_7d, 0) }))
+    .filter((x) => x.total > 0)
+    .sort((a, b) => b.total - a.total);
 
-    let badge: string;
-    if (maxSignals > 0) {
-      const total = group.monitors.reduce((s, m) => s + m.signals_7d, 0);
-      badge = `\uD83D\uDD36 ${total} signal(s)`;
-    } else {
-      badge = `\u2705 Clean`;
+  if (noisy.length > 0) {
+    lines.push(`📊 Watchlist activity (7d)`);
+    for (const { group, total } of noisy) {
+      const meta = assetMeta(group.asset);
+      lines.push(`   ${meta.emoji} ${meta.label} · ${total} signal(s)`);
     }
-    lines.push(`${meta.emoji} ${meta.label} \u2014 ${badge} \u00B7 checked ${timeAgo(maxAgo)}`);
+    const quietCount = groupsTotal - noisy.length;
+    if (quietCount > 0) lines.push(`   … ${quietCount} other repo(s) quiet`);
+    lines.push('');
   }
-  lines.push('');
 
-  // ── Stats ──
-  lines.push(`\uD83D\uDCCA Stats`);
-  lines.push(`\u2022 ${totalSignals} signals processed (all time)`);
-  lines.push(`\u2022 ${last24hSignals} checks in last 24h`);
-  lines.push(`\u2022 ${aboveThreshold7d} above-threshold signals this week`);
-  lines.push('');
-
-  // ── Portfolio (recent orders) ──
+  // ── Trades — only when something fired ──
   if (recentOrders.length > 0) {
     lines.push(`💼 Trades (7d)`);
     for (const o of recentOrders) {
       const tx = o.chain_tx_hash ? o.chain_tx_hash.slice(0, 10) + '…' : 'pending';
-      lines.push(`  ${o.chain} ${tx} — ${o.status} (${o.placed_at.slice(0, 10)})`);
+      lines.push(`   ${o.chain} · ${o.status} · ${tx} (${o.placed_at.slice(0, 10)})`);
     }
     lines.push('');
   }
 
-  // ── Agent note ──
-  lines.push(`\uD83E\uDDE0 Agent note`);
-  if (aboveThreshold7d > 0) {
-    lines.push(
-      `Above-threshold signal activity detected this week. Review the scorecard for conviction scores, thesis, and outcome tracking.`,
-    );
-  } else if (recentSignals.length > 0) {
-    lines.push(
-      `${recentSignals.length} new signal(s) detected in the last 24h, all below the conviction threshold (70). The agent is watching but no trade action was warranted.`,
-    );
-  } else {
-    lines.push(
-      `No new signals in the last 24h. All ${groupsTotal} watched repos are quiet. The pipeline is healthy and checking on schedule.`,
-    );
-  }
-  lines.push('');
-
-  // ── Footer ──
-  lines.push(`\uD83D\uDD17 Scorecard: ${config.webOrigin}/scorecard`);
+  // ── One-line stat strip + footer ──
   lines.push(
-    `\uD83D\uDCB0 Treasury: https://testnet.bscscan.com/address/0x4dA649DeB07159E791C423bb139e6213e745D138`,
+    `📈 ${totalSignals} total · ${last24hSignals} (24h) · ${activeCount} monitors · ${groupsTotal} repos`,
   );
-  lines.push(`\uD83D\uDD0D Source: https://github.com/sneldao/lenitnes`);
+  lines.push('');
+  lines.push(`🔗 ${config.webOrigin}/scorecard · ${config.webOrigin}/portfolio`);
 
   return lines.join('\n');
 }

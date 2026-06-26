@@ -14,6 +14,9 @@ import { getWallet, getChainConfig } from './evm/client.js';
 import { isTwakConfigured, swap as twakSwap } from './twak.js';
 import { getPriceAt } from './price.js';
 import { computeTpSlLevels } from './treasury/risk.js';
+import { openSwap, closeSwap } from './treasury/swap.js';
+import { resolveTradeableToken } from './treasury/asset-registry.js';
+import { config } from '../config.js';
 
 export type TradeMode = 'paper' | 'live';
 
@@ -86,31 +89,29 @@ function paperTxHash(action: TradeAction, wallet: { address: string }): string {
  * the configured testnet (Arbitrum Sepolia or Robinhood Chain).
  */
 /**
- * Execute a native BNB → WBNB wrap on BSC (testnet or mainnet).
- * Uses the system wallet (TREASURY_PRIVATE_KEY) directly via ethers.
- * The WBNB address is resolved from the chain config in evm/client.ts.
- * Falls back to the known BSC testnet WBNB if the chain config is empty.
- * Returns the tx hash and the wrapped amount.
+ * Execute a real PancakeSwap V2 BNB → tokenOut swap.
+ *
+ * Replaces the earlier "wrap BNB to WBNB" no-op that ignored the
+ * resolved tokenOut and never actually opened a position in the
+ * asset. The swap goes through services/treasury/swap.openSwap,
+ * which computes minAmountOut from getQuote() so slippage is
+ * bounded by config — not 0.
+ *
+ * Throws if the token isn't in the asset registry or the quote
+ * fails. The caller (signAndSend) translates the throw into a
+ * 'failed' order outcome.
  */
-async function executeBscSwap(amountIn: string): Promise<{ txHash: string; amountOut: string }> {
-  const cfg = getChainConfig('bnb');
-  const wallet = getWallet('bnb');
-  const wbnbAddress: string = cfg.wethAddress || '0xae13d989dac2f0debff460ac112a837c89baa7cd';
-  const iface = new ethers.Interface(['function deposit() payable']);
-  const amountWei = ethers.parseEther(amountIn);
-
-  const tx = await wallet.sendTransaction({
-    to: wbnbAddress,
-    data: iface.encodeFunctionData('deposit'),
-    value: amountWei,
-    gasLimit: 60000,
-  });
-  const receipt = await tx.wait();
-  if (receipt?.status !== 1) {
-    throw new Error(`BSC swap failed: tx ${tx.hash} status ${receipt?.status}`);
-  }
-  logger.info({ txHash: tx.hash, amountIn }, 'treasury: BSC WBNB wrap executed');
-  return { txHash: tx.hash, amountOut: amountIn };
+async function executeBscSwap(
+  amountInBnb: string,
+  tokenOut: string,
+  slippageBps: number,
+): Promise<{ txHash: string; amountOut: string }> {
+  const result = await openSwap('bnb', tokenOut, amountInBnb, slippageBps);
+  logger.info(
+    { txHash: result.txHash, amountInBnb, tokenOut, amountOut: result.amountOut },
+    'treasury: BSC PancakeSwap V2 swap executed',
+  );
+  return { txHash: result.txHash, amountOut: result.amountOut };
 }
 
 export async function signAndSend(action: TradeAction): Promise<TradeReceipt> {
@@ -183,10 +184,10 @@ export async function signAndSend(action: TradeAction): Promise<TradeReceipt> {
       }
     }
 
-    // Direct BSC swap: wrap native BNB → WBNB via the WBNB contract.
-    // This works on both testnet and mainnet. The treasury wallet's
-    // private key signs the transaction.
-    const bscResult = await executeBscSwap(action.amountIn);
+    // Direct BSC swap fallback (used when TWAK isn't configured).
+    // Uses PancakeSwap V2 router directly via ethers — this is a
+    // real swap, not the prior WBNB-wrap no-op.
+    const bscResult = await executeBscSwap(action.amountIn, action.tokenOut, action.slippageBps);
     return {
       chain: action.chain,
       txHash: bscResult.txHash,
@@ -423,39 +424,81 @@ export async function recordTrade(
 
 /**
  * Close a specific open position by id. Used by the TP/SL
- * scheduler when a target is hit. Mirrors the 'short'-side path
- * of recordTrade but takes the position_id directly so the
- * scheduler doesn't depend on "oldest open" lookups.
+ * scheduler when a target is hit, and by the admin /close
+ * endpoint for manual exits.
+ *
+ * Flow:
+ *   1. Look up the position. Pull asset, chain, entry data.
+ *   2. If TRADING_ENABLED and the asset is in the BSC registry
+ *      and the open trade was a real on-chain swap (tx hash
+ *      doesn't start with 0xpap), execute a real close swap
+ *      via closeSwap() — sells the wallet's token balance back
+ *      to BNB on PancakeSwap V2.
+ *   3. Always update the position row with realized PnL +
+ *      exit_price_usd, regardless of paper/live.
+ *
+ * A close-swap failure is logged but does NOT prevent the
+ * book-keeping update — the operator gets a Telegram alert
+ * either way, and a stuck on-chain balance is recoverable via
+ * manual admin tooling.
  */
 export async function closePositionById(
   positionId: string,
   exitPriceUsd: number | null,
   reason: 'take_profit' | 'stop_loss' | 'manual',
-): Promise<{ closed: boolean; pnlUsd: number | null }> {
+): Promise<{ closed: boolean; pnlUsd: number | null; closeTxHash: string | null }> {
   const { rows } = await query<{
     asset: string;
     chain: string;
     entry_amount: string;
     entry_price_usd: string | null;
+    entry_tx_hash: string | null;
     signal_id: string | null;
   }>(
-    `SELECT asset, chain, entry_amount::text, entry_price_usd::text, signal_id
+    `SELECT asset, chain, entry_amount::text, entry_price_usd::text,
+            entry_tx_hash, signal_id
        FROM positions WHERE id = $1 AND status = 'open'`,
     [positionId],
   );
   const row = rows[0];
-  if (!row) return { closed: false, pnlUsd: null };
+  if (!row) return { closed: false, pnlUsd: null, closeTxHash: null };
 
   const entryAmount = parseFloat(row.entry_amount);
   const entryPriceUsd = row.entry_price_usd ? parseFloat(row.entry_price_usd) : null;
+  const chain = row.chain as Chain;
 
-  // Build the close trade. For BNB→underlying open, the close is
-  // underlying→BNB. We swap tokenIn/tokenOut; the registry-resolved
-  // address is what we long'd into, so we sell it back to WBNB.
-  // For now this only supports paper mode — the live close path
-  // needs the same swap-router plumbing as open and is wired in a
-  // follow-up. The scheduler still alerts on every close so ops
-  // can manually exit if needed.
+  // Decide whether this is a paper close (DB only) or a real
+  // on-chain close. The entry tx hash with the `0xpap` prefix
+  // marks the open as paper — its close mirrors that.
+  const wasPaperOpen = row.entry_tx_hash?.startsWith('0xpap') ?? true;
+  const tradeable = resolveTradeableToken(row.asset, chain);
+  const canClose = config.treasury.tradingEnabled && !wasPaperOpen && tradeable != null;
+
+  let closeTxHash: string | null = null;
+  if (canClose && tradeable) {
+    try {
+      const result = await closeSwap(
+        chain,
+        tradeable.tokenAddress,
+        config.treasury.defaultSlippageBps,
+      );
+      closeTxHash = result.txHash;
+      logger.info(
+        { positionId, asset: row.asset, reason, closeTxHash, bnbReceived: result.amountOut },
+        'closePositionById: on-chain close executed',
+      );
+    } catch (err) {
+      // Bookkeeping still proceeds — the operator gets paged and
+      // can retry the swap manually. Better to record the
+      // intention than to leave the position in a "should-close"
+      // limbo.
+      logger.error(
+        { err, positionId, asset: row.asset, reason },
+        'closePositionById: on-chain close swap failed — bookkeeping only',
+      );
+    }
+  }
+
   let pnlUsd: number | null = null;
   let pnlPct: number | null = null;
   if (entryPriceUsd != null && exitPriceUsd != null && entryAmount > 0) {
@@ -467,11 +510,12 @@ export async function closePositionById(
     `UPDATE positions
        SET status = 'closed',
            exit_price_usd = $2,
+           exit_tx_hash = COALESCE($5, exit_tx_hash),
            closed_at = now(),
            pnl_usd = $3,
            pnl_pct = $4
      WHERE id = $1`,
-    [positionId, exitPriceUsd, pnlUsd, pnlPct],
+    [positionId, exitPriceUsd, pnlUsd, pnlPct, closeTxHash],
   );
 
   logger.info(
@@ -483,8 +527,10 @@ export async function closePositionById(
       exitPriceUsd,
       pnlUsd,
       pnlPct,
+      closeTxHash,
+      mode: canClose ? 'live' : 'paper',
     },
     'position closed',
   );
-  return { closed: true, pnlUsd };
+  return { closed: true, pnlUsd, closeTxHash };
 }

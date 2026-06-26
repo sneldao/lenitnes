@@ -313,13 +313,10 @@ async function checkGasBalance(): Promise<void> {
 
     if (balanceBnb < thresholdBnb) {
       const msg = [
-        `⛽ LENITNES — Low gas warning`,
+        `🛡️ LENITNES · gas low · ${balanceBnb.toFixed(4)} BNB (floor ${thresholdBnb.toFixed(4)})`,
         ``,
-        `Treasury wallet: \`${BSC_TREASURY_WALLET}\``,
-        `Balance: **${balanceBnb.toFixed(4)} BNB**`,
-        `Threshold: ${thresholdBnb.toFixed(4)} BNB`,
-        ``,
-        `Fund: https://testnet.bscscan.com/address/${BSC_TREASURY_WALLET}`,
+        `Trading will pause once the wallet can't cover swap gas.`,
+        `🔗 https://testnet.bscscan.com/address/${BSC_TREASURY_WALLET}`,
       ].join('\n');
       await sendTelegram(config.telegram.publicChannelId, msg);
       logger.warn({ balanceBnb, threshold: thresholdBnb }, 'low gas balance — alert sent');
@@ -497,15 +494,22 @@ async function checkTakeProfitStopLoss(): Promise<void> {
     }
 
     if (hits.length > 0) {
-      const lines: string[] = [`🎯 LENITNES — TP/SL hit · ${hits.length} position(s) closed`, ``];
+      const totalPnl = hits.reduce((acc, h) => acc + (h.pnlUsd ?? 0), 0);
+      const pnlLabel =
+        totalPnl >= 0 ? `+$${totalPnl.toFixed(2)}` : `-$${Math.abs(totalPnl).toFixed(2)}`;
+      const lines: string[] = [
+        `🛡️ LENITNES · ${hits.length === 1 ? 'position closed' : `${hits.length} positions closed`} · ${pnlLabel}`,
+        ``,
+      ];
       for (const h of hits) {
+        const reason = h.side === 'TP' ? 'take-profit' : 'stop-loss';
         const pnl = h.pnlUsd != null ? ` · ${h.pnlUsd >= 0 ? '+' : ''}$${h.pnlUsd.toFixed(2)}` : '';
         lines.push(
-          `• ${h.asset} ${h.side} @ $${h.currentPrice.toFixed(2)} (target $${h.targetPrice.toFixed(2)})${pnl}`,
+          `   ${h.asset.toUpperCase()} · ${reason} · @ $${h.currentPrice.toFixed(2)}${pnl}`,
         );
       }
       lines.push(``);
-      lines.push(`💼 ${config.webOrigin}/portfolio`);
+      lines.push(`🔗 ${config.webOrigin}/portfolio`);
       await sendTelegram(config.telegram.publicChannelId, lines.join('\n'));
       logger.info({ hits: hits.length }, 'TP/SL targets hit — positions closed and alert sent');
     }

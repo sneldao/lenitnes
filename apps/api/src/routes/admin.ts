@@ -9,6 +9,8 @@ import { config } from '../config.js';
 import { query } from '../db/pool.js';
 import { cacheInvalidate } from '../middleware/cache.js';
 import { _internalDailySpendUsd } from '../services/agent.js';
+import { closePositionById } from '../services/treasury.js';
+import { getPriceAt } from '../services/price.js';
 import { logger } from '../logger.js';
 
 export const adminRouter = Router();
@@ -95,4 +97,50 @@ adminRouter.post('/cache/invalidate', requireAdmin, (req, res) => {
 adminRouter.post('/cache/invalidate-all', requireAdmin, (_req, res) => {
   cacheInvalidate('');
   res.json({ ok: true, invalidatedAt: new Date().toISOString() });
+});
+
+// POST /admin/positions/:id/close
+// Manually close a single open position. Fetches the current
+// CoinGecko price for the asset, then calls closePositionById
+// which fires a real on-chain swap when TRADING_ENABLED + the
+// asset is in the registry, otherwise records a paper close.
+// Returns the realized PnL + close tx hash (or null for paper).
+//
+// Use cases:
+//   - First-live-trade dry run (open one, manually close it)
+//   - Emergency exit (operator wants to flatten a position now)
+//   - Cleaning up paper positions after a model change
+adminRouter.post('/positions/:id/close', requireAdmin, async (req, res) => {
+  const positionId = String(req.params.id);
+  try {
+    // Look up the asset so we can fetch the current price.
+    const { rows } = await query<{ asset: string; status: string }>(
+      `SELECT asset, status FROM positions WHERE id = $1`,
+      [positionId],
+    );
+    if (!rows[0]) {
+      res.status(404).json({ error: 'position_not_found' });
+      return;
+    }
+    if (rows[0].status !== 'open') {
+      res.status(409).json({ error: 'position_not_open', status: rows[0].status });
+      return;
+    }
+    const exitPrice = await getPriceAt(rows[0].asset, new Date());
+    const result = await closePositionById(positionId, exitPrice, 'manual');
+    res.json({
+      ok: result.closed,
+      positionId,
+      asset: rows[0].asset,
+      exitPriceUsd: exitPrice,
+      pnlUsd: result.pnlUsd,
+      closeTxHash: result.closeTxHash,
+    });
+  } catch (err) {
+    logger.error({ err, positionId }, 'admin/positions/close failed');
+    res.status(500).json({
+      error: 'close_failed',
+      message: err instanceof Error ? err.message : String(err),
+    });
+  }
 });
