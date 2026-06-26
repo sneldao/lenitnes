@@ -10,37 +10,70 @@ Short reference for operating the live trading path. Reading order:
 The agent ships with `TRADING_ENABLED=false` by default. Every gate
 below must pass before flipping that switch in production.
 
-1. **Asset registry membership.** Confirm the asset(s) you intend to
-   trade live appear in `apps/api/src/services/treasury/asset-registry.ts`
-   with a verified token address. Cross-check the address on BscScan
-   against the official Binance-Peg token list. Only BTC + ETH are
-   pre-registered on BSC mainnet — L1s (SOL/SUI/ZEC) are deliberately
-   omitted because they have no canonical BEP-20 with deep liquidity.
+### Fastest check: hit `/admin/risk-check`
 
-2. **Treasury wallet funded.** The treasury address
-   `0x4dA649DeB07159E791C423bb139e6213e745D138` (or your equivalent)
-   must hold:
-   - Enough native BNB to cover `TREASURY_DEFAULT_AMOUNT` × max
-     concurrent positions, plus ~0.005 BNB per swap for gas.
-   - Enough BNB above `GAS_WARNING_THRESHOLD` (default 0.02) to
-     avoid the low-gas circuit alert.
+The API exposes a dry-run gate evaluator that runs every risk check
+WITHOUT firing a trade, and tells you which gate trips:
 
-3. **Slippage + liquidity gates set.** Defaults are sane:
-   - `TREASURY_SLIPPAGE_BPS=50` (0.5%)
-   - Per-asset `minPoolTvlUsd` in the registry (default $5M for BTC/ETH)
-   - Per-asset `minDailyVolumeUsd` ($1M default; requires `CMC_API_KEY`)
+```bash
+curl -H "X-Admin-Key: $ADMIN_API_KEY" \
+  "https://lenitnes.persidian.com/api/admin/risk-check?asset=bitcoin&chain=bnb"
+```
 
-4. **TP/SL defaults reviewed.** Conviction-scaled around:
+A `decision.effectiveMode === "live"` means every gate passes.
+Anything else returns the gate that blocked + a human reason
+(e.g. `"BSC chainId 97 ≠ mainnet (56)"`).
+
+### What the API logs at boot
+
+Every API startup logs a `treasury:` posture line:
+
+```
+treasury: KILL SWITCH ON — every trade routes to paper
+treasury: live blocked — BSC chainId 97 is not mainnet (56)
+treasury: live ready — 2 registry asset(s), bnb chain
+```
+
+If you see anything other than "live ready" with
+`tradingEnabled=true`, the system is gated. The structured fields
+on the same log line include `bnbBalance`, `bnbChainId`, `bnbWallet`.
+
+### Full gate list (in order)
+
+1. **Asset registry membership.** The asset must appear in
+   `apps/api/src/services/treasury/asset-registry.ts` with a
+   verified token address. Cross-check on BscScan against the
+   official Binance-Peg token list. Only BTC + ETH are
+   pre-registered — L1s (SOL/SUI/ZEC) are deliberately omitted
+   (no canonical BEP-20 with deep liquidity).
+
+2. **BSC chain-ID guard.** Live BNB trades refuse unless
+   `config.chains.bnb.chainId === 56`. Testnet (chainId 97)
+   would revert against the mainnet-only registry addresses.
+
+3. **Treasury wallet funded.** The risk gate's balance preflight
+   refuses any trade that wouldn't cover `TREASURY_DEFAULT_AMOUNT
+   - 0.005 BNB`(gas buffer). The gas check job also alerts
+below`GAS_WARNING_THRESHOLD` (default 0.02 BNB).
+
+4. **Slippage + liquidity defaults.** Sane out of the box:
+   - `TREASURY_SLIPPAGE_BPS=50` (0.5%) — derives `amountOutMin`
+     from the on-chain PancakeSwap quote
+   - Per-asset `minPoolTvlUsd` in the registry (default $5M)
+   - Per-asset `minDailyVolumeUsd` ($1M; requires `CMC_API_KEY`)
+
+5. **TP/SL defaults.** Conviction-scaled:
    - `POSITION_TAKE_PROFIT_BPS=1500` (+15%, tilted by conviction)
    - `POSITION_STOP_LOSS_BPS=700` (−7%, fixed)
-     These fire via the 5-min `checkTakeProfitStopLoss` scheduler.
 
-5. **Position caps configured.**
+   Auto-close fires via the 5-min `checkTakeProfitStopLoss` job.
+
+6. **Position caps.**
    - `MAX_CONCURRENT_POSITIONS=5` — global ceiling
    - `MAX_PER_ASSET_POSITIONS=1` — no concentration
 
-6. **Admin API key set.** `ADMIN_API_KEY` non-empty so manual close
-   is available if the auto-close path fails.
+7. **Admin API key.** `ADMIN_API_KEY` non-empty so manual close
+   - risk-check are reachable.
 
 ---
 
@@ -191,6 +224,8 @@ the token. To recover:
 | `TRADING_ENABLED=false`        | yes     | Every live swap. Signals + scoring continue, trades route to paper. |
 | `TREASURY_MODE=paper`          | yes     | Same as above (older toggle). Both must be true for live.           |
 | Asset not in registry          | n/a     | Live swap for that asset; downgraded to paper.                      |
+| BSC chain ID ≠ 56              | n/a     | Live BNB trades on testnet (chainId 97). Registry is mainnet-only.  |
+| Treasury balance < amount+gas  | n/a     | Live swap when wallet can't cover. Fund the wallet.                 |
 | Pool TVL below floor           | n/a     | Live swap for that asset on that chain.                             |
 | 24h volume below floor         | n/a     | Live swap for that asset (CMC-gated).                               |
 | `MAX_CONCURRENT_POSITIONS` hit | 5       | New live opens; existing positions unaffected.                      |

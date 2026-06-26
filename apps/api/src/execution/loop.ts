@@ -506,6 +506,7 @@ export async function executeCheck(monitor: Monitor): Promise<{
       side: agentScore.recommended_action === 'short' ? 'short' : 'long',
       signalId,
       intendedMode: config.treasury.defaultMode,
+      amountIn: config.treasury.defaultTradeAmount,
     });
 
     const derived = deriveActionFromAgent(agentScore, monitor.asset_mapping, {

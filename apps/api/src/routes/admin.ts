@@ -5,11 +5,13 @@
 // ─────────────────────────────────────────────────────────────
 
 import { Router, type Request, type Response, type NextFunction } from 'express';
+import type { Chain } from '@lenitnes/types';
 import { config } from '../config.js';
 import { query } from '../db/pool.js';
 import { cacheInvalidate } from '../middleware/cache.js';
 import { _internalDailySpendUsd } from '../services/agent.js';
 import { closePositionById } from '../services/treasury.js';
+import { evaluateTradeRisk } from '../services/treasury/risk.js';
 import { getPriceAt } from '../services/price.js';
 import { logger } from '../logger.js';
 
@@ -97,6 +99,41 @@ adminRouter.post('/cache/invalidate', requireAdmin, (req, res) => {
 adminRouter.post('/cache/invalidate-all', requireAdmin, (_req, res) => {
   cacheInvalidate('');
   res.json({ ok: true, invalidatedAt: new Date().toISOString() });
+});
+
+// GET /admin/risk-check?asset=bitcoin&chain=bnb&side=long
+// Dry-runs the risk gate against the given inputs and returns the
+// decision WITHOUT firing a trade. Used during the first-live-trade
+// dry run + ongoing debugging when an expected trade routes to paper
+// and the operator wants to know which gate tripped.
+//
+// Defaults: chain=bnb, side=long, amount=config.treasury.defaultTradeAmount.
+adminRouter.get('/risk-check', requireAdmin, async (req, res) => {
+  const asset = req.query.asset ? String(req.query.asset) : undefined;
+  const chain = (req.query.chain ? String(req.query.chain) : 'bnb') as Chain;
+  const side = (req.query.side === 'short' ? 'short' : 'long') as 'short' | 'long';
+  const amountIn = req.query.amount ? String(req.query.amount) : config.treasury.defaultTradeAmount;
+  try {
+    const decision = await evaluateTradeRisk({
+      coingeckoId: asset,
+      chain,
+      side,
+      signalId: 'risk-check-dry-run',
+      intendedMode: config.treasury.defaultMode,
+      amountIn,
+    });
+    res.json({
+      input: { asset, chain, side, amountIn, intendedMode: config.treasury.defaultMode },
+      decision,
+      tradingEnabled: config.treasury.tradingEnabled,
+    });
+  } catch (err) {
+    logger.error({ err, asset, chain }, 'admin/risk-check failed');
+    res.status(500).json({
+      error: 'risk_check_failed',
+      message: err instanceof Error ? err.message : String(err),
+    });
+  }
 });
 
 // POST /admin/positions/:id/close

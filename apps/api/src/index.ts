@@ -199,6 +199,13 @@ if (isMain) {
         logger.warn({ err }, 'cache invalidation subscriber failed to start');
       });
 
+      // Treasury posture — kill switch, chain network, balance,
+      // registry coverage. Lets operators see at a glance whether
+      // live trading is actually reachable on this deploy.
+      import('./services/treasury/status.js')
+        .then(({ logTreasuryStatus }) => logTreasuryStatus())
+        .catch((err) => logger.warn({ err }, 'treasury status log failed (non-blocking)'));
+
       server.listen(config.port, () => {
         logger.info({ port: config.port, env: config.env }, 'API listening');
       });

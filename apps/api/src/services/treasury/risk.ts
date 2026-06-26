@@ -18,6 +18,7 @@
 // when any gate trips.
 // ─────────────────────────────────────────────────────────────
 
+import { ethers } from 'ethers';
 import type { Chain } from '@lenitnes/types';
 import { query } from '../../db/pool.js';
 import { config } from '../../config.js';
@@ -25,7 +26,21 @@ import { logger } from '../../logger.js';
 import { isTradeable, resolveTradeableToken } from './asset-registry.js';
 import { getPoolTvlUsd } from './quote.js';
 import { getQuotes } from '../cmc.js';
+import { getProvider, getWallet } from '../evm/client.js';
 import type { TradeMode } from '../treasury.js';
+
+// BSC mainnet chain ID. The asset registry's token addresses are
+// mainnet-only by design (testnet has no real liquidity for the
+// bridged assets we trade). If the operator points BNB_RPC_URL +
+// BNB_CHAIN_ID at testnet, live trades must NOT fire — the swap
+// would either revert against non-existent contracts or land in
+// a junk pool.
+const BSC_MAINNET_CHAIN_ID = 56;
+
+// Safety buffer for swap gas on top of amountIn, in BNB. PancakeSwap
+// V2 swaps typically use ~150k gas; at 3 gwei that's ~0.00045 BNB.
+// 0.005 gives ~10x headroom for fee spikes.
+const BSC_GAS_BUFFER_BNB = '0.005';
 
 // Map our coingecko_id to the CMC symbol used by getQuotes. CMC's
 // /quotes/latest endpoint takes symbols (BTC/ETH/etc.), not their
@@ -89,6 +104,8 @@ export interface RiskGateInput {
   signalId: string;
   /** What the operator configured (TREASURY_MODE). */
   intendedMode: TradeMode;
+  /** Trade size in native chain units (e.g. BNB), required for the balance preflight. */
+  amountIn: string;
 }
 
 export interface RiskGateDecision {
@@ -135,6 +152,48 @@ export async function evaluateTradeRisk(input: RiskGateInput): Promise<RiskGateD
       reason: `asset ${input.coingeckoId ?? '<unknown>'} not in tradeable registry for ${input.chain}`,
       downgraded: true,
     };
+  }
+
+  // 2b) Chain-ID guard. The registry's addresses are mainnet-only;
+  //     a swap built against them but submitted to a testnet RPC
+  //     reverts with cryptic errors. Refuse early with a clear
+  //     reason so operators see "wrong network" instead of
+  //     "execution reverted" in the logs.
+  if (input.chain === 'bnb' && config.chains.bnb.chainId !== BSC_MAINNET_CHAIN_ID) {
+    return {
+      effectiveMode: PAPER,
+      reason: `BSC chainId ${config.chains.bnb.chainId} ≠ mainnet (${BSC_MAINNET_CHAIN_ID}); registry addresses won't resolve`,
+      downgraded: true,
+    };
+  }
+
+  // 2c) Treasury balance preflight. The native BNB balance must
+  //     cover amountIn + gas, otherwise the swap reverts on
+  //     transfer. Catching this here turns a generic "execution
+  //     reverted" into a "fund the wallet" alert.
+  if (input.chain === 'bnb') {
+    try {
+      const wallet = getWallet(input.chain);
+      const provider = getProvider(input.chain);
+      const balance = await provider.getBalance(wallet.address);
+      const required = ethers.parseEther(input.amountIn) + ethers.parseEther(BSC_GAS_BUFFER_BNB);
+      if (balance < required) {
+        return {
+          effectiveMode: PAPER,
+          reason: `treasury balance ${ethers.formatEther(balance)} BNB < required ${ethers.formatEther(required)} BNB (amount + gas)`,
+          downgraded: true,
+        };
+      }
+    } catch (err) {
+      // Provider/wallet unavailable — treat as not safe to trade.
+      // The bare wallet-not-configured case is most likely a
+      // missing TREASURY_PRIVATE_KEY; operator should see this.
+      return {
+        effectiveMode: PAPER,
+        reason: `treasury balance check failed: ${err instanceof Error ? err.message : String(err)}`,
+        downgraded: true,
+      };
+    }
   }
 
   // 3) Concurrent-position cap. Stops the agent from opening 50
