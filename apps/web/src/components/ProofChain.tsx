@@ -1,27 +1,11 @@
 'use client';
 
 import { useState, useCallback } from 'react';
-import { Eye, Shield, Link, Zap, type LucideIcon } from 'lucide-react';
+import type { LucideIcon } from 'lucide-react';
 
-const CHAIN_KEYFRAMES = `
-@keyframes chain-flow {
-  0%   { stroke-dashoffset: 20 }
-  100% { stroke-dashoffset: 0 }
-}
-@keyframes chain-node-glow {
-  0%, 100% { box-shadow: 0 0 8px var(--glow) }
-  50%      { box-shadow: 0 0 22px var(--glow) }
-}
-@keyframes chain-expand {
-  from { opacity: 0; max-height: 0; margin-top: 0 }
-  to   { opacity: 1; max-height: 120px; margin-top: 12px }
-}
-@media (prefers-reduced-motion: reduce) {
-  @keyframes chain-flow      { 0%, 100% { stroke-dashoffset: 0 } }
-  @keyframes chain-node-glow { 0%, 100% { box-shadow: none } }
-  @keyframes chain-expand    { from { opacity: 1 } to { opacity: 1 } }
-}
-`;
+// Keyframes live in globals.css. Declaring them per-mount via
+// dangerouslySetInnerHTML caused the local @media
+// (prefers-reduced-motion) override to shadow the global rule.
 
 export interface ProofChainStep {
   id: number;
@@ -54,8 +38,6 @@ export default function ProofChain({ steps, title, subtitle, className = '' }: P
 
   return (
     <section className={`relative mx-auto w-full ${className}`}>
-      <style dangerouslySetInnerHTML={{ __html: CHAIN_KEYFRAMES }} />
-
       {title && (
         <h2 className="mb-8 text-center text-2xl font-bold tracking-tight text-slate-100 sm:text-3xl">
           {title}

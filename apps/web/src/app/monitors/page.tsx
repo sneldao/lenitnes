@@ -4,15 +4,8 @@ import { useQuery } from '@tanstack/react-query';
 import Link from 'next/link';
 import { Activity, Clock, Shield, ExternalLink, GitBranch } from 'lucide-react';
 import { api, type Monitor } from '@/lib/api';
-import {
-  shortUrl,
-  urlType,
-  repoLabel,
-  timeAgo,
-  freqLabel,
-  assetTicker,
-  statusDotColor,
-} from '@/lib/format';
+import { qk, REFETCH } from '@/lib/queryKeys';
+import { urlType, repoLabel, timeAgo, freqLabel, assetTicker, statusDotColor } from '@/lib/format';
 import { PageLoader, PageError } from '@/components/ui/page-states';
 
 export default function MonitorsPage() {
@@ -21,9 +14,9 @@ export default function MonitorsPage() {
     isLoading,
     isError,
   } = useQuery<Monitor[]>({
-    queryKey: ['monitors'],
+    queryKey: qk.monitors(),
     queryFn: () => api.listMonitors(),
-    refetchInterval: 30_000,
+    refetchInterval: REFETCH.slow,
   });
 
   if (isLoading) return <PageLoader label="Loading monitors…" />;
@@ -49,7 +42,7 @@ export default function MonitorsPage() {
         {[...grouped.entries()].map(([repo, mons]) => {
           const latestCheck = mons.reduce(
             (latest, m) =>
-              !latest || (m.last_check_at && m.last_check_at > latest) ? m.last_check_at : latest,
+              !latest || (m.lastCheckAt && m.lastCheckAt > latest) ? m.lastCheckAt : latest,
             null as string | null,
           );
           return (
@@ -68,11 +61,15 @@ export default function MonitorsPage() {
               <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
                 {mons.map((m) => {
                   const type = urlType(m.url);
-                  const asset = m.asset_mapping?.coingeckoId ?? '?';
+                  const asset = m.assetMapping?.coingeckoId ?? '?';
+                  // The per-monitor signal list page was removed during
+                  // the post-pivot consolidation. Send users to the
+                  // public scorecard instead, which is the canonical
+                  // surface for the agent's recent activity.
                   return (
                     <Link
                       key={m.id}
-                      href={`/signals?monitorId=${m.id}`}
+                      href="/scorecard"
                       className="group relative rounded-xl border border-edge/60 bg-panel p-4 transition-all hover:border-accent/40 hover:shadow-card"
                     >
                       <div className="flex items-start justify-between">
@@ -91,21 +88,21 @@ export default function MonitorsPage() {
                       </div>
 
                       <p className="mt-3 text-xs text-slate-500 line-clamp-2 leading-relaxed">
-                        {m.condition_text}
+                        {m.conditionText}
                       </p>
 
                       <div className="mt-3 flex items-center gap-3 text-[10px] text-slate-500">
                         <span className="flex items-center gap-1">
                           <Clock className="h-3 w-3" />
-                          {freqLabel(m.frequency_seconds)}
+                          {freqLabel(m.frequencySeconds)}
                         </span>
                         <span className="flex items-center gap-1">
                           <Shield className="h-3 w-3" />
-                          conf {m.confidence_threshold}
+                          conf {m.confidenceThreshold}
                         </span>
                         <span className="flex items-center gap-1">
                           <Activity className="h-3 w-3" />
-                          {timeAgo(m.last_check_at)}
+                          {timeAgo(m.lastCheckAt)}
                         </span>
                       </div>
 

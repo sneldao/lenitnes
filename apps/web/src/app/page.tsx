@@ -4,6 +4,7 @@ import { useQuery } from '@tanstack/react-query';
 import Link from 'next/link';
 import { ArrowUpRight } from 'lucide-react';
 import { api, type ScorecardResponse } from '@/lib/api';
+import { qk, REFETCH } from '@/lib/queryKeys';
 
 // ─────────────────────────────────────────────────────────────
 // LENITNES landing — the public surface.
@@ -208,9 +209,9 @@ function SectionLabel({ number, label }: { number: string; label: string }) {
 
 function TrackRecordStrip() {
   const { data, isLoading } = useQuery<ScorecardResponse>({
-    queryKey: ['scorecard', 'overall', 'landing'],
+    queryKey: qk.scorecard(),
     queryFn: () => api.getScorecard(),
-    refetchInterval: 60_000,
+    refetchInterval: REFETCH.medium,
   });
 
   if (isLoading || !data) {
@@ -267,9 +268,9 @@ function TrackRecordStrip() {
 
 function RecentCalls() {
   const { data, isLoading } = useQuery({
-    queryKey: ['scorecard', 'recent', 'landing'],
+    queryKey: qk.scorecardRecent(5),
     queryFn: () => api.getScorecardRecent(5),
-    refetchInterval: 60_000,
+    refetchInterval: REFETCH.medium,
   });
 
   if (isLoading) {

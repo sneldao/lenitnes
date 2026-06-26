@@ -1,36 +1,32 @@
 'use client';
 
 import { use, useEffect, useMemo, useState } from 'react';
-import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { useQuery } from '@tanstack/react-query';
 import Link from 'next/link';
 import { usePathname, useSearchParams } from 'next/navigation';
-import { api, type Signal } from '@/lib/api';
+import { api } from '@/lib/api';
+import { qk } from '@/lib/queryKeys';
 import {
-  Shield,
   Clock,
   ArrowLeft,
   Copy,
   Check,
   Eye,
-  Link as LinkIcon,
   Zap,
   Image as ImageIcon,
   Printer,
   FileCheck2,
   Globe,
-  Hash,
-  Fingerprint,
   AlertTriangle,
   TrendingUp,
 } from 'lucide-react';
 import ProofChain from '@/components/ProofChain';
 import { getProofChainSteps } from '@/lib/proof-chain';
 import { AgentReasoningCard } from '@/components/AgentReasoningCard';
-import { ProofRow } from '@/components/ui/ProofRow';
 import { CheckItem } from '@/components/signal/CheckItem';
 import { SignalRow } from '@/components/signal/SignalRow';
 import { ProofProgress } from '@/components/signal/ProofProgress';
-import { ProofLink } from '@/components/signal/ProofLink';
+import { PageLoader } from '@/components/ui/page-states';
 
 // Public-facing proof explorer for a single signal.
 // Supports both authenticated (private) and public (shareable) modes.
@@ -40,11 +36,10 @@ export default function SignalDetailPage({ params }: { params: Promise<{ id: str
   const searchParams = useSearchParams();
   const isPublic = pathname.startsWith('/public/proof');
   const shareToken = searchParams.get('share') ?? undefined;
-  const queryClient = useQueryClient();
 
   const [copied, setCopied] = useState<'link' | 'receipt' | 'cid' | 'hash' | null>(null);
 
-  const queryKey = isPublic ? ['public-proof', id] : ['signal', id];
+  const queryKey = isPublic ? qk.publicProof(id) : qk.signal(id);
   const queryFn = isPublic ? () => api.getPublicProof(id, shareToken) : () => api.getSignal(id);
 
   const {
@@ -64,7 +59,7 @@ export default function SignalDetailPage({ params }: { params: Promise<{ id: str
   // Inject OG / Twitter meta for public share links
   useEffect(() => {
     if (!signal || !isPublic) return;
-    const summary = signal.condition_summary ?? 'Signal detected';
+    const summary = signal.conditionSummary ?? 'Signal detected';
     const target = signal.monitor?.url ?? '';
     const desc = `LENITNES proof: "${summary}" detected on ${target}. Hedera-timestamped, Grove-stored.`;
     const setMeta = (prop: string, val: string, attr = 'property') => {
@@ -89,12 +84,12 @@ export default function SignalDetailPage({ params }: { params: Promise<{ id: str
   const publicUrl = useMemo(() => {
     const base =
       (typeof window !== 'undefined' ? window.location.origin : '') + '/public/proof/' + id;
-    const token = signal?.public_share_token ?? shareToken;
+    const token = signal?.publicShareToken ?? shareToken;
     return token ? `${base}?share=${encodeURIComponent(token)}` : base;
-  }, [id, shareToken, signal?.public_share_token]);
+  }, [id, shareToken, signal?.publicShareToken]);
 
   const twitterText = useMemo(() => {
-    const summary = signal?.condition_summary ?? 'Signal detected';
+    const summary = signal?.conditionSummary ?? 'Signal detected';
     const target = signal?.monitor?.url ?? 'a web signal';
     return encodeURIComponent(
       '\u{1F6E1}\uFE0F LENITNES proof: "' +
@@ -109,13 +104,13 @@ export default function SignalDetailPage({ params }: { params: Promise<{ id: str
     if (!signal) return '';
     return [
       'LENITNES proof receipt: ' + proofId,
-      'Detected: ' + new Date(signal.detected_at).toISOString(),
+      'Detected: ' + new Date(signal.detectedAt).toISOString(),
       'Target: ' + (signal.monitor?.url ?? 'unknown'),
-      'Condition: ' + (signal.monitor?.condition_text ?? 'unknown'),
-      'Summary: ' + (signal.condition_summary ?? 'Signal detected'),
+      'Condition: ' + (signal.monitor?.conditionText ?? 'unknown'),
+      'Summary: ' + (signal.conditionSummary ?? 'Signal detected'),
       'Hedera: ' + (signal.proof?.hashscanUrl ?? 'pending'),
       'Arbitrum: ' +
-        (signal.arb_tx_hash ? `https://sepolia.arbiscan.io/tx/${signal.arb_tx_hash}` : 'pending'),
+        (signal.arbTxHash ? `https://sepolia.arbiscan.io/tx/${signal.arbTxHash}` : 'pending'),
       'Grove: ' + (signal.proof?.ipfsUrl ?? 'pending'),
       'Receipt URL: ' + publicUrl,
     ].join('\n');
@@ -172,15 +167,7 @@ export default function SignalDetailPage({ params }: { params: Promise<{ id: str
       </div>
     );
 
-  if (isLoading || !signal)
-    return (
-      <div className="flex items-center justify-center py-20">
-        <div className="space-y-3 text-center">
-          <div className="mx-auto h-8 w-8 animate-pulse rounded-xl bg-accent/20" />
-          <p className="text-sm text-slate-500">Loading proof package\u2026</p>
-        </div>
-      </div>
-    );
+  if (isLoading || !signal) return <PageLoader label="Loading proof package\u2026" />;
 
   return (
     <div className="mx-auto max-w-3xl space-y-6 animate-fade-in">
@@ -318,7 +305,7 @@ export default function SignalDetailPage({ params }: { params: Promise<{ id: str
           <SignalRow
             icon={Clock}
             label="Detected at"
-            value={new Date(signal.detected_at).toLocaleString()}
+            value={new Date(signal.detectedAt).toLocaleString()}
           />
           <SignalRow icon={Eye} label="Target URL" value={signal.monitor?.url ?? '\u2014'} mono />
         </div>
@@ -326,28 +313,19 @@ export default function SignalDetailPage({ params }: { params: Promise<{ id: str
           <SignalRow
             icon={Eye}
             label="Condition"
-            value={signal.monitor?.condition_text ?? '\u2014'}
+            value={signal.monitor?.conditionText ?? '\u2014'}
           />
         </div>
         <div className="border-t border-edge/40 pt-4">
-          <SignalRow icon={Zap} label="Summary" value={signal.condition_summary ?? '\u2014'} />
+          <SignalRow icon={Zap} label="Summary" value={signal.conditionSummary ?? '\u2014'} />
         </div>
       </div>
 
       {/* ── Agent Reasoning — combines classification + verdict in one card ── */}
-      {signal.agent_score && (
+      {signal.agentScore && (
         <AgentReasoningCard
-          agentScore={signal.agent_score}
-          classifications={
-            Array.isArray(signal.classifications)
-              ? (signal.classifications as Array<{
-                  detector_type: string;
-                  score: number;
-                  confidence: number;
-                  label: string;
-                }>)
-              : []
-          }
+          agentScore={signal.agentScore}
+          classifications={signal.classifications}
         />
       )}
 
@@ -366,54 +344,45 @@ export default function SignalDetailPage({ params }: { params: Promise<{ id: str
         </div>
         {Array.isArray(signal.outcomes) && signal.outcomes.length > 0 ? (
           <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-            {signal.outcomes.map(
-              (o: {
-                asset: string;
-                window_seconds: number;
-                price_at_signal: string;
-                price_after: string;
-                pct_change: string;
-                direction: string;
-              }) => {
-                const pct = parseFloat(o.pct_change);
-                const isUp = pct > 0.5;
-                const isDown = pct < -0.5;
-                const windowLabel =
-                  o.window_seconds < 3600
-                    ? `${Math.round(o.window_seconds / 60)}m`
-                    : o.window_seconds < 86400
-                      ? `${Math.round(o.window_seconds / 3600)}h`
-                      : `${Math.round(o.window_seconds / 86400)}d`;
-                return (
-                  <div
-                    key={`${o.asset}-${o.window_seconds}`}
-                    className={`rounded-xl border p-3 ${
-                      isUp
-                        ? 'border-signal/30 bg-signal/8'
-                        : isDown
-                          ? 'border-danger/30 bg-danger/8'
-                          : 'border-edge/40 bg-ink-light/30'
+            {signal.outcomes.map((o) => {
+              const pct = parseFloat(o.pctChange);
+              const isUp = pct > 0.5;
+              const isDown = pct < -0.5;
+              const windowLabel =
+                o.windowSeconds < 3600
+                  ? `${Math.round(o.windowSeconds / 60)}m`
+                  : o.windowSeconds < 86400
+                    ? `${Math.round(o.windowSeconds / 3600)}h`
+                    : `${Math.round(o.windowSeconds / 86400)}d`;
+              return (
+                <div
+                  key={`${o.asset}-${o.windowSeconds}`}
+                  className={`rounded-xl border p-3 ${
+                    isUp
+                      ? 'border-signal/30 bg-signal/8'
+                      : isDown
+                        ? 'border-danger/30 bg-danger/8'
+                        : 'border-edge/40 bg-ink-light/30'
+                  }`}
+                >
+                  <p className="font-mono text-[10px] uppercase tracking-wider text-slate-600">
+                    {windowLabel} after
+                  </p>
+                  <p
+                    className={`mt-1 text-xl font-bold tabular-nums ${
+                      isUp ? 'text-signal' : isDown ? 'text-danger' : 'text-slate-400'
                     }`}
                   >
-                    <p className="font-mono text-[10px] uppercase tracking-wider text-slate-600">
-                      {windowLabel} after
-                    </p>
-                    <p
-                      className={`mt-1 text-xl font-bold tabular-nums ${
-                        isUp ? 'text-signal' : isDown ? 'text-danger' : 'text-slate-400'
-                      }`}
-                    >
-                      {isUp ? '+' : ''}
-                      {pct.toFixed(2)}%
-                    </p>
-                    <p className="mt-1 font-mono text-[10px] text-slate-600">
-                      ${parseFloat(o.price_at_signal).toFixed(2)} → $
-                      {parseFloat(o.price_after).toFixed(2)}
-                    </p>
-                  </div>
-                );
-              },
-            )}
+                    {isUp ? '+' : ''}
+                    {pct.toFixed(2)}%
+                  </p>
+                  <p className="mt-1 font-mono text-[10px] text-slate-600">
+                    ${parseFloat(o.priceAtSignal).toFixed(2)} → $
+                    {parseFloat(o.priceAfter).toFixed(2)}
+                  </p>
+                </div>
+              );
+            })}
           </div>
         ) : (
           <p className="font-mono text-sm text-slate-700">
@@ -422,81 +391,16 @@ export default function SignalDetailPage({ params }: { params: Promise<{ id: str
         )}
       </div>
 
+      {/* ── Proof Chain — single canonical surface.
+          Previously this section showed the same artifacts three
+          different ways (row list, stepper, checklist). The stepper
+          carries the same per-artifact links plus the flow narrative,
+          and the verification checklist below answers the orthogonal
+          question "what passed verification?". */}
       <div className="card">
-        <div className="mb-4 flex items-center justify-between">
-          <h2 className="section-title flex items-center gap-2">
-            <Shield className="h-3.5 w-3.5 text-signal" />
-            Proof Chain
-          </h2>
-          <ProofProgress signal={signal as Signal} />
+        <div className="mb-3 flex items-center justify-end">
+          <ProofProgress signal={signal} />
         </div>
-        <div className="space-y-3">
-          <ProofRow
-            icon={Shield}
-            iconClass={signal.hedera_tx_id ? 'bg-signal/10 text-signal' : 'bg-warn/10 text-warn'}
-            label="Hedera Consensus"
-            detail={
-              signal.hedera_tx_id
-                ? 'Transaction recorded on HashScan'
-                : 'Pending on-chain submission'
-            }
-            href={signal.proof?.hashscanUrl}
-            pending={!signal.proof?.hashscanUrl}
-          />
-
-          {signal.ipfs_cid && (
-            <ProofRow
-              icon={Fingerprint}
-              iconClass="bg-accent/10 text-accent"
-              label="Grove CID"
-              detail={signal.ipfs_cid}
-              copyValue={signal.ipfs_cid}
-              mono
-            />
-          )}
-
-          <ProofRow
-            icon={LinkIcon}
-            iconClass={
-              signal.arb_tx_hash ? 'bg-violet/10 text-violet' : 'bg-edge/40 text-slate-600'
-            }
-            label="Arbitrum Sepolia"
-            detail={
-              signal.arb_tx_hash
-                ? `Signal hash recorded on SignalRegistry · ${signal.arb_tx_hash.slice(0, 20)}…`
-                : 'Pending on-chain submission'
-            }
-            href={
-              signal.arb_tx_hash ? `https://sepolia.arbiscan.io/tx/${signal.arb_tx_hash}` : null
-            }
-            hrefLabel={signal.arb_tx_hash ? 'Arbiscan' : undefined}
-            pending={!signal.arb_tx_hash}
-          />
-
-          {signal.evidence_hash && (
-            <ProofRow
-              icon={Hash}
-              iconClass="bg-accent/10 text-accent"
-              label="Evidence SHA-256"
-              detail={signal.evidence_hash}
-              copyValue={signal.evidence_hash}
-              mono
-            />
-          )}
-
-          <ProofRow
-            icon={Globe}
-            iconClass="bg-accent/10 text-accent"
-            label="Source URL"
-            detail={signal.monitor?.url ?? '—'}
-            href={signal.monitor?.url ?? null}
-            hrefLabel="Visit"
-          />
-        </div>
-      </div>
-
-      {/* ── Interactive Proof Chain ── */}
-      <div className="card">
         <ProofChain
           steps={getProofChainSteps(signal)}
           title="Proof Chain"
@@ -510,65 +414,40 @@ export default function SignalDetailPage({ params }: { params: Promise<{ id: str
             <Check className="h-3.5 w-3.5 text-signal" />
             What was independently verified
           </h2>
-          {signal.verification_checklist && (
+          {signal.verificationChecklist && (
             <span className="badge bg-signal/15 text-signal text-[10px]">
-              {signal.verification_checklist.filter((c) => c.ok).length}/
-              {signal.verification_checklist.length} checks passed
+              {signal.verificationChecklist.filter((c) => c.ok).length}/
+              {signal.verificationChecklist.length} checks passed
             </span>
           )}
         </div>
         <div className="grid gap-3 sm:grid-cols-2">
-          {signal.verification_checklist ? (
-            signal.verification_checklist.map((item) => (
-              <CheckItem key={item.name} label={item.name} ok={item.ok} detail={item.detail} />
-            ))
-          ) : (
-            <>
-              <CheckItem
-                label="Detection timestamp"
-                ok={Boolean(signal.detected_at)}
-                detail={new Date(signal.detected_at).toLocaleString()}
-              />
-              <CheckItem
-                label="Monitor condition"
-                ok={Boolean(signal.monitor?.condition_text)}
-                detail={signal.monitor?.condition_text ?? 'Missing monitor condition'}
-              />
-              <CheckItem
-                label="Hedera timestamp"
-                ok={Boolean(signal.proof?.hashscanUrl)}
-                detail={signal.proof?.hashscanUrl ? 'HashScan link available' : 'Pending HCS link'}
-              />
-              <CheckItem
-                label="Grove evidence package"
-                ok={Boolean(signal.proof?.ipfsUrl)}
-                detail={signal.proof?.ipfsUrl ? 'Proof package available' : 'Pending proof package'}
-              />
-            </>
-          )}
+          {(signal.verificationChecklist ?? []).map((item) => (
+            <CheckItem key={item.name} label={item.name} ok={item.ok} detail={item.detail} />
+          ))}
         </div>
       </div>
 
-      {signal.evidence_text && (
+      {signal.evidenceText && (
         <div className="card">
           <h2 className="section-title mb-3 flex items-center gap-2">
             <Eye className="h-3.5 w-3.5 text-accent" />
             Evidence
           </h2>
           <pre className="overflow-auto whitespace-pre-wrap rounded-xl bg-ink-light/80 p-4 font-mono text-xs leading-relaxed text-slate-300">
-            {signal.evidence_text}
+            {signal.evidenceText}
           </pre>
         </div>
       )}
 
-      {Array.isArray(signal.screenshot_urls) && signal.screenshot_urls.length > 0 && (
+      {signal.screenshotUrls.length > 0 && (
         <div className="card">
           <h2 className="section-title mb-4 flex items-center gap-2">
             <ImageIcon className="h-3.5 w-3.5 text-accent" />
             Screenshots
           </h2>
           <div className="grid gap-3 sm:grid-cols-2">
-            {signal.screenshot_urls.map((src: string, i: number) => (
+            {signal.screenshotUrls.map((src, i) => (
               <img
                 key={i}
                 src={src}
@@ -580,19 +459,22 @@ export default function SignalDetailPage({ params }: { params: Promise<{ id: str
         </div>
       )}
 
-      {!isPublic && Array.isArray((signal as any).orders) && (signal as any).orders.length > 0 && (
+      {!isPublic && signal.orders.length > 0 && (
         <div className="card border-warn/20 bg-warn/5">
           <h2 className="section-title mb-4 flex items-center gap-2">
             <Zap className="h-3.5 w-3.5 text-warn" />
             Action taken
           </h2>
           <div className="space-y-3">
-            {(signal as any).orders.map((o: any) => {
-              const params = o.order_params || {};
-              // Day 5+: trades carry a 'chain' field (arbitrum | robinhood | bnb).
-              // Pre-pivot paper trades were Kraken-specific (kraken_order_id
-              // started with 'paper-'). Post-pivot, paper mode is the
-              // treasury default; check the order_params.mode instead.
+            {signal.orders.map((o) => {
+              const params = (o.orderParams ?? {}) as {
+                type?: string;
+                pair?: string;
+                volume?: number | string;
+                mode?: string;
+                validate?: boolean;
+                output?: string;
+              };
               const isPaper = params.validate === true || params.mode === 'paper';
               return (
                 <div key={o.id} className="space-y-2">
@@ -630,13 +512,9 @@ export default function SignalDetailPage({ params }: { params: Promise<{ id: str
         </div>
       )}
 
-      {/* SignalComments removed (Day 7): the per-user notes feature
-          depended on the users table + signal_comments table, both
-          dropped in Day 2's pivot. The signal detail page is
-          public-facing; the agent's thesis + conviction is the
-          canonical commentary now. */}
-
-      {/* Public proof footer — CTA to create own monitor */}
+      {/* Public proof footer. The earlier "Create Your Own Monitor"
+          CTA pointed at /monitors/new, which doesn't exist post-pivot.
+          Send public viewers to the scorecard instead. */}
       {isPublic && (
         <div className="card border-accent/20 bg-accent/5 text-center">
           <p className="text-sm text-slate-300">
@@ -646,9 +524,9 @@ export default function SignalDetailPage({ params }: { params: Promise<{ id: str
             </Link>
             {' \u2014 '}proof-chained signal monitoring.
           </p>
-          <Link href="/monitors/new" className="btn mt-3 inline-flex text-xs">
+          <Link href="/scorecard" className="btn mt-3 inline-flex text-xs">
             <Eye className="h-3.5 w-3.5" />
-            Create Your Own Monitor
+            See the live scorecard
           </Link>
         </div>
       )}

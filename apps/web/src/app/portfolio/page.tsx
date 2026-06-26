@@ -8,64 +8,21 @@ import {
   Wallet,
   Clock,
   ExternalLink,
-  Loader2,
   AlertCircle,
   BarChart3,
 } from 'lucide-react';
-import { api } from '@/lib/api';
+import { api, type PortfolioResponse } from '@/lib/api';
+import { qk, REFETCH } from '@/lib/queryKeys';
 import { formatPct, formatUsd, timeAgo, explorerUrl } from '@/lib/format';
 import { StatCard } from '@/components/ui/stat-card';
 import { SkeletonStatCard, SkeletonList } from '@/components/ui/skeleton';
 import { Breadcrumbs } from '@/components/ui/breadcrumbs';
 
-interface PortfolioSummary {
-  total_open_positions: number;
-  total_closed_positions: number;
-  realized_pnl_usd: number;
-  win_rate: number | null;
-  best_trade_pct: number | null;
-  worst_trade_pct: number | null;
-  avg_hold_time_hours: number | null;
-}
-
-interface PortfolioData {
-  summary: PortfolioSummary;
-  open: OpenPosition[];
-  closed: ClosedPosition[];
-}
-
-interface OpenPosition {
-  id: string;
-  asset: string;
-  chain: string;
-  direction: string;
-  entry_amount: number;
-  entry_price_usd: number | null;
-  entry_tx_hash: string | null;
-  opened_at: string;
-  conviction_at_open: number | null;
-  unrealized_pnl_pct: number | null;
-}
-
-interface ClosedPosition {
-  id: string;
-  asset: string;
-  chain: string;
-  direction: string;
-  entry_amount: number;
-  exit_amount: number;
-  pnl_pct: number;
-  pnl_usd: number;
-  opened_at: string;
-  closed_at: string;
-  conviction_at_open: number | null;
-}
-
 export default function PortfolioPage() {
-  const { data, isLoading, isError } = useQuery<PortfolioData>({
-    queryKey: ['portfolio'],
+  const { data, isLoading, isError } = useQuery<PortfolioResponse>({
+    queryKey: qk.portfolio(),
     queryFn: () => api.listPortfolio(),
-    refetchInterval: 60_000,
+    refetchInterval: REFETCH.medium,
   });
 
   if (isLoading) {
@@ -110,7 +67,7 @@ export default function PortfolioPage() {
       <div>
         <h1 className="font-display text-2xl font-semibold text-slate-100">Portfolio</h1>
         <p className="mt-1 text-sm text-slate-400">
-          {summary.total_open_positions} open · {summary.total_closed_positions} closed
+          {summary.totalOpenPositions} open · {summary.totalClosedPositions} closed
         </p>
       </div>
 
@@ -119,27 +76,25 @@ export default function PortfolioPage() {
         <StatCard
           icon={<Wallet className="h-4 w-4" />}
           label="Realized P&L"
-          value={formatUsd(summary.realized_pnl_usd)}
-          tone={summary.realized_pnl_usd >= 0 ? 'positive' : 'negative'}
+          value={formatUsd(summary.realizedPnlUsd)}
+          tone={summary.realizedPnlUsd >= 0 ? 'positive' : 'negative'}
         />
         <StatCard
           icon={<BarChart3 className="h-4 w-4" />}
           label="Win Rate"
-          value={summary.win_rate !== null ? `${summary.win_rate.toFixed(0)}%` : '—'}
+          value={summary.winRate !== null ? `${summary.winRate.toFixed(0)}%` : '—'}
         />
         <StatCard
           icon={<TrendingUp className="h-4 w-4" />}
           label="Best Trade"
-          value={summary.best_trade_pct !== null ? formatPct(summary.best_trade_pct) : '—'}
+          value={summary.bestTradePct !== null ? formatPct(summary.bestTradePct) : '—'}
           tone="positive"
         />
         <StatCard
           icon={<Clock className="h-4 w-4" />}
           label="Avg Hold"
           value={
-            summary.avg_hold_time_hours !== null
-              ? `${Math.round(summary.avg_hold_time_hours)}h`
-              : '—'
+            summary.avgHoldTimeHours !== null ? `${Math.round(summary.avgHoldTimeHours)}h` : '—'
           }
         />
       </div>
@@ -175,20 +130,20 @@ export default function PortfolioPage() {
                     {p.asset} · {p.direction.toUpperCase()}
                   </p>
                   <p className="text-xs text-slate-500">
-                    {timeAgo(p.opened_at)}
-                    {p.conviction_at_open ? ` · conviction ${p.conviction_at_open}` : ''}
+                    {timeAgo(p.openedAt)}
+                    {p.convictionAtOpen ? ` · conviction ${p.convictionAtOpen}` : ''}
                   </p>
                 </div>
               </div>
               <div className="text-right">
-                <p className="text-sm font-medium text-slate-200">{p.entry_amount} entry</p>
-                {p.entry_tx_hash && (
+                <p className="text-sm font-medium text-slate-200">{p.entryAmount} entry</p>
+                {p.entryTxHash && (
                   <Link
-                    href={explorerUrl(p.chain, p.entry_tx_hash)}
+                    href={explorerUrl(p.chain, p.entryTxHash)}
                     target="_blank"
                     className="inline-flex items-center gap-1 text-xs text-accent hover:underline"
                   >
-                    {p.entry_tx_hash.slice(0, 10)}…
+                    {p.entryTxHash.slice(0, 10)}…
                     <ExternalLink className="h-3 w-3" />
                   </Link>
                 )}
@@ -224,10 +179,10 @@ export default function PortfolioPage() {
               <div className="flex items-center gap-3">
                 <div
                   className={`flex h-8 w-8 items-center justify-center rounded-lg ${
-                    p.pnl_usd >= 0 ? 'bg-signal/10' : 'bg-danger/10'
+                    p.pnlUsd >= 0 ? 'bg-signal/10' : 'bg-danger/10'
                   }`}
                 >
-                  {p.pnl_usd >= 0 ? (
+                  {p.pnlUsd >= 0 ? (
                     <TrendingUp className="h-4 w-4 text-signal" />
                   ) : (
                     <TrendingDown className="h-4 w-4 text-danger" />
@@ -236,19 +191,17 @@ export default function PortfolioPage() {
                 <div>
                   <p className="text-sm font-medium text-slate-200">{p.asset}</p>
                   <p className="text-xs text-slate-500">
-                    {timeAgo(p.closed_at)}
-                    {p.conviction_at_open ? ` · conviction ${p.conviction_at_open}` : ''}
+                    {timeAgo(p.closedAt)}
+                    {p.convictionAtOpen ? ` · conviction ${p.convictionAtOpen}` : ''}
                   </p>
                 </div>
               </div>
               <div className="text-right">
-                <p
-                  className={`text-sm font-bold ${p.pnl_usd >= 0 ? 'text-signal' : 'text-danger'}`}
-                >
-                  {formatPct(p.pnl_pct)}
+                <p className={`text-sm font-bold ${p.pnlUsd >= 0 ? 'text-signal' : 'text-danger'}`}>
+                  {formatPct(p.pnlPct)}
                 </p>
-                <p className={`text-xs ${p.pnl_usd >= 0 ? 'text-signal/70' : 'text-danger/70'}`}>
-                  {formatUsd(p.pnl_usd)}
+                <p className={`text-xs ${p.pnlUsd >= 0 ? 'text-signal/70' : 'text-danger/70'}`}>
+                  {formatUsd(p.pnlUsd)}
                 </p>
               </div>
             </div>

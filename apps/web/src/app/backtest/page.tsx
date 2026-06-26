@@ -2,6 +2,7 @@
 
 import { useQuery } from '@tanstack/react-query';
 import { api } from '@/lib/api';
+import { qk } from '@/lib/queryKeys';
 import { formatWindow, formatPct, scoreColor } from '@/lib/format';
 import { BarChart3, TrendingUp, Target, Activity } from 'lucide-react';
 import { StatCard } from '@/components/ui/stat-card';
@@ -24,7 +25,7 @@ export default function BacktestPage() {
     isLoading,
     error,
   } = useQuery({
-    queryKey: ['backtest-stats'],
+    queryKey: qk.backtest(),
     queryFn: () => api.getBacktestStats(),
     retry: 1,
   });
@@ -92,12 +93,12 @@ export default function BacktestPage() {
         <StatCard
           icon={<Activity className="h-4 w-4" />}
           label="Total signals"
-          value={stats.reduce((s, b) => s + b.total_signals, 0).toString()}
+          value={stats.reduce((s, b) => s + b.totalSignals, 0).toString()}
         />
         <StatCard
           icon={<Target className="h-4 w-4" />}
           label="Total correct"
-          value={stats.reduce((s, b) => s + b.correct_count, 0).toString()}
+          value={stats.reduce((s, b) => s + b.correctCount, 0).toString()}
         />
         <StatCard
           icon={<TrendingUp className="h-4 w-4" />}
@@ -105,7 +106,7 @@ export default function BacktestPage() {
           value={formatPct(
             stats.length === 0
               ? 0
-              : stats.reduce((s, b) => s + parseFloat(b.avg_pct_change || '0'), 0) / stats.length,
+              : stats.reduce((s, b) => s + parseFloat(b.avgPctChange || '0'), 0) / stats.length,
           )}
         />
       </div>
@@ -125,18 +126,18 @@ export default function BacktestPage() {
           <tbody>
             {stats.map((row, i) => (
               <tr
-                key={`${row.detector_type}-${row.asset}-${i}`}
+                key={`${row.detectorType}-${row.asset}-${i}`}
                 className="animate-signal-enter border-b border-edge/20 last:border-b-0 hover:bg-ink-light/20"
                 style={{ animationDelay: `${i * 40}ms` }}
               >
                 <td className="px-4 py-3">
                   <code className="rounded bg-ink-light/50 px-1.5 py-0.5 font-mono text-xs text-slate-300">
-                    {row.detector_type}
+                    {row.detectorType}
                   </code>
                 </td>
                 <td className="px-4 py-3 text-sm text-slate-300">{row.asset}</td>
                 <td className="px-4 py-3 text-right font-mono text-sm text-slate-300">
-                  {row.total_signals}
+                  {row.totalSignals}
                 </td>
                 <td className="px-4 py-3 text-right font-mono text-sm">
                   <span className={scoreColor(parseFloat(row.accuracy) * 100)}>
@@ -146,18 +147,18 @@ export default function BacktestPage() {
                 <td className="px-4 py-3 text-right font-mono text-sm">
                   <span
                     className={
-                      parseFloat(row.avg_pct_change) > 0
+                      parseFloat(row.avgPctChange) > 0
                         ? 'text-signal'
-                        : parseFloat(row.avg_pct_change) < 0
+                        : parseFloat(row.avgPctChange) < 0
                           ? 'text-danger'
                           : 'text-slate-400'
                     }
                   >
-                    {formatPct(parseFloat(row.avg_pct_change))}
+                    {formatPct(parseFloat(row.avgPctChange))}
                   </span>
                 </td>
                 <td className="px-4 py-3 text-right font-mono text-sm text-slate-400">
-                  {formatWindow(row.best_window)}
+                  {formatWindow(row.bestWindow)}
                 </td>
               </tr>
             ))}

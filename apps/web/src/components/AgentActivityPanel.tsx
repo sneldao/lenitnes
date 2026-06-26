@@ -36,6 +36,7 @@ import { cn } from '@/lib/utils';
 import { Badge } from '@/components/ui/badge';
 import { api } from '@/lib/api';
 import type { ScorecardRecentCall } from '@/lib/api';
+import { qk, REFETCH } from '@/lib/queryKeys';
 import { timeAgo, convictionColor, repoLabel, formatDetectorType } from '@/lib/format';
 import { OutcomePill } from '@/components/ui/outcome-pill';
 import { StatCard } from '@/components/ui/stat-card';
@@ -142,14 +143,14 @@ export function AgentActivityPanel() {
   const prevIdsRef = useRef<Set<string>>(new Set());
 
   const { data: recent, dataUpdatedAt } = useQuery({
-    queryKey: ['scorecard', 'recent', 'activity'],
+    queryKey: qk.scorecardRecent(8),
     queryFn: () => api.getScorecardRecent(8),
-    refetchInterval: 20_000,
+    refetchInterval: REFETCH.fast,
     staleTime: 15_000,
   });
 
   const { data: monitors } = useQuery({
-    queryKey: ['monitors'],
+    queryKey: qk.monitors(),
     queryFn: () => api.listMonitors(),
     staleTime: 60_000,
   });
@@ -181,12 +182,13 @@ export function AgentActivityPanel() {
         'transition-all duration-300',
       )}
     >
-      {/* ── Header row ── */}
-      <div
-        className="flex cursor-pointer items-center justify-between px-4 py-3"
+      {/* ── Header row — proper button so keyboard users can toggle ── */}
+      <button
+        type="button"
+        className="flex w-full cursor-pointer items-center justify-between px-4 py-3 text-left"
         onClick={() => setCollapsed((c) => !c)}
-        role="button"
         aria-expanded={!collapsed}
+        aria-controls="agent-activity-body"
         aria-label="Toggle agent activity panel"
       >
         <div className="flex items-center gap-2.5">
@@ -221,11 +223,11 @@ export function AgentActivityPanel() {
             <ChevronUp className="h-3.5 w-3.5 text-slate-500" />
           )}
         </div>
-      </div>
+      </button>
 
       {/* ── Expandable body ── */}
       {!collapsed && (
-        <div className="border-t border-edge/30 px-3 pb-3 pt-2">
+        <div id="agent-activity-body" className="border-t border-edge/30 px-3 pb-3 pt-2">
           {/* Stats strip */}
           <div className="mb-3 grid grid-cols-3 gap-2">
             <StatCard

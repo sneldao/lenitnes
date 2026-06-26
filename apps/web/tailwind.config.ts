@@ -15,7 +15,6 @@ const config: Config = {
         'edge-light': '#243044',
         rust: '#c84a1f',
         'rust-glow': '#e05a2e',
-        cream: '#f4efe5',
         accent: '#06b6d4',
         'accent-glow': '#22d3ee',
         signal: '#10b981',
@@ -27,8 +26,8 @@ const config: Config = {
         'danger-glow': '#f87171',
       },
       fontFamily: {
-        sans: ['Space Grotesk', 'ui-sans-serif', 'system-ui', 'sans-serif'],
-        mono: ['Fira Code', 'ui-monospace', 'SFMono-Regular', 'monospace'],
+        sans: ['"Space Grotesk"', 'ui-sans-serif', 'system-ui', 'sans-serif'],
+        mono: ['"JetBrains Mono"', 'ui-monospace', 'SFMono-Regular', 'monospace'],
         display: ['Fraunces', 'ui-serif', 'Georgia', 'serif'],
       },
       backgroundImage: {
@@ -52,23 +51,14 @@ const config: Config = {
         'card-hover': '0 4px 16px rgba(0,0,0,0.5), 0 0 0 1px rgba(6,182,212,0.2)',
       },
       animation: {
-        'pulse-slow': 'pulse 3s cubic-bezier(0.4, 0, 0.6, 1) infinite',
         'fade-in': 'fadeIn 0.3s ease-out',
         'slide-up': 'slideUp 0.4s ease-out',
-        'glow-pulse': 'glowPulse 2s ease-in-out infinite alternate',
         'fade-slide-up': 'fadeSlideUp 0.5s ease-out both',
-        'proof-reveal': 'proofReveal 0.4s ease-out both',
         'cinematic-entrance': 'cinematicEntrance 0.8s cubic-bezier(0.16, 1, 0.3, 1) both',
-        'bounce-down': 'bounceDown 2s ease-in-out infinite',
-        'timeline-glow': 'timelineGlow 2s ease-in-out infinite',
-        'glitch-text': 'glitchText 3s ease-in-out infinite',
-        shimmer: 'shimmer 3s ease-in-out infinite',
         'gradient-shift': 'gradientShift 4s ease infinite',
         'typing-cursor': 'typingCursor 0.8s step-end infinite',
         'ring-expand': 'ringExpand 2s ease-out infinite',
-        'data-pulse': 'dataPulse 2s ease-in-out infinite',
-        'scan-line': 'scanLine 4s linear infinite',
-        'hex-glow': 'hexGlow 3s ease-in-out infinite',
+        'signal-enter': 'signalEnter 0.4s cubic-bezier(0.22, 1, 0.36, 1) both',
       },
       keyframes: {
         fadeIn: {
@@ -79,45 +69,13 @@ const config: Config = {
           '0%': { opacity: '0', transform: 'translateY(10px)' },
           '100%': { opacity: '1', transform: 'translateY(0)' },
         },
-        glowPulse: {
-          '0%': { boxShadow: '0 0 5px rgba(6,182,212,0.1)' },
-          '100%': { boxShadow: '0 0 20px rgba(6,182,212,0.2)' },
-        },
         fadeSlideUp: {
           '0%': { opacity: '0', transform: 'translateY(16px)' },
           '100%': { opacity: '1', transform: 'translateY(0)' },
         },
-        proofReveal: {
-          '0%': { opacity: '0', transform: 'scale(0.85)' },
-          '100%': { opacity: '1', transform: 'scale(1)' },
-        },
         cinematicEntrance: {
           '0%': { opacity: '0', transform: 'scale(0.95) translateY(20px)' },
           '100%': { opacity: '1', transform: 'scale(1) translateY(0)' },
-        },
-        bounceDown: {
-          '0%, 100%': { transform: 'translateY(0)', opacity: '0.4' },
-          '50%': { transform: 'translateY(6px)', opacity: '0.8' },
-        },
-        timelineGlow: {
-          '0%, 100%': {
-            boxShadow: '0 0 10px rgba(16,185,129,0.2), 0 0 30px rgba(16,185,129,0.1)',
-          },
-          '50%': {
-            boxShadow: '0 0 20px rgba(16,185,129,0.4), 0 0 60px rgba(16,185,129,0.2)',
-          },
-        },
-        glitchText: {
-          '0%, 90%, 100%': { transform: 'translate(0)', opacity: '1' },
-          '92%': { transform: 'translate(-2px, 1px)', opacity: '0.8' },
-          '94%': { transform: 'translate(2px, -1px)', opacity: '0.9' },
-          '96%': { transform: 'translate(-1px, -1px)', opacity: '0.85' },
-          '98%': { transform: 'translate(1px, 1px)', opacity: '0.95' },
-        },
-        shimmer: {
-          '0%': { transform: 'translateX(-100%) skewX(-15deg)' },
-          '60%': { transform: 'translateX(200%) skewX(-15deg)' },
-          '100%': { transform: 'translateX(200%) skewX(-15deg)' },
         },
         gradientShift: {
           '0%': { backgroundPosition: '0% 50%' },
@@ -132,24 +90,9 @@ const config: Config = {
           '0%': { transform: 'scale(1)', opacity: '0.6' },
           '100%': { transform: 'scale(2)', opacity: '0' },
         },
-        dataPulse: {
-          '0%': { strokeDashoffset: '100', opacity: '0.2' },
-          '50%': { strokeDashoffset: '0', opacity: '1' },
-          '100%': { strokeDashoffset: '-100', opacity: '0.2' },
-        },
-        scanLine: {
-          '0%': { top: '-10%' },
-          '100%': { top: '110%' },
-        },
-        hexGlow: {
-          '0%, 100%': {
-            strokeOpacity: '0.3',
-            filter: 'drop-shadow(0 0 4px rgba(6, 182, 212, 0.2))',
-          },
-          '50%': {
-            strokeOpacity: '0.8',
-            filter: 'drop-shadow(0 0 12px rgba(6, 182, 212, 0.5))',
-          },
+        signalEnter: {
+          '0%': { opacity: '0', transform: 'scale(0.96) translateY(8px)' },
+          '100%': { opacity: '1', transform: 'scale(1) translateY(0)' },
         },
       },
     },

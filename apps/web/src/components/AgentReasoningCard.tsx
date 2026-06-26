@@ -35,22 +35,7 @@ import {
   formatIsoShort,
 } from '@/lib/format';
 import { useTypewriter } from '@/lib/hooks/useTypewriter';
-
-interface DetectorClassification {
-  detector_type: string;
-  score: number;
-  confidence: number;
-  label: string;
-}
-
-interface AgentScore {
-  conviction: number;
-  thesis: string;
-  recommended_action: 'long' | 'short' | 'none';
-  confidence_band: 'low' | 'mid' | 'high';
-  rubric_version: string;
-  created_at: string;
-}
+import type { AgentScore, DetectorClassification } from '@/lib/api';
 
 interface AgentReasoningCardProps {
   agentScore: AgentScore;
@@ -130,7 +115,11 @@ export function AgentReasoningCard({
   classifications = [],
   className,
 }: AgentReasoningCardProps) {
-  const { displayed, done } = useTypewriter(agentScore.thesis ?? '', 8);
+  // Thesis renders fully on mount when the user prefers reduced motion
+  // or returns to the page; the animation only fires for first-time
+  // visitors who have motion enabled, so clicking "open proof" never
+  // feels laggy.
+  const { displayed, done, skip } = useTypewriter(agentScore.thesis ?? '', 8);
   const [detailsOpen, setDetailsOpen] = useState(false);
 
   const convColor = convictionColor(agentScore.conviction);
@@ -157,7 +146,7 @@ export function AgentReasoningCard({
               {thresholdMet && <Sparkles className="h-3 w-3 text-signal" />}
             </div>
             <p className="text-[10px] text-slate-500">
-              rubric {agentScore.rubric_version} · {formatIsoShort(agentScore.created_at)}Z
+              rubric {agentScore.rubricVersion} · {formatIsoShort(agentScore.createdAt)}Z
             </p>
           </div>
         </div>
@@ -178,8 +167,8 @@ export function AgentReasoningCard({
 
       {/* Badges */}
       <div className="mt-3 flex flex-wrap items-center gap-2 px-5">
-        <ActionBadge action={agentScore.recommended_action} />
-        <BandBadge band={agentScore.confidence_band} />
+        <ActionBadge action={agentScore.recommendedAction} />
+        <BandBadge band={agentScore.confidenceBand} />
         {!thresholdMet && (
           <Badge variant="secondary" className="text-[10px]">
             sub-threshold · no trade
@@ -187,11 +176,22 @@ export function AgentReasoningCard({
         )}
       </div>
 
-      {/* Thesis — typewriter reveal */}
+      {/* Thesis — typewriter reveal, with click-to-skip */}
       <div className="mx-5 mt-4 rounded-xl border border-accent/10 bg-accent/[0.04] px-4 py-3.5">
-        <p className="font-mono text-[10px] uppercase tracking-widest text-slate-500 mb-2">
-          Agent thesis
-        </p>
+        <div className="mb-2 flex items-center justify-between">
+          <p className="font-mono text-[10px] uppercase tracking-widest text-slate-500">
+            Agent thesis
+          </p>
+          {!done && (
+            <button
+              type="button"
+              onClick={skip}
+              className="font-mono text-[10px] uppercase tracking-wider text-slate-500 transition-colors hover:text-accent"
+            >
+              skip
+            </button>
+          )}
+        </div>
         <blockquote className="text-sm italic leading-relaxed text-slate-200">
           &ldquo;{displayed}
           {!done && (
@@ -218,13 +218,13 @@ export function AgentReasoningCard({
             {classifications.map((c) => {
               return (
                 <div
-                  key={c.detector_type}
+                  key={c.detectorType}
                   className="rounded-lg border border-edge/25 bg-ink-light/30 p-3"
                 >
                   <div className="mb-2 flex items-start justify-between gap-3">
                     <div>
                       <div className="font-mono text-[10px] uppercase tracking-wider text-accent">
-                        {formatDetectorType(c.detector_type)}
+                        {formatDetectorType(c.detectorType)}
                       </div>
                       <div className="mt-0.5 text-xs text-slate-300">{c.label}</div>
                     </div>

@@ -14,6 +14,7 @@ import {
   Shield,
 } from 'lucide-react';
 import { api, type ScorecardResponse } from '@/lib/api';
+import { qk, REFETCH } from '@/lib/queryKeys';
 import {
   formatRatio,
   formatUsd,
@@ -28,9 +29,9 @@ import { PageLoader, PageError } from '@/components/ui/page-states';
 
 export default function ScorecardPage() {
   const { data, isLoading, isError, dataUpdatedAt } = useQuery<ScorecardResponse>({
-    queryKey: ['scorecard', 'summary'],
+    queryKey: qk.scorecard(),
     queryFn: () => api.getScorecard(),
-    refetchInterval: 60_000,
+    refetchInterval: REFETCH.medium,
   });
 
   if (isLoading) return <PageLoader label="Loading scorecard…" />;

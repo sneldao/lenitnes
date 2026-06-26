@@ -2,10 +2,10 @@ import type { Signal } from '@/lib/api';
 
 export function ProofProgress({ signal }: { signal: Signal }) {
   const steps = [
-    { label: 'Hedera', done: Boolean(signal.hedera_tx_id), color: 'bg-signal' },
-    { label: 'IPFS', done: Boolean(signal.ipfs_cid), color: 'bg-cyan-400' },
-    { label: 'Arbitrum', done: Boolean(signal.arb_tx_hash), color: 'bg-violet' },
-    { label: 'Trade', done: (signal.orders_count ?? 0) > 0, color: 'bg-warn' },
+    { label: 'Hedera', done: Boolean(signal.hederaTxId), color: 'bg-signal' },
+    { label: 'IPFS', done: Boolean(signal.ipfsCid), color: 'bg-cyan-400' },
+    { label: 'Arbitrum', done: Boolean(signal.arbTxHash), color: 'bg-violet' },
+    { label: 'Trade', done: (signal.ordersCount ?? 0) > 0, color: 'bg-warn' },
   ];
 
   const completed = steps.filter((s) => s.done).length;
