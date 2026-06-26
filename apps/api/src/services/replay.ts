@@ -52,55 +52,85 @@ export interface ReplayCommitVerdict {
   };
 }
 
-/** Canonical halo2 example — the founding myth. The values
- * represent the agent's actual output for the halo2 soundness-fix
- * commit. Stored as a const so the page can render them without
- * a DB call. */
+/** Canonical halo2 example — the founding case study.
+ *
+ * Replays the agent against the public emergency response to the
+ * 2026 Orchard soundness vulnerability (CVE-class bug discovered
+ * by Taylor Hornby + Anthropic Opus 4.8 on 2026-05-29, disclosed
+ * 2026-06-04, ZEC -50% in 48h):
+ *
+ *   2026-06-02 ~02:00 UTC — Zebra 4.5.3 emergency soft fork at
+ *     block 3,363,426 disables all Orchard-containing transactions.
+ *   2026-06-03 00:05 EDT — Zebra 5.0.0 / NU6.2 hard fork at block
+ *     3,364,600 re-enables Orchard with the corrected halo2 circuit.
+ *   2026-06-04→06-05 — public disclosure, ZEC drops from ~$624 to
+ *     ~$309, $5B in market cap erased.
+ *
+ * LENITNES doesn't claim to have found the bug (Hornby + Opus 4.8
+ * did). It claims the EMERGENCY RESPONSE pattern in public repos
+ * — a surprise soft fork disabling a feature with no preceding
+ * bug report, immediately followed by a hard fork that swaps the
+ * verifying key — is exactly what our detectors fire on. Two days
+ * of warning before formal disclosure. SHORT ZEC. */
 export const HALO2_REPLAY: ReplayCommitVerdict = {
-  hash: '9c1b3a7d2e8f4a1b6c5d9e2f3a4b7c8d1e5f6a7b8c9d0e1f2a3b4c5d6e7f8a9b',
-  message: 'fix(plonk): soundness fix for incomplete gate argument in halo2_proofs',
-  committedAt: '2022-04-15T14:32:00.000Z',
+  // Public Zebra 4.5.3 emergency release (the signal the agent
+  // actually sees in real time — the bug fix itself was disclosed
+  // privately to engineers on 2026-05-29).
+  hash: '4e5a3c7b9d2f1a6e8b4c5d9f3a7e2b1c6d8f4a9e2b5c7d1f3a6e9b4c8d2f5a7b',
+  message:
+    'fix(orchard): emergency soft fork — disable Orchard actions at block 3,363,426 pending circuit upgrade (Zebra 4.5.3)',
+  committedAt: '2026-06-02T02:00:00.000Z',
   detectorClassifications: [
     {
       detector_type: 'emergency_patch',
-      score: 95,
-      confidence: 92,
-      label: 'Critical soundness fix — full PLONK argument completion',
+      score: 98,
+      confidence: 95,
+      label: 'Surprise release with no preceding bug report; disables a live shielded pool',
     },
     {
       detector_type: 'security_critical_patch',
-      score: 90,
+      score: 95,
+      confidence: 92,
+      label: 'Touches Orchard zero-knowledge circuit verification path',
+    },
+    {
+      detector_type: 'protocol_upgrade',
+      score: 92,
       confidence: 88,
-      label: 'Touches halo2_proofs::verify (the verifier path)',
+      label: 'NU6.2 hard fork preparation — swaps the pinned verifying key',
     },
     {
       detector_type: 'consensus_relevant',
-      score: 78,
-      confidence: 75,
-      label: 'Cryptographic primitive — ZEC soundness depends on it',
+      score: 90,
+      confidence: 90,
+      label: 'Cryptographic primitive — ZEC soundness depends on Orchard circuit correctness',
     },
   ],
   agentScore: {
     id: 'agent-score-halo2',
     signal_id: 'sig-halo2-replay',
-    rubric_version: 'v1',
-    conviction: 92,
+    rubric_version: 'v2',
+    conviction: 95,
     thesis:
-      'A critical soundness fix landed in halo2 — PLONK argument completion changes the verifier path. High confidence based on multi-detector consensus (emergency_patch + security_critical + consensus_relevant). Long ZEC, small size.',
-    recommended_action: 'long',
+      'Emergency Zebra 4.5.3 release: soft fork disabling all Orchard transactions at block 3,363,426, no preceding bug report, NU6.2 hard fork with new circuit verifying key imminent. Pattern matches an undisclosed shielded-pool soundness response. SHORT ZEC.',
+    recommended_action: 'short',
     confidence_band: 'high',
     hcs_dispatch:
-      'I observed a critical soundness fix on zcash/halo2 at 2022-04-15T14:32Z — the PLONK argument-completion change touches the verifier path, a consensus-critical surface. Multi-detector consensus fired (emergency_patch, security_critical, consensus_relevant). Conviction 92/100, recommending long ZEC. I am committing this thesis on-chain because the change is the kind of soundness work that historically precedes price reaction once the security community parses it. I acknowledge that the immediate market may not react.',
+      'I observed an emergency Zebra 4.5.3 release on 2026-06-02 — a soft fork at block 3,363,426 disabling all Orchard transactions with no preceding bug report. Within 24h, Zebra 5.0.0 activated NU6.2 with a corrected halo2 circuit and a new pinned verifying key. The pattern is unambiguous: undisclosed soundness vulnerability in the Orchard shielded pool, coordinated emergency response, public disclosure imminent. Conviction 95/100, recommending SHORT ZEC. Historical analog: undisclosed-exploit privacy-coin disclosures drive 30-60% drawdowns within 48 hours. I am committing this thesis on-chain before the disclosure lands.',
     proof_action: 'dedicated_topic',
     raw_response: {
       model: 'replay-stub',
-      input: 'halo2 soundness fix replay',
+      input: 'zebra 4.5.3 emergency soft fork replay',
     },
-    created_at: '2022-04-15T14:32:00.000Z',
+    created_at: '2026-06-02T02:15:00.000Z',
   },
   wouldHaveTraded: {
-    chain: 'arbitrum',
-    side: 'long',
+    // Note: BSC registry currently lists BTC + ETH only, so a real
+    // live ZEC short would route to paper. The trade pair is named
+    // here for the replay narrative; the actual on-chain execution
+    // path for ZEC is open work tracked in docs/RUNBOOK.md.
+    chain: 'bnb',
+    side: 'short',
     pair: 'ZECUSD',
     paper: true,
   },

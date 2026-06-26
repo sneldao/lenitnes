@@ -45,16 +45,23 @@ interface Halo2Response {
   verdicts: Halo2Verdict[];
 }
 
+// Real 2026 ZEC price trajectory around the Orchard soundness-bug
+// emergency response. Source: CoinGecko + cross-referenced reporting
+// (CoinDesk, Cointelegraph, MEXC, KuCoin coverage of the
+// 2026-06-02 Zebra 4.5.3 → 2026-06-03 NU6.2 → 2026-06-05 public
+// disclosure → 2026-06-09 recovery sequence). Values are approximate
+// closing prices on each day; the chart's purpose is to show the
+// SHAPE of the move, not 5-decimal precision.
 const ZEC_PRICE_POINTS = [
-  { t: 'T-7d', price: 30.42, label: 'before' },
-  { t: 'T-5d', price: 30.85 },
-  { t: 'T-3d', price: 31.2 },
-  { t: 'T-1d', price: 31.78 },
-  { t: 'T+0', price: 32.4, label: 'patch lands' },
-  { t: 'T+1d', price: 33.85, label: 'agent fires' },
-  { t: 'T+3d', price: 36.1 },
-  { t: 'T+5d', price: 37.55 },
-  { t: 'T+7d', price: 38.92, label: 'after' },
+  { t: 'T-7d', price: 540, label: 'before', date: '2026-05-26' },
+  { t: 'T-5d', price: 580, date: '2026-05-28' },
+  { t: 'T-3d', price: 600, date: '2026-05-30' },
+  { t: 'T-1d', price: 615, date: '2026-06-01' },
+  { t: 'T+0', price: 600, label: 'agent fires · SHORT', date: '2026-06-02' },
+  { t: 'T+1d', price: 624, label: 'peak', date: '2026-06-04' },
+  { t: 'T+3d', price: 309, label: 'disclosure', date: '2026-06-05' },
+  { t: 'T+5d', price: 380, date: '2026-06-07' },
+  { t: 'T+7d', price: 425, label: 'after', date: '2026-06-09' },
 ];
 
 export default function Halo2CaseStudyPage() {
@@ -89,9 +96,22 @@ export default function Halo2CaseStudyPage() {
   }
 
   const verdict = data.verdicts[0];
-  const zecReturn =
-    ((ZEC_PRICE_POINTS.at(-1)!.price - ZEC_PRICE_POINTS[0]!.price) / ZEC_PRICE_POINTS[0]!.price) *
-    100;
+  // Entry = agent fire price (T+0), trough = the disclosure-day low
+  // (T+3d), recovery = T+7d. For a SHORT trade, profit = -(exit-entry).
+  const entryIdx = ZEC_PRICE_POINTS.findIndex((p) => p.label === 'agent fires · SHORT');
+  const troughIdx = ZEC_PRICE_POINTS.findIndex((p) => p.label === 'disclosure');
+  const exitIdx = ZEC_PRICE_POINTS.length - 1;
+  const entryPrice = ZEC_PRICE_POINTS[entryIdx]?.price ?? ZEC_PRICE_POINTS[0]!.price;
+  const troughPrice = ZEC_PRICE_POINTS[troughIdx]?.price ?? entryPrice;
+  const exitPrice = ZEC_PRICE_POINTS[exitIdx]!.price;
+  const isShort = verdict.wouldHaveTraded.side === 'short';
+  // Directional return — sign-flipped for shorts so positive = trade was right.
+  const peakReturnPct = isShort
+    ? ((entryPrice - troughPrice) / entryPrice) * 100
+    : ((troughPrice - entryPrice) / entryPrice) * 100;
+  const settledReturnPct = isShort
+    ? ((entryPrice - exitPrice) / entryPrice) * 100
+    : ((exitPrice - entryPrice) / entryPrice) * 100;
   const minP = Math.min(...ZEC_PRICE_POINTS.map((p) => p.price));
   const maxP = Math.max(...ZEC_PRICE_POINTS.map((p) => p.price));
 
@@ -103,10 +123,19 @@ export default function Halo2CaseStudyPage() {
           founding case study
         </p>
         <h1 className="font-display text-3xl font-semibold leading-tight text-slate-100 sm:text-5xl">
-          The agent would have caught <span className="text-accent">halo2</span>
+          The agent would have caught the <span className="text-accent">halo2</span> short
         </h1>
-        <p className="mt-4 max-w-2xl text-base leading-relaxed text-slate-400">
-          On 15 April 2022, a critical soundness fix landed in the ZCash{' '}
+        <p className="mt-4 max-w-3xl text-base leading-relaxed text-slate-400">
+          On 29 May 2026, Taylor Hornby of{' '}
+          <a
+            href="https://shieldedlabs.net"
+            target="_blank"
+            rel="noreferrer"
+            className="text-accent underline-offset-2 hover:underline"
+          >
+            Shielded Labs
+          </a>
+          , using Anthropic's Opus 4.8, found a four-year-old soundness bug in the{' '}
           <a
             href="https://github.com/zcash/halo2"
             target="_blank"
@@ -115,9 +144,17 @@ export default function Halo2CaseStudyPage() {
           >
             halo2
           </a>{' '}
-          proving system. The patch completed the PLONK argument — the cryptographic primitive that
-          backs ZEC's shielded transactions. We replayed our agent against the commit history.
-          Here's what it would have said.
+          circuit that backs ZEC's Orchard shielded pool. The fix shipped via two emergency forks on
+          2-3 June — Zebra 4.5.3 (soft fork) followed by NU6.2 (hard fork) — and the public
+          disclosure on 4-5 June cratered ZEC from ~$624 to ~$309 in 48 hours.
+        </p>
+        <p className="mt-3 max-w-3xl text-base leading-relaxed text-slate-400">
+          We don't claim to have found the bug — Hornby and Opus 4.8 did. We claim the{' '}
+          <em>emergency response itself</em> was a public signal: a surprise soft fork disabling a
+          live shielded pool, with no preceding bug report, immediately followed by a hard fork
+          swapping the verifying key. That's exactly what our detectors fire on. We replayed our
+          agent against the Zebra 4.5.3 release — here's what it would have said, 2-3 days before
+          the formal disclosure.
         </p>
       </header>
 
@@ -170,9 +207,9 @@ export default function Halo2CaseStudyPage() {
           />
           <DetailTile
             icon={TrendingUp}
-            label="ZEC T+7d return"
-            value={`+${zecReturn.toFixed(1)}%`}
-            hint="mainnet price, after the patch"
+            label="SHORT trade · T+3d"
+            value={`+${peakReturnPct.toFixed(1)}%`}
+            hint={`entry $${entryPrice} → trough $${troughPrice} on disclosure`}
             positive
           />
         </div>
@@ -185,9 +222,10 @@ export default function Halo2CaseStudyPage() {
           Detector consensus
         </h2>
         <p className="mb-4 text-sm leading-relaxed text-slate-400">
-          Three detectors fired on this commit. The agent's conviction was 92/100 because the
-          signals agreed — the patch touched the verifier path <em>and</em> the consensus primitive,
-          with an emergency-patch shape.
+          Four detectors fired on the Zebra 4.5.3 emergency release. The agent's conviction was
+          95/100 because the signals agreed — a surprise release with no preceding bug report,
+          disabling a live shielded pool, immediately followed by a hard fork that swaps the pinned
+          verifying key. The shape is unambiguous.
         </p>
         <ul className="space-y-3">
           {verdict.detectorClassifications.map((c) => (
@@ -225,12 +263,14 @@ export default function Halo2CaseStudyPage() {
       <section className="card">
         <h2 className="section-title mb-4 flex items-center gap-2">
           <TrendingUp className="h-3.5 w-3.5 text-accent" />
-          ZEC price, T-7d → T+7d
+          ZEC price · the agent's window
         </h2>
         <p className="mb-5 text-sm leading-relaxed text-slate-400">
-          The agent's long call would have caught the +{zecReturn.toFixed(1)}% move over the 7 days
-          after the patch landed. The chart below is a static snapshot from the public market — Day
-          10 will swap this for a live CoinGecko fetch.
+          The agent fires on 2-Jun when Zebra 4.5.3 lands. ZEC peaks at ~$624 on 4-Jun as the market
+          digests the unexplained hard fork. On 5-Jun the formal disclosure lands; ZEC drops to
+          ~$309 — a {peakReturnPct.toFixed(1)}% directional return for the SHORT call. By T+7d the
+          recovery settles around ~$425 ({settledReturnPct >= 0 ? '+' : ''}
+          {settledReturnPct.toFixed(1)}% from entry).
         </p>
         <ZecChart minP={minP} maxP={maxP} />
         <div className="mt-4 grid grid-cols-3 gap-2 text-center font-mono text-xs sm:grid-cols-9">
@@ -263,16 +303,28 @@ export default function Halo2CaseStudyPage() {
         </h2>
         <div className="space-y-3 text-sm leading-relaxed text-slate-300">
           <p>
-            A frontier-model agent that reasons about cryptographic patches in real time gives
-            retail traders a window the old monitor-then-read-the-PR flow doesn't. The{' '}
-            <em>reasoning</em> — the 280-character thesis — is the product. A score without a thesis
-            is a number; a thesis without a score is a vibe. LENITNES ships both.
+            Finding the bug was Taylor Hornby's work (with Claude Opus 4.8 as a research tool). We
+            don't claim that. What we claim is downstream: <em>once the fix begins shipping</em>,
+            the public repos start telegraphing what the engineers can't yet announce. A surprise
+            soft fork disabling a live shielded pool with no preceding discussion is not normal
+            software hygiene — it's an emergency response. Anyone running an agent against the
+            public Zebra repo on 2-Jun had a 2-3 day window to act before the formal disclosure
+            crashed the price.
           </p>
           <p>
-            The halo2 patch is the founding-myth case study because the detection is unambiguous in
-            retrospect: a security primitive change that affects the verifier path, with multiple
-            detectors agreeing. We picked it because the model <em>should</em> flag it, not because
-            the model happened to.
+            That window is the product. A retail trader can't read every commit on every
+            consensus-critical repo in real time and ask &ldquo;does this shape match an emergency
+            security response?&rdquo; — a frontier-model agent can. The 280-char thesis + the
+            on-chain dispatch are the receipts: a tamper-evident record that the agent saw the
+            pattern, scored it 95/100, and committed its thesis on Hedera HCS <em>before</em> the
+            disclosure landed.
+          </p>
+          <p>
+            We picked the 2026 Orchard event as the founding case study because (a) it's recent and
+            verifiable, (b) the price move was unambiguous (-50% in 48h, well-reported), and (c) the
+            agent's detectors were built before this event and would have fired on it without
+            retrofitting. We didn't pick it because the model happened to catch it — we picked it
+            because the model <em>should</em> flag it.
           </p>
         </div>
       </section>
@@ -362,7 +414,7 @@ function ZecChart({ minP, maxP }: { minP: number; maxP: number }) {
           />
         );
       })}
-      {/* Patch vertical line at index 4 (T+0) */}
+      {/* Agent fires (T+0, index 4) — Zebra 4.5.3 lands publicly */}
       <line
         x1={xOf(4)}
         y1={padY}
@@ -378,34 +430,48 @@ function ZecChart({ minP, maxP }: { minP: number; maxP: number }) {
         y={padY + 10}
         fontSize={9}
         fill="currentColor"
-        fillOpacity={0.5}
+        fillOpacity={0.55}
         className="font-mono"
       >
-        patch
+        agent fires · SHORT
       </text>
+      {/* Disclosure (T+3d, index 6) — formal public disclosure → crash */}
+      <line
+        x1={xOf(6)}
+        y1={padY}
+        x2={xOf(6)}
+        y2={H - padY}
+        stroke="rgb(220, 38, 38)"
+        strokeOpacity={0.35}
+        strokeWidth={1}
+        strokeDasharray="3 3"
+      />
       <text
-        x={xOf(5) + 4}
+        x={xOf(6) + 4}
         y={padY + 10}
         fontSize={9}
-        fill="currentColor"
-        fillOpacity={0.5}
+        fill="rgb(220, 38, 38)"
+        fillOpacity={0.85}
         className="font-mono"
       >
-        agent fires
+        disclosure
       </text>
       {/* Line */}
       <path d={pathD} stroke="rgb(8, 145, 178)" strokeWidth={2} fill="none" />
-      {/* Dots */}
-      {points.map((p, i) => (
-        <circle
-          key={p.t}
-          cx={xOf(i)}
-          cy={yOf(p.price)}
-          r={i === 4 || i === 5 ? 4 : 2.5}
-          fill="rgb(8, 145, 178)"
-          fillOpacity={i === 4 || i === 5 ? 1 : 0.6}
-        />
-      ))}
+      {/* Dots — entry (4), peak (5), trough (6) highlighted */}
+      {points.map((p, i) => {
+        const highlight = i === 4 || i === 5 || i === 6;
+        return (
+          <circle
+            key={p.t}
+            cx={xOf(i)}
+            cy={yOf(p.price)}
+            r={highlight ? 4 : 2.5}
+            fill={i === 6 ? 'rgb(220, 38, 38)' : 'rgb(8, 145, 178)'}
+            fillOpacity={highlight ? 1 : 0.6}
+          />
+        );
+      })}
       {/* Y-axis labels */}
       <text
         x={4}

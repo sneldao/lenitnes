@@ -4,9 +4,13 @@ import type { AgentScore } from '@lenitnes/types';
 
 describe('replay — halo2 canonical example', () => {
   it('HALO2_REPLAY has the expected verdict shape', () => {
+    // Updated 2026-06-26: replay now anchored on the 2026 Orchard
+    // emergency response (Zebra 4.5.3 + NU6.2 hard fork) rather than
+    // the pre-pivot 2022 fix. Agent goes SHORT on the emergency-
+    // response pattern; ZEC then drops ~50% on the formal disclosure.
     expect(HALO2_REPLAY).toMatchObject({
       hash: expect.stringMatching(/^[0-9a-f]{64}$/),
-      message: expect.stringContaining('soundness'),
+      message: expect.stringContaining('Orchard'),
       detectorClassifications: expect.arrayContaining([
         expect.objectContaining({
           detector_type: 'emergency_patch',
@@ -14,14 +18,14 @@ describe('replay — halo2 canonical example', () => {
         }),
       ]),
       agentScore: {
-        conviction: 92,
-        recommended_action: 'long',
+        conviction: 95,
+        recommended_action: 'short',
         confidence_band: 'high',
-        rubric_version: 'v1',
+        rubric_version: 'v2',
       },
       wouldHaveTraded: {
-        chain: 'arbitrum',
-        side: 'long',
+        chain: 'bnb',
+        side: 'short',
         pair: 'ZECUSD',
         paper: true,
       },

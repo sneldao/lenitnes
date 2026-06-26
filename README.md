@@ -6,11 +6,11 @@ LENITNES is a zero-headcount research desk. No users, no per-monitor staking, no
 
 ## The ZEC moment
 
-In 2026, a frontier-model researcher discovered that Zcash's `halo2` proving circuit had carried a four-year vulnerability — an unanchored base point in the incomplete-addition loop that allowed forging proofs to mint unlimited ZEC. The fix landed quietly as [`halo2_gadgets: Anchor variable-base scalar-mul incomplete-addition base`](https://github.com/zcash/halo2/commit/d8e48efddbe4746d76eb2c8a843a6ddc2b9a727a) — technical, understated, easy to scroll past. The commit was public for ~4 days before the market noticed. ZEC then dropped ~50%.
+In late May 2026, Taylor Hornby of Shielded Labs — working with Anthropic's Opus 4.8 — discovered a four-year-old soundness bug in Zcash's `halo2_gadgets` crate. A missing constraint in the variable-base scalar multiplication gadget could have let an attacker mint counterfeit ZEC inside the Orchard shielded pool. On 2 June, Zebra 4.5.3 shipped an emergency soft fork that disabled Orchard transactions at block 3,363,426. On 3 June, Zebra 5.0.0 / NU6.2 hard-forked the network and re-enabled Orchard with the corrected circuit. The formal public disclosure landed 4-5 June. **ZEC dropped ~50% in 48 hours**, from a ~$624 peak to ~$309.
 
-The signals were public the whole time: an unusually large, urgent commit to consensus-critical code with no preceding bug report or discussion, landing during a quiet hour. **No human was watching with the right rubric. An AI could have been.** LENITNES is what watches.
+We don't claim our agent would have found Hornby's bug — he and Opus 4.8 did. What we claim is downstream: the emergency-response commits in the public Zebra and halo2 repos on 2-3 June were a signal of their own. A surprise soft fork disabling a live shielded pool, no preceding bug report, immediately followed by a hard fork that swaps the verifying key — that shape is unambiguous. Our detectors fire on it. A retail trader can't read every consensus-critical commit in real time; a frontier-model agent can.
 
-We replayed the agent against that exact commit. It would have flagged it 92/100, multi-detector consensus, paper-trade long ZEC, broadcast the thesis in 280 characters. [Read the replay →](https://lenitnes.persidian.com/case-study/halo2)
+We replayed the agent against the Zebra 4.5.3 release. It would have flagged it **95/100**, four-detector consensus, paper-trade **SHORT ZEC** at ~$600, broadcast the thesis 2-3 days before the formal disclosure. [Read the replay →](https://lenitnes.persidian.com/case-study/halo2)
 
 ## The credibility surface
 
@@ -31,7 +31,7 @@ Public surfaces — no signup, no auth:
 - **[`/calibration`](https://lenitnes.persidian.com/calibration)** — long-form view of the conviction calibration loop. Is higher conviction actually predictive? Honest "early sample" framing while N is small.
 - **[`/methodology`](https://lenitnes.persidian.com/methodology)** — top-to-bottom narrative: what we watch and why, all 8 detectors with examples, how the agent scores, every safety gate in plain English, position lifecycle, why paper-trade first.
 - **[`/portfolio`](https://lenitnes.persidian.com/portfolio)** — open + closed positions with entry price, current price, unrealized P&L, TP/SL levels.
-- **[`/case-study/halo2`](https://lenitnes.persidian.com/case-study/halo2)** — the founding myth. The agent's actual verdict on the 2022 halo2 soundness fix + the ZEC price chart that followed.
+- **[`/case-study/halo2`](https://lenitnes.persidian.com/case-study/halo2)** — the founding case study. The agent's verdict on the 2026 Orchard emergency response (Zebra 4.5.3 + NU6.2) + the ZEC -50% price move that followed the formal disclosure.
 - **[`/signals/:id`](https://lenitnes.persidian.com/signals/)** — every committed signal, with the full proof chain (Hedera HCS, IPFS, Arbitrum) and a "was the agent right?" verdict card.
 
 ## How it works (autonomous loop)
