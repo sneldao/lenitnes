@@ -16,14 +16,16 @@ import { query } from '../db/pool.js';
 import { logger } from '../logger.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
-const RUBRIC_PATH = path.resolve(__dirname, 'agent/rubric-v2.md');
+const RUBRIC_PATH = path.resolve(__dirname, 'agent/rubric-v3.md');
 
-// v2 (2026-06-26): adds `hcs_dispatch` and `proof_action` outputs.
-// The agent now controls what gets anchored on Hedera, not just
-// whether to trade. v1 prompts still parse (the new fields fall
-// back to a templated default) so the version bump is non-breaking
-// for replay.
-const RUBRIC_VERSION = 'v2';
+// v3 (2026-06-30): adds `narrative_context` input + a
+// narrative-synthesis section. The agent now scores each signal
+// with knowledge of what every other monitored repo and the
+// SoSoValue news feed did in the same 24h window, so it can string
+// commits across repos and weigh corroboration. v2 prompts still
+// parse (the new field is optional) so the version bump is
+// non-breaking for replay.
+const RUBRIC_VERSION = 'v3';
 const EXPECTED_OUTPUT_TOKENS = 700;
 
 export interface AgentEnv {

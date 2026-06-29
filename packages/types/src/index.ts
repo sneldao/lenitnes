@@ -187,6 +187,13 @@ export interface AgentInput {
   past_outcomes?: string;
   /** CoinMarketCap market context — injected before agent scores. */
   market_context?: string;
+  /**
+   * Cross-signal narrative context — a summary of recent signals across
+   * ALL monitors (last 24h) + SoSoValue news for the asset + cross-asset
+   * activity. Lets the agent string commits across repos and weigh
+   * corroboration rather than scoring each signal in isolation. v3.
+   */
+  narrative_context?: string;
 }
 
 // ── Treasury (system wallets) ────────────────────────────────

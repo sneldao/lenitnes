@@ -22,14 +22,7 @@ import {
 } from '../services/agent.js';
 import { marketData } from '../services/data-providers/registry.js';
 import type { AgentScore } from '@lenitnes/types';
-import {
-  deriveActionFromAgent,
-  recordTrade,
-  signAndSend,
-  type TradeReceipt,
-} from '../services/treasury.js';
-import { resolveTradeableToken } from '../services/treasury/asset-registry.js';
-import { applyRiskGate } from '../services/treasury/risk.js';
+import { executeAgentTrade, type TradeReceipt } from '../services/treasury.js';
 import {
   buildOutcomeWindows,
   broadcastSignal,
@@ -522,6 +515,13 @@ export async function executeCheck(monitor: Monitor): Promise<{
         if (indexCtx) marketContext += '\n\n' + indexCtx;
       }
 
+      // Cross-signal narrative context (rubric v3): recent signals
+      // across ALL monitors + cross-asset activity + SoSoValue news
+      // for this asset. Lets the agent string commits across repos
+      // and weigh corroboration instead of scoring in isolation.
+      const { buildNarrativeContext } = await import('../services/agent/narrative.js');
+      const narrativeContext = await buildNarrativeContext(monitor.asset_mapping);
+
       agentScore = await scoreAndPersist(
         {
           signal_id: signalId,
@@ -538,6 +538,7 @@ export async function executeCheck(monitor: Monitor): Promise<{
           precedent_count: precedent,
           past_outcomes: outcomeContext ?? undefined,
           market_context: marketContext,
+          narrative_context: narrativeContext || undefined,
         },
         env,
       );
@@ -673,76 +674,13 @@ export async function executeCheck(monitor: Monitor): Promise<{
   let tradeReceipt: TradeReceipt | null = null;
   let orderId: string | null = null;
   if (agentScore && !gate2Blocked && !isHeartbeat && signalId) {
-    const chain = config.treasury.defaultChain;
-    const coingeckoId = monitor.asset_mapping.coingeckoId;
-
-    // Resolve the real on-chain token address from the registry.
-    // If the asset isn't tradeable on this chain, we still derive
-    // the action — but with the placeholder token. The risk gate
-    // below will catch this and force paper mode so the swap
-    // never actually fires for a junk address.
-    const tradeable = resolveTradeableToken(coingeckoId, chain);
-    const tokenOut = tradeable?.tokenAddress ?? '0xUNTRADEABLE_PLACEHOLDER';
-
-    // Risk gate — applies the kill switch, asset registry, and
-    // position limits. Returns the mode the treasury should
-    // actually execute as (may be downgraded to paper).
-    const risk = await applyRiskGate({
-      coingeckoId,
-      chain,
-      side: agentScore.recommended_action === 'short' ? 'short' : 'long',
-      signalId,
-      intendedMode: config.treasury.defaultMode,
-      amountIn: config.treasury.defaultTradeAmount,
-    });
-
-    const derived = deriveActionFromAgent(agentScore, monitor.asset_mapping, {
-      chain,
-      mode: risk.effectiveMode,
-      amountIn: config.treasury.defaultTradeAmount,
-      slippageBps: config.treasury.defaultSlippageBps,
-      tokenIn: config.treasury.defaultTokenIn,
-      tokenOut,
-    });
-
-    if (derived.trade) {
-      try {
-        tradeReceipt = await signAndSend(derived.trade);
-        const status = tradeReceipt.mode === 'paper' || tradeReceipt.txHash ? 'filled' : 'failed';
-        orderId = await recordTrade(
-          signalId,
-          derived.trade,
-          tradeReceipt,
-          status,
-          agentScore.conviction,
-        );
-        logger.info(
-          {
-            signalId,
-            orderId,
-            chain: derived.trade.chain,
-            mode: tradeReceipt.mode,
-            txHash: tradeReceipt.txHash,
-            pair: derived.trade.pair,
-          },
-          'treasury: trade recorded',
-        );
-      } catch (err) {
-        logger.error(
-          { err, signalId, monitorId: monitor.id, chain: derived.trade.chain },
-          'treasury: trade failed — signal still public',
-        );
-      }
-    } else {
-      logger.info(
-        {
-          signalId,
-          agentAction: agentScore.recommended_action,
-          direction: monitor.asset_mapping.direction,
-        },
-        'treasury: no trade — agent action conflicts with asset direction',
-      );
-    }
+    // Trade execution is encapsulated in treasury.executeAgentTrade
+    // (DRY) — the single entry point shared with the narrative-
+    // synthesis scan. Resolves the token, applies the risk gate,
+    // derives the action, signs, and records the trade.
+    const traded = await executeAgentTrade(signalId, agentScore, monitor.asset_mapping);
+    tradeReceipt = traded.tradeReceipt;
+    orderId = traded.orderId;
   }
 
   // ── 7) Public broadcast (above-threshold + trade only) ──────────

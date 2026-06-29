@@ -13,7 +13,7 @@ import { executeEvmTrade } from './evm/trade.js';
 import { getWallet, getChainConfig } from './evm/client.js';
 import { isTwakConfigured, swap as twakSwap } from './twak.js';
 import { priceData } from './data-providers/registry.js';
-import { computeTpSlLevels } from './treasury/risk.js';
+import { computeTpSlLevels, applyRiskGate } from './treasury/risk.js';
 import { initVenues, getVenueForChain } from './venues/registry.js';
 import { resolveTradeableToken } from './treasury/asset-registry.js';
 import { config } from '../config.js';
@@ -291,6 +291,94 @@ export function deriveActionFromAgent(
       mode: config.mode,
     },
   };
+}
+
+/**
+ * Execute the treasury trade for an agent verdict — the single DRY
+ * entry point used by both the per-monitor execution loop and the
+ * narrative-synthesis scan. Encapsulates: resolve tradeable token →
+ * risk gate → derive action → sign+send → record trade.
+ *
+ * Returns `{ tradeReceipt, orderId }` — both null when the agent
+ * recommended no trade or the action conflicts with the asset's
+ * tradeable direction. Trade failures are logged and returned as
+ * null receipts so the caller can still broadcast the signal.
+ */
+export async function executeAgentTrade(
+  signalId: string,
+  agentScore: Pick<AgentScore, 'recommended_action' | 'signal_id' | 'thesis' | 'conviction'>,
+  assetMapping: Pick<AssetMapping, 'coingeckoId' | 'direction'>,
+): Promise<{ tradeReceipt: TradeReceipt | null; orderId: string | null }> {
+  const chain = config.treasury.defaultChain;
+  const coingeckoId = assetMapping.coingeckoId;
+
+  // Resolve the real on-chain token address from the registry.
+  // If the asset isn't tradeable on this chain, we still derive the
+  // action — but with the placeholder token. The risk gate catches
+  // this and forces paper mode so the swap never fires for a junk
+  // address.
+  const tradeable = resolveTradeableToken(coingeckoId, chain);
+  const tokenOut = tradeable?.tokenAddress ?? '0xUNTRADEABLE_PLACEHOLDER';
+
+  const risk = await applyRiskGate({
+    coingeckoId,
+    chain,
+    side: agentScore.recommended_action === 'short' ? 'short' : 'long',
+    signalId,
+    intendedMode: config.treasury.defaultMode,
+    amountIn: config.treasury.defaultTradeAmount,
+  });
+
+  const derived = deriveActionFromAgent(agentScore, assetMapping, {
+    chain,
+    mode: risk.effectiveMode,
+    amountIn: config.treasury.defaultTradeAmount,
+    slippageBps: config.treasury.defaultSlippageBps,
+    tokenIn: config.treasury.defaultTokenIn,
+    tokenOut,
+  });
+
+  if (!derived.trade) {
+    logger.info(
+      {
+        signalId,
+        agentAction: agentScore.recommended_action,
+        direction: assetMapping.direction,
+      },
+      'treasury: no trade — agent action conflicts with asset direction',
+    );
+    return { tradeReceipt: null, orderId: null };
+  }
+
+  try {
+    const tradeReceipt = await signAndSend(derived.trade);
+    const status = tradeReceipt.mode === 'paper' || tradeReceipt.txHash ? 'filled' : 'failed';
+    const orderId = await recordTrade(
+      signalId,
+      derived.trade,
+      tradeReceipt,
+      status,
+      agentScore.conviction,
+    );
+    logger.info(
+      {
+        signalId,
+        orderId,
+        chain: derived.trade.chain,
+        mode: tradeReceipt.mode,
+        txHash: tradeReceipt.txHash,
+        pair: derived.trade.pair,
+      },
+      'treasury: trade recorded',
+    );
+    return { tradeReceipt, orderId };
+  } catch (err) {
+    logger.error(
+      { err, signalId, chain: derived.trade.chain },
+      'treasury: trade failed — signal still public',
+    );
+    return { tradeReceipt: null, orderId: null };
+  }
 }
 
 /**

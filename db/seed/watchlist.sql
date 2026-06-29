@@ -71,5 +71,24 @@ VALUES
     'Any commit referencing a security vulnerability fix, emergency patch, consensus-critical change, or validator safety fix.',
     1800, true, true, 15,
     '{"coingeckoId": "sui", "krakenPair": "SUIUSD", "direction": "long"}'::jsonb
+  ),
+  -- Narrative-synthesis monitor (v3). Not a repo — a portfolio-wide
+  -- scan that runs on its own cron (scheduler.ts). When the cluster
+  -- of recent signals across all repos + SoSoValue news reaches
+  -- conviction, it emits a synthesis signal under this monitor so
+  -- the agent can trade a cross-repo theme even when no individual
+  -- monitor crossed threshold. asset_mapping has no coingeckoId:
+  -- the scan picks the dominant asset from the cluster at runtime.
+  (
+    'narrative:portfolio',
+    'Cross-signal narrative synthesis — fires when correlated activity across multiple monitored repos and/or the SoSoValue news feed forms a tradeable theme.',
+    7200, false, true, 70,
+    '{"direction": "both"}'::jsonb
   )
 ON CONFLICT DO NOTHING;
+
+-- The narrative monitor is driven by its own scheduler cron
+-- (runNarrativeScan), not the per-monitor queue. Mark it 'paused'
+-- so dueMonitors() and scanAndEnqueue() (both filter status='active')
+-- never enqueue it for a GitHub scrape. Idempotent across re-seeds.
+UPDATE monitors SET status = 'paused' WHERE url = 'narrative:portfolio';

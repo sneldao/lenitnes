@@ -347,15 +347,15 @@ function RecentCalls() {
 const LOOP_STEPS = [
   {
     title: 'Watchlist',
-    body: 'A curated set of consensus-critical and security-critical repositories. Admin-managed, not user-facing. Five entries on day one — ZCash, Bitcoin, Ethereum, Solana, Arbitrum.',
+    body: 'A curated set of consensus-critical and security-critical repositories — ZCash, Bitcoin, Ethereum, Solana, Arbitrum, Sui. Plus SoSoValue news + macro feeds for each. Admin-managed, not user-facing.',
   },
   {
     title: 'Detect',
-    body: 'TinyFish + scraper pulls each new commit. Eight typed detectors classify the change (emergency_patch, security_critical, consensus_relevant, governance_shift, and four more).',
+    body: 'TinyFish + scraper pulls each new commit; SoSoValue feeds pull news + macro. Nine typed detectors classify the change (emergency_patch, security_critical, consensus_relevant, governance_shift, and a news-sentiment detector for the SoSoValue feed).',
   },
   {
     title: 'Score',
-    body: 'A frontier-model agent evaluates the commit against a versioned rubric. Outputs a conviction score (0–100), a 280-character thesis, a recommended action, and a confidence band.',
+    body: 'A frontier-model agent evaluates the signal against a versioned rubric — with a cross-signal narrative: what every other monitored repo and the SoSoValue news feed did in the same 24h window. Outputs a conviction score (0–100), a 280-character thesis, a recommended action, and a confidence band. A separate 2-hour narrative scan strings commits across repos into a single thesis even when no individual monitor crossed threshold.',
   },
   {
     title: 'Gate',
@@ -363,7 +363,7 @@ const LOOP_STEPS = [
   },
   {
     title: 'Commit + Proof',
-    body: 'Trade from the treasury wallet on BSC testnet, notarize the signal on Hedera HCS (Hashgraph Consensus Service — tamper-evident timestamping with microsecond precision), broadcast the thesis to the public Telegram channel. All three in the same block.',
+    body: 'Trade from the treasury wallet on BSC testnet (PancakeSwap) or ValueChain (SoDEX orderbook), notarize the signal on Hedera HCS (Hashgraph Consensus Service — tamper-evident timestamping with microsecond precision), broadcast the thesis to the public Telegram channel. All in the same block, all publicly auditable across two chains.',
   },
   {
     title: 'Track outcome',

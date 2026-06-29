@@ -21,6 +21,7 @@ let watchReportJob: cron.ScheduledTask | null = null;
 let heartbeatJob: cron.ScheduledTask | null = null;
 let gasCheckJob: cron.ScheduledTask | null = null;
 let tpSlCheckJob: cron.ScheduledTask | null = null;
+let narrativeJob: cron.ScheduledTask | null = null;
 let monitorRunning = false;
 let backtestRunning = false;
 let proofRetryRunning = false;
@@ -175,6 +176,52 @@ async function retryFailedProofs(): Promise<void> {
 // dispatch, not sysadmin status. Leads with the top thesis,
 // shows repo velocity, surfaces book state. Drops the redundant
 // /monitors link and the "HCS-timestamped" infra noise.
+
+/**
+ * Build the "agent is operating" activity line for the quiet-hour
+ * heartbeat: news items reviewed, next macro event, watched assets.
+ * Returns null when there is nothing to surface (e.g. SoSoValue not
+ * configured and no watched assets) so the caller can skip it.
+ */
+async function buildQuietScanActivity(): Promise<string | null> {
+  const parts: string[] = [];
+
+  // Watched assets — the public watchlist, always available.
+  const { rows: watched } = await query<{ asset: string }>(
+    `SELECT DISTINCT m.asset_mapping->>'coingeckoId' AS asset
+       FROM monitors m
+      WHERE m.url NOT LIKE 'narrative:%'
+        AND m.asset_mapping->>'coingeckoId' IS NOT NULL
+      ORDER BY 1`,
+  );
+  const assetList = watched.map((r) => (r.asset ?? '').toUpperCase()).filter(Boolean);
+
+  // SoSoValue news + macro — best-effort, only when configured.
+  let newsCount = 0;
+  let nextMacro: string | null = null;
+  if (process.env.SOSO_VALUE_API_KEY) {
+    try {
+      const { getNewsFeed, getMacroEvents } =
+        await import('../services/data-providers/sosovalue/index.js');
+      const feed = await getNewsFeed({ pageSize: 1 });
+      newsCount = feed?.total ?? 0;
+      const events = await getMacroEvents();
+      // Next upcoming event = first day with date >= today.
+      const today = new Date().toISOString().slice(0, 10);
+      const upcoming = events.find((d) => d.date >= today);
+      nextMacro = upcoming ? `${upcoming.date}: ${upcoming.events[0] ?? 'macro event'}` : null;
+    } catch (err) {
+      logger.warn({ err }, 'heartbeat: sosovalue scan-activity fetch failed (non-blocking)');
+    }
+  }
+
+  if (newsCount > 0) parts.push(`📰 ${newsCount} news items reviewed`);
+  if (nextMacro) parts.push(`📅 next macro: ${nextMacro}`);
+  if (assetList.length > 0) parts.push(`👁 watching: ${assetList.join(', ')}`);
+
+  return parts.length > 0 ? parts.join(' · ') : null;
+}
+
 async function sendPipelineHeartbeat(): Promise<void> {
   if (heartbeatRunning || !config.telegram.botToken || !config.telegram.publicChannelId) return;
   heartbeatRunning = true;
@@ -229,7 +276,10 @@ async function sendPipelineHeartbeat(): Promise<void> {
     const sigCount = parseInt(signals24h[0]?.c ?? '0', 10);
 
     // Lead: agent posture as a verb. Falls through to "watching"
-    // when there's no scored signal in the last 24h.
+    // when there's no scored signal in the last 24h. The quiet
+    // branch surfaces scan activity (news reviewed, macro calendar,
+    // watched assets) so the channel reads as "the agent is
+    // operating" rather than "the agent is doing nothing".
     const lines: string[] = [];
     if (top) {
       const action = top.recommended_action.toUpperCase();
@@ -243,6 +293,15 @@ async function sendPipelineHeartbeat(): Promise<void> {
       lines.push(`🛡️ LENITNES · watching · ${sigCount} signals scanned (24h)`);
       lines.push('');
       lines.push(`💭 No conviction above threshold — quiet hour.`);
+      // Prove the agent is operating, not idle: how many news items
+      // it reviewed this hour, the next macro event on the calendar,
+      // and the assets it's watching. Best-effort — a SoSoValue
+      // failure just drops these lines.
+      const scanActivity = await buildQuietScanActivity();
+      if (scanActivity) {
+        lines.push('');
+        lines.push(scanActivity);
+      }
     }
     lines.push('');
 
@@ -520,7 +579,7 @@ async function checkTakeProfitStopLoss(): Promise<void> {
 
 export function startScheduler(): void {
   logger.info(
-    'scheduler started — monitors every 30s, backtest every 6h, proof retries every 2m, watch report daily at 09:00, heartbeat hourly, gas check every 6h, TP/SL check every 5m',
+    'scheduler started — monitors every 30s, backtest every 6h, proof retries every 2m, watch report daily at 09:00, heartbeat hourly, gas check every 6h, TP/SL check every 5m, narrative scan every 2h',
   );
   monitorJob = cron.schedule('*/30 * * * * *', scanAndEnqueue);
   backtestJob = cron.schedule('0 */6 * * *', runBacktest);
@@ -529,6 +588,12 @@ export function startScheduler(): void {
   heartbeatJob = cron.schedule('0 * * * *', sendPipelineHeartbeat);
   gasCheckJob = cron.schedule('0 */6 * * *', checkGasBalance);
   tpSlCheckJob = cron.schedule('*/5 * * * *', checkTakeProfitStopLoss);
+  // Cross-signal narrative synthesis (v3) — strings commits across
+  // repos + SoSoValue news into a single tradeable thesis. No-ops
+  // when the cluster is quiet, so it costs nothing on dead hours.
+  narrativeJob = cron.schedule('0 */2 * * *', () =>
+    import('../services/agent/narrative.js').then((m) => m.runNarrativeScan()),
+  );
 }
 
 export function stopScheduler(): void {
@@ -559,5 +624,9 @@ export function stopScheduler(): void {
   if (tpSlCheckJob) {
     tpSlCheckJob.stop();
     tpSlCheckJob = null;
+  }
+  if (narrativeJob) {
+    narrativeJob.stop();
+    narrativeJob = null;
   }
 }

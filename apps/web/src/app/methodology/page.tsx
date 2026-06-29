@@ -91,9 +91,11 @@ export default function MethodologyPage() {
       {/* ── The detectors ── */}
       <Section id="detectors" icon={GitCommit} title="What the detectors look for">
         <p>
-          When a new commit lands, eight typed detectors run a fast classification pass over it
-          BEFORE the LLM is involved. Each detector returns a score (0-100) and a confidence. The
-          agent then sees the detector output as input, not the raw commit alone.
+          When a new commit lands (or a SoSoValue news item arrives), nine typed detectors run a
+          fast classification pass over it BEFORE the LLM is involved. Each detector returns a score
+          (0-100) and a confidence. The agent then sees the detector output as input, not the raw
+          commit alone — plus a cross-signal narrative of what every other monitored repo and the
+          news feed did in the same 24h window.
         </p>
         <div className="space-y-3">
           {DETECTORS.map((d) => (
@@ -404,6 +406,12 @@ const DETECTORS = [
     name: 'maintainer_departure',
     what: 'Commit author or recent contributor disappears from the repo for &gt;30 days, or removes themselves from CODEOWNERS.',
     example: '"Step back from Bitcoin Core maintenance"',
+  },
+  {
+    name: 'news_signal',
+    what: 'SoSoValue news feed items matching bullish/bearish keyword sets (hack, exploit, upgrade, partnership, regulatory, depeg…). Runs on the news feed for each watched asset, independent of commits — the only detector that fires on narrative, not code.',
+    example:
+      '"ZCash Orchard shielded pool disabled via emergency soft fork" — negative sentiment cluster',
   },
 ];
 
