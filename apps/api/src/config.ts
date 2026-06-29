@@ -107,6 +107,7 @@ export const config = {
     apiKeyPrivate: env.SODEX_API_KEY_PRIVATE,
     accountId: env.SODEX_ACCOUNT_ID,
     symbolId: env.SODEX_SYMBOL_ID,
+    symbol: env.SODEX_SYMBOL,
     network: env.SODEX_NETWORK,
   },
 
