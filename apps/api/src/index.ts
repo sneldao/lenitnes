@@ -19,6 +19,7 @@ import { portfolioRouter } from './routes/portfolio.js';
 // in the pivot). The /scorecard route replaces it.
 import { scorecardRouter } from './routes/scorecard.js';
 import { adminRouter } from './routes/admin.js';
+import { sosovalueRouter } from './routes/sosovalue.js';
 import { auditMiddleware } from './middleware/audit.js';
 import { renderMetrics, metricsMiddleware } from './middleware/metrics.js';
 import { cacheInvalidate } from './middleware/cache.js';
@@ -146,6 +147,7 @@ app.use('/orders', ordersRouter);
 app.use('/dlq', dlqRouter);
 app.use('/backtest', backtestRouter);
 app.use('/portfolio', portfolioRouter);
+app.use('/sosovalue', sosovalueRouter);
 
 // Centralized error handler.
 app.use(

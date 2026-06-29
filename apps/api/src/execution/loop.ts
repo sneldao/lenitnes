@@ -92,7 +92,7 @@ export interface CheckMetadata {
   agentThesis?: string;
   // Day 5: treasury trade receipt (above-threshold only).
   tradeTxHash?: string;
-  tradeChain?: 'hedera' | 'arbitrum' | 'robinhood' | 'bnb';
+  tradeChain?: 'hedera' | 'arbitrum' | 'robinhood' | 'bnb' | 'valuechain';
   tradePair?: string;
   tradeMode?: 'paper' | 'live';
   orderId?: string;

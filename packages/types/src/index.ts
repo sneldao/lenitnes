@@ -191,7 +191,7 @@ export interface AgentInput {
 
 // ── Treasury (system wallets) ────────────────────────────────
 
-export type Chain = 'hedera' | 'arbitrum' | 'robinhood' | 'bnb';
+export type Chain = 'hedera' | 'arbitrum' | 'robinhood' | 'bnb' | 'valuechain';
 
 export interface TreasuryWallet {
   chain: Chain;

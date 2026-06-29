@@ -82,6 +82,18 @@ adminRouter.get('/status', requireAdmin, async (_req, res) => {
   }
 });
 
+// GET /admin/venues — status of all registered execution venues
+adminRouter.get('/venues', requireAdmin, async (_req, res) => {
+  try {
+    const { getVenueStatuses } = await import('../services/venues/registry.js');
+    const statuses = getVenueStatuses();
+    res.json(statuses);
+  } catch (err) {
+    logger.error({ err }, 'admin/venues failed');
+    res.status(500).json({ error: 'venue_status_failed' });
+  }
+});
+
 // POST /admin/cache/invalidate?pattern=scorecard:
 // Drop cache entries matching the prefix. Used when a new signal
 // commits and the scorecard needs to refresh before its 60s TTL.

@@ -37,3 +37,25 @@ export function getVenue(name: VenueName): Venue | undefined {
 export function getVenueForChain(chain: Chain): Venue | undefined {
   return ensure().find((v) => v.isActive(chain));
 }
+
+interface VenueStatusResult {
+  name: string;
+  chain: string;
+  active: boolean;
+  configured: boolean;
+}
+
+export function getVenueStatuses(): Record<string, VenueStatusResult> {
+  const allChains: Chain[] = ['hedera', 'arbitrum', 'robinhood', 'bnb', 'valuechain'];
+  const result: Record<string, VenueStatusResult> = {};
+  for (const v of _venues) {
+    const chains = allChains.filter((c) => v.isActive(c));
+    result[v.name] = {
+      name: v.name,
+      chain: chains.join(', '),
+      active: _initialized,
+      configured: true,
+    };
+  }
+  return result;
+}
