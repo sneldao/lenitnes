@@ -12,9 +12,9 @@ import { logger } from '../logger.js';
 import { executeEvmTrade } from './evm/trade.js';
 import { getWallet, getChainConfig } from './evm/client.js';
 import { isTwakConfigured, swap as twakSwap } from './twak.js';
-import { getPriceAt } from './price.js';
+import { priceData } from './data-providers/registry.js';
 import { computeTpSlLevels } from './treasury/risk.js';
-import { openSwap, closeSwap } from './treasury/swap.js';
+import { initVenues, getVenueForChain } from './venues/registry.js';
 import { resolveTradeableToken } from './treasury/asset-registry.js';
 import { config } from '../config.js';
 
@@ -106,10 +106,25 @@ async function executeBscSwap(
   tokenOut: string,
   slippageBps: number,
 ): Promise<{ txHash: string; amountOut: string }> {
-  const result = await openSwap('bnb', tokenOut, amountInBnb, slippageBps);
+  await initVenues();
+  const venue = getVenueForChain('bnb');
+  if (!venue) throw new Error('treasury: no venue available for BSC');
+
+  const result = await venue.openSwap({
+    chain: 'bnb',
+    tokenOut,
+    amountIn: amountInBnb,
+    slippageBps,
+  });
   logger.info(
-    { txHash: result.txHash, amountInBnb, tokenOut, amountOut: result.amountOut },
-    'treasury: BSC PancakeSwap V2 swap executed',
+    {
+      txHash: result.txHash,
+      amountInBnb,
+      tokenOut,
+      amountOut: result.amountOut,
+      venue: venue.name,
+    },
+    'treasury: BSC swap executed',
   );
   return { txHash: result.txHash, amountOut: result.amountOut };
 }
@@ -330,7 +345,7 @@ export async function recordTrade(
         // page + auto-close can compute PnL without backfill.
         // Best-effort: a price-fetch failure leaves entry_price_usd
         // NULL and the portfolio service backfills lazily.
-        const entryPriceUsd = await getPriceAt(asset, new Date(receipt.timestamp));
+        const entryPriceUsd = await priceData.getPriceAt(asset, new Date(receipt.timestamp));
 
         // TP/SL levels are conviction-scaled and only written when
         // we have a real entry price. Without entry price the
@@ -383,7 +398,7 @@ export async function recordTrade(
             ? parseFloat(openRows[0].entry_price_usd)
             : null;
           const exitAmount = action.amountIn ? parseFloat(action.amountIn) : 0;
-          const exitPriceUsd = await getPriceAt(asset, new Date(receipt.timestamp));
+          const exitPriceUsd = await priceData.getPriceAt(asset, new Date(receipt.timestamp));
 
           // Prefer USD-based PnL when both entry and exit prices
           // are known. Falls back to the amount-delta computation
@@ -477,11 +492,15 @@ export async function closePositionById(
   let closeTxHash: string | null = null;
   if (canClose && tradeable) {
     try {
-      const result = await closeSwap(
+      await initVenues();
+      const venue = getVenueForChain(chain);
+      if (!venue) throw new Error(`treasury: no venue available for ${chain}`);
+
+      const result = await venue.closeSwap({
         chain,
-        tradeable.tokenAddress,
-        config.treasury.defaultSlippageBps,
-      );
+        tokenAddress: tradeable.tokenAddress,
+        slippageBps: config.treasury.defaultSlippageBps,
+      });
       closeTxHash = result.txHash;
       logger.info(
         { positionId, asset: row.asset, reason, closeTxHash, bnbReceived: result.amountOut },

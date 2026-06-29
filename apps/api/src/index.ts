@@ -199,6 +199,11 @@ if (isMain) {
         logger.warn({ err }, 'cache invalidation subscriber failed to start');
       });
 
+      // Initialize execution venues (PancakeSwap, SoDEX if configured).
+      import('./services/venues/registry.js')
+        .then(({ initVenues }) => initVenues())
+        .catch((err) => logger.warn({ err }, 'venue init failed (non-blocking)'));
+
       // Treasury posture — kill switch, chain network, balance,
       // registry coverage. Lets operators see at a glance whether
       // live trading is actually reachable on this deploy.

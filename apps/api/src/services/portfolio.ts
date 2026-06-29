@@ -1,5 +1,5 @@
 import { query } from '../db/pool.js';
-import { getPriceAt } from './price.js';
+import { priceData } from './data-providers/registry.js';
 import { logger } from '../logger.js';
 
 export interface OpenPosition {
@@ -61,7 +61,7 @@ async function backfillEntryPrice(
   openedAt: string,
 ): Promise<number | null> {
   try {
-    const price = await getPriceAt(asset, new Date(openedAt));
+    const price = await priceData.getPriceAt(asset, new Date(openedAt));
     if (price == null) return null;
     await query(`UPDATE positions SET entry_price_usd = $2 WHERE id = $1`, [positionId, price]);
     logger.info({ positionId, asset, openedAt, price }, 'portfolio: backfilled entry_price_usd');
@@ -87,7 +87,7 @@ async function fetchCurrentPrices(assets: string[]): Promise<Record<string, numb
   const entries = await Promise.all(
     unique.map(async (a) => {
       try {
-        const p = await getPriceAt(a, now);
+        const p = await priceData.getPriceAt(a, now);
         return [a, p] as const;
       } catch (err) {
         logger.warn({ err, asset: a }, 'portfolio: current price fetch failed');

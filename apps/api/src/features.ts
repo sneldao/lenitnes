@@ -34,6 +34,14 @@ export const FEATURES = {
 
   /** Arbitrum on-chain proof (requires deployed SignalRegistry) */
   evmProof: (process.env.ARB_SIGNAL_REGISTRY_ADDRESS ?? '') !== '',
+
+  /** SoSoValue news feeds + market data (requires SOSO_VALUE_API_KEY) */
+  sosovalue: (process.env.SOSO_VALUE_API_KEY ?? '') !== '',
+
+  /** SoDEX orderbook trading on ValueChain L1 */
+  sodex:
+    (process.env.SODEX_API_KEY_NAME ?? '') !== '' &&
+    (process.env.SODEX_API_KEY_PRIVATE ?? '') !== '',
 } as const;
 
 export type FeatureName = keyof typeof FEATURES;

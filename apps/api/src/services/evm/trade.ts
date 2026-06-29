@@ -1,7 +1,7 @@
 import { ethers } from 'ethers';
 import { getWallet, getChainConfig } from './client.js';
 import { logger } from '../../logger.js';
-import { getQuote } from '../treasury/quote.js';
+import { pancakeswapVenue } from '../venues/pancakeswap/index.js';
 
 const ABI = [
   'function executeTrade(address tokenIn, address tokenOut, uint256 amountIn, uint256 minAmountOut, address recipient) external returns (uint256)',
@@ -38,7 +38,7 @@ export async function executeEvmTrade(params: EvmTradeParams): Promise<{
   // every live trade has a real minOut bound by configured
   // slippage.
   const slippageBps = params.slippageBps ?? 50;
-  const quote = await getQuote(
+  const quote = await pancakeswapVenue.getQuote(
     params.chain as 'bnb',
     params.tokenIn,
     params.tokenOut,

@@ -1,5 +1,5 @@
 import { query } from '../../db/pool.js';
-import { getPriceAtWindow } from '../price.js';
+import { priceData } from '../data-providers/registry.js';
 import { logger } from '../../logger.js';
 import type { AssetMapping, DetectorBacktestStats, SignalOutcome } from '@lenitnes/types';
 
@@ -53,7 +53,7 @@ export async function processSignalOutcomes(
 
     for (const windowSec of windows) {
       try {
-        const result = await getPriceAtWindow(asset.id, signalTime, windowSec);
+        const result = await priceData.getPriceAtWindow(asset.id, signalTime, windowSec);
         if (!result) continue;
 
         const pctChange = ((result.afterWindow - result.atSignal) / result.atSignal) * 100;

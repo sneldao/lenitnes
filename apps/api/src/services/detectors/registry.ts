@@ -8,6 +8,7 @@ import { maintainerDepartureDetector } from './maintainer-departure.js';
 import { silentMergeDetector } from './silent-merge.js';
 import { protocolUpgradeDetector } from './protocol-upgrade.js';
 import { supplyChainRiskDetector } from './supply-chain-risk.js';
+import { newsSignalDetector } from './news-signal.js';
 
 const detectors: SignalDetector[] = [
   emergencyPatchDetector,
@@ -18,6 +19,7 @@ const detectors: SignalDetector[] = [
   silentMergeDetector,
   protocolUpgradeDetector,
   supplyChainRiskDetector,
+  newsSignalDetector,
 ];
 
 export function runDetectors(input: DetectorInput): SignalClassification[] {

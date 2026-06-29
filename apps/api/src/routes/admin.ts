@@ -12,7 +12,7 @@ import { cacheInvalidate } from '../middleware/cache.js';
 import { _internalDailySpendUsd } from '../services/agent.js';
 import { closePositionById } from '../services/treasury.js';
 import { evaluateTradeRisk } from '../services/treasury/risk.js';
-import { getPriceAt } from '../services/price.js';
+import { priceData } from '../services/data-providers/registry.js';
 import { logger } from '../logger.js';
 
 export const adminRouter = Router();
@@ -163,7 +163,7 @@ adminRouter.post('/positions/:id/close', requireAdmin, async (req, res) => {
       res.status(409).json({ error: 'position_not_open', status: rows[0].status });
       return;
     }
-    const exitPrice = await getPriceAt(rows[0].asset, new Date());
+    const exitPrice = await priceData.getPriceAt(rows[0].asset, new Date());
     const result = await closePositionById(positionId, exitPrice, 'manual');
     res.json({
       ok: result.closed,

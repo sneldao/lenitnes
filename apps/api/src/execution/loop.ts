@@ -20,7 +20,7 @@ import {
   fetchOutcomeContext,
   scoreAndPersist,
 } from '../services/agent.js';
-import { getGlobalMetrics, getQuotes, formatMarketContext } from '../services/cmc.js';
+import { marketData } from '../services/data-providers/registry.js';
 import type { AgentScore } from '@lenitnes/types';
 import {
   deriveActionFromAgent,
@@ -426,6 +426,69 @@ export async function executeCheck(monitor: Monitor): Promise<{
       });
   }
 
+  // ── 4d) SoSoValue news enrichment: fetch news for monitored ──────
+  //      assets and run the news-signal detector. Runs when
+  //      SOSO_VALUE_API_KEY is configured, regardless of whether
+  //      GitHub commits were found.
+  if (!isHeartbeat && signalId && FEATURES.sosovalue) {
+    const coingeckoId = monitor.asset_mapping.coingeckoId;
+    if (coingeckoId) {
+      try {
+        const { searchNews } = await import('../services/data-providers/sosovalue/index.js');
+        const newsItems = await searchNews(coingeckoId);
+
+        if (newsItems.length > 0) {
+          const { newsSignalDetector } = await import('../services/detectors/news-signal.js');
+          const detectorInput = {
+            result,
+            commits: result.commits ?? [],
+            monitorUrl: monitor.url,
+            monitorCondition: monitor.condition_text,
+            news: newsItems.map((n) => ({
+              title: n.title,
+              content: n.content,
+              categories: [n.category],
+              currencies:
+                n.matched_currencies?.map((c: { name: string }) => ({ name: c.name })) ?? [],
+              tags: n.tags ?? [],
+            })),
+          };
+          const newsResult = newsSignalDetector.detect(detectorInput);
+          if (newsResult) {
+            classifications.push({
+              type: newsResult.type,
+              score: newsResult.score,
+              confidence: newsResult.confidence,
+              label: newsResult.label,
+            });
+            detectorResultsFull.push({
+              type: newsResult.type,
+              score: newsResult.score,
+              confidence: newsResult.confidence,
+              label: newsResult.label,
+              metadata: newsResult.metadata,
+            });
+            await query(
+              `INSERT INTO signal_classifications
+               (signal_id, detector_type, score, confidence, label, metadata)
+               VALUES ($1, $2, $3, $4, $5, $6)`,
+              [
+                signalId,
+                newsResult.type,
+                newsResult.score,
+                newsResult.confidence,
+                newsResult.label,
+                JSON.stringify(newsResult.metadata),
+              ],
+            );
+          }
+        }
+      } catch (err) {
+        logger.warn({ err, signalId }, 'SoSoValue news enrichment failed (non-blocking)');
+      }
+    }
+  }
+
   // ── 5) Agent conviction gating (Gate 2) ─────────────────────────
   // If detectors fired, the agent scores the signal against a versioned
   // rubric. Sub-threshold scores are persisted (agent reasoning archive)
@@ -444,10 +507,20 @@ export async function executeCheck(monitor: Monitor): Promise<{
       ]);
       const coingeckoId = monitor.asset_mapping.coingeckoId;
       const [metrics, quotes] = await Promise.all([
-        getGlobalMetrics(),
-        coingeckoId ? getQuotes([coingeckoId]) : Promise.resolve([]),
+        marketData.getGlobalMetrics(),
+        coingeckoId ? marketData.getQuotes([coingeckoId]) : Promise.resolve([]),
       ]);
-      const marketContext = formatMarketContext(metrics, quotes);
+      let marketContext = marketData.formatMarketContext(metrics, quotes);
+
+      // Enrich agent context with SoSoValue macro events + index data.
+      if (FEATURES.sosovalue) {
+        const [{ buildMacroContext, buildIndexContext }] = await Promise.all([
+          import('../services/data-providers/sosovalue/index.js'),
+        ]);
+        const [macroCtx, indexCtx] = await Promise.all([buildMacroContext(), buildIndexContext()]);
+        if (macroCtx) marketContext += '\n\n' + macroCtx;
+        if (indexCtx) marketContext += '\n\n' + indexCtx;
+      }
 
       agentScore = await scoreAndPersist(
         {

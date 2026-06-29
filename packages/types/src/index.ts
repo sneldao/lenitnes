@@ -211,6 +211,7 @@ export type SignalType =
   | 'silent_merge'
   | 'protocol_upgrade'
   | 'supply_chain_risk'
+  | 'news_signal'
   | 'generic';
 
 export interface SignalClassification {

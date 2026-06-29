@@ -155,6 +155,16 @@ export const envSchema = z
     // ── CoinMarketCap ──
     CMC_API_KEY: z.string().optional().default(''),
 
+    // ── SoSoValue ──
+    SOSO_VALUE_API_KEY: z.string().optional().default(''),
+
+    // ── SoDEX (ValueChain orderbook execution) ──
+    SODEX_API_KEY_NAME: z.string().optional().default(''),
+    SODEX_API_KEY_PRIVATE: z.string().optional().default(''),
+    SODEX_ACCOUNT_ID: z.string().optional().default(''),
+    SODEX_SYMBOL_ID: z.string().optional().default('1'),
+    SODEX_NETWORK: z.enum(['mainnet', 'testnet']).optional().default('testnet'),
+
     // ── x402 pay-per-request ──
     X402_ENABLED: z
       .string()

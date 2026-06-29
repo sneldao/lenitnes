@@ -1,6 +1,6 @@
 # LENITNES
 
-**An autonomous AI intelligence operation. Frontier-model agents read public commits to consensus-critical code, score them against a versioned conviction rubric, timestamp every signal on Hedera HCS (immutable proof), execute testnet trades on BSC, and broadcast every call to a public Telegram channel — all in the same block, all publicly auditable across two chains.**
+**An autonomous AI intelligence operation. Frontier-model agents read public commits to consensus-critical code — and news from SoSoValue's on-chain finance feeds — score them against a versioned conviction rubric, timestamp every signal on Hedera HCS (immutable proof), execute testnet trades on BSC (PancakeSwap) or ValueChain (SoDEX orderbook), and broadcast every call to a public Telegram channel — all in the same block, all publicly auditable across two chains.**
 
 LENITNES is a zero-headcount research desk. No users, no per-monitor staking, no SaaS dashboard to manage. The agents run continuously; their calls become a public track record the system cannot misremember.
 
@@ -37,15 +37,17 @@ Public surfaces — no signup, no auth:
 ## How it works (autonomous loop)
 
 1. **Watchlist** — a curated set of consensus-critical and security-critical repositories. Admin-managed, not user-facing.
-2. **Detect** — TinyFish + scraper pulls each new commit (with a 30-minute settling delay so we don't fire on already-priced-in news); 8 typed detectors classify it (`emergency_patch`, `security_critical`, `consensus_relevant`, `governance_shift`, etc.).
-3. **Score** — a frontier-model agent evaluates the commit against a versioned rubric. Outputs a conviction score (0–100), 280-char thesis, recommended action (`long` | `short` | `none`), and confidence band.
-4. **Gate** — conviction ≥ 80 (raised from 70 on 2026-06-26 after cohort 1 ran 0% win rate). Sub-threshold scores still persist in the reasoning archive but produce no trade and no Telegram post.
-5. **Safety stack** — every live trade passes through a gated risk evaluator before the swap is signed: master kill switch, asset-registry membership, BSC chain-ID guard, treasury balance preflight, on-chain TVL floor, CMC 24h-volume floor, position-count + per-asset caps. Failure on any gate forces paper mode; the signal still ships.
-6. **Commit** (if above threshold + safety passes):
-   - **Trade** via PancakeSwap V2 on BSC with `amountOutMin` derived from an on-chain quote × the configured slippage (no `=0` foot-gun). Conviction-scaled TP/SL written at open.
+2. **Detect** — TinyFish + scraper pulls each new commit (with a 30-minute settling delay so we don't fire on already-priced-in news); 9 typed detectors classify it (`emergency_patch`, `security_critical`, `consensus_relevant`, `governance_shift`, `news_signal`, etc.). The 9th detector (`news_signal`) is powered by **SoSoValue's on-chain finance news feed** — it finds narrative-breaking events before they hit the commit graph.
+3. **Enrich** (optional) — when SoSoValue is configured, the agent receives macro-economic context (GDP, CPI, Fed rate decisions) and crypto index snapshots (BTC dominance, ETH staking ratio, stablecoin supply ratio) alongside the commit data — broader context than any commit alone.
+4. **Score** — a frontier-model agent evaluates the enriched context against a versioned rubric. Outputs a conviction score (0–100), 280-char thesis, recommended action (`long` | `short` | `none`), and confidence band.
+5. **Gate** — conviction ≥ 80 (raised from 70 on 2026-06-26 after cohort 1 ran 0% win rate). Sub-threshold scores still persist in the reasoning archive but produce no trade and no Telegram post.
+6. **Safety stack** — every live trade passes through a gated risk evaluator before the swap is signed: master kill switch, asset-registry membership, chain-ID guard, treasury balance preflight, on-chain TVL floor, 24h-volume floor, position-count + per-asset caps. Failure on any gate forces paper mode; the signal still ships.
+7. **Commit** (if above threshold + safety passes):
+   - **Route** — pick the execution venue by chain: PancakeSwap V2 on BSC or SoDEX central-limit orderbook on ValueChain. The venue abstraction allows adding new venues without touching the treasury core.
+   - **Trade** via the selected venue with `amountOutMin` derived from an on-chain quote × the configured slippage (no `=0` foot-gun). Conviction-scaled TP/SL written at open.
    - **Notarize** the signal: Hedera HCS message + Arbitrum `SignalRegistry` write + Grove proof package.
    - **Broadcast** to the public Telegram channel with the verdict-forward editorial dispatch voice (asset + action + conviction + thesis, no infra noise).
-7. **Settle** — every 5 minutes, the TP/SL scheduler reads CoinGecko per-asset prices, closes any position whose target is hit via a real reverse swap, and records realized P&L. At T+1h / T+1d / T+7d, the price is also snapshotted as backtest outcome data.
+8. **Settle** — every 5 minutes, the TP/SL scheduler reads CoinGecko per-asset prices, closes any position whose target is hit via a real reverse swap, and records realized P&L. At T+1h / T+1d / T+7d, the price is also snapshotted as backtest outcome data.
 
 No human input in the steady state. The only operator surfaces are `/admin/*` (X-Admin-Key gated) and the watchlist seed.
 
@@ -65,19 +67,21 @@ See **[`docs/RUNBOOK.md`](./docs/RUNBOOK.md)** for the operator runbook (preflig
 
 ## Stack
 
-| Layer          | Choice                                           | Why                                        |
-| -------------- | ------------------------------------------------ | ------------------------------------------ |
-| API            | Express 5 + TypeScript                           | Boring, fast, easy to deploy               |
-| DB             | PostgreSQL 14                                    | Reliable, JSONB, window fns                |
-| Agent          | Kimi K2 via Virtuals · MOCK for tests            | Versioned rubric, conviction 0-100         |
-| Market context | CoinMarketCap Pro API (+ x402 fallback)          | Global metrics, Fear & Greed, asset quotes |
-| Notarize       | Hedera HCS + Arbitrum `SignalRegistry`           | Two-chain proof                            |
-| Store          | IPFS (Grove / Lens)                              | Immutable evidence package                 |
-| Trade          | Arbitrum Sepolia · Robinhood Chain · BSC testnet | Three live venues + paper                  |
-| Sign on BSC    | Trust Wallet Agent Kit (TWAK)                    | Self-custody signing on BSC                |
-| Broadcast      | Telegram public channel                          | Public, timestamped                        |
-| Charts         | CoinGecko historical API (with fallback)         | Real price outcomes                        |
-| Frontend       | Next.js 16 + Tailwind                            | Dark dashboard, Fraunces + Space Grotesk   |
+| Layer          | Choice                                        | Why                                                         |
+| -------------- | --------------------------------------------- | ----------------------------------------------------------- |
+| API            | Express 5 + TypeScript                        | Boring, fast, easy to deploy                                |
+| DB             | PostgreSQL 14                                 | Reliable, JSONB, window fns                                 |
+| Agent          | Kimi K2 via Virtuals · MOCK for tests         | Versioned rubric, conviction 0-100                          |
+| Market data    | CoinMarketCap Pro API (+ x402 fallback)       | Global metrics, Fear & Greed, asset quotes                  |
+| News + macro   | SoSoValue On-Chain Finance API                | 9th `news_signal` detector, macro context for agent scoring |
+| Notarize       | Hedera HCS + Arbitrum `SignalRegistry`        | Two-chain proof                                             |
+| Store          | IPFS (Grove / Lens)                           | Immutable evidence package                                  |
+| Trading (AMM)  | PancakeSwap V2 on BSC                         | AMM swaps via `swapExactETHForTokens` with amountOutMin     |
+| Trading (CLOB) | SoDEX orderbook on ValueChain (testnet)       | Market orders through EIP-712 signed REST API               |
+| Signing        | Trust Wallet Agent Kit (TWAK) · ethers Wallet | Self-custody signing on BSC; direct ethers fallback         |
+| Broadcast      | Telegram public channel                       | Public, timestamped                                         |
+| Charts         | CoinGecko historical API (with fallback)      | Real price outcomes                                         |
+| Frontend       | Next.js 16 + Tailwind                         | Dark dashboard, Fraunces + Space Grotesk                    |
 
 See [`docs/AGENT_ARCHITECTURE.md`](./docs/AGENT_ARCHITECTURE.md) for the frozen
 Q1-Q3 design decisions and [`docs/HACKATHON_CUT.md`](./docs/HACKATHON_CUT.md)
@@ -94,7 +98,9 @@ cp .env.example .env
 # Required: JWT_SECRET, ENCRYPTION_KEY, WEBHOOK_SECRET (32-byte hex each)
 # Required: DATABASE_URL, NVIDIA_API_KEY (or MOCK_AGENT=1 for testing)
 # Optional: TWAK_ACCESS_ID + TWAK_HMAC_SECRET (BSC live trading),
-#           CMC_API_KEY (market context) or X402_PRIVATE_KEY (x402 fallback)
+#           CMC_API_KEY (market context) or X402_PRIVATE_KEY (x402 fallback),
+#           SOSO_VALUE_API_KEY (news feeds + macro data for agent enrichment),
+#           SODEX_API_KEY_NAME + SODEX_API_KEY_PRIVATE (orderbook execution on ValueChain)
 
 # 3. Generate secrets
 node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"
@@ -174,10 +180,16 @@ lenitnes/
 │   │       ├── db/              pool · migrate · schema · 003_pivot · validate
 │   │       ├── routes/          monitors · signals · scorecard · admin · backtest · replay · dlq · proof · webhooks
 │   │       ├── services/        agent · treasury · replay · notify · scorecard · share-token
-│   │       │   ├── cmc.ts        CoinMarketCap Pro API (global metrics, Fear & Greed, quotes)
-│   │       │   ├── cmc-x402.ts   x402 pay-per-request CMC fallback (USDC on Base)
+│   │       │   ├── data-providers/ Provider interfaces + implementations
+│   │       │   │   ├── cmc/      CoinMarketCap Pro API (global metrics, Fear & Greed, quotes)
+│   │       │   │   ├── coingecko/ CoinGecko price data (charts, outcomes)
+│   │       │   │   └── sosovalue/ SoSoValue news feeds, macro events, index snapshots
+│   │       │   ├── venues/       Execution venue abstraction
+│   │       │   │   ├── pancakeswap/ PancakeSwap V2 AMM (quotes + swaps)
+│   │       │   │   └── sodex/   SoDEX orderbook (EIP-712 signed REST orders)
 │   │       │   ├── twak.ts       Trust Wallet Agent Kit wrapper (BSC self-custody swap)
-│   │       │   ├── treasury/    asset-registry · risk gate · PancakeSwap quote/swap
+│   │       │   ├── detectors/    9 signal detectors (8 commit-based + 1 news-signal)
+│   │       │   ├── treasury/    asset-registry · risk gate
 │   │       │   └── evm/         client · trade · signal-registry
 │   │       ├── execution/       loop.ts (the autonomous loop, sections 1-7)
 │   │       ├── seed/            demo.ts (real-evidence seed, 3 public commits)
@@ -221,10 +233,17 @@ GET  /health/live                Liveness probe (k8s)
 GET  /health/ready               Readiness probe (DB + Redis)
 GET  /metrics                    Prometheus metrics
 
+# SoSoValue on-chain finance data (no auth)
+GET  /sosovalue/news             SoSoValue news feed (latest crypto headlines)
+GET  /sosovalue/news/search      Search news by keyword
+GET  /sosovalue/macro            Macro-economic events and indicators
+GET  /sosovalue/index/snapshots  Crypto index snapshots (BTC.D, ETH staking ratio, etc.)
+
 # Operator (X-Admin-Key)
 GET  /admin/status               Signal counts, agent budget, treasury wallets
 POST /admin/cache/invalidate     Drop cache entries by pattern
 POST /admin/cache/invalidate-all Nuke every cache entry
+GET  /admin/venues               Active venue status (PancakeSwap, SoDEX)
 POST /admin/positions/:id/close  Manually close an open position (fires real on-chain swap if live)
 ```
 
@@ -232,7 +251,7 @@ See **[docs/RUNBOOK.md](./docs/RUNBOOK.md)** for the operator runbook —
 preflight checks, first-live-trade dry run, and emergency exit
 procedure.
 
-Full OpenAPI 3.1 spec: [`openapi.yaml`](./openapi.yaml).
+Full OpenAPI 3.1 spec (30 paths): [`openapi.yaml`](./openapi.yaml).
 
 ## BNB Hack (June 22-28 live trading window)
 

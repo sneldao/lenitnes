@@ -3,6 +3,14 @@ import type { GitHubCommit } from '../github.js';
 
 export type { GitHubCommit };
 
+export interface NewsEvidence {
+  title: string;
+  content: string;
+  categories: number[];
+  currencies: Array<{ name: string }>;
+  tags: string[];
+}
+
 export interface DetectorInput {
   result: {
     conditionMet: boolean;
@@ -13,6 +21,7 @@ export interface DetectorInput {
   commits: GitHubCommit[];
   monitorUrl: string;
   monitorCondition: string;
+  news?: NewsEvidence[];
 }
 
 export interface SignalDetector {

@@ -24,8 +24,8 @@ import { query } from '../../db/pool.js';
 import { config } from '../../config.js';
 import { logger } from '../../logger.js';
 import { isTradeable, resolveTradeableToken } from './asset-registry.js';
-import { getPoolTvlUsd } from './quote.js';
-import { getQuotes } from '../cmc.js';
+import { marketData } from '../data-providers/registry.js';
+import { pancakeswapVenue } from '../venues/pancakeswap/index.js';
 import { getProvider, getWallet } from '../evm/client.js';
 import type { TradeMode } from '../treasury.js';
 
@@ -76,7 +76,7 @@ async function passesVolumeFloor(
     return { ok: true, reason: `no CMC symbol mapping for ${coingeckoId}` };
   }
   try {
-    const quotes = await getQuotes([symbol]);
+    const quotes = await marketData.getQuotes([symbol]);
     const quote = quotes.find((q) => q.symbol === symbol);
     const volume24h = quote?.quote?.USD?.volume_24h;
     if (volume24h == null) {
@@ -233,7 +233,11 @@ export async function evaluateTradeRisk(input: RiskGateInput): Promise<RiskGateD
   //    Skipped if no floor is configured for this asset.
   const tradeableEntry = resolveTradeableToken(input.coingeckoId, input.chain);
   if (tradeableEntry?.minPoolTvlUsd != null && input.coingeckoId) {
-    const tvl = await getPoolTvlUsd(input.chain, tradeableEntry.tokenAddress, input.coingeckoId);
+    const tvl = await pancakeswapVenue.getPoolTvlUsd(
+      input.chain,
+      tradeableEntry.tokenAddress,
+      input.coingeckoId,
+    );
     if (tvl == null) {
       return {
         effectiveMode: PAPER,

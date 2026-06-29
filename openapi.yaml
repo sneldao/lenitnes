@@ -11,7 +11,7 @@ info:
     The API exposes:
 
       • a public surface — scorecard, signals, replay, proof packages,
-        public stats (no auth required)
+        public stats, SoSoValue news + macro feeds (no auth required)
       • an operator surface — /admin/* gated by X-Admin-Key
       • a webhook surface — /webhooks/test (HMAC-signed Kraken
         callback was removed in Day 13 when the dead code was
@@ -733,6 +733,162 @@ paths:
           description: Close failed (swap reverted or DB error)
 
   # ───────────────────────────────────────────────────────────
+  # SoSoValue on-chain finance data
+  # ───────────────────────────────────────────────────────────
+
+  /sosovalue/news:
+    get:
+      tags: [Public]
+      summary: SoSoValue news feed
+      description: |
+        Latest crypto news headlines from SoSoValue's on-chain finance
+        feed. Used internally by the `news_signal` detector and
+        optionally by the agent for macro context. No auth required.
+      security: []
+      parameters:
+        - name: limit
+          in: query
+          schema: { type: integer, default: 20, minimum: 1, maximum: 50 }
+        - name: category
+          in: query
+          schema:
+            type: string
+            enum: [flash, analysis, regulation, defi, nft, macro]
+      responses:
+        '200':
+          description: Array of news items
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  items:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/SoSoValueNewsItem'
+                  total: { type: integer }
+        '502':
+          description: SoSoValue API unreachable or not configured
+
+  /sosovalue/news/search:
+    get:
+      tags: [Public]
+      summary: Search news by keyword
+      description: Full-text search across SoSoValue's news archive.
+      security: []
+      parameters:
+        - name: keyword
+          in: query
+          required: true
+          schema: { type: string }
+        - name: limit
+          in: query
+          schema: { type: integer, default: 10, minimum: 1, maximum: 50 }
+      responses:
+        '200':
+          description: Matching news items
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  items:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/SoSoValueNewsItem'
+                  total: { type: integer }
+        '502':
+          description: SoSoValue API unreachable or not configured
+
+  /sosovalue/macro:
+    get:
+      tags: [Public]
+      summary: Macro-economic events
+      description: |
+        Upcoming and recent macro-economic events (GDP, CPI, Fed rate
+        decisions, employment data) provided by SoSoValue. Used by the
+        agent for market context enrichment.
+      security: []
+      parameters:
+        - name: limit
+          in: query
+          schema: { type: integer, default: 10, minimum: 1, maximum: 50 }
+        - name: dateFrom
+          in: query
+          schema: { type: string, format: date }
+        - name: dateTo
+          in: query
+          schema: { type: string, format: date }
+      responses:
+        '200':
+          description: Array of macro events
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  items:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/SoSoValueMacroEvent'
+                  total: { type: integer }
+        '502':
+          description: SoSoValue API unreachable or not configured
+
+  /sosovalue/index/snapshots:
+    get:
+      tags: [Public]
+      summary: Crypto index snapshots
+      description: |
+        Current snapshots of major crypto indices — BTC dominance,
+        ETH staking ratio, stablecoin supply ratio, total market cap,
+        and more. Provided by SoSoValue.
+      security: []
+      responses:
+        '200':
+          description: Index snapshots
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  snapshots:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/SoSoValueIndexSnapshot'
+        '502':
+          description: SoSoValue API unreachable or not configured
+
+  # ───────────────────────────────────────────────────────────
+  # Operator — venue management
+  # ───────────────────────────────────────────────────────────
+
+  /admin/venues:
+    get:
+      tags: [Operator]
+      summary: Active venue status
+      description: |
+        Returns the status of all registered execution venues —
+        PancakeSwap (always active) and SoDEX (active when configured).
+        Useful for debugging venue routing and verifying SoDEX
+        credentials are loaded.
+      security:
+        - adminKey: []
+      responses:
+        '200':
+          description: Venue statuses
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties:
+                  $ref: '#/components/schemas/VenueStatus'
+        '401':
+          description: Invalid admin key
+        '503':
+          description: ADMIN_API_KEY not configured
+
+  # ───────────────────────────────────────────────────────────
   # Webhooks
   # ───────────────────────────────────────────────────────────
 
@@ -1159,7 +1315,7 @@ components:
 
     Chain:
       type: string
-      enum: [hedera, arbitrum, robinhood, bnb]
+      enum: [hedera, arbitrum, robinhood, bnb, valuechain]
 
     TreasuryWallet:
       type: object
@@ -1183,6 +1339,7 @@ components:
         - silent_merge
         - protocol_upgrade
         - supply_chain_risk
+        - news_signal
         - generic
 
     DetectorBacktestStats:
@@ -1281,3 +1438,56 @@ components:
         finalError: { type: string }
         attemptsMade: { type: integer }
         movedAt: { type: string, format: date-time }
+
+    # ── SoSoValue ─────────────────────────────────────────────
+
+    SoSoValueNewsItem:
+      type: object
+      properties:
+        id: { type: string }
+        title: { type: string }
+        summary: { type: string, nullable: true }
+        source: { type: string }
+        url: { type: string, format: uri }
+        publishedAt: { type: string, format: date-time }
+        categories:
+          type: array
+          items: { type: string }
+        sentiment: { type: string, enum: [positive, negative, neutral], nullable: true }
+        relatedCoins:
+          type: array
+          items: { type: string }
+          description: CoinGecko IDs of mentioned tokens
+
+    SoSoValueMacroEvent:
+      type: object
+      properties:
+        id: { type: string }
+        title: { type: string, description: 'e.g. "US CPI MoM"' }
+        date: { type: string, format: date }
+        importance: { type: string, enum: [low, medium, high] }
+        previous: { type: string, nullable: true }
+        forecast: { type: string, nullable: true }
+        actual: { type: string, nullable: true }
+        currency: { type: string, example: USD }
+
+    SoSoValueIndexSnapshot:
+      type: object
+      properties:
+        indexId: { type: string }
+        name: { type: string, description: 'e.g. "BTC Dominance"' }
+        value: { type: string }
+        change24h: { type: string, nullable: true }
+        timestamp: { type: string, format: date-time }
+
+    # ── Venues ────────────────────────────────────────────────
+
+    VenueStatus:
+      type: object
+      properties:
+        name: { type: string, description: 'Venue display name, e.g. PancakeSwap V2' }
+        chain: { $ref: '#/components/schemas/Chain' }
+        active: { type: boolean, description: 'Whether the venue is registered and ready' }
+        configured:
+          type: boolean
+          description: 'Whether env vars are present (vs. available but not configured)'

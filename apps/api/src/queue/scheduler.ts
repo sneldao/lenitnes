@@ -11,7 +11,7 @@ import { sendTelegram } from '../services/notify.js';
 import { getPortfolioSummary, getOpenPositions } from '../services/portfolio.js';
 import { closePositionById } from '../services/treasury.js';
 import { computeTpSlLevels } from '../services/treasury/risk.js';
-import { getPriceAt } from '../services/price.js';
+import { priceData } from '../services/data-providers/registry.js';
 import { logger } from '../logger.js';
 
 let monitorJob: cron.ScheduledTask | null = null;
@@ -367,7 +367,7 @@ async function backfillMissingTpSl(): Promise<void> {
       // Backfill entry_price_usd first if missing — same path the
       // portfolio service uses on read.
       if (entryPrice == null) {
-        entryPrice = await getPriceAt(pos.asset, new Date(pos.opened_at));
+        entryPrice = await priceData.getPriceAt(pos.asset, new Date(pos.opened_at));
         if (entryPrice == null) continue;
         await query(`UPDATE positions SET entry_price_usd = $2 WHERE id = $1`, [
           pos.id,
@@ -439,7 +439,7 @@ async function checkTakeProfitStopLoss(): Promise<void> {
     const priceMap = new Map<string, number>();
     await Promise.all(
       uniqueAssets.map(async (asset) => {
-        const p = await getPriceAt(asset, now);
+        const p = await priceData.getPriceAt(asset, now);
         if (p != null) priceMap.set(asset, p);
       }),
     );

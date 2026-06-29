@@ -2,7 +2,6 @@ import { wrapAxiosWithPaymentFromConfig } from '@x402/axios';
 import { ExactEvmScheme } from '@x402/evm';
 import { privateKeyToAccount } from 'viem/accounts';
 import axios from 'axios';
-import { logger } from '../logger.js';
 
 const CMC_X402_BASE = 'https://pro.coinmarketcap.com/x402';
 

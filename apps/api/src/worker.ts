@@ -5,10 +5,12 @@ import { startWorker, stopWorker } from './queue/worker.js';
 import { closeQueue } from './queue/producer.js';
 import { closeDlq } from './queue/dlq.js';
 import { getRedisConnectionOpts } from './queue/connection.js';
+import { initVenues } from './services/venues/registry.js';
 import http from 'node:http';
 
 logger.info('worker started — BullMQ queue + scheduler');
 
+await initVenues();
 startWorker();
 startScheduler();
 

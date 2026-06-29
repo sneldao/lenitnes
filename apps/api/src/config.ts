@@ -90,6 +90,26 @@ export const config = {
     apiKey: env.CMC_API_KEY,
   },
 
+  // SoSoValue On-Chain Finance API — supplemental market data, news
+  // feeds, macro events, and index snapshots. When configured, adds
+  // a news-signal detector alongside the 8 commit-based detectors,
+  // enriches the agent's market context with macro + index data, and
+  // provides alternative market snapshots for risk gating.
+  sosovalue: {
+    apiKey: env.SOSO_VALUE_API_KEY,
+  },
+
+  // SoDEX on-chain orderbook execution (ValueChain L1).
+  // When configured, the treasury can route trades through SoDEX's
+  // central limit orderbook instead of PancakeSwap's AMM.
+  sodex: {
+    apiKeyName: env.SODEX_API_KEY_NAME,
+    apiKeyPrivate: env.SODEX_API_KEY_PRIVATE,
+    accountId: env.SODEX_ACCOUNT_ID,
+    symbolId: env.SODEX_SYMBOL_ID,
+    network: env.SODEX_NETWORK,
+  },
+
   // x402 pay-per-request payments. When X402_ENABLED=true and
   // X402_PRIVATE_KEY is set, CMC data fetches use the x402 protocol
   // (pay $0.01 USDC per request on Base) instead of the API key.
