@@ -90,6 +90,12 @@ services:
       TINYFISH_API_KEY: ${TINYFISH_API_KEY:-}
       GITHUB_TOKEN: ${GITHUB_TOKEN:-}
       PROOF_MODE: ${PROOF_MODE:-hedera}
+      SOSO_VALUE_API_KEY: ${SOSO_VALUE_API_KEY:-}
+      SODEX_API_KEY_NAME: ${SODEX_API_KEY_NAME:-}
+      SODEX_API_KEY_PRIVATE: ${SODEX_API_KEY_PRIVATE:-}
+      SODEX_ACCOUNT_ID: ${SODEX_ACCOUNT_ID:-}
+      SODEX_SYMBOL: ${SODEX_SYMBOL:-}
+      SODEX_NETWORK: ${SODEX_NETWORK:-}
     volumes:
       - twak-data:/root/.twak
     depends_on:
@@ -133,6 +139,12 @@ services:
       TINYFISH_API_KEY: ${TINYFISH_API_KEY:-}
       GITHUB_TOKEN: ${GITHUB_TOKEN:-}
       PROOF_MODE: ${PROOF_MODE:-hedera}
+      SOSO_VALUE_API_KEY: ${SOSO_VALUE_API_KEY:-}
+      SODEX_API_KEY_NAME: ${SODEX_API_KEY_NAME:-}
+      SODEX_API_KEY_PRIVATE: ${SODEX_API_KEY_PRIVATE:-}
+      SODEX_ACCOUNT_ID: ${SODEX_ACCOUNT_ID:-}
+      SODEX_SYMBOL: ${SODEX_SYMBOL:-}
+      SODEX_NETWORK: ${SODEX_NETWORK:-}
     volumes:
       - twak-data:/root/.twak
     depends_on:
