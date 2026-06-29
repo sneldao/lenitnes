@@ -164,7 +164,10 @@ export const envSchema = z
     SODEX_ACCOUNT_ID: z.string().optional().default(''),
     SODEX_SYMBOL_ID: z.string().optional().default('1'),
     SODEX_SYMBOL: z.string().optional().default('vBTC_vUSDC'),
-    SODEX_NETWORK: z.enum(['mainnet', 'testnet']).optional().default('testnet'),
+    SODEX_NETWORK: z.preprocess(
+      (v) => (v === '' ? undefined : v),
+      z.enum(['mainnet', 'testnet']).optional().default('testnet'),
+    ),
 
     // ── x402 pay-per-request ──
     X402_ENABLED: z
