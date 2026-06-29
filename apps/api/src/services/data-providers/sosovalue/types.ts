@@ -38,14 +38,22 @@ export interface NewsItem {
   release_time: number;
   title: string;
   content: string;
-  author: string;
-  author_description: string;
+  author?: string;
+  nick_name?: string;
+  author_description?: string;
+  author_avatar_url?: string;
   category: number;
   matched_currencies: NewsCurrencyMatch[];
   tags: string[];
   impression_count: number;
   like_count: number;
   reply_count: number;
+  retweet_count?: number;
+  is_blue_verified?: boolean;
+  verified_type?: string;
+  feature_image?: string;
+  media_info?: unknown;
+  quote_info?: unknown;
 }
 
 export interface NewsFeedResponse {
@@ -56,14 +64,10 @@ export interface NewsFeedResponse {
 }
 
 export interface NewsSearchResponse {
-  code: number;
-  message: string;
-  data: {
-    page: number;
-    page_size: number;
-    total: number;
-    list: NewsItem[];
-  };
+  page: number;
+  page_size: number;
+  total: number;
+  list: NewsItem[];
 }
 
 export interface MacroEventDay {
@@ -73,10 +77,10 @@ export interface MacroEventDay {
 
 export interface IndexSnapshot {
   price: number;
-  '24h_change_pct': number;
-  '7day_roi': number;
-  '1month_roi': number;
-  '3month_roi': number;
-  '1year_roi': number;
+  change_pct_24h: number;
+  roi_7d: number;
+  roi_1m: number;
+  roi_3m: number;
+  roi_1y: number;
   ytd: number;
 }

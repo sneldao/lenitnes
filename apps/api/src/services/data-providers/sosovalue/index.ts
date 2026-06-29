@@ -10,7 +10,13 @@ import type {
   IndexSnapshot,
 } from './types.js';
 
-const BASE_URL = 'https://openapi.sosovalue.com/openapi/v1';
+const BASE_URL = 'https://openapi.sosovalue.com/openapi/v1/';
+
+interface ApiEnvelope<T> {
+  code: number;
+  message: string;
+  data: T;
+}
 
 function apiKey(): string {
   const key = process.env.SOSO_VALUE_API_KEY ?? '';
@@ -39,18 +45,22 @@ async function get<T>(path: string, params?: Record<string, string | number>): P
     const body = await res.text().catch(() => '');
     throw new Error(`SoSoValue API error ${res.status}: ${body.slice(0, 200)}`);
   }
-  return (await res.json()) as T;
+  const json = (await res.json()) as ApiEnvelope<T>;
+  if (json.code !== 0) {
+    throw new Error(`SoSoValue API error: ${json.message}`);
+  }
+  return json.data;
 }
 
 export async function getCurrencyList(): Promise<SosovalueCurrency[]> {
   if (!isConfigured()) return [];
-  return withRetry(() => get<SosovalueCurrency[]>('/currencies'), { retries: 1 });
+  return withRetry(() => get<SosovalueCurrency[]>('currencies'), { retries: 1 });
 }
 
 export async function getMarketSnapshot(currencyId: string): Promise<MarketSnapshot | null> {
   if (!isConfigured()) return null;
   try {
-    return await withRetry(() => get<MarketSnapshot>(`/currencies/${currencyId}/market-snapshot`), {
+    return await withRetry(() => get<MarketSnapshot>(`currencies/${currencyId}/market-snapshot`), {
       retries: 1,
     });
   } catch (err) {
@@ -72,7 +82,7 @@ export async function getNewsFeed(params?: {
     if (params?.currencyId) q.currency_id = params.currencyId;
     if (params?.page != null) q.page = params.page;
     if (params?.pageSize != null) q.page_size = params.pageSize;
-    return await withRetry(() => get<NewsFeedResponse>('/news', q), { retries: 1 });
+    return await withRetry(() => get<NewsFeedResponse>('news', q), { retries: 1 });
   } catch (err) {
     logger.warn({ err }, 'sosovalue: news feed failed');
     return null;
@@ -83,10 +93,10 @@ export async function searchNews(keyword: string): Promise<NewsItem[]> {
   if (!isConfigured()) return [];
   try {
     const resp = await withRetry(
-      () => get<NewsSearchResponse>('/news/search', { keyword, page_size: 20 }),
+      () => get<NewsSearchResponse>('news/search', { keyword, page_size: 20 }),
       { retries: 1 },
     );
-    return resp.data?.list ?? [];
+    return resp.list ?? [];
   } catch (err) {
     logger.warn({ err, keyword }, 'sosovalue: news search failed');
     return [];
@@ -96,7 +106,7 @@ export async function searchNews(keyword: string): Promise<NewsItem[]> {
 export async function getMacroEvents(): Promise<MacroEventDay[]> {
   if (!isConfigured()) return [];
   try {
-    return await withRetry(() => get<MacroEventDay[]>('/macro/events'), { retries: 1 });
+    return await withRetry(() => get<MacroEventDay[]>('macro/events'), { retries: 1 });
   } catch (err) {
     logger.warn({ err }, 'sosovalue: macro events failed');
     return [];
@@ -106,7 +116,7 @@ export async function getMacroEvents(): Promise<MacroEventDay[]> {
 export async function getIndexList(): Promise<string[]> {
   if (!isConfigured()) return [];
   try {
-    return await withRetry(() => get<string[]>('/indices'), { retries: 1 });
+    return await withRetry(() => get<string[]>('indices'), { retries: 1 });
   } catch (err) {
     logger.warn({ err }, 'sosovalue: index list failed');
     return [];
@@ -116,7 +126,7 @@ export async function getIndexList(): Promise<string[]> {
 export async function getIndexSnapshot(indexTicker: string): Promise<IndexSnapshot | null> {
   if (!isConfigured()) return null;
   try {
-    return await withRetry(() => get<IndexSnapshot>(`/indices/${indexTicker}/market-snapshot`), {
+    return await withRetry(() => get<IndexSnapshot>(`indices/${indexTicker}/market-snapshot`), {
       retries: 1,
     });
   } catch (err) {
@@ -155,8 +165,8 @@ export async function buildIndexContext(): Promise<string> {
     if (snap) {
       lines.push(
         `  ${ticker}: $${snap.price.toFixed(2)} | ` +
-          `24h: ${(snap['24h_change_pct'] * 100).toFixed(2)}% | ` +
-          `7d: ${(snap['7day_roi'] * 100).toFixed(2)}%`,
+          `24h: ${(snap.change_pct_24h * 100).toFixed(2)}% | ` +
+          `7d: ${(snap.roi_7d * 100).toFixed(2)}%`,
       );
     }
   }
