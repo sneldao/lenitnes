@@ -12,6 +12,9 @@ import {
   Layers,
   Shield,
   Zap,
+  Clock,
+  Eye,
+  FileText,
 } from 'lucide-react';
 import { api, type ScorecardRecentCall } from '@/lib/api';
 
@@ -62,6 +65,34 @@ const ZEC_PRICE_POINTS = [
   { t: 'T+3d', price: 309, label: 'disclosure', date: '2026-06-05' },
   { t: 'T+5d', price: 380, date: '2026-06-07' },
   { t: 'T+7d', price: 425, label: 'after', date: '2026-06-09' },
+];
+
+const TIMELINE = [
+  { date: 'May 29', event: 'Hornby finds soundness bug in halo2 (with Opus 4.8)' },
+  { date: 'Jun 2', event: 'Zebra 4.5.3 soft fork — agent fires SHORT' },
+  { date: 'Jun 5', event: 'Public disclosure — ZEC drops -50%' },
+  { date: 'Jun 9', event: 'Recovery settles at ~$425' },
+];
+
+const KEY_POINTS = [
+  {
+    icon: Eye,
+    title: 'The signal was public',
+    detail:
+      'The emergency forks were in the public Zebra repo. Anyone reading commits on 2-Jun had a 2-3 day window before disclosure.',
+  },
+  {
+    icon: Clock,
+    title: 'The window is the product',
+    detail:
+      "A retail trader can't watch every consensus-critical repo. A frontier-model agent can — and it committed its thesis on HCS before the crash.",
+  },
+  {
+    icon: FileText,
+    title: 'No retrofitting',
+    detail:
+      'Detectors were built before this event. We picked it because the agent should flag it — not because it happened to catch it.',
+  },
 ];
 
 export default function Halo2CaseStudyPage() {
@@ -118,24 +149,23 @@ export default function Halo2CaseStudyPage() {
   return (
     <div className="mx-auto max-w-4xl space-y-10 px-4 py-10">
       {/* ── Hero ── */}
-      <header>
+      <header className="reveal in-view">
         <p className="mb-2 font-mono text-[10px] uppercase tracking-widest text-accent">
           founding case study
         </p>
         <h1 className="font-display text-3xl font-semibold leading-tight text-slate-100 sm:text-5xl">
           The agent would have caught the <span className="text-accent">halo2</span> short
         </h1>
-        <p className="mt-4 max-w-3xl text-base leading-relaxed text-slate-400">
-          On 29 May 2026, Taylor Hornby of{' '}
-          <a
-            href="https://shieldedlabs.net"
-            target="_blank"
-            rel="noreferrer"
-            className="text-accent underline-offset-2 hover:underline"
-          >
-            Shielded Labs
-          </a>
-          , using Anthropic's Opus 4.8, found a four-year-old soundness bug in the{' '}
+        <div className="mt-4 grid gap-2 sm:grid-cols-4">
+          {TIMELINE.map((event) => (
+            <div key={event.date} className="rounded-lg border border-edge/30 bg-ink-light/40 p-3">
+              <div className="font-mono text-[10px] text-accent">{event.date}</div>
+              <div className="mt-1 text-xs text-slate-300">{event.event}</div>
+            </div>
+          ))}
+        </div>
+        <p className="mt-4 max-w-3xl text-sm leading-relaxed text-slate-400">
+          A four-year-old soundness bug in{' '}
           <a
             href="https://github.com/zcash/halo2"
             target="_blank"
@@ -144,17 +174,8 @@ export default function Halo2CaseStudyPage() {
           >
             halo2
           </a>{' '}
-          circuit that backs ZEC's Orchard shielded pool. The fix shipped via two emergency forks on
-          2-3 June — Zebra 4.5.3 (soft fork) followed by NU6.2 (hard fork) — and the public
-          disclosure on 4-5 June cratered ZEC from ~$624 to ~$309 in 48 hours.
-        </p>
-        <p className="mt-3 max-w-3xl text-base leading-relaxed text-slate-400">
-          We don't claim to have found the bug — Hornby and Opus 4.8 did. We claim the{' '}
-          <em>emergency response itself</em> was a public signal: a surprise soft fork disabling a
-          live shielded pool, with no preceding bug report, immediately followed by a hard fork
-          swapping the verifying key. That's exactly what our detectors fire on. We replayed our
-          agent against the Zebra 4.5.3 release — here's what it would have said, 2-3 days before
-          the formal disclosure.
+          let attackers mint counterfeit ZEC. The emergency forks were public — our detectors fired
+          on them 2-3 days before the formal disclosure cratered ZEC -50%.
         </p>
       </header>
 
@@ -202,7 +223,7 @@ export default function Halo2CaseStudyPage() {
           <DetailTile
             icon={Layers}
             label="Detector consensus"
-            value={`${verdict.detectorClassifications.length} of 8`}
+            value={`${verdict.detectorClassifications.length} detectors`}
             hint="emergency_patch · security_critical · consensus_relevant"
           />
           <DetailTile
@@ -216,17 +237,11 @@ export default function Halo2CaseStudyPage() {
       </section>
 
       {/* ── Detector detail ── */}
-      <section className="card">
+      <section className="card reveal reveal-delay-1 in-view">
         <h2 className="section-title mb-4 flex items-center gap-2">
           <Zap className="h-3.5 w-3.5 text-accent" />
-          Detector consensus
+          Detector consensus — 95/100 because the signals agreed
         </h2>
-        <p className="mb-4 text-sm leading-relaxed text-slate-400">
-          Four detectors fired on the Zebra 4.5.3 emergency release. The agent's conviction was
-          95/100 because the signals agreed — a surprise release with no preceding bug report,
-          disabling a live shielded pool, immediately followed by a hard fork that swaps the pinned
-          verifying key. The shape is unambiguous.
-        </p>
         <ul className="space-y-3">
           {verdict.detectorClassifications.map((c) => (
             <li
@@ -260,18 +275,11 @@ export default function Halo2CaseStudyPage() {
       </section>
 
       {/* ── ZEC price chart ── */}
-      <section className="card">
+      <section className="card reveal reveal-delay-2 in-view">
         <h2 className="section-title mb-4 flex items-center gap-2">
           <TrendingUp className="h-3.5 w-3.5 text-accent" />
           ZEC price · the agent's window
         </h2>
-        <p className="mb-5 text-sm leading-relaxed text-slate-400">
-          The agent fires on 2-Jun when Zebra 4.5.3 lands. ZEC peaks at ~$624 on 4-Jun as the market
-          digests the unexplained hard fork. On 5-Jun the formal disclosure lands; ZEC drops to
-          ~$309 — a {peakReturnPct.toFixed(1)}% directional return for the SHORT call. By T+7d the
-          recovery settles around ~$425 ({settledReturnPct >= 0 ? '+' : ''}
-          {settledReturnPct.toFixed(1)}% from entry).
-        </p>
         <ZecChart minP={minP} maxP={maxP} />
         <div className="mt-4 grid grid-cols-3 gap-2 text-center font-mono text-xs sm:grid-cols-9">
           {ZEC_PRICE_POINTS.map((p) => (
@@ -296,36 +304,19 @@ export default function Halo2CaseStudyPage() {
       </section>
 
       {/* ── What it means ── */}
-      <section className="card">
+      <section className="card reveal reveal-delay-3 in-view">
         <h2 className="section-title mb-4 flex items-center gap-2">
           <Shield className="h-3.5 w-3.5 text-accent" />
           Why this matters
         </h2>
-        <div className="space-y-3 text-sm leading-relaxed text-slate-300">
-          <p>
-            Finding the bug was Taylor Hornby's work (with Claude Opus 4.8 as a research tool). We
-            don't claim that. What we claim is downstream: <em>once the fix begins shipping</em>,
-            the public repos start telegraphing what the engineers can't yet announce. A surprise
-            soft fork disabling a live shielded pool with no preceding discussion is not normal
-            software hygiene — it's an emergency response. Anyone running an agent against the
-            public Zebra repo on 2-Jun had a 2-3 day window to act before the formal disclosure
-            crashed the price.
-          </p>
-          <p>
-            That window is the product. A retail trader can't read every commit on every
-            consensus-critical repo in real time and ask &ldquo;does this shape match an emergency
-            security response?&rdquo; — a frontier-model agent can. The 280-char thesis + the
-            on-chain dispatch are the receipts: a tamper-evident record that the agent saw the
-            pattern, scored it 95/100, and committed its thesis on Hedera HCS <em>before</em> the
-            disclosure landed.
-          </p>
-          <p>
-            We picked the 2026 Orchard event as the founding case study because (a) it's recent and
-            verifiable, (b) the price move was unambiguous (-50% in 48h, well-reported), and (c) the
-            agent's detectors were built before this event and would have fired on it without
-            retrofitting. We didn't pick it because the model happened to catch it — we picked it
-            because the model <em>should</em> flag it.
-          </p>
+        <div className="grid gap-3 sm:grid-cols-3">
+          {KEY_POINTS.map((point) => (
+            <div key={point.title} className="rounded-xl border border-edge/30 bg-ink-light/30 p-4">
+              <point.icon className="h-4 w-4 text-accent" />
+              <h3 className="mt-2 text-sm font-semibold text-slate-200">{point.title}</h3>
+              <p className="mt-1 text-xs leading-relaxed text-slate-400">{point.detail}</p>
+            </div>
+          ))}
         </div>
       </section>
 

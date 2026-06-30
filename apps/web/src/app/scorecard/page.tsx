@@ -75,43 +75,19 @@ export default function ScorecardPage() {
         </p>
       </header>
 
-      {/* ── Learning-phase banner ──
-          Honest framing of where the system is in its maturity arc.
-          The scorecard's raw hit-ratio number doesn't carry enough
-          context on its own; readers need to know whether they're
-          looking at a proven track record or an in-progress
-          experiment. This banner is the answer. */}
-      <section className="card border-accent/30 bg-accent/[0.04]">
-        <div className="flex items-start gap-4">
-          <div className="hidden rounded-xl bg-accent/10 p-3 sm:block">
-            <Sparkles className="h-5 w-5 text-accent" />
-          </div>
-          <div className="flex-1 space-y-2">
-            <div className="flex items-baseline gap-3">
-              <h2 className="text-base font-semibold text-slate-100">
-                We are here: observation phase
-              </h2>
-              <Link
-                href="/methodology"
-                className="font-mono text-[10px] uppercase tracking-wider text-accent transition-colors hover:text-accent-glow"
-              >
-                how it works →
-              </Link>
-            </div>
-            <p className="max-w-2xl text-sm leading-relaxed text-slate-400">
-              Every trade you see below is paper. The agent picks signals, opens positions, hits
-              take-profit or stop-loss, and records the realized P&amp;L — but no real money moves.
-              We&apos;re building the track record first. Live trading flips on only after the
-              calibration table (right) shows higher conviction = better outcomes for a meaningful
-              sample.
-            </p>
-            <p className="font-mono text-[10px] text-slate-500">
-              conviction floor: 80/100 · settling delay: 30m · two assets in the live registry (BTC,
-              ETH) — others fire as paper
-            </p>
-          </div>
-        </div>
-      </section>
+      {/* ── Learning-phase badge ── */}
+      <div className="flex items-center gap-3">
+        <span className="inline-flex items-center gap-2 rounded-full border border-accent/30 bg-accent/[0.06] px-3 py-1.5 font-mono text-[11px] text-accent">
+          <Sparkles className="h-3.5 w-3.5" />
+          Paper trading — building track record before going live
+        </span>
+        <Link
+          href="/methodology"
+          className="font-mono text-[10px] uppercase tracking-wider text-slate-500 transition-colors hover:text-accent"
+        >
+          how it works →
+        </Link>
+      </div>
 
       {isEmpty ? (
         <div className="card border-edge/30">
@@ -124,10 +100,9 @@ export default function ScorecardPage() {
                 Agent is live — no trades committed yet
               </h2>
               <p className="mt-1 max-w-prose text-sm leading-relaxed text-slate-500">
-                The agent is scoring commits against its rubric. Signals below conviction 70 are
-                archived in the reasoning log but produce no trade and won&apos;t appear here. The
-                first above-threshold signal will populate this scorecard with a trade receipt and
-                T+1h / T+1d / T+7d price outcomes.
+                The agent is scoring commits but no signal has cleared the conviction 70 threshold
+                yet. The first above-threshold signal will populate this scorecard with a trade
+                receipt and T+1h / T+1d / T+7d price outcomes.
               </p>
               <p className="mt-3 text-sm text-slate-500">
                 See the{' '}
@@ -142,7 +117,7 @@ export default function ScorecardPage() {
       ) : (
         <>
           {/* ── Top stats grid ── */}
-          <section className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6">
+          <section className="reveal in-view grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6">
             <StatCard
               icon={<Activity className="h-3 w-3" />}
               label="Total signals"
@@ -208,26 +183,44 @@ export default function ScorecardPage() {
               should trend up as the band increases. If it doesn't,
               the rubric needs work. */}
           {data.byConvictionBand && data.byConvictionBand.some((b) => b.total > 0) && (
-            <section className="card">
-              <h2 className="section-title mb-1 flex items-center gap-2">
+            <section className="card reveal in-view reveal-delay-1">
+              <h2 className="section-title mb-4 flex items-center gap-2">
                 <Target className="h-3.5 w-3.5 text-accent" />
                 Calibration · is conviction predictive?
               </h2>
-              <p className="mb-4 max-w-2xl text-xs text-slate-500">
-                Each row is a band of agent conviction scores. <strong>Avg T+1d</strong> is
-                sign-adjusted for the recommended direction — positive numbers mean the trade was
-                right. A well-calibrated rubric trends up as the band rises.
-              </p>
               <div className="overflow-x-auto">
                 <table className="w-full font-mono text-xs">
                   <thead>
                     <tr className="border-b border-edge/30 text-left text-slate-500">
-                      <th className="py-2 pr-4 font-normal">Conviction band</th>
+                      <th className="py-2 pr-4 font-normal">
+                        <span className="t-tt-wrap">
+                          Conviction band
+                          <span className="t-tt">
+                            Agent fires on signals at conviction 80+; lower bands are scored but
+                            archived without a trade.
+                          </span>
+                        </span>
+                      </th>
                       <th className="py-2 px-3 text-right font-normal">Scored</th>
                       <th className="py-2 px-3 text-right font-normal">Traded</th>
-                      <th className="py-2 px-3 text-right font-normal">Hit ratio</th>
+                      <th className="py-2 px-3 text-right font-normal">
+                        <span className="t-tt-wrap">
+                          Hit ratio
+                          <span className="t-tt">
+                            Binary: did the price move in the predicted direction by T+1d?
+                          </span>
+                        </span>
+                      </th>
                       <th className="py-2 px-3 text-right font-normal">Avg T+1h</th>
-                      <th className="py-2 px-3 text-right font-normal">Avg T+1d</th>
+                      <th className="py-2 px-3 text-right font-normal">
+                        <span className="t-tt-wrap">
+                          Avg T+1d
+                          <span className="t-tt">
+                            Sign-adjusted for recommended direction. Positive = trade was right. A
+                            well-calibrated rubric trends up as the band rises.
+                          </span>
+                        </span>
+                      </th>
                       <th className="py-2 pl-3 text-right font-normal">Avg T+7d</th>
                     </tr>
                   </thead>
@@ -280,24 +273,34 @@ export default function ScorecardPage() {
 
           {/* ── By signal type, with directional outcomes ── */}
           {data.bySignalType.length > 0 && (
-            <section className="card">
-              <h2 className="section-title mb-1 flex items-center gap-2">
+            <section className="card reveal in-view reveal-delay-2">
+              <h2 className="section-title mb-4 flex items-center gap-2">
                 <Sparkles className="h-3.5 w-3.5 text-accent" />
                 By detector
               </h2>
-              <p className="mb-4 max-w-2xl text-xs text-slate-500">
-                Which detectors actually predict price moves? Hit ratio is binary (right / wrong);
-                the avg pct column is the actual size of the move at T+1d, sign-adjusted.
-              </p>
               <div className="overflow-x-auto">
                 <table className="w-full font-mono text-xs">
                   <thead>
                     <tr className="border-b border-edge/30 text-left text-slate-500">
                       <th className="py-2 pr-4 font-normal">Detector</th>
                       <th className="py-2 px-3 text-right font-normal">Signals</th>
-                      <th className="py-2 px-3 text-right font-normal">Hit ratio</th>
+                      <th className="py-2 px-3 text-right font-normal">
+                        <span className="t-tt-wrap">
+                          Hit ratio
+                          <span className="t-tt">
+                            Binary: did the price move in the predicted direction by T+1d?
+                          </span>
+                        </span>
+                      </th>
                       <th className="py-2 px-3 text-right font-normal">Avg T+1h</th>
-                      <th className="py-2 pl-3 text-right font-normal">Avg T+1d</th>
+                      <th className="py-2 pl-3 text-right font-normal">
+                        <span className="t-tt-wrap">
+                          Avg T+1d
+                          <span className="t-tt">
+                            Sign-adjusted for recommended direction. Positive = trade was right.
+                          </span>
+                        </span>
+                      </th>
                     </tr>
                   </thead>
                   <tbody>
@@ -328,7 +331,7 @@ export default function ScorecardPage() {
 
           {/* ── By watchlist ── */}
           {data.byWatchlist.length > 0 && (
-            <section className="card">
+            <section className="card reveal in-view reveal-delay-3">
               <h2 className="section-title mb-4 flex items-center gap-2">
                 <Shield className="h-3.5 w-3.5 text-accent" />
                 By watchlist entry
@@ -362,7 +365,7 @@ export default function ScorecardPage() {
 
           {/* ── Recent calls ── */}
           {data.recentCalls.length > 0 && (
-            <section className="card">
+            <section className="card reveal in-view reveal-delay-4">
               <h2 className="section-title mb-4 flex items-center gap-2">
                 <Activity className="h-3.5 w-3.5 text-accent" />
                 Recent calls

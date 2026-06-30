@@ -14,7 +14,10 @@
       "Bash(git push *)",
       "Bash(/usr/bin/curl -sk --max-time 12 \"https://lenitnes.persidian.com/api/scorecard\")",
       "Bash(/usr/bin/wc -c /tmp/sc-live.json)",
-      "Bash(/usr/bin/python3 *)"
+      "Bash(/usr/bin/python3 *)",
+      "Bash(git commit *)",
+      "Bash(npx eslint *)",
+      "Bash(curl -s \"https://lenitnes.persidian.com/api/scorecard\")"
     ]
   }
 }

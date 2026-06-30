@@ -497,6 +497,65 @@ body {
   @apply text-slate-400;
 }
 
+/* ─── Skeleton loader (transitions.dev 14) ───
+     Pure CSS pulse → reveal. Add .t-skel to a placeholder
+     element and .is-revealed when the real content arrives. */
+.t-skel {
+  animation: skelPulse var(--pulse-dur) var(--ease-linear) infinite;
+}
+@keyframes skelPulse {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: var(--pulse-min, 0.5);
+  }
+}
+.t-skel.is-revealed {
+  animation: none;
+  opacity: 1;
+}
+
+/* ─── Tooltip (transitions.dev 17) ───
+     Pure CSS delayed fade+scale. Wrap trigger in
+     <span class="t-tt-wrap"> and add <span class="t-tt">. */
+.t-tt-wrap {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+}
+.t-tt {
+  position: absolute;
+  bottom: calc(100% + 6px);
+  left: 50%;
+  transform: translateX(-50%) scale(var(--scale-small));
+  opacity: 0;
+  pointer-events: none;
+  background: var(--tt-bg, #1a2332);
+  color: var(--tt-fg, #e2e8f0);
+  padding: 6px 10px;
+  border-radius: 6px;
+  font-size: 11px;
+  font-weight: 500;
+  white-space: nowrap;
+  z-index: 50;
+  transition:
+    opacity var(--tt-in-dur) var(--tt-in-ease) var(--tt-delay),
+    transform var(--tt-in-dur) var(--tt-in-ease) var(--tt-delay);
+}
+.t-tt-wrap:hover .t-tt,
+.t-tt-wrap:focus-within .t-tt {
+  opacity: 1;
+  transform: translateX(-50%) scale(1);
+}
+/* Instant out — no delay, faster duration */
+.t-tt-wrap:not(:hover):not(:focus-within) .t-tt {
+  transition:
+    opacity var(--tt-out-dur) var(--tt-out-ease),
+    transform var(--tt-out-dur) var(--tt-out-ease);
+}
+
 @media print {
   * {
     print-color-adjust: exact;

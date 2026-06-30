@@ -81,7 +81,7 @@ export default function PortfolioPage() {
   return (
     <div className="animate-fade-in space-y-8">
       <Breadcrumbs crumbs={[{ label: 'Portfolio' }]} />
-      <div>
+      <div className="reveal in-view">
         <h1 className="font-display text-2xl font-semibold text-slate-100">Portfolio</h1>
         <p className="mt-1 text-sm text-slate-400">
           {summary.totalOpenPositions} open · {summary.totalClosedPositions} closed
@@ -94,9 +94,7 @@ export default function PortfolioPage() {
         </p>
       </div>
 
-      {/* Summary cards — unrealized + realized side-by-side now that we
-          actually capture entry/current prices and can compute both. */}
-      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4 reveal reveal-delay-1 in-view">
         <StatCard
           icon={<Activity className="h-4 w-4" />}
           label="Unrealized P&L"
@@ -126,13 +124,11 @@ export default function PortfolioPage() {
       {/* Open positions */}
       <h2 className="section-title">Open Positions</h2>
       {openPositions.length === 0 ? (
-        <div className="mb-8 rounded-xl border border-dashed border-edge/60 p-8 text-center">
-          <p className="text-sm text-slate-500">
-            No open positions — the agent hasn&apos;t triggered a trade yet.
-          </p>
+        <div className="mb-8 rounded-xl border border-dashed border-edge/60 p-6 text-center">
+          <p className="text-sm text-slate-500">No open positions.</p>
           <Link
             href="/scorecard"
-            className="mt-2 inline-flex items-center gap-1.5 text-xs text-accent hover:underline"
+            className="mt-1 inline-flex items-center gap-1.5 text-xs text-accent hover:underline"
           >
             View the scorecard →
           </Link>
@@ -148,16 +144,13 @@ export default function PortfolioPage() {
       {/* Closed positions */}
       <h2 className="section-title">Trade History</h2>
       {closedPositions.length === 0 ? (
-        <div className="rounded-xl border border-dashed border-edge/60 p-8 text-center">
-          <p className="text-sm text-slate-500">
-            No closed trades yet — outcomes will appear here after the agent executes and closes
-            positions.
-          </p>
+        <div className="rounded-xl border border-dashed border-edge/60 p-6 text-center">
+          <p className="text-sm text-slate-500">No closed trades yet.</p>
           <Link
             href="/case-study/halo2"
-            className="mt-2 inline-flex items-center gap-1.5 text-xs text-accent hover:underline"
+            className="mt-1 inline-flex items-center gap-1.5 text-xs text-accent hover:underline"
           >
-            See a full example trade →
+            See a full example →
           </Link>
         </div>
       ) : (

@@ -69,32 +69,8 @@ export default function CalibrationPage() {
         </p>
       </header>
 
-      {/* ── How to read this ── */}
-      <section className="card border-accent/20 bg-accent/[0.03]">
-        <h2 className="mb-2 text-sm font-semibold text-slate-100">How to read this</h2>
-        <ul className="list-disc space-y-1 pl-5 text-sm text-slate-400 marker:text-slate-600">
-          <li>
-            Each row is a band of conviction scores. The agent fires on signals at conviction 80+;
-            lower bands are scored but archived without a trade.
-          </li>
-          <li>
-            <strong className="text-slate-200">Avg T+1d</strong> is sign-adjusted for the
-            agent&apos;s recommended direction. Positive = the trade was right. Negative = the trade
-            was wrong. The size of the number is the size of the move.
-          </li>
-          <li>
-            A <strong className="text-slate-200">well-calibrated</strong> rubric shows Avg T+1d
-            trending up as the band rises — higher conviction, better outcomes.
-          </li>
-          <li>
-            A <strong className="text-slate-200">poorly calibrated</strong> rubric shows flat or
-            inverted outcomes across bands. The bands aren&apos;t separating signal from noise.
-          </li>
-        </ul>
-      </section>
-
       {/* ── Conviction band table ── */}
-      <section className="card">
+      <section className="card reveal in-view">
         <h2 className="section-title mb-3 flex items-center gap-2">
           <Target className="h-3.5 w-3.5 text-accent" />
           Conviction bands
@@ -103,13 +79,37 @@ export default function CalibrationPage() {
           <table className="w-full font-mono text-xs">
             <thead>
               <tr className="border-b border-edge/30 text-left text-slate-500">
-                <th className="py-2 pr-3 font-normal">Band</th>
+                <th className="py-2 pr-3 font-normal">
+                  <span className="t-tt-wrap">
+                    Band
+                    <span className="t-tt">
+                      Agent fires on signals at conviction 80+; lower bands are scored but archived
+                      without a trade.
+                    </span>
+                  </span>
+                </th>
                 <th className="py-2 px-3 text-right font-normal">Scored</th>
                 <th className="py-2 px-3 text-right font-normal">Traded</th>
                 <th className="py-2 px-3 text-right font-normal">Hits / total</th>
-                <th className="py-2 px-3 text-right font-normal">Hit ratio</th>
+                <th className="py-2 px-3 text-right font-normal">
+                  <span className="t-tt-wrap">
+                    Hit ratio
+                    <span className="t-tt">
+                      Binary: did the price move in the predicted direction by T+1d?
+                    </span>
+                  </span>
+                </th>
                 <th className="py-2 px-3 text-right font-normal">Avg T+1h</th>
-                <th className="py-2 px-3 text-right font-normal">Avg T+1d</th>
+                <th className="py-2 px-3 text-right font-normal">
+                  <span className="t-tt-wrap">
+                    Avg T+1d
+                    <span className="t-tt">
+                      Sign-adjusted for recommended direction. Positive = trade was right. Negative
+                      = wrong. Well-calibrated rubric trends up as the band rises; flat or inverted
+                      means poorly calibrated.
+                    </span>
+                  </span>
+                </th>
                 <th className="py-2 pl-3 text-right font-normal">Avg T+7d</th>
               </tr>
             </thead>
@@ -162,15 +162,11 @@ export default function CalibrationPage() {
 
       {/* ── Per-detector table ── */}
       {data.bySignalType.length > 0 && (
-        <section className="card">
-          <h2 className="section-title mb-2 flex items-center gap-2">
+        <section className="card reveal in-view reveal-delay-1">
+          <h2 className="section-title mb-3 flex items-center gap-2">
             <Activity className="h-3.5 w-3.5 text-accent" />
             By detector
           </h2>
-          <p className="mb-3 text-xs text-slate-500">
-            Which detectors actually carry predictive weight? Hit ratio is binary (right/wrong); the
-            avg pct columns show the size of the move.
-          </p>
           <div className="overflow-x-auto">
             <table className="w-full font-mono text-xs">
               <thead>
@@ -179,7 +175,15 @@ export default function CalibrationPage() {
                   <th className="py-2 px-3 text-right font-normal">Signals</th>
                   <th className="py-2 px-3 text-right font-normal">Hits / total</th>
                   <th className="py-2 px-3 text-right font-normal">Avg T+1h</th>
-                  <th className="py-2 pl-3 text-right font-normal">Avg T+1d</th>
+                  <th className="py-2 pl-3 text-right font-normal">
+                    <span className="t-tt-wrap">
+                      Avg T+1d
+                      <span className="t-tt">
+                        Sign-adjusted for recommended direction. Positive = trade was right. Size of
+                        the number is the size of the move.
+                      </span>
+                    </span>
+                  </th>
                 </tr>
               </thead>
               <tbody>
@@ -207,26 +211,35 @@ export default function CalibrationPage() {
       )}
 
       {/* ── What we're learning ── */}
-      <section className="card border-edge/30">
-        <h2 className="mb-3 flex items-center gap-2 font-display text-xl font-semibold text-slate-100">
+      <section className="card border-edge/30 reveal in-view reveal-delay-2">
+        <h2 className="mb-4 flex items-center gap-2 font-display text-xl font-semibold text-slate-100">
           <TrendingUp className="h-5 w-5 text-accent" />
           What we&apos;re learning
         </h2>
-        <div className="space-y-3 text-sm leading-relaxed text-slate-400">
-          <p>
-            The first cohort (5 trades, May-June 2026) ran at the 70+ conviction floor and closed at
-            ~0% win rate with avg T+1h ≈ −0.5%. That&apos;s consistent with the agent firing on
-            commits already priced in within the hour.
-          </p>
-          <p>
-            On 2026-06-26 we raised the floor to <strong className="text-slate-200">80</strong> and
-            added a <strong className="text-slate-200">30-minute settling delay</strong> so the
-            agent only sees commits old enough that the immediate news pop has played out. The table
-            above is the live measurement; if higher conviction doesn&apos;t visibly outperform
-            lower conviction over the next ~30 closed trades, the rubric needs more than a threshold
-            bump.
-          </p>
-        </div>
+        <ul className="space-y-2 text-sm text-slate-400">
+          <li className="flex gap-2">
+            <span className="font-mono text-[11px] text-slate-600">May–Jun 2026</span>
+            <span>
+              First cohort (5 trades) at 70+ floor: ~0% win rate, avg T+1h ≈ −0.5% — consistent with
+              firing on commits already priced in.
+            </span>
+          </li>
+          <li className="flex gap-2">
+            <span className="font-mono text-[11px] text-slate-600">2026-06-26</span>
+            <span>
+              Raised floor to <strong className="text-slate-200">80</strong> and added a{' '}
+              <strong className="text-slate-200">30-min settling delay</strong> so the agent only
+              sees commits past the immediate news pop.
+            </span>
+          </li>
+          <li className="flex gap-2">
+            <span className="font-mono text-[11px] text-slate-600">Next ~30 trades</span>
+            <span>
+              If higher conviction doesn&apos;t visibly outperform lower conviction, the rubric
+              needs more than a threshold bump.
+            </span>
+          </li>
+        </ul>
         <div className="mt-4 rounded-xl border border-warn/20 bg-warn/[0.04] p-4">
           <div className="flex items-start gap-2.5">
             <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-warn" />
