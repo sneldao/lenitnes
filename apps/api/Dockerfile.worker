@@ -33,10 +33,12 @@ RUN apt-get update && apt-get install -y --no-install-recommends curl ca-certifi
 
 COPY --from=base /app/apps/api/dist ./dist
 # The worker shares the api workspace and runs the agent scoring path
-# (queue/worker.ts → execution/loop.ts → services/agent.ts → readRubric).
-# tsc only emits .js files, so the rubric prompt must be copied alongside.
-# See commit c1d91d1 for the matching api Dockerfile change.
-COPY --from=base /app/apps/api/src/services/agent/rubric-v1.md ./dist/services/agent/rubric-v1.md
+# (queue/worker.ts → execution/loop.ts → services/agent.ts → readRubric,
+#  and scheduler.ts → services/agent/narrative.ts → runNarrativeScan).
+# tsc only emits .js files, so the rubric .md prompts must be copied
+# alongside. Copy every .md so RUBRIC_PATH bumps (agent.ts points at
+# the active file) don't require a Dockerfile edit.
+COPY --from=base /app/apps/api/src/services/agent/*.md ./dist/services/agent/
 COPY --from=base /app/node_modules ./node_modules
 COPY --from=base /app/apps/api/node_modules ./apps/api/node_modules
 COPY --from=base /app/packages ./packages

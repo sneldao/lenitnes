@@ -30,7 +30,10 @@ WORKDIR /app
 ENV NODE_ENV=production
 
 COPY --from=base /app/apps/api/dist ./dist
-COPY --from=base /app/apps/api/src/services/agent/rubric-v1.md ./dist/services/agent/rubric-v1.md
+# Copy every rubric .md into the image so RUBRIC_PATH bumps (agent.ts
+# points at the active file) don't require a Dockerfile edit. Only the
+# .md prompts are needed — the .ts sources are compiled into dist/.
+COPY --from=base /app/apps/api/src/services/agent/*.md ./dist/services/agent/
 COPY --from=base /app/node_modules ./node_modules
 COPY --from=base /app/apps/api/node_modules ./apps/api/node_modules
 COPY --from=base /app/packages ./packages
