@@ -164,9 +164,15 @@ function parseAgentResponse(raw: string): {
   if (typeof obj.conviction !== 'number' || obj.conviction < 0 || obj.conviction > 100) {
     throw new AgentScoreError(`Invalid conviction: ${obj.conviction}`);
   }
-  if (typeof obj.thesis !== 'string' || obj.thesis.length === 0 || obj.thesis.length > 280) {
+  if (typeof obj.thesis !== 'string' || obj.thesis.length === 0) {
     throw new AgentScoreError(`Invalid thesis (length ${(obj.thesis as string)?.length})`);
   }
+  // Truncate over-length theses rather than rejecting the whole
+  // score — models routinely run a few chars past 280, and losing a
+  // scored signal over prose length is worse than an ellipsis. The
+  // 280 target stays in the rubric; the hard constraint (Telegram)
+  // is far larger.
+  const thesisText = obj.thesis.length > 280 ? obj.thesis.slice(0, 279) + '…' : obj.thesis;
   if (
     obj.recommended_action !== 'long' &&
     obj.recommended_action !== 'short' &&
@@ -191,7 +197,7 @@ function parseAgentResponse(raw: string): {
   // historical v1 transcript). The dispatch fallback uses the
   // thesis verbatim — adequate but not the agent's "on-chain voice".
   const conviction = Math.round(obj.conviction);
-  const thesis = obj.thesis;
+  const thesis = thesisText;
   const recommended_action = obj.recommended_action;
   const confidence_band = obj.confidence_band;
 
