@@ -31,9 +31,12 @@ async function scanAndEnqueue(): Promise<void> {
   if (monitorRunning) return;
   monitorRunning = true;
   try {
+    // 'triggered' is included: a fired monitor only resets to
+    // 'active' when its next check runs, so excluding it here
+    // strands the monitor forever after its first signal.
     const { rows } = await query<{ id: string }>(
       `SELECT id FROM monitors
-       WHERE status = 'active'
+       WHERE status IN ('active', 'triggered')
          AND (
            last_check_at IS NULL
            OR last_check_at + (frequency_seconds || ' seconds')::interval <= now()

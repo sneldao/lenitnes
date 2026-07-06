@@ -35,11 +35,18 @@ import {
 // One pass over every monitor that is due for a check.
 // ─────────────────────────────────────────────────────────────
 
-/** Select monitors whose next check is due based on frequency + last_check_at. */
+/** Select monitors whose next check is due based on frequency + last_check_at.
+ *
+ * 'triggered' must be schedulable: it's set when a monitor fires a
+ * signal, and the only thing that resets it to 'active' is the next
+ * check (executeCheckTransaction). Filtering to 'active' alone
+ * stranded every monitor that ever fired — 6 of 12 repo monitors sat
+ * in 'triggered' for weeks, which is why the commit pipeline went
+ * silent after the first signal burst. */
 async function dueMonitors(): Promise<Monitor[]> {
   const { rows } = await query<Monitor>(
     `SELECT * FROM monitors
-     WHERE status = 'active'
+     WHERE status IN ('active', 'triggered')
        AND (
          last_check_at IS NULL
          OR last_check_at + (frequency_seconds || ' seconds')::interval <= now()
