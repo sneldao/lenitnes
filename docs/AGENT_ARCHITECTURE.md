@@ -376,3 +376,46 @@ agent's call, not infrastructure status.
   calibration loop will surface this within 2-4 weeks of data;
   the response will be a versioned rubric bump (file swap, no
   code change).
+
+---
+
+## Addendum — 2026-07-07: the call is the unit of proof
+
+The document above is preserved as written. This addendum records
+the decisions that superseded parts of it after the July 2026
+pipeline review.
+
+**1. Calls, not swaps.** The unit of proof is the directional call
+— thesis committed on-chain before the outcome, price snapshotted
+at T+1h/4h/1d/7d after each window genuinely matures. Positions are
+explicitly-labeled paper in both directions ('short' opens a
+direction='short' position; the old "short = close-oldest-long"
+semantics are gone). Live swaps remain behind TRADING_ENABLED,
+gated on calibration (n ≥ 30 closed positions).
+
+**2. Detectors are the signal gate.** For GitHub monitors, the 9
+typed detectors decide signal vs heartbeat — not keyword matches of
+commit messages against condition_text. TinyFish page-scrape output
+is ignored for GitHub URLs.
+
+**3. Rubric v4.** Adds book_context (open positions injected into
+the prompt; no pile-ons, reversals require conviction exceeding the
+open position's), a commit-citation requirement (thesis must cite
+the SHA + code-level meaning or conviction ≤ 50), and a news-only
+hard cap of 65. The news-driven narrative trade cluster is opt-in
+(NARRATIVE_NEWS_CLUSTER=1), off by default.
+
+**4. Comms carry only new information.** The hourly heartbeat and
+sub-threshold broadcasts are removed. The channel posts:
+above-threshold calls (with PAPER labeled), position closes,
+T+1d/T+7d outcome verdicts, and the daily report. A dead-man's
+switch pages the operator (TELEGRAM_OPERATOR_CHAT_ID) when checks
+stop for 2h or scoring starves for 48h.
+
+**5. One engine, two audiences.** services/replay.ts runs the SAME
+detectors + rubric over any public repo's commit history
+(GET /backtest/replay — mock scoring publicly, live agent reasoning
+with X-Admin-Key). This is simultaneously the case-study generator
+and the enterprise leak-scan demo ("what did your last quarter of
+commits tell the market?"). Nothing may fork detector or scoring
+logic for one audience — the engine identity IS the product claim.

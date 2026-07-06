@@ -38,15 +38,15 @@ export default function CalibrationPage() {
 
   // Sample-size badge — calibration with n < 30 is provisional;
   // we'd want a much bigger sample before drawing conclusions.
-  const totalTradedAbove80 = data.byConvictionBand
-    .filter((b) => b.bandMin >= 80)
+  const totalTradedAbove70 = data.byConvictionBand
+    .filter((b) => b.bandMin >= 70)
     .reduce((acc, b) => acc + b.traded, 0);
   const sampleSizeLabel =
-    totalTradedAbove80 >= 30
+    totalTradedAbove70 >= 30
       ? 'mature sample'
-      : totalTradedAbove80 >= 10
-        ? `provisional (n=${totalTradedAbove80})`
-        : `early (n=${totalTradedAbove80})`;
+      : totalTradedAbove70 >= 10
+        ? `provisional (n=${totalTradedAbove70})`
+        : `early (n=${totalTradedAbove70})`;
 
   return (
     <article className="mx-auto max-w-3xl space-y-10 pb-16">
@@ -65,7 +65,7 @@ export default function CalibrationPage() {
           .
         </p>
         <p className="font-mono text-[10px] text-slate-500">
-          conviction floor: 80/100 · settling delay: 30m · {sampleSizeLabel}
+          conviction floor: 70/100 · settling delay: 30m · {sampleSizeLabel}
         </p>
       </header>
 
@@ -83,7 +83,7 @@ export default function CalibrationPage() {
                   <span className="t-tt-wrap">
                     Band
                     <span className="t-tt">
-                      Agent fires on signals at conviction 80+; lower bands are scored but archived
+                      Agent fires on signals at conviction 70+; lower bands are scored but archived
                       without a trade.
                     </span>
                   </span>
@@ -115,7 +115,7 @@ export default function CalibrationPage() {
             </thead>
             <tbody>
               {data.byConvictionBand.map((band) => {
-                const isFireBand = band.bandMin >= 80;
+                const isFireBand = band.bandMin >= 70;
                 return (
                   <tr
                     key={band.label}
@@ -227,9 +227,10 @@ export default function CalibrationPage() {
           <li className="flex gap-2">
             <span className="font-mono text-[11px] text-slate-600">2026-06-26</span>
             <span>
-              Raised floor to <strong className="text-slate-200">80</strong> and added a{' '}
+              Set the trade floor at <strong className="text-slate-200">70</strong> and added a{' '}
               <strong className="text-slate-200">30-min settling delay</strong> so the agent only
-              sees commits past the immediate news pop.
+              sees commits past the immediate news pop. Rubric v4 (Jul 2026) hardened what 70+
+              requires: cited commit SHA + independent corroboration.
             </span>
           </li>
           <li className="flex gap-2">

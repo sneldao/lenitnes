@@ -86,7 +86,7 @@ export const envSchema = z
     // fewer trades but each one carries more agent confidence.
     // Re-evaluate after a 4-week paper-trade run shows what the
     // calibration curve looks like.
-    CONVICTION_THRESHOLD: intFromString(0, 100).default(80),
+    CONVICTION_THRESHOLD: intFromString(0, 100).default(70),
     DAILY_AGENT_BUDGET_USD: floatFromString().default(20),
     // Minimum age in minutes for a commit to be considered. Many
     // signals fire on commits that are already priced in within

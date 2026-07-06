@@ -1,6 +1,23 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { describeReplay, replay, HALO2_REPLAY, scoreCommit } from '../src/services/replay.js';
 import type { AgentScore } from '@lenitnes/types';
+
+// replay() now fetches real commit history; mock the GitHub layer so
+// tests are deterministic and offline.
+const fetchCommitsRangeMock = vi.fn();
+vi.mock('../src/services/github.js', () => ({
+  fetchCommitsRange: (...args: unknown[]) => fetchCommitsRangeMock(...args),
+  fetchCommitsSince: vi.fn(),
+}));
+vi.mock('../src/services/data-providers/registry.js', () => ({
+  priceData: {
+    getPriceAtWindow: vi.fn().mockResolvedValue(null),
+    getPriceAt: vi.fn().mockResolvedValue(null),
+  },
+  marketData: {},
+}));
+
+const { describeReplay, replay, HALO2_REPLAY, scoreCommit } =
+  await import('../src/services/replay.js');
 
 describe('replay — halo2 canonical example', () => {
   it('HALO2_REPLAY has the expected verdict shape', () => {
@@ -41,31 +58,89 @@ describe('replay — halo2 canonical example', () => {
   });
 });
 
-describe('replay.replay()', () => {
+describe('replay.replay() — real engine', () => {
   beforeEach(() => {
-    // Ensure no stray env from .env leaks into the MOCK path
     process.env.MOCK_AGENT = '1';
+    fetchCommitsRangeMock.mockReset();
   });
 
-  it('returns the halo2 example for zcash/halo2', async () => {
-    const verdicts = await replay(
-      describeReplay({ repo: 'zcash/halo2', from: 'a', to: 'b', asset: 'zcash' }),
-    );
-    expect(verdicts).toHaveLength(1);
-    expect(verdicts[0]?.hash).toBe(HALO2_REPLAY.hash);
+  it('produces a verdict for a day-batch where detectors fire', async () => {
+    fetchCommitsRangeMock.mockResolvedValueOnce([
+      {
+        sha: 'a'.repeat(40),
+        message: 'fix: emergency patch for critical security vulnerability in consensus path',
+        author: 'dev',
+        date: '2026-06-02T02:00:00Z',
+        url: 'https://github.com/zcash/zebra/commit/aaa',
+        additions: 0,
+        deletions: 0,
+        total: 0,
+      },
+      {
+        sha: 'b'.repeat(40),
+        message: 'chore: bump version',
+        author: 'dev',
+        date: '2026-06-02T03:00:00Z',
+        url: 'https://github.com/zcash/zebra/commit/bbb',
+        additions: 0,
+        deletions: 0,
+        total: 0,
+      },
+    ]);
+
+    const verdicts = await replay({
+      repo: 'zcash/zebra',
+      from: '2026-06-01T00:00:00Z',
+      to: '2026-06-03T00:00:00Z',
+      asset: 'zcash',
+      mock: true,
+    });
+    expect(verdicts.length).toBeGreaterThanOrEqual(1);
+    const v = verdicts[0];
+    expect(v.commitCount).toBe(2);
+    expect(v.detectorClassifications.length).toBeGreaterThan(0);
+    expect(v.wouldHaveTraded.paper).toBe(true);
+    expect(v.agentScore.conviction).toBeGreaterThan(0);
   });
 
-  it('returns [] for an unknown repo', async () => {
+  it('returns [] when no commits fire any detector', async () => {
+    fetchCommitsRangeMock.mockResolvedValueOnce([
+      {
+        sha: 'c'.repeat(40),
+        message: 'docs: fix typo in readme',
+        author: 'dev',
+        date: '2026-06-02T02:00:00Z',
+        url: 'https://github.com/foo/bar/commit/ccc',
+        additions: 0,
+        deletions: 0,
+        total: 0,
+      },
+    ]);
+    const verdicts = await replay({
+      repo: 'foo/bar',
+      from: '2026-06-01T00:00:00Z',
+      to: '2026-06-03T00:00:00Z',
+      asset: 'foo',
+      mock: true,
+    });
+    expect(verdicts).toEqual([]);
+  });
+
+  it('returns [] when the range has no commits', async () => {
+    fetchCommitsRangeMock.mockResolvedValueOnce([]);
     const verdicts = await replay(describeReplay({ repo: 'foo/bar', asset: 'foo' }));
     expect(verdicts).toEqual([]);
   });
 });
 
 describe('replay.describeReplay()', () => {
-  it('defaults from/to/asset when omitted', () => {
+  it('defaults to a 90-day ISO window when from/to omitted', () => {
     const input = describeReplay({ repo: 'zcash/halo2' });
-    expect(input.from).toBe('HEAD~10');
-    expect(input.to).toBe('HEAD');
+    const from = new Date(input.from).getTime();
+    const to = new Date(input.to).getTime();
+    expect(Number.isNaN(from)).toBe(false);
+    expect(Number.isNaN(to)).toBe(false);
+    expect(to - from).toBeCloseTo(90 * 24 * 3600 * 1000, -5);
     expect(input.asset).toBe('zcash');
   });
 

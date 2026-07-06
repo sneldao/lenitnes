@@ -231,7 +231,3 @@ export function explorerUrl(chain: string, txHash: string): string {
   if (chain === 'bsc' || chain === 'bnb') return `https://testnet.bscscan.com/tx/${txHash}`;
   return '#';
 }
-
-// ── Re-exports for api.ts backward compat (do not add new ones) ────────────
-// burnRate and burnBarColor were removed — they referenced the pre-pivot
-// per-monitor HBAR billing model that no longer exists.

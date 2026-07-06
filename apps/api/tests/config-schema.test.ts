@@ -21,9 +21,10 @@ describe('envSchema — happy path', () => {
     expect(result.API_PORT).toBe(4000);
     expect(result.WEB_ORIGIN).toBe('http://localhost:3000');
     // Raised from 70 → 80 on 2026-06-26 after the first conviction
-    // cohort showed 0% win rate at 70+. Re-evaluate after the
-    // settling delay + threshold bump runs for a few weeks.
-    expect(result.CONVICTION_THRESHOLD).toBe(80);
+    // Default aligned to 70 (2026-07-07): prod runs at 70, rubric v4
+    // defines 70-79 as trade candidates, and all public surfaces now
+    // state 70 — one source of truth.
+    expect(result.CONVICTION_THRESHOLD).toBe(70);
     expect(result.MIN_COMMIT_AGE_MINUTES).toBe(30);
     expect(result.DAILY_AGENT_BUDGET_USD).toBe(20);
     expect(result.TREASURY_MODE).toBe('paper');

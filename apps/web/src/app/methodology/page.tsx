@@ -80,8 +80,9 @@ export default function MethodologyPage() {
       <Section id="detectors" icon={GitCommit} title="9 typed detectors">
         <p className="text-sm text-slate-400">
           Fast classification pass before the LLM. Each returns a score (0-100) + confidence. The
-          agent sees detector output, not raw commits — plus a cross-signal narrative of what every
-          other repo + the SoSoValue news feed did in the same 24h window.
+          agent sees detector output plus commit evidence (SHAs, messages, size stats) and a
+          cross-signal narrative of what every other monitored repo did in the same 24h window. News
+          is corroboration only — it never trades on its own.
         </p>
         <div className="grid gap-2 sm:grid-cols-2">
           {DETECTORS.map((d) => (
@@ -114,8 +115,8 @@ export default function MethodologyPage() {
         <div className="flex items-center gap-3 rounded-xl border border-edge/30 bg-ink-light/40 p-4">
           <Brain className="h-5 w-5 text-accent" />
           <div>
-            <div className="text-sm font-medium text-slate-200">Llama 3.1 70B via NVIDIA API</div>
-            <div className="text-xs text-slate-500">Versioned rubric (v3) · conviction 0-100</div>
+            <div className="text-sm font-medium text-slate-200">LLM via NVIDIA API</div>
+            <div className="text-xs text-slate-500">Versioned rubric (v4) · conviction 0-100</div>
           </div>
         </div>
         <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
@@ -144,8 +145,10 @@ export default function MethodologyPage() {
             Why a versioned rubric
           </p>
           <p className="mt-1 text-sm text-slate-300">
-            When the prompt or model changes, the version bumps. The scorecard slices performance by
-            version — &quot;v3 added narrative context and T+1d avg moved from −0.5% to +0.8%&quot;.
+            When the prompt or model changes, the version bumps and the scorecard slices performance
+            by version. v4 (Jul 2026) hardened calibration: commit-driven theses must cite the SHA
+            and its code-level meaning, news-only signals are hard-capped at conviction 65, and the
+            agent sees the open book — no pile-ons, no evidence-free reversals.
           </p>
         </CalloutAside>
       </Section>
@@ -248,9 +251,10 @@ export default function MethodologyPage() {
           ))}
         </div>
         <p className="text-xs text-slate-500">
-          Three independent authorities — impossible to misremember a call. Visible on every{' '}
-          <Link href="/signals" className="link-underline text-accent">
-            signal detail page
+          Three independent authorities — impossible to misremember a call. Visible on every signal
+          detail page, linked from the{' '}
+          <Link href="/scorecard" className="link-underline text-accent">
+            scorecard
           </Link>
           .
         </p>
@@ -321,9 +325,10 @@ const PIPELINE = [
 
 const WATCHLIST = [
   { url: 'zcash/halo2', why: 'Founding case study · Orchard soundness' },
+  { url: 'ZcashFoundation/zebra', why: 'ZEC consensus client · where the emergency fork landed' },
   { url: 'bitcoin/bitcoin', why: 'L1 · largest USD volume' },
   { url: 'ethereum/go-ethereum', why: 'L1 · largest USD volume' },
-  { url: 'solana-labs/solana', why: 'L1 · high-velocity consensus' },
+  { url: 'anza-xyz/agave', why: 'Solana validator client · high-velocity consensus' },
   { url: 'MystenLabs/sui', why: 'L1 · high-velocity consensus' },
   { url: 'OffchainLabs/nitro', why: 'L2 · bugs cascade to L1' },
 ];
@@ -372,7 +377,7 @@ const DETECTORS = [
   {
     name: 'news_signal',
     icon: 'newspaper',
-    what: 'SoSoValue news matching bullish/bearish keywords. Only detector that fires on narrative, not code.',
+    what: 'News sentiment as corroboration for commit signals. Never trades alone — news-only conviction is hard-capped below the trade threshold.',
   },
 ];
 
@@ -414,17 +419,20 @@ const LIFECYCLE = [
   {
     label: 'Open',
     icon: Target,
-    detail: 'Swap BNB → token with amountOutMin from on-chain quote. Entry price captured.',
+    detail:
+      'A tracked position opens in the recommended direction — long or short, labeled paper. Entry price snapshotted at open. (Live mode swaps on-chain; gated off until calibration clears.)',
   },
   {
     label: 'Settle',
     icon: TrendingUp,
-    detail: 'TP/SL written at open, conviction-scaled. 5-min scheduler checks live price.',
+    detail:
+      'TP/SL written at open, conviction-scaled and direction-aware. 5-min scheduler checks live price.',
   },
   {
     label: 'Close',
     icon: CheckCircle2,
-    detail: 'Reverse swap returns capital. Realized P&L recorded. Failed close → alert.',
+    detail:
+      'TP/SL hit, signal reversal, or manual exit closes at market price. Realized P&L recorded, direction-aware.',
   },
 ];
 

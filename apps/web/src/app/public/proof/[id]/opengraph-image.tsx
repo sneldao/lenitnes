@@ -276,8 +276,8 @@ export default async function Image({
         }}
       >
         <ChainStep
-          label="TinyFish"
-          detail="web analysis"
+          label="Detectors"
+          detail="commit analysis"
           color={COLORS.accent}
           ok={Boolean(data)}
         />

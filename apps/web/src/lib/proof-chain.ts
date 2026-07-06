@@ -14,7 +14,7 @@ export function getProofChainSteps(signal: SignalDetail | null): ProofChainStep[
       glowColor: 'rgba(6,182,212,0.15)',
       borderColor: 'rgba(6,182,212,0.5)',
       detail: signal.detectedAt
-        ? `TinyFish detection at ${new Date(signal.detectedAt).toISOString()}. ${
+        ? `Detector pass at ${new Date(signal.detectedAt).toISOString()}. ${
             signal.conditionSummary ?? 'Condition evaluated.'
           }`
         : 'Detection pending.',

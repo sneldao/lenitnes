@@ -196,7 +196,7 @@ export default function ScorecardPage() {
                         <span className="t-tt-wrap">
                           Conviction band
                           <span className="t-tt">
-                            Agent fires on signals at conviction 80+; lower bands are scored but
+                            Agent fires on signals at conviction 70+; lower bands are scored but
                             archived without a trade.
                           </span>
                         </span>

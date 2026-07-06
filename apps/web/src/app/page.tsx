@@ -74,8 +74,9 @@ export default function LandingPage() {
           </h2>
           <TrackRecordStrip />
           <p className="mt-6 max-w-prose text-xs leading-relaxed text-slate-500">
-            Every signal scored, every trade recorded, every price outcome at T+1h, T+1d, T+7d —
-            computed from the same on-chain tables the agent writes to.
+            Every signal scored, every call tracked as a paper position, every price outcome
+            snapshotted at T+1h, T+1d, T+7d — the scorecard recomputes from the same tables the
+            calls are written to, so the system cannot misremember its own performance.
           </p>
         </section>
 
@@ -190,6 +191,30 @@ export default function LandingPage() {
             <span className="italic">with the receipts.</span>
           </h2>
           <RecentCalls />
+        </section>
+
+        {/* ── One engine, two audiences — the enterprise direction ── */}
+        <section className="reveal reveal-delay-4 in-view mb-24 sm:mb-32">
+          <SectionLabel number="05" label="One engine, two audiences" />
+          <h2 className="mb-6 max-w-2xl font-display text-3xl font-semibold leading-tight text-slate-100 sm:text-4xl">
+            Your commits are
+            <br />
+            <span className="italic">telling the market something.</span>
+          </h2>
+          <p className="max-w-2xl text-sm leading-relaxed text-slate-400">
+            The same nine detectors and versioned rubric that trade in public can scan any
+            repository&apos;s history and show what it signaled — before a market, or a competitor,
+            noticed. The public track record on this site is the proof the engine works; the
+            leak-scan is what it does for you.
+          </p>
+          <p className="mt-4 text-xs text-slate-500">
+            Part of the{' '}
+            <a href="https://persidian.com" className="link-underline text-accent">
+              Persidian
+            </a>{' '}
+            portfolio — sentinels for every business rhythm: money in, messages out, theses tested,
+            data trusted.
+          </p>
         </section>
       </div>
     </main>
@@ -341,12 +366,12 @@ const LOOP_STEPS: { title: string; icon: LucideIcon; body: string }[] = [
   {
     title: 'Watchlist',
     icon: Eye,
-    body: 'Admin-curated consensus- and security-critical repos plus SoSoValue news + macro feeds.',
+    body: 'Curated consensus- and security-critical repos — Zcash (halo2, Zebra), Bitcoin, Ethereum, Solana (Agave), Arbitrum, Sui. News is corroboration, never the primary signal.',
   },
   {
     title: 'Detect',
     icon: GitCommit,
-    body: 'Nine typed detectors classify each commit and news item with a score and confidence.',
+    body: 'Nine typed detectors decide what counts as a signal — emergency patches, security-critical changes, consensus edits — with a score and confidence per batch.',
   },
   {
     title: 'Score',
@@ -361,7 +386,7 @@ const LOOP_STEPS: { title: string; icon: LucideIcon; body: string }[] = [
   {
     title: 'Commit + Proof',
     icon: Zap,
-    body: 'Trade from the treasury, notarize the thesis on Hedera HCS, broadcast to Telegram — all in one block.',
+    body: 'Open a tracked position — long or short, explicitly labeled paper — notarize the thesis on Hedera HCS, broadcast to Telegram.',
   },
   {
     title: 'Track outcome',

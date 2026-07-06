@@ -1,8 +1,17 @@
 # LENITNES
 
-**An autonomous AI trading agent that reads public commits to consensus-critical cryptocurrency code — and news from SoSoValue's on-chain finance feeds — to infer trading directions before the market prices them in. Every signal is timestamped on Hedera HCS, every trade is on-chain, and the public scorecard recomputes from the same tables the trade receipts point at — the system cannot misremember its own performance.**
+**An autonomous AI agent that reads public commits to consensus-critical cryptocurrency code and infers trading directions before the market prices them in. Every signal is timestamped on Hedera HCS, every call is tracked as an explicitly-labeled paper position with price snapshots at T+1h/1d/7d, and the public scorecard recomputes from the same tables the calls are written to — the system cannot misremember its own performance.**
 
-No users, no per-monitor staking, no SaaS dashboard. The agents run continuously; their calls become a public track record.
+No users, no per-monitor staking, no SaaS dashboard. The agent runs continuously; its calls become a public track record.
+
+## One engine, two audiences
+
+The unit of proof is the **call**, not the trade: a directional thesis, committed on-chain before the outcome, scored against what the price actually did. That makes the same engine serve two audiences:
+
+1. **Public (this site)** — the autonomous agent trades its own theses in public. The track record is the product.
+2. **Enterprise (the direction)** — the same nine detectors + versioned rubric, pointed at _your_ repos: what is your commit history telling the market before you announce it? `GET /backtest/replay?repo=owner/repo` runs the real engine over any public repo's history — the leak-scan demo. The public track record is the sales proof; the leak-scan is the product.
+
+LENITNES is part of the [Persidian](https://persidian.com) portfolio — sentinels for different business rhythms: money in (Sikizana), messages out (Nuncio), theses tested (Lenitnes), data trusted (DataBard).
 
 ## The ZEC moment
 
@@ -21,12 +30,13 @@ Public surfaces — no signup, no auth:
 
 ## How it works
 
-1. **Watch** — curated consensus-critical repos (ZCash, Bitcoin, Ethereum, Solana, Arbitrum, Sui) + SoSoValue news + macro feeds per asset.
-2. **Detect** — 9 typed detectors classify every commit and news item (`emergency_patch`, `security_critical`, `consensus_relevant`, `news_signal`, etc.).
-3. **Score** — a frontier-model agent evaluates the signal against a versioned rubric, with a cross-signal narrative: what every other repo + the news feed did in the same 24h window. Outputs conviction (0–100), thesis, action, confidence band. A separate 2h narrative scan synthesizes the whole cluster into one thesis even when no individual monitor crossed threshold.
-4. **Gate** — conviction ≥ 70 to trade. Sub-threshold signals persist as a reasoning archive but produce no trade.
-5. **Commit** — trade from the treasury wallet (PancakeSwap on BSC / SoDEX orderbook on ValueChain), notarize on Hedera HCS, broadcast to Telegram. All in the same block, all publicly auditable.
-6. **Track** — at T+1h, T+1d, T+7d the mainnet price is snapshotted from CoinGecko and attributed back to the originating signal. Drives the public scorecard.
+1. **Watch** — curated consensus-critical repos: Zcash (`zcash/halo2`, `ZcashFoundation/zebra`), Bitcoin, Ethereum (geth, reth), Solana (`anza-xyz/agave`), Arbitrum, Sui. News is corroboration only, never the primary signal.
+2. **Detect** — 9 typed detectors ARE the signal gate: they decide whether a batch of new commits constitutes a signal (`emergency_patch`, `security_critical_patch`, `consensus_relevant`, …).
+3. **Score** — an LLM agent evaluates the signal against a versioned rubric (v4), with commit evidence (SHAs, messages), the cross-signal narrative, and the current open book. Rubric v4 requires commit-driven theses to cite the SHA and its code-level meaning, hard-caps news-only signals at conviction 65, and enforces book discipline (no pile-ons, no evidence-free reversals). Outputs conviction (0–100), thesis, action, confidence band.
+4. **Gate** — conviction ≥ 70 to trade. Sub-threshold scores persist as the public reasoning archive but produce no trade and no broadcast.
+5. **Commit** — open a tracked position in the recommended direction, long or short, explicitly labeled paper (live swaps exist behind the `TRADING_ENABLED` kill switch, off until calibration clears). Notarize the thesis on Hedera HCS, broadcast to Telegram.
+6. **Track** — once each window genuinely matures (T+1h/4h/1d/7d), the price is snapshotted from CoinGecko and attributed back to the signal. T+1d and T+7d resolutions post a public "call CORRECT / WRONG" verdict to Telegram. Drives the scorecard.
+7. **Replay** — the same engine runs over any repo's history (`/backtest/replay`) for case studies and leak-scans.
 
 No human input in the steady state. See [`docs/AGENT_ARCHITECTURE.md`](./docs/AGENT_ARCHITECTURE.md) for the full design decisions, [`docs/RUNBOOK.md`](./docs/RUNBOOK.md) for the operator runbook, and [`docs/CALIBRATION.md`](./docs/CALIBRATION.md) for the per-knob empirical rationale.
 
