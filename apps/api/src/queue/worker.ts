@@ -13,8 +13,13 @@ const CONCURRENCY = 5;
 async function processCheck(job: Job<CheckJobData>): Promise<void> {
   const { monitorId } = job.data;
 
+  // 'triggered' is a valid schedulable state: it marks "fired last
+  // check" and is reset to 'active' by the check itself. Only
+  // 'paused'/'deleted' monitors should be refused here — filtering
+  // to 'active' alone made the worker drop every re-check of a
+  // monitor that had ever fired.
   const { rows } = await query<Monitor>(
-    `SELECT * FROM monitors WHERE id = $1 AND status = 'active'`,
+    `SELECT * FROM monitors WHERE id = $1 AND status IN ('active', 'triggered')`,
     [monitorId],
   );
   const monitor = rows[0];
