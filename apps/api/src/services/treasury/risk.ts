@@ -125,10 +125,16 @@ const PAPER: TradeMode = 'paper';
  * is just a paper-mode decision.
  */
 export async function evaluateTradeRisk(input: RiskGateInput): Promise<RiskGateDecision> {
-  // Closes can always go through — TP/SL exits must not be blocked
-  // by the kill switch or position-count limits.
+  // Shorts are always paper: spot venues have no short primitive,
+  // so a short is a tracked directional call, never an on-chain
+  // swap. (The old "close path" bypass sent shorts to the live swap
+  // route with a placeholder token, where every one of them crashed.)
   if (input.side === 'short') {
-    return { effectiveMode: input.intendedMode, reason: 'close path', downgraded: false };
+    return {
+      effectiveMode: PAPER,
+      reason: 'short = paper call (no spot short primitive)',
+      downgraded: input.intendedMode !== PAPER,
+    };
   }
 
   // Already paper? Nothing to downgrade.

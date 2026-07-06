@@ -48,9 +48,9 @@ describe('agent.score (MOCK path)', () => {
     expect(result.conviction).toBe(85);
     expect(result.recommended_action).toBe('long');
     expect(result.confidence_band).toBe('high');
-    // Rubric bumped 2026-06-30 — v3 added narrative_context so the
-    // agent can string commits across repos and weigh corroboration.
-    expect(result.rubric_version).toBe('v3');
+    // Rubric bumped 2026-07-07 — v4 added book_context, the commit
+    // citation requirement, and hardened calibration.
+    expect(result.rubric_version).toBe('v4');
     expect(result.thesis).toContain('MOCK');
     expect(result.hcs_dispatch).toContain('MOCK');
     expect(result.proof_action).toBe('standard');

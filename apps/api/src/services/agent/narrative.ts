@@ -23,9 +23,9 @@ import { logger } from '../../logger.js';
 import { FEATURES } from '../../features.js';
 import { cacheInvalidate } from '../../middleware/cache.js';
 import { marketData } from '../data-providers/registry.js';
-import { scoreAndPersist, buildAgentEnvFromConfig } from '../agent.js';
+import { scoreAndPersist, buildAgentEnvFromConfig, buildBookContext } from '../agent.js';
 import { executeAgentTrade } from '../treasury.js';
-import { broadcastSignal, broadcastSubThreshold, buildOutcomeWindows } from '../notify.js';
+import { broadcastSignal, buildOutcomeWindows } from '../notify.js';
 import { getProofService } from '../proof.js';
 import { newsSignalDetector } from '../detectors/news-signal.js';
 import type { NewsEvidence } from '../detectors/types.js';
@@ -249,9 +249,14 @@ async function gatherNarrativeCluster(): Promise<NarrativeCluster> {
     };
   }
 
-  // News-driven cluster: no commit cluster, but a sentiment news cycle
-  // on a watched asset can still be tradeable. Scan top watched assets.
-  if (FEATURES.sosovalue) {
+  // News-driven cluster: OPT-IN (NARRATIVE_NEWS_CLUSTER=1). With this
+  // branch on by default, the news cycle became the dominant signal
+  // source (43 of 54 scores) and drowned the commit thesis the
+  // operation exists to prove — every 2h scan re-scored the same
+  // headlines, flip-flopping direction. News is corroboration for
+  // commit signals (rubric v4 caps news-only conviction at 65);
+  // a news-only TRADE cluster must be explicitly enabled.
+  if (FEATURES.sosovalue && process.env.NARRATIVE_NEWS_CLUSTER === '1') {
     const assets = await watchedAssets();
     for (const asset of assets.slice(0, 3)) {
       const news = await fetchNewsForAsset(asset);
@@ -456,7 +461,10 @@ export async function runNarrativeScan(): Promise<void> {
       if (macroCtx) marketContext += '\n\n' + macroCtx;
       if (indexCtx) marketContext += '\n\n' + indexCtx;
     }
-    const narrativeContext = await buildNarrativeContext(cluster.assetMapping);
+    const [narrativeContext, bookContext] = await Promise.all([
+      buildNarrativeContext(cluster.assetMapping),
+      buildBookContext(),
+    ]);
 
     const env = buildAgentEnvFromConfig();
     const threshold = monitor.confidence_threshold;
@@ -472,6 +480,7 @@ export async function runNarrativeScan(): Promise<void> {
           precedent_count: 0,
           market_context: marketContext,
           narrative_context: narrativeContext || undefined,
+          book_context: bookContext || undefined,
         },
         env,
       );
@@ -501,21 +510,11 @@ export async function runNarrativeScan(): Promise<void> {
     }
 
     if (agentScore.conviction < threshold) {
+      // Archived in agent_scores; not broadcast (channel carries
+      // only above-threshold calls).
       logger.info(
         { signalId, conviction: agentScore.conviction, threshold },
-        'narrative scan: below threshold — no trade, signal still public',
-      );
-      broadcastSubThreshold({
-        summary: cluster.evidenceSummary,
-        monitorUrl: NARRATIVE_MONITOR_URL,
-        agentScore: {
-          conviction: agentScore.conviction,
-          thesis: agentScore.thesis,
-          recommended_action: agentScore.recommended_action,
-          confidence_band: agentScore.confidence_band,
-        },
-      }).catch((err) =>
-        logger.error({ err, signalId }, 'narrative scan: sub-threshold broadcast errored'),
+        'narrative scan: below threshold — no trade, archived to reasoning archive',
       );
       return;
     }

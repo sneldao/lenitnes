@@ -154,89 +154,12 @@ export function formatSignalMessage(opts: {
   return lines.join('\n');
 }
 
-/**
- * Format any agent verdict for Telegram. Every scored signal is broadcast
- * — high-conviction gets the full trade broadcast, low-conviction gets a
- * concise "agent is thinking" message. This keeps the channel alive even
- * when no trade is warranted.
- */
-export function formatSubThresholdMessage(input: {
-  summary: string;
-  monitorUrl: string;
-  agentScore: {
-    conviction: number;
-    thesis: string;
-    recommended_action: 'long' | 'short' | 'none';
-    confidence_band: 'low' | 'mid' | 'high';
-  };
-}): string {
-  const c = input.agentScore.conviction;
-  const action = input.agentScore.recommended_action.toUpperCase();
-
-  // Three tiers. Voice is "agent considered, declined" — short.
-  // Repo URL replaces the chunky monitorUrl footer; readers can
-  // click through to read the commit themselves.
-  const repoLabel = input.monitorUrl
-    .replace(/^https?:\/\/(www\.)?github\.com\//, '')
-    .replace(/\/.*$/, '');
-
-  if (c <= 30) {
-    return [
-      `🛡️ LENITNES · ${repoLabel} · ${c}/100 (noise)`,
-      ``,
-      `💭 ${input.agentScore.thesis}`,
-      ``,
-      `🔗 ${input.monitorUrl}`,
-    ].join('\n');
-  }
-
-  if (c <= 50) {
-    return [
-      `🛡️ LENITNES · ${repoLabel} · ${c}/100 — would ${action}, declined`,
-      ``,
-      `💭 ${input.agentScore.thesis}`,
-      ``,
-      `🔗 ${input.monitorUrl}`,
-    ].join('\n');
-  }
-
-  return [
-    `🛡️ LENITNES · ${repoLabel} · ${c}/100 — close miss (${action})`,
-    ``,
-    `💭 ${input.agentScore.thesis}`,
-    ``,
-    `🔗 ${input.monitorUrl}  ·  threshold 70`,
-  ].join('\n');
-}
-
-/**
- * Broadcast a sub-threshold signal to Telegram. Best-effort.
- * Returns the message text or null if skipped.
- */
-export async function broadcastSubThreshold(input: {
-  summary: string;
-  monitorUrl: string;
-  agentScore: {
-    conviction: number;
-    thesis: string;
-    recommended_action: 'long' | 'short' | 'none';
-    confidence_band: 'low' | 'mid' | 'high';
-  };
-}): Promise<string | null> {
-  if (!config.telegram.botToken || !config.telegram.publicChannelId) return null;
-  const message = formatSubThresholdMessage(input);
-  try {
-    await sendTelegram(config.telegram.publicChannelId, message);
-    logger.info(
-      { conviction: input.agentScore.conviction },
-      'sub-threshold signal broadcast to telegram',
-    );
-    return message;
-  } catch (err) {
-    logger.error({ err }, 'sub-threshold telegram broadcast failed');
-    return null;
-  }
-}
+// Sub-threshold broadcasting: REMOVED (2026-07-07). Sub-threshold
+// scores flooded the public channel with news paraphrases and
+// "agent is thinking" filler. They remain fully archived in
+// agent_scores (the public reasoning archive on the web surface);
+// the Telegram channel carries only new, above-threshold calls,
+// position closes, outcome verdicts, and the daily report.
 
 // ─────────────────────────────────────────────────────────────
 // Day 6: broadcast the agent's verdict to the public Telegram
@@ -325,14 +248,17 @@ export function formatSignalBroadcastMessage(input: BroadcastSignalInput): strin
   lines.push(`💭 ${input.agentScore.thesis}`);
   lines.push('');
 
-  // Trade — one line. Mode + tx in the link.
+  // Trade — one line. Mode is explicit: PAPER calls are tracked
+  // positions with real timestamped price snapshots, not on-chain
+  // swaps. Never let a reader mistake one for the other.
   if (input.tradeReceipt) {
     const t = input.tradeReceipt;
+    const modeLabel = t.mode === 'paper' ? 'PAPER (tracked call, no on-chain swap)' : 'LIVE';
     const url = explorerUrlFor(t.chain, t.txHash);
     if (url) {
-      lines.push(`📈 ${t.mode} · ${t.chain} · ${url}`);
+      lines.push(`📈 ${modeLabel} · ${t.chain} · ${url}`);
     } else {
-      lines.push(`📈 ${t.mode} · ${t.chain} · ${t.txHash}`);
+      lines.push(`📈 ${modeLabel} · ${t.chain}`);
     }
     lines.push('');
   }

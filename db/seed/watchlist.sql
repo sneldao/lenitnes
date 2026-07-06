@@ -15,62 +15,74 @@ VALUES
     'https://github.com/zcash/halo2/releases',
     'Any commit referencing a consensus-critical change, emergency patch, or mainnet-upgrade tag.',
     21600, true, true, 50,
-    '{"coingeckoId": "zcash", "krakenPair": "ZECUSD", "direction": "long"}'::jsonb
+    '{"coingeckoId": "zcash", "krakenPair": "ZECUSD", "direction": "both"}'::jsonb
   ),
   (
     'https://github.com/bitcoin/bitcoin/releases',
     'Any commit referencing a consensus-critical change, emergency patch, or soft-fork activation.',
     21600, true, true, 50,
-    '{"coingeckoId": "bitcoin", "krakenPair": "XBTUSD", "direction": "long"}'::jsonb
+    '{"coingeckoId": "bitcoin", "krakenPair": "XBTUSD", "direction": "both"}'::jsonb
   ),
   (
     'https://github.com/ethereum/go-ethereum/releases',
     'Any commit referencing a consensus-critical change, emergency patch, or hard-fork tag.',
     21600, true, true, 50,
-    '{"coingeckoId": "ethereum", "krakenPair": "ETHUSD", "direction": "long"}'::jsonb
+    '{"coingeckoId": "ethereum", "krakenPair": "ETHUSD", "direction": "both"}'::jsonb
   ),
   (
-    'https://github.com/solana-labs/solana/releases',
+    'https://github.com/anza-xyz/agave/releases',
     'Any commit referencing a consensus-critical change, emergency patch, or mainnet-beta release.',
     21600, true, true, 50,
-    '{"coingeckoId": "solana", "krakenPair": "SOLUSD", "direction": "long"}'::jsonb
+    '{"coingeckoId": "solana", "krakenPair": "SOLUSD", "direction": "both"}'::jsonb
   ),
   (
     'https://github.com/OffchainLabs/nitro/releases',
     'Any commit referencing a consensus-critical change, emergency patch, or mainnet-upgrade tag.',
     21600, true, true, 50,
-    '{"coingeckoId": "arbitrum", "direction": "long"}'::jsonb
+    '{"coingeckoId": "arbitrum", "direction": "both"}'::jsonb
   ),
   -- Commit-level monitors (fast, low threshold — LLM is the real gatekeeper)
+  (
+    'https://github.com/zcash/halo2/commits/main',
+    'Any commit referencing a consensus-critical change, emergency patch, security vulnerability fix, or circuit constraint change.',
+    1800, true, true, 15,
+    '{"coingeckoId": "zcash", "krakenPair": "ZECUSD", "direction": "both"}'::jsonb
+  ),
+  (
+    'https://github.com/ZcashFoundation/zebra/commits/main',
+    'Any commit referencing a consensus-critical change, emergency patch, security vulnerability fix, or network-upgrade activation.',
+    1800, true, true, 15,
+    '{"coingeckoId": "zcash", "krakenPair": "ZECUSD", "direction": "both"}'::jsonb
+  ),
   (
     'https://github.com/bitcoin/bitcoin/commits/master',
     'Any commit referencing a consensus-critical change, emergency patch, security vulnerability fix, or soft-fork activation commit.',
     1800, true, true, 15,
-    '{"coingeckoId": "bitcoin", "krakenPair": "XBTUSD", "direction": "long"}'::jsonb
+    '{"coingeckoId": "bitcoin", "krakenPair": "XBTUSD", "direction": "both"}'::jsonb
   ),
   (
     'https://github.com/ethereum/go-ethereum/commits/master',
     'Any commit referencing a consensus-critical change, emergency patch, security vulnerability fix, or hard-fork activation commit.',
     1800, true, true, 15,
-    '{"coingeckoId": "ethereum", "krakenPair": "ETHUSD", "direction": "long"}'::jsonb
+    '{"coingeckoId": "ethereum", "krakenPair": "ETHUSD", "direction": "both"}'::jsonb
   ),
   (
-    'https://github.com/solana-labs/solana/commits/master',
+    'https://github.com/anza-xyz/agave/commits/master',
     'Any commit referencing a consensus-critical change, emergency patch, security vulnerability fix, mainnet-beta release, or validator patch.',
     1800, true, true, 15,
-    '{"coingeckoId": "solana", "krakenPair": "SOLUSD", "direction": "long"}'::jsonb
+    '{"coingeckoId": "solana", "krakenPair": "SOLUSD", "direction": "both"}'::jsonb
   ),
   (
     'https://github.com/paradigmxyz/reth/commits/main',
     'Any commit referencing a security vulnerability fix, emergency patch, consensus-critical change, or database corruption fix.',
     1800, true, true, 15,
-    '{"coingeckoId": "ethereum", "direction": "long"}'::jsonb
+    '{"coingeckoId": "ethereum", "direction": "both"}'::jsonb
   ),
   (
     'https://github.com/MystenLabs/sui/commits/main',
     'Any commit referencing a security vulnerability fix, emergency patch, consensus-critical change, or validator safety fix.',
     1800, true, true, 15,
-    '{"coingeckoId": "sui", "krakenPair": "SUIUSD", "direction": "long"}'::jsonb
+    '{"coingeckoId": "sui", "krakenPair": "SUIUSD", "direction": "both"}'::jsonb
   ),
   -- Narrative-synthesis monitor (v3). Not a repo — a portfolio-wide
   -- scan that runs on its own cron (scheduler.ts). When the cluster

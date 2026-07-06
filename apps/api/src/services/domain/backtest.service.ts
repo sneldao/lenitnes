@@ -1,9 +1,18 @@
 import { query } from '../../db/pool.js';
 import { priceData } from '../data-providers/registry.js';
+import { config } from '../../config.js';
+import { sendTelegram } from '../notify.js';
 import { logger } from '../../logger.js';
 import type { AssetMapping, DetectorBacktestStats, SignalOutcome } from '@lenitnes/types';
 
 const DEFAULT_WINDOWS = [3600, 14400, 86400, 604800]; // 1h, 4h, 24h, 7d
+
+const WINDOW_LABEL: Record<number, string> = {
+  3600: 'T+1h',
+  14400: 'T+4h',
+  86400: 'T+1d',
+  604800: 'T+7d',
+};
 
 function resolveAsset(mapping: AssetMapping): { id: string } | null {
   if (mapping.coingeckoId) return { id: mapping.coingeckoId };
@@ -13,23 +22,35 @@ function resolveAsset(mapping: AssetMapping): { id: string } | null {
 export async function processSignalOutcomes(
   windows: number[] = DEFAULT_WINDOWS,
 ): Promise<{ processed: number; errors: number }> {
-  // Signals with classifications whose monitor has asset_mapping but no outcomes yet.
+  // Signal × window pairs where the window has actually elapsed and
+  // no outcome row exists yet. The maturity condition is the critical
+  // part: the old query processed every window as soon as the signal
+  // had classifications, so a T+7d "outcome" recorded on day 0 was
+  // just the current price mislabeled — polluting the scorecard the
+  // whole system exists to keep honest.
   const { rows: pending } = await query<{
     signal_id: string;
     detected_at: string;
     asset_mapping: AssetMapping;
+    window_seconds: number;
   }>(
-    `SELECT DISTINCT s.id AS signal_id, s.detected_at, m.asset_mapping
+    `SELECT s.id AS signal_id, s.detected_at, m.asset_mapping, w.window_seconds
        FROM signals s
        JOIN monitors m ON m.id = s.monitor_id
-       JOIN signal_classifications sc ON sc.signal_id = s.id
-      WHERE NOT EXISTS (
-        SELECT 1 FROM signal_outcomes so WHERE so.signal_id = s.id
+       CROSS JOIN unnest($1::int[]) AS w(window_seconds)
+      WHERE EXISTS (
+        SELECT 1 FROM signal_classifications sc WHERE sc.signal_id = s.id
       )
+        AND NOT EXISTS (
+          SELECT 1 FROM signal_outcomes so
+           WHERE so.signal_id = s.id AND so.window_seconds = w.window_seconds
+        )
         AND m.asset_mapping != '{}'::jsonb
         AND s.is_heartbeat = false
-      ORDER BY s.detected_at DESC
+        AND s.detected_at + (w.window_seconds || ' seconds')::interval <= now()
+      ORDER BY s.detected_at DESC, w.window_seconds
       LIMIT 100`,
+    [windows],
   );
 
   let processed = 0;
@@ -42,64 +63,49 @@ export async function processSignalOutcomes(
       continue;
     }
 
-    const signalTime = new Date(row.detected_at);
-    const outcomes: Array<{
-      window_seconds: number;
-      price_at_signal: number;
-      price_after: number;
-      pct_change: number;
-      direction: string;
-    }> = [];
-
-    for (const windowSec of windows) {
-      try {
-        const result = await priceData.getPriceAtWindow(asset.id, signalTime, windowSec);
-        if (!result) continue;
-
-        const pctChange = ((result.afterWindow - result.atSignal) / result.atSignal) * 100;
-        const direction = pctChange > 0.5 ? 'up' : pctChange < -0.5 ? 'down' : 'flat';
-
-        outcomes.push({
-          window_seconds: windowSec,
-          price_at_signal: result.atSignal,
-          price_after: result.afterWindow,
-          pct_change: pctChange,
-          direction,
-        });
-      } catch (err) {
-        logger.warn(
-          { err, signalId: row.signal_id, window: windowSec },
-          'price fetch failed for outcome',
-        );
-      }
-    }
-
-    if (outcomes.length === 0) {
-      errors++;
-      continue;
-    }
-
     try {
-      for (const o of outcomes) {
-        await query(
-          `INSERT INTO signal_outcomes
-             (signal_id, asset, window_seconds, price_at_signal, price_after, pct_change, direction)
-           VALUES ($1, $2, $3, $4, $5, $6, $7)
-           ON CONFLICT (signal_id, asset, window_seconds) DO NOTHING`,
-          [
-            row.signal_id,
-            asset.id,
-            o.window_seconds,
-            o.price_at_signal.toFixed(8),
-            o.price_after.toFixed(8),
-            o.pct_change.toFixed(4),
-            o.direction,
-          ],
-        );
+      const result = await priceData.getPriceAtWindow(
+        asset.id,
+        new Date(row.detected_at),
+        row.window_seconds,
+      );
+      if (!result) {
+        errors++;
+        continue;
       }
+
+      const pctChange = ((result.afterWindow - result.atSignal) / result.atSignal) * 100;
+      const direction = pctChange > 0.5 ? 'up' : pctChange < -0.5 ? 'down' : 'flat';
+
+      await query(
+        `INSERT INTO signal_outcomes
+           (signal_id, asset, window_seconds, price_at_signal, price_after, pct_change, direction)
+         VALUES ($1, $2, $3, $4, $5, $6, $7)
+         ON CONFLICT (signal_id, asset, window_seconds) DO NOTHING`,
+        [
+          row.signal_id,
+          asset.id,
+          row.window_seconds,
+          result.atSignal.toFixed(8),
+          result.afterWindow.toFixed(8),
+          pctChange.toFixed(4),
+          direction,
+        ],
+      );
       processed++;
+
+      // Public verdict at T+1d and T+7d for above-threshold calls:
+      // "we said X, price did Y". This is the accountability post —
+      // the channel's best content — and it only exists because the
+      // window genuinely elapsed before the snapshot was taken.
+      if (row.window_seconds === 86400 || row.window_seconds === 604800) {
+        await broadcastOutcomeVerdict(row.signal_id, asset.id, row.window_seconds, pctChange);
+      }
     } catch (err) {
-      logger.error({ err, signalId: row.signal_id }, 'outcome insert failed');
+      logger.warn(
+        { err, signalId: row.signal_id, window: row.window_seconds },
+        'outcome processing failed for window',
+      );
       errors++;
     }
   }
@@ -109,6 +115,60 @@ export async function processSignalOutcomes(
   }
 
   return { processed, errors };
+}
+
+/**
+ * Post a "was the agent right?" verdict to the public channel for an
+ * above-threshold directional call whose outcome window just matured.
+ * Best-effort; never throws.
+ */
+async function broadcastOutcomeVerdict(
+  signalId: string,
+  asset: string,
+  windowSeconds: number,
+  pctChange: number,
+): Promise<void> {
+  try {
+    if (!config.telegram.botToken || !config.telegram.publicChannelId) return;
+
+    const { rows } = await query<{
+      conviction: number;
+      recommended_action: string;
+    }>(
+      `SELECT conviction, recommended_action FROM agent_scores
+        WHERE signal_id = $1 ORDER BY created_at DESC LIMIT 1`,
+      [signalId],
+    );
+    const score = rows[0];
+    if (!score || score.conviction < 70 || score.recommended_action === 'none') return;
+
+    const action = score.recommended_action.toUpperCase();
+    const label = WINDOW_LABEL[windowSeconds] ?? `${windowSeconds}s`;
+    const move = `${pctChange >= 0 ? '+' : ''}${pctChange.toFixed(2)}%`;
+
+    let verdict: string;
+    if (Math.abs(pctChange) <= 0.5) {
+      verdict = `⚪ flat (${move}) — no verdict`;
+    } else {
+      const correct =
+        (score.recommended_action === 'long' && pctChange > 0) ||
+        (score.recommended_action === 'short' && pctChange < 0);
+      verdict = correct ? `✅ ${move} — call CORRECT` : `❌ ${move} — call WRONG`;
+    }
+
+    const message = [
+      `🔎 LENITNES · verdict · ${asset.toUpperCase()} ${action} @ ${score.conviction}/100 · ${label}`,
+      ``,
+      verdict,
+      ``,
+      `🔗 ${config.webOrigin}/signals/${signalId}`,
+    ].join('\n');
+
+    await sendTelegram(config.telegram.publicChannelId, message);
+    logger.info({ signalId, windowSeconds, pctChange }, 'outcome verdict broadcast');
+  } catch (err) {
+    logger.error({ err, signalId, windowSeconds }, 'outcome verdict broadcast failed');
+  }
 }
 
 export async function refreshBacktestStats(): Promise<void> {

@@ -311,6 +311,58 @@ export async function executeAgentTrade(
 ): Promise<{ tradeReceipt: TradeReceipt | null; orderId: string | null }> {
   const chain = config.treasury.defaultChain;
   const coingeckoId = assetMapping.coingeckoId;
+  const side: 'long' | 'short' = agentScore.recommended_action === 'short' ? 'short' : 'long';
+
+  // ── Book discipline ─────────────────────────────────────────
+  // Same asset + same direction already open → skip: the book
+  // already expresses this thesis, and re-opening it every scan is
+  // how the old pipeline piled 3 positions onto one news cycle.
+  // Opposite direction open → this is a reversal: allowed only when
+  // the new conviction exceeds the conviction that opened the
+  // existing position, in which case the old position is closed at
+  // market (reason: signal_reversal) before the new one opens.
+  if (coingeckoId && agentScore.recommended_action !== 'none') {
+    const { rows: existing } = await query<{
+      id: string;
+      direction: string;
+      conviction_at_open: number | null;
+    }>(
+      `SELECT id, direction, conviction_at_open FROM positions
+        WHERE asset = $1 AND status = 'open'
+        ORDER BY opened_at DESC LIMIT 1`,
+      [coingeckoId],
+    );
+    const open = existing[0];
+    if (open) {
+      if (open.direction === side) {
+        logger.info(
+          { signalId, asset: coingeckoId, side, positionId: open.id },
+          'treasury: no trade — book already holds this asset+direction',
+        );
+        return { tradeReceipt: null, orderId: null };
+      }
+      const openConv = open.conviction_at_open ?? 0;
+      if (agentScore.conviction <= openConv) {
+        logger.info(
+          {
+            signalId,
+            asset: coingeckoId,
+            side,
+            newConviction: agentScore.conviction,
+            openConviction: openConv,
+          },
+          'treasury: no trade — reversal conviction does not exceed the open position',
+        );
+        return { tradeReceipt: null, orderId: null };
+      }
+      const exitPrice = await priceData.getPriceAt(coingeckoId, new Date());
+      await closePositionById(open.id, exitPrice, 'signal_reversal');
+      logger.info(
+        { signalId, asset: coingeckoId, closedPositionId: open.id, newSide: side },
+        'treasury: reversal — closed opposite position before opening new direction',
+      );
+    }
+  }
 
   // Resolve the real on-chain token address from the registry.
   // If the asset isn't tradeable on this chain, we still derive the
@@ -323,7 +375,7 @@ export async function executeAgentTrade(
   const risk = await applyRiskGate({
     coingeckoId,
     chain,
-    side: agentScore.recommended_action === 'short' ? 'short' : 'long',
+    side,
     signalId,
     intendedMode: config.treasury.defaultMode,
     amountIn: config.treasury.defaultTradeAmount,
@@ -424,99 +476,53 @@ export async function recordTrade(
   );
   const orderId = rows[0]?.id ?? '';
 
-  // Track position lifecycle — long opens, short closes.
+  // Track position lifecycle — every filled order OPENS a position
+  // in the recommended direction. Shorts are directional calls
+  // tracked as paper positions (spot venues have no short primitive);
+  // closes happen via the TP/SL scheduler, a signal reversal in
+  // executeAgentTrade, or the admin endpoint — never implicitly.
   if (status === 'filled' && orderId) {
     try {
       const asset = action.pair ?? action.tokenOut ?? 'unknown';
-      if (action.side === 'long') {
-        // Fetch the entry price at trade time so the portfolio
-        // page + auto-close can compute PnL without backfill.
-        // Best-effort: a price-fetch failure leaves entry_price_usd
-        // NULL and the portfolio service backfills lazily.
-        const entryPriceUsd = await priceData.getPriceAt(asset, new Date(receipt.timestamp));
+      // Fetch the entry price at trade time so the portfolio
+      // page + auto-close can compute PnL without backfill.
+      // Best-effort: a price-fetch failure leaves entry_price_usd
+      // NULL and the portfolio service backfills lazily.
+      const entryPriceUsd = await priceData.getPriceAt(asset, new Date(receipt.timestamp));
 
-        // TP/SL levels are conviction-scaled and only written when
-        // we have a real entry price. Without entry price the
-        // levels are meaningless, so we leave them NULL and the
-        // auto-close scheduler skips this position.
-        let takeProfitUsd: number | null = null;
-        let stopLossUsd: number | null = null;
-        if (entryPriceUsd && convictionAtOpen != null) {
-          const levels = computeTpSlLevels(entryPriceUsd, convictionAtOpen, 'long');
-          takeProfitUsd = levels.takeProfitUsd;
-          stopLossUsd = levels.stopLossUsd;
-        }
-
-        await query(
-          `INSERT INTO positions
-             (signal_id, open_order_id, asset, chain, direction,
-              entry_amount, entry_price_usd, entry_tx_hash,
-              conviction_at_open, take_profit_price, stop_loss_price)
-           VALUES ($1, $2, $3, $4, 'long',
-                   $5, $6, $7, $8, $9, $10)`,
-          [
-            signalId,
-            orderId,
-            asset,
-            action.chain,
-            action.amountIn ?? 0,
-            entryPriceUsd,
-            receipt.txHash,
-            convictionAtOpen ?? null,
-            takeProfitUsd,
-            stopLossUsd,
-          ],
-        );
-      } else if (action.side === 'short') {
-        // Close the oldest open position for this asset.
-        // Capture exit price for realized-PnL computation.
-        const { rows: openRows } = await query<{
-          id: string;
-          entry_amount: string;
-          entry_price_usd: string | null;
-        }>(
-          `SELECT id, entry_amount::text, entry_price_usd::text FROM positions
-            WHERE asset = $1 AND chain = $2 AND status = 'open'
-            ORDER BY opened_at ASC LIMIT 1`,
-          [asset, action.chain],
-        );
-        if (openRows[0]) {
-          const entryAmount = parseFloat(openRows[0].entry_amount);
-          const entryPriceUsd = openRows[0].entry_price_usd
-            ? parseFloat(openRows[0].entry_price_usd)
-            : null;
-          const exitAmount = action.amountIn ? parseFloat(action.amountIn) : 0;
-          const exitPriceUsd = await priceData.getPriceAt(asset, new Date(receipt.timestamp));
-
-          // Prefer USD-based PnL when both entry and exit prices
-          // are known. Falls back to the amount-delta computation
-          // the original implementation used (less meaningful but
-          // preserves history).
-          let pnlUsd: number;
-          let pnlPct: number;
-          if (entryPriceUsd != null && exitPriceUsd != null && entryAmount > 0) {
-            pnlPct = ((exitPriceUsd - entryPriceUsd) / entryPriceUsd) * 100;
-            pnlUsd = (exitPriceUsd - entryPriceUsd) * entryAmount;
-          } else {
-            pnlPct = entryAmount > 0 ? ((exitAmount - entryAmount) / entryAmount) * 100 : 0;
-            pnlUsd = exitAmount - entryAmount;
-          }
-
-          await query(
-            `UPDATE positions
-               SET status = 'closed',
-                   close_order_id = $2,
-                   exit_amount = $3,
-                   exit_price_usd = $4,
-                   exit_tx_hash = $5,
-                   closed_at = now(),
-                   pnl_usd = $6,
-                   pnl_pct = $7
-             WHERE id = $1`,
-            [openRows[0].id, orderId, exitAmount, exitPriceUsd, receipt.txHash, pnlUsd, pnlPct],
-          );
-        }
+      // TP/SL levels are conviction-scaled and only written when
+      // we have a real entry price. Without entry price the
+      // levels are meaningless, so we leave them NULL and the
+      // auto-close scheduler skips this position.
+      let takeProfitUsd: number | null = null;
+      let stopLossUsd: number | null = null;
+      if (entryPriceUsd && convictionAtOpen != null) {
+        const levels = computeTpSlLevels(entryPriceUsd, convictionAtOpen, action.side);
+        takeProfitUsd = levels.takeProfitUsd;
+        stopLossUsd = levels.stopLossUsd;
       }
+
+      await query(
+        `INSERT INTO positions
+           (signal_id, open_order_id, asset, chain, direction,
+            entry_amount, entry_price_usd, entry_tx_hash,
+            conviction_at_open, take_profit_price, stop_loss_price)
+         VALUES ($1, $2, $3, $4, $5,
+                 $6, $7, $8, $9, $10, $11)`,
+        [
+          signalId,
+          orderId,
+          asset,
+          action.chain,
+          action.side,
+          action.amountIn ?? 0,
+          entryPriceUsd,
+          receipt.txHash,
+          convictionAtOpen ?? null,
+          takeProfitUsd,
+          stopLossUsd,
+        ],
+      );
     } catch (err) {
       logger.warn({ err, orderId }, 'position tracking failed (non-blocking)');
     }
@@ -548,17 +554,18 @@ export async function recordTrade(
 export async function closePositionById(
   positionId: string,
   exitPriceUsd: number | null,
-  reason: 'take_profit' | 'stop_loss' | 'manual',
+  reason: 'take_profit' | 'stop_loss' | 'manual' | 'signal_reversal',
 ): Promise<{ closed: boolean; pnlUsd: number | null; closeTxHash: string | null }> {
   const { rows } = await query<{
     asset: string;
     chain: string;
+    direction: string;
     entry_amount: string;
     entry_price_usd: string | null;
     entry_tx_hash: string | null;
     signal_id: string | null;
   }>(
-    `SELECT asset, chain, entry_amount::text, entry_price_usd::text,
+    `SELECT asset, chain, direction, entry_amount::text, entry_price_usd::text,
             entry_tx_hash, signal_id
        FROM positions WHERE id = $1 AND status = 'open'`,
     [positionId],
@@ -609,8 +616,10 @@ export async function closePositionById(
   let pnlUsd: number | null = null;
   let pnlPct: number | null = null;
   if (entryPriceUsd != null && exitPriceUsd != null && entryAmount > 0) {
-    pnlPct = ((exitPriceUsd - entryPriceUsd) / entryPriceUsd) * 100;
-    pnlUsd = (exitPriceUsd - entryPriceUsd) * entryAmount;
+    // Shorts profit when price falls.
+    const sign = row.direction === 'short' ? -1 : 1;
+    pnlPct = sign * ((exitPriceUsd - entryPriceUsd) / entryPriceUsd) * 100;
+    pnlUsd = sign * (exitPriceUsd - entryPriceUsd) * entryAmount;
   }
 
   await query(

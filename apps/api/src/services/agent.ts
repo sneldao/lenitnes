@@ -16,16 +16,17 @@ import { query } from '../db/pool.js';
 import { logger } from '../logger.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
-const RUBRIC_PATH = path.resolve(__dirname, 'agent/rubric-v3.md');
+const RUBRIC_PATH = path.resolve(__dirname, 'agent/rubric-v4.md');
 
-// v3 (2026-06-30): adds `narrative_context` input + a
-// narrative-synthesis section. The agent now scores each signal
-// with knowledge of what every other monitored repo and the
-// SoSoValue news feed did in the same 24h window, so it can string
-// commits across repos and weigh corroboration. v2 prompts still
-// parse (the new field is optional) so the version bump is
-// non-breaking for replay.
-const RUBRIC_VERSION = 'v3';
+// v4 (2026-07-07): calibration hardening + book awareness. Adds
+// `book_context` input (current open positions) with book-discipline
+// rules (no pile-on, reversals need named new evidence), a commit-
+// citation requirement (thesis must cite the SHA and its code-level
+// meaning or conviction ≤ 50), and a hard cap of 65 on news-only
+// signals — the operation's edge is commits, not headlines. v3
+// prompts still parse (the new field is optional) so the version
+// bump is non-breaking for replay.
+const RUBRIC_VERSION = 'v4';
 const EXPECTED_OUTPUT_TOKENS = 700;
 
 export interface AgentEnv {
@@ -93,6 +94,58 @@ function readRubric(): string {
   return fs.readFileSync(RUBRIC_PATH, 'utf8');
 }
 
+/**
+ * Extract the first parseable JSON object from a model response.
+ * Models wrap JSON in markdown fences, prepend headings ("### Output"),
+ * emit <think> blocks, or append prose — all observed in production.
+ * Strategy: strip reasoning tags, then try (1) the whole string,
+ * (2) each fenced code block, (3) the outermost {...} span scanned
+ * with brace counting (string-aware).
+ */
+function extractJsonObject(raw: string): unknown {
+  const text = raw.replace(/<think>[\s\S]*?<\/think>/gi, '').trim();
+
+  const candidates: string[] = [text];
+  for (const m of text.matchAll(/```(?:json)?\s*([\s\S]*?)```/gi)) {
+    candidates.push(m[1].trim());
+  }
+  const start = text.indexOf('{');
+  if (start !== -1) {
+    let depth = 0;
+    let inString = false;
+    let escaped = false;
+    for (let i = start; i < text.length; i++) {
+      const ch = text[i];
+      if (escaped) {
+        escaped = false;
+      } else if (inString) {
+        if (ch === '\\') escaped = true;
+        else if (ch === '"') inString = false;
+      } else if (ch === '"') {
+        inString = true;
+      } else if (ch === '{') {
+        depth++;
+      } else if (ch === '}') {
+        depth--;
+        if (depth === 0) {
+          candidates.push(text.slice(start, i + 1));
+          break;
+        }
+      }
+    }
+  }
+
+  for (const candidate of candidates) {
+    try {
+      const parsed = JSON.parse(candidate);
+      if (typeof parsed === 'object' && parsed !== null) return parsed;
+    } catch {
+      // try the next candidate
+    }
+  }
+  throw new AgentScoreError('Failed to parse agent JSON response: no JSON object found');
+}
+
 function parseAgentResponse(raw: string): {
   conviction: number;
   thesis: string;
@@ -101,32 +154,7 @@ function parseAgentResponse(raw: string): {
   hcs_dispatch: string;
   proof_action: 'standard' | 'dedicated_topic';
 } {
-  const stripped = raw
-    .replace(/^```(?:json)?\s*/i, '')
-    .replace(/```\s*$/i, '')
-    .trim();
-
-  let parsed: unknown;
-  try {
-    parsed = JSON.parse(stripped);
-  } catch {
-    // Some models append free-text after the JSON object. Try finding the
-    // last '}' and parsing only the JSON portion.
-    const braceIdx = stripped.lastIndexOf('}');
-    if (braceIdx !== -1) {
-      try {
-        parsed = JSON.parse(stripped.slice(0, braceIdx + 1));
-      } catch (innerErr) {
-        throw new AgentScoreError(
-          `Failed to parse agent JSON response: ${(innerErr as Error).message}`,
-        );
-      }
-    } else {
-      throw new AgentScoreError(
-        `Failed to parse agent JSON response: no JSON object found in response`,
-      );
-    }
-  }
+  const parsed = extractJsonObject(raw);
 
   if (typeof parsed !== 'object' || parsed === null) {
     throw new AgentScoreError('Agent response is not an object');
@@ -259,23 +287,50 @@ export async function score(input: AgentInput, env: AgentEnv): Promise<AgentScor
 
   const client = new OpenAI({ apiKey: env.apiKey, baseURL: env.baseUrl });
   const temperature = Number(process.env.AGENT_TEMPERATURE ?? 0);
-  const response = await client.chat.completions.create({
-    model: env.model,
-    messages: [{ role: 'user', content: prompt }],
-    temperature,
-  });
+  const messages: Array<{ role: 'user' | 'assistant'; content: string }> = [
+    { role: 'user', content: prompt },
+  ];
 
-  const message = response.choices[0]?.message?.content;
-  if (!message || typeof message !== 'string') {
-    throw new AgentScoreError('Empty response from agent');
+  // One corrective retry on malformed output: feed the bad response
+  // back and demand bare JSON. Weak instruction-followers (observed:
+  // "### Output" preambles) usually comply on the second attempt;
+  // a second failure is a real error and propagates.
+  let parsed: ReturnType<typeof parseAgentResponse> | null = null;
+  let message = '';
+  for (let attempt = 0; attempt < 2 && !parsed; attempt++) {
+    const response = await client.chat.completions.create({
+      model: env.model,
+      messages,
+      temperature,
+    });
+
+    const content = response.choices[0]?.message?.content;
+    if (response.usage) {
+      recordCost(env, response.usage.prompt_tokens ?? 0, response.usage.completion_tokens ?? 0);
+    }
+    if (!content || typeof content !== 'string') {
+      throw new AgentScoreError('Empty response from agent');
+    }
+    message = content;
+
+    try {
+      parsed = parseAgentResponse(content);
+    } catch (err) {
+      if (attempt === 1) throw err;
+      logger.warn(
+        { signalId: input.signal_id, err },
+        'agent response unparseable — retrying with corrective instruction',
+      );
+      messages.push({ role: 'assistant', content });
+      messages.push({
+        role: 'user',
+        content:
+          'Your previous response was not valid JSON. Respond again with ONLY the JSON object — no markdown fences, no headings, no prose.',
+      });
+    }
   }
-
-  const parsed = parseAgentResponse(message);
-
-  if (response.usage) {
-    recordCost(env, response.usage.prompt_tokens ?? 0, response.usage.completion_tokens ?? 0);
-    logger.debug({ signalId: input.signal_id, dailySpendUsd, estimatedUsd }, 'agent scored signal');
-  }
+  if (!parsed) throw new AgentScoreError('Agent response unparseable after retry');
+  logger.debug({ signalId: input.signal_id, dailySpendUsd, estimatedUsd }, 'agent scored signal');
 
   return {
     id: '',
@@ -338,6 +393,41 @@ export async function scoreAndPersist(input: AgentInput, env: AgentEnv): Promise
   const result = await score(input, env);
   await saveAgentScore(input.signal_id, result);
   return result;
+}
+
+/**
+ * Build the `book_context` input (rubric v4): the current open
+ * positions with direction, conviction at open, age, and the thesis
+ * that opened each. Lets the agent apply book discipline — no
+ * pile-ons, no evidence-free reversals. Returns '' on a flat book.
+ */
+export async function buildBookContext(): Promise<string> {
+  const { rows } = await query<{
+    asset: string;
+    direction: string;
+    conviction_at_open: number | null;
+    age_hours: string;
+    thesis: string | null;
+  }>(
+    `SELECT p.asset, p.direction, p.conviction_at_open,
+            ROUND(EXTRACT(EPOCH FROM (now() - p.opened_at)) / 3600)::text AS age_hours,
+            LEFT(a.thesis, 140) AS thesis
+       FROM positions p
+       LEFT JOIN agent_scores a ON a.signal_id = p.signal_id
+      WHERE p.status = 'open'
+      ORDER BY p.opened_at`,
+  );
+  if (rows.length === 0) return '';
+
+  const lines = ['--- Open book ---'];
+  for (const r of rows) {
+    const conv = r.conviction_at_open != null ? ` · opened at ${r.conviction_at_open}/100` : '';
+    const thesis = r.thesis ? ` · entry thesis: "${r.thesis}"` : '';
+    lines.push(
+      `  ${r.asset.toUpperCase()} ${r.direction.toUpperCase()} · ${r.age_hours}h old${conv}${thesis}`,
+    );
+  }
+  return lines.join('\n');
 }
 
 /**

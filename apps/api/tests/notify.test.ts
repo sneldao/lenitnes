@@ -46,7 +46,7 @@ describe('formatSignalBroadcastMessage', () => {
   it('shows trade mode + chain inline on a single line', () => {
     const msg = formatSignalBroadcastMessage(baseInput);
     // Paper tx hash has no explorer URL, so it appears verbatim.
-    expect(msg).toContain('📈 paper · arbitrum · 0xpapabc123def456');
+    expect(msg).toContain('📈 PAPER (tracked call, no on-chain swap) · arbitrum');
     // Don't link a paper tx to an explorer (that would 404).
     expect(msg).not.toContain('https://sepolia.arbiscan.io/tx/0xpap');
   });
@@ -56,7 +56,7 @@ describe('formatSignalBroadcastMessage', () => {
       ...baseInput,
       tradeReceipt: { ...baseInput.tradeReceipt!, txHash: '0xREAL_TX_HASH', mode: 'live' },
     });
-    expect(msg).toContain('📈 live · arbitrum · https://sepolia.arbiscan.io/tx/0xREAL_TX_HASH');
+    expect(msg).toContain('📈 LIVE · arbitrum · https://sepolia.arbiscan.io/tx/0xREAL_TX_HASH');
   });
 
   it('includes Hedera HCS explorer link when hederaTxId is set', () => {

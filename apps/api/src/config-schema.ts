@@ -122,6 +122,7 @@ export const envSchema = z
     // ── Notification / webhook ──
     TELEGRAM_BOT_TOKEN: z.string().optional().default(''),
     TELEGRAM_PUBLIC_CHANNEL_ID: z.string().optional().default(''),
+    TELEGRAM_OPERATOR_CHAT_ID: z.string().optional().default(''),
     SMTP_URL: z.string().optional().default(''),
 
     // ── Hedera (legacy surface; kept for parity with the pre-pivot

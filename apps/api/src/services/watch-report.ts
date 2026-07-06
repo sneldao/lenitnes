@@ -1,6 +1,7 @@
 import { query } from '../db/pool.js';
 import { config } from '../config.js';
 import { sendTelegram } from './notify.js';
+import { getPortfolioSummary } from './portfolio.js';
 import { logger } from '../logger.js';
 
 interface MonitorRow {
@@ -178,6 +179,28 @@ export async function buildWatchReport(): Promise<string> {
       lines.push(`   ${o.chain} · ${o.status} · ${tx} (${o.placed_at.slice(0, 10)})`);
     }
     lines.push('');
+  }
+
+  // ── Book state — moved here from the (removed) hourly heartbeat.
+  //    Public-safe fields only; no internal hygiene warnings.
+  try {
+    const book = await getPortfolioSummary();
+    if (book.total_open_positions > 0 || book.total_closed_positions > 0) {
+      const realized = book.realized_pnl_usd;
+      const unrealized = book.unrealized_pnl_usd;
+      const parts = [
+        `${book.total_open_positions} open`,
+        `${book.total_closed_positions} closed`,
+        `${realized >= 0 ? '+' : ''}$${realized.toFixed(2)} realized`,
+      ];
+      if (book.total_open_positions > 0) {
+        parts.push(`${unrealized >= 0 ? '+' : ''}$${unrealized.toFixed(2)} unrealized`);
+      }
+      lines.push(`💼 Book · ${parts.join(' · ')}`);
+      lines.push('');
+    }
+  } catch (err) {
+    logger.warn({ err }, 'watch report: portfolio summary failed (section skipped)');
   }
 
   // ── One-line stat strip + footer ──

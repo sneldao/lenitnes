@@ -177,6 +177,9 @@ export const config = {
   telegram: {
     botToken: env.TELEGRAM_BOT_TOKEN,
     publicChannelId: env.TELEGRAM_PUBLIC_CHANNEL_ID,
+    // Private operator DM/chat for infra alerts (dead-man's switch).
+    // Never used for signal content.
+    operatorChatId: env.TELEGRAM_OPERATOR_CHAT_ID,
   },
   smtpUrl: env.SMTP_URL,
 

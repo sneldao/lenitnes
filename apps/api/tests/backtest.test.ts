@@ -14,8 +14,17 @@ vi.mock('../src/db/pool.js', () => ({
 }));
 
 const getPriceAtWindowMock = vi.fn();
-vi.mock('../src/services/price.js', () => ({
-  getPriceAtWindow: (...args: unknown[]) => getPriceAtWindowMock(...args),
+vi.mock('../src/services/data-providers/registry.js', () => ({
+  priceData: {
+    getPriceAtWindow: (...args: unknown[]) => getPriceAtWindowMock(...args),
+    getPriceAt: vi.fn().mockResolvedValue(null),
+  },
+  marketData: {},
+}));
+
+const sendTelegramMock = vi.fn().mockResolvedValue(undefined);
+vi.mock('../src/services/notify.js', () => ({
+  sendTelegram: (...args: unknown[]) => sendTelegramMock(...args),
 }));
 
 vi.mock('../src/logger.js', () => ({
@@ -37,17 +46,17 @@ function resetMocks() {
 describe('processSignalOutcomes', () => {
   beforeEach(resetMocks);
 
-  it('processes pending signals and inserts outcomes', async () => {
-    // Step 1: pending query returns one signal with asset_mapping
+  it('processes pending signal-window pairs and inserts outcomes', async () => {
+    // Step 1: pending query returns one row per matured signal×window
+    const windows = [3600, 14400, 86400, 604800];
     queryMock.mockResolvedValueOnce({
-      rows: [
-        {
-          signal_id: 'sig-1',
-          detected_at: '2026-06-01T12:00:00Z',
-          asset_mapping: { coingeckoId: 'zcash' },
-        },
-      ],
-      rowCount: 1,
+      rows: windows.map((w) => ({
+        signal_id: 'sig-1',
+        detected_at: '2026-06-01T12:00:00Z',
+        asset_mapping: { coingeckoId: 'zcash' },
+        window_seconds: w,
+      })),
+      rowCount: 4,
     });
 
     // Price fetches: 4 windows (1h, 4h, 24h, 7d)
@@ -57,16 +66,14 @@ describe('processSignalOutcomes', () => {
       .mockResolvedValueOnce({ atSignal: 25.0, afterWindow: 27.0 }) // 24h: +8%
       .mockResolvedValueOnce({ atSignal: 25.0, afterWindow: 25.5 }); // 7d: +2%
 
-    // Outcome inserts (4 windows) — all succeed
-    for (let i = 0; i < 4; i++) {
-      queryMock.mockResolvedValueOnce({ rows: [], rowCount: 1 });
-    }
-
-    // refreshBacktestStats: aggregate query returns empty (no classifications yet)
-    queryMock.mockResolvedValueOnce({ rows: [], rowCount: 0 });
+    // Per window: outcome insert; 1d/7d additionally fetch the agent
+    // score for the verdict broadcast (telegram unconfigured in tests,
+    // but the guard runs before the score query — order-insensitive
+    // via mockResolvedValue).
+    queryMock.mockResolvedValue({ rows: [], rowCount: 1 });
 
     const result = await processSignalOutcomes();
-    expect(result.processed).toBe(1);
+    expect(result.processed).toBe(4);
     expect(result.errors).toBe(0);
     expect(getPriceAtWindowMock).toHaveBeenCalledTimes(4);
   });
@@ -78,6 +85,7 @@ describe('processSignalOutcomes', () => {
           signal_id: 'sig-2',
           detected_at: '2026-06-01T12:00:00Z',
           asset_mapping: { tokenizedStock: 'NVDA' }, // not resolvable by price service
+          window_seconds: 3600,
         },
       ],
       rowCount: 1,
@@ -96,6 +104,7 @@ describe('processSignalOutcomes', () => {
           signal_id: 'sig-3',
           detected_at: '2026-06-01T12:00:00Z',
           asset_mapping: { coingeckoId: 'bitcoin' },
+          window_seconds: 3600,
         },
       ],
       rowCount: 1,

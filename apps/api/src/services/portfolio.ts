@@ -148,8 +148,10 @@ export async function getOpenPositions(): Promise<OpenPosition[]> {
     let unrealizedPnlUsd: number | null = null;
     let unrealizedPnlPct: number | null = null;
     if (currentPrice != null && entryPrice != null && entryAmount > 0) {
-      unrealizedPnlUsd = (currentPrice - entryPrice) * entryAmount;
-      unrealizedPnlPct = ((currentPrice - entryPrice) / entryPrice) * 100;
+      // Shorts profit when price falls.
+      const sign = r.direction === 'short' ? -1 : 1;
+      unrealizedPnlUsd = sign * (currentPrice - entryPrice) * entryAmount;
+      unrealizedPnlPct = sign * ((currentPrice - entryPrice) / entryPrice) * 100;
     }
     return {
       id: r.id,

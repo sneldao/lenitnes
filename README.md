@@ -32,18 +32,18 @@ No human input in the steady state. See [`docs/AGENT_ARCHITECTURE.md`](./docs/AG
 
 ## Stack
 
-| Layer          | Choice                                               |
-| -------------- | ---------------------------------------------------- |
-| API            | Express 5 + TypeScript (Node 20, ESM)                |
-| DB             | PostgreSQL 14                                        |
-| Agent          | Llama 3.1 70B via NVIDIA API · versioned rubric (v3) |
-| Market data    | CoinMarketCap Pro API (+ x402 fallback)              |
-| News + macro   | SoSoValue On-Chain Finance API                       |
-| Notarize       | Hedera HCS + Arbitrum SignalRegistry                 |
-| Trading (AMM)  | PancakeSwap V2 on BSC                                |
-| Trading (CLOB) | SoDEX orderbook on ValueChain                        |
-| Broadcast      | Telegram public channel                              |
-| Frontend       | Next.js 16 + Tailwind                                |
+| Layer          | Choice                                                     |
+| -------------- | ---------------------------------------------------------- |
+| API            | Express 5 + TypeScript (Node 20, ESM)                      |
+| DB             | PostgreSQL 14                                              |
+| Agent          | LLM via NVIDIA API (`AGENT_MODEL`) · versioned rubric (v4) |
+| Market data    | CoinMarketCap Pro API (+ x402 fallback)                    |
+| News + macro   | SoSoValue On-Chain Finance API                             |
+| Notarize       | Hedera HCS + Arbitrum SignalRegistry                       |
+| Trading (AMM)  | PancakeSwap V2 on BSC                                      |
+| Trading (CLOB) | SoDEX orderbook on ValueChain                              |
+| Broadcast      | Telegram public channel                                    |
+| Frontend       | Next.js 16 + Tailwind                                      |
 
 ## Getting started (local)
 

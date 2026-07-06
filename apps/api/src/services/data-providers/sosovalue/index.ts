@@ -26,8 +26,29 @@ function apiKey(): string {
   return key;
 }
 
+// Auth circuit breaker: an invalid/revoked key returns 401 on every
+// call forever. Without this latch, the pipeline retried the dead key
+// every 2h for days, spamming logs while the operator saw nothing.
+// After AUTH_FAILURE_LIMIT consecutive 401/403s the provider disables
+// itself for the process lifetime; fixing the key requires a restart
+// anyway, so a runtime re-enable adds nothing.
+const AUTH_FAILURE_LIMIT = 3;
+let consecutiveAuthFailures = 0;
+let authDisabled = false;
+
 function isConfigured(): boolean {
-  return !!process.env.SOSO_VALUE_API_KEY;
+  return !!process.env.SOSO_VALUE_API_KEY && !authDisabled;
+}
+
+function recordAuthFailure(): void {
+  consecutiveAuthFailures++;
+  if (consecutiveAuthFailures >= AUTH_FAILURE_LIMIT && !authDisabled) {
+    authDisabled = true;
+    logger.error(
+      { consecutiveAuthFailures },
+      'sosovalue: API key rejected repeatedly — provider DISABLED for process lifetime. Fix SOSO_VALUE_API_KEY and restart.',
+    );
+  }
 }
 
 async function get<T>(path: string, params?: Record<string, string | number>): Promise<T> {
@@ -42,9 +63,11 @@ async function get<T>(path: string, params?: Record<string, string | number>): P
     signal: AbortSignal.timeout(10_000),
   });
   if (!res.ok) {
+    if (res.status === 401 || res.status === 403) recordAuthFailure();
     const body = await res.text().catch(() => '');
     throw new Error(`SoSoValue API error ${res.status}: ${body.slice(0, 200)}`);
   }
+  consecutiveAuthFailures = 0;
   const json = (await res.json()) as ApiEnvelope<T>;
   if (json.code !== 0) {
     throw new Error(`SoSoValue API error: ${json.message}`);

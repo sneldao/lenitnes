@@ -8,7 +8,6 @@ import { recordSignalOnChain } from '../services/evm/signal-registry.js';
 import { getProvider } from '../services/evm/client.js';
 import { sendDailyWatchReport } from '../services/watch-report.js';
 import { sendTelegram } from '../services/notify.js';
-import { getPortfolioSummary, getOpenPositions } from '../services/portfolio.js';
 import { closePositionById } from '../services/treasury.js';
 import { computeTpSlLevels } from '../services/treasury/risk.js';
 import { priceData } from '../services/data-providers/registry.js';
@@ -18,14 +17,13 @@ let monitorJob: cron.ScheduledTask | null = null;
 let backtestJob: cron.ScheduledTask | null = null;
 let proofRetryJob: cron.ScheduledTask | null = null;
 let watchReportJob: cron.ScheduledTask | null = null;
-let heartbeatJob: cron.ScheduledTask | null = null;
+let deadmanJob: cron.ScheduledTask | null = null;
 let gasCheckJob: cron.ScheduledTask | null = null;
 let tpSlCheckJob: cron.ScheduledTask | null = null;
 let narrativeJob: cron.ScheduledTask | null = null;
 let monitorRunning = false;
 let backtestRunning = false;
 let proofRetryRunning = false;
-let heartbeatRunning = false;
 
 const PROOF_RETRY_MAX_ATTEMPTS = 10;
 
@@ -170,190 +168,67 @@ async function retryFailedProofs(): Promise<void> {
   }
 }
 
-// ── Hourly editorial dispatch ──────────────────────────────────
-// Posts a single "what the agent is doing right now" message to
-// the public Telegram channel every hour. Voice = editorial
-// dispatch, not sysadmin status. Leads with the top thesis,
-// shows repo velocity, surfaces book state. Drops the redundant
-// /monitors link and the "HCS-timestamped" infra noise.
+// ── Hourly heartbeat: REMOVED (2026-07-07) ─────────────────────
+// The hourly "editorial dispatch" reposted the single highest-
+// conviction thesis of the last 24h every hour — the public channel
+// became 24 near-identical copies of one stale news take, and aired
+// internal hygiene warnings (missing TP/SL) to subscribers. The
+// public channel now only carries NEW information: above-threshold
+// signals with trades, position closes, outcome verdicts, and the
+// daily watch report (which carries the book state).
 
-/**
- * Build the "agent is operating" activity line for the quiet-hour
- * heartbeat: news items reviewed, next macro event, watched assets.
- * Returns null when there is nothing to surface (e.g. SoSoValue not
- * configured and no watched assets) so the caller can skip it.
- */
-async function buildQuietScanActivity(): Promise<string | null> {
-  const parts: string[] = [];
+// ── Dead-man's switch ─────────────────────────────────────────
+// The pipeline died silently once (invalid SoSoValue key → no
+// narrative clusters → zero agent scores for 30h) while the channel
+// kept posting stale heartbeats. This watchdog pages the OPERATOR
+// (never the public channel) when the pipeline goes quiet:
+//   - no monitor checks recorded in 2h  → worker is dead/stuck
+//   - no agent score in 48h             → scoring pipeline starved
+// Alerts are rate-limited to one per condition per 12h.
+const DEADMAN_ALERT_COOLDOWN_MS = 12 * 3_600_000;
+const lastDeadmanAlertAt: Record<string, number> = {};
 
-  // Watched assets — the public watchlist, always available.
-  const { rows: watched } = await query<{ asset: string }>(
-    `SELECT DISTINCT m.asset_mapping->>'coingeckoId' AS asset
-       FROM monitors m
-      WHERE m.url NOT LIKE 'narrative:%'
-        AND m.asset_mapping->>'coingeckoId' IS NOT NULL
-      ORDER BY 1`,
-  );
-  const assetList = watched.map((r) => (r.asset ?? '').toUpperCase()).filter(Boolean);
-
-  // SoSoValue news + macro — best-effort, only when configured.
-  let newsCount = 0;
-  let nextMacro: string | null = null;
-  if (process.env.SOSO_VALUE_API_KEY) {
-    try {
-      const { getNewsFeed, getMacroEvents } =
-        await import('../services/data-providers/sosovalue/index.js');
-      const feed = await getNewsFeed({ pageSize: 1 });
-      newsCount = feed?.total ?? 0;
-      const events = await getMacroEvents();
-      // Next upcoming event = first day with date >= today.
-      const today = new Date().toISOString().slice(0, 10);
-      const upcoming = events.find((d) => d.date >= today);
-      nextMacro = upcoming ? `${upcoming.date}: ${upcoming.events[0] ?? 'macro event'}` : null;
-    } catch (err) {
-      logger.warn({ err }, 'heartbeat: sosovalue scan-activity fetch failed (non-blocking)');
-    }
-  }
-
-  if (newsCount > 0) parts.push(`📰 ${newsCount} news items reviewed`);
-  if (nextMacro) parts.push(`📅 next macro: ${nextMacro}`);
-  if (assetList.length > 0) parts.push(`👁 watching: ${assetList.join(', ')}`);
-
-  return parts.length > 0 ? parts.join(' · ') : null;
-}
-
-async function sendPipelineHeartbeat(): Promise<void> {
-  if (heartbeatRunning || !config.telegram.botToken || !config.telegram.publicChannelId) return;
-  heartbeatRunning = true;
+async function checkPipelinePulse(): Promise<void> {
   try {
-    const [
-      { rows: topThoughts },
-      { rows: repoActivity },
-      { rows: signals24h },
-      portfolioSummary,
-      openPositions,
-    ] = await Promise.all([
-      // Top thesis in last 24h — by conviction, falling back to most-recent.
-      query<{
-        conviction: number;
-        thesis: string;
-        asset: string | null;
-        recommended_action: string;
-      }>(
-        `SELECT a.conviction,
-                LEFT(a.thesis, 180) AS thesis,
-                m.asset_mapping->>'coingeckoId' AS asset,
-                a.recommended_action
-           FROM agent_scores a
-           JOIN signals s ON s.id = a.signal_id
-           JOIN monitors m ON m.id = s.monitor_id
-          WHERE a.created_at > now() - interval '24 hours'
-          ORDER BY a.conviction DESC, a.created_at DESC
-          LIMIT 1`,
-      ),
-      // Repo velocity — commits seen in the last 24h, top 3.
-      query<{ url: string; commits: string }>(
-        `SELECT m.url, COUNT(s.id)::text AS commits
-           FROM monitors m
-           LEFT JOIN signals s
-             ON s.monitor_id = m.id
-            AND s.detected_at > now() - interval '24 hours'
-            AND NOT s.is_heartbeat
-          WHERE m.status = 'active'
-          GROUP BY m.id, m.url
-         HAVING COUNT(s.id) > 0
-          ORDER BY COUNT(s.id) DESC
-          LIMIT 3`,
-      ),
-      query<{ c: string }>(
-        "SELECT COUNT(*)::text AS c FROM signals WHERE detected_at > now() - interval '24 hours' AND NOT is_heartbeat",
-      ),
-      getPortfolioSummary(),
-      getOpenPositions(),
+    const operatorChatId = config.telegram.operatorChatId;
+    const [{ rows: checkRows }, { rows: scoreRows }] = await Promise.all([
+      query<{ latest: string | null }>(`SELECT MAX(last_check_at)::text AS latest FROM monitors`),
+      query<{ latest: string | null }>(`SELECT MAX(created_at)::text AS latest FROM agent_scores`),
     ]);
 
-    const top = topThoughts[0];
-    const sigCount = parseInt(signals24h[0]?.c ?? '0', 10);
+    const alerts: Array<{ key: string; message: string }> = [];
+    const hoursSince = (ts: string | null): number | null =>
+      ts ? (Date.now() - new Date(ts).getTime()) / 3_600_000 : null;
 
-    // Lead: agent posture as a verb. Falls through to "watching"
-    // when there's no scored signal in the last 24h. The quiet
-    // branch surfaces scan activity (news reviewed, macro calendar,
-    // watched assets) so the channel reads as "the agent is
-    // operating" rather than "the agent is doing nothing".
-    const lines: string[] = [];
-    if (top) {
-      const action = top.recommended_action.toUpperCase();
-      const asset = top.asset ?? 'watchlist';
-      lines.push(
-        `🛡️ LENITNES · ${asset.toUpperCase()} ${action} · conviction ${top.conviction}/100`,
-      );
-      lines.push('');
-      lines.push(`💭 ${top.thesis}`);
-    } else {
-      lines.push(`🛡️ LENITNES · watching · ${sigCount} signals scanned (24h)`);
-      lines.push('');
-      lines.push(`💭 No conviction above threshold — quiet hour.`);
-      // Prove the agent is operating, not idle: how many news items
-      // it reviewed this hour, the next macro event on the calendar,
-      // and the assets it's watching. Best-effort — a SoSoValue
-      // failure just drops these lines.
-      const scanActivity = await buildQuietScanActivity();
-      if (scanActivity) {
-        lines.push('');
-        lines.push(scanActivity);
-      }
-    }
-    lines.push('');
-
-    // Watchlist velocity — only when something fired today.
-    if (repoActivity.length > 0) {
-      lines.push(`📊 Watchlist (24h)`);
-      for (const r of repoActivity) {
-        const repo = r.url.replace(/^https?:\/\/(www\.)?github\.com\//, '').replace(/\/.*$/, '');
-        lines.push(`   ${repo} · ${r.commits} signal(s)`);
-      }
-      lines.push('');
+    const checkAge = hoursSince(checkRows[0]?.latest ?? null);
+    if (checkAge == null || checkAge > 2) {
+      alerts.push({
+        key: 'checks',
+        message: `no monitor checks for ${checkAge == null ? 'ever' : checkAge.toFixed(1) + 'h'} — worker dead or queue stuck`,
+      });
     }
 
-    // Book state — number of opens, oldest age, realized PnL.
-    const openCount = portfolioSummary.total_open_positions;
-    const closedCount = portfolioSummary.total_closed_positions;
-    const realized = portfolioSummary.realized_pnl_usd;
-    const unrealized = portfolioSummary.unrealized_pnl_usd;
-    const realizedLine =
-      closedCount > 0
-        ? `${realized >= 0 ? '+' : ''}$${realized.toFixed(2)} realized · ${closedCount} closed`
-        : '0 closed';
-    const unrealizedLine =
-      openCount > 0 ? `${unrealized >= 0 ? '+' : ''}$${unrealized.toFixed(2)} unrealized` : '';
-    lines.push(`💼 Book · ${openCount} open · ${realizedLine}`);
-    if (unrealizedLine) lines.push(`   ${unrealizedLine}`);
+    const scoreAge = hoursSince(scoreRows[0]?.latest ?? null);
+    if (scoreAge != null && scoreAge > 48) {
+      alerts.push({
+        key: 'scores',
+        message: `no agent score for ${scoreAge.toFixed(0)}h — scoring pipeline starved (check data feeds + agent API)`,
+      });
+    }
 
-    if (openPositions.length > 0) {
-      const oldest = openPositions.reduce(
-        (acc, p) => (p.opened_at < acc.opened_at ? p : acc),
-        openPositions[0],
-      );
-      const ageHrs = Math.round((Date.now() - new Date(oldest.opened_at).getTime()) / 3_600_000);
-      lines.push(`   oldest: ${oldest.asset} · ${ageHrs}h`);
-      // Surface the safety state so readers know whether positions
-      // have auto-close armed.
-      const armed = openPositions.filter(
-        (p) => p.take_profit_price != null || p.stop_loss_price != null,
-      ).length;
-      if (armed < openPositions.length) {
-        lines.push(`   ⚠ ${openPositions.length - armed} position(s) without TP/SL`);
+    for (const alert of alerts) {
+      const last = lastDeadmanAlertAt[alert.key] ?? 0;
+      if (Date.now() - last < DEADMAN_ALERT_COOLDOWN_MS) continue;
+      lastDeadmanAlertAt[alert.key] = Date.now();
+      logger.error({ alert: alert.key }, `dead-man's switch: ${alert.message}`);
+      if (operatorChatId && config.telegram.botToken) {
+        await sendTelegram(operatorChatId, `⚠️ LENITNES operator alert\n\n${alert.message}`).catch(
+          (err) => logger.error({ err }, "dead-man's switch: operator telegram failed"),
+        );
       }
     }
-    lines.push('');
-    lines.push(`🔗 ${config.webOrigin}/scorecard`);
-
-    await sendTelegram(config.telegram.publicChannelId, lines.join('\n'));
-    logger.info('pipeline heartbeat sent to telegram');
   } catch (err) {
-    logger.error({ err }, 'pipeline heartbeat failed');
-  } finally {
-    heartbeatRunning = false;
+    logger.error({ err }, "dead-man's switch check failed");
   }
 }
 
@@ -579,13 +454,16 @@ async function checkTakeProfitStopLoss(): Promise<void> {
 
 export function startScheduler(): void {
   logger.info(
-    'scheduler started — monitors every 30s, backtest every 6h, proof retries every 2m, watch report daily at 09:00, heartbeat hourly, gas check every 6h, TP/SL check every 5m, narrative scan every 2h',
+    'scheduler started — monitors every 30s, backtest hourly, proof retries every 2m, watch report daily at 09:00, dead-man check hourly, gas check every 6h, TP/SL check every 5m, narrative scan every 2h',
   );
   monitorJob = cron.schedule('*/30 * * * * *', scanAndEnqueue);
-  backtestJob = cron.schedule('0 */6 * * *', runBacktest);
+  // Hourly (was 6h): outcomes only process windows that have
+  // matured, so runs are cheap — and T+1d/T+7d verdict posts land
+  // within an hour of maturity instead of up to 6h late.
+  backtestJob = cron.schedule('15 * * * *', runBacktest);
   proofRetryJob = cron.schedule('*/2 * * * *', retryFailedProofs);
   watchReportJob = cron.schedule('0 9 * * *', sendDailyWatchReport);
-  heartbeatJob = cron.schedule('0 * * * *', sendPipelineHeartbeat);
+  deadmanJob = cron.schedule('30 * * * *', checkPipelinePulse);
   gasCheckJob = cron.schedule('0 */6 * * *', checkGasBalance);
   tpSlCheckJob = cron.schedule('*/5 * * * *', checkTakeProfitStopLoss);
   // Cross-signal narrative synthesis (v3) — strings commits across
@@ -613,9 +491,9 @@ export function stopScheduler(): void {
     watchReportJob.stop();
     watchReportJob = null;
   }
-  if (heartbeatJob) {
-    heartbeatJob.stop();
-    heartbeatJob = null;
+  if (deadmanJob) {
+    deadmanJob.stop();
+    deadmanJob = null;
   }
   if (gasCheckJob) {
     gasCheckJob.stop();

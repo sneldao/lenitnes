@@ -32,11 +32,15 @@ vi.mock('../src/db/pool.js', () => ({
   pool: { query: mockQuery, end: vi.fn() },
 }));
 
-// The treasury now calls getPriceAt() at trade time to capture
+// The treasury calls priceData.getPriceAt() at trade time to capture
 // entry_price_usd. The real implementation hits CoinGecko over
-// HTTP; mock it so unit tests don't make network calls.
-vi.mock('../src/services/price.js', () => ({
-  getPriceAt: vi.fn().mockResolvedValue(null),
+// HTTP; mock the provider registry so unit tests don't make network calls.
+vi.mock('../src/services/data-providers/registry.js', () => ({
+  priceData: {
+    getPriceAt: vi.fn().mockResolvedValue(null),
+    getPriceAtWindow: vi.fn().mockResolvedValue(null),
+  },
+  marketData: {},
 }));
 
 describe('treasury.deriveActionFromAgent', () => {

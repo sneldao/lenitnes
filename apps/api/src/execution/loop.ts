@@ -16,6 +16,7 @@ import { FEATURES } from '../features.js';
 import { cacheInvalidate } from '../middleware/cache.js';
 import {
   buildAgentEnvFromConfig,
+  buildBookContext,
   precedentCount,
   fetchOutcomeContext,
   scoreAndPersist,
@@ -26,7 +27,6 @@ import { executeAgentTrade, type TradeReceipt } from '../services/treasury.js';
 import {
   buildOutcomeWindows,
   broadcastSignal,
-  broadcastSubThreshold,
   type BroadcastSignalInput,
 } from '../services/notify.js';
 
@@ -149,9 +149,13 @@ export async function executeCheck(monitor: Monitor): Promise<{
   // pipeline never fires and the agent never scores anything. For
   // GitHub URLs we go straight to the GitHub API (cheap, fast, ~1 req/s
   // unauthenticated, ~30 req/s with a token) to get the real commit
-  // list with hashes, messages, authors, and size stats. The detector
-  // pipeline keys off `result.commits`; populating it unblocks the
-  // entire downstream chain (detectors → agent → treasury → telegram).
+  // list with hashes, messages, authors, and size stats. The 9 typed
+  // detectors are then the signal gate: they decide whether the new
+  // commits constitute a signal. (Previously the gate was a keyword
+  // match of commit messages against the monitor's condition text —
+  // routine commits never matched, which is why the commit pipeline
+  // produced zero real signals after the initial backfill burst.)
+  let precomputedDetectors: ReturnType<typeof runDetectors> = [];
   if (monitor.url.includes('github.com') && config.github.token) {
     try {
       const allCommits = await fetchCommitsSince(
@@ -198,28 +202,39 @@ export async function executeCheck(monitor: Monitor): Promise<{
           latestCommitHash: latestHash ?? result.latestCommitHash,
           githubCommitsFetched: enriched.length,
         };
-        // If the scrape layer produced no real signal (e.g. fetch API
-        // returned something that didn't match keywords) but we have
-        // real commits, surface a meaningful summary so the transaction
-        // layer treats it as a real check rather than a 0/13 heartbeat.
-        if (!result.conditionMet || result.confidence < 30) {
-          const keywords = monitor.condition_text
-            .toLowerCase()
-            .split(/\s+/)
-            .filter((w) => w.length > 3);
-          const hit = enriched.filter((c) =>
-            keywords.some((k) => c.message.toLowerCase().includes(k)),
+        // Detector-driven gate: run the typed detectors on the new
+        // commits NOW and let them decide signal vs heartbeat. The
+        // page-scrape tier's keyword confidence is ignored for GitHub
+        // monitors — old page content matching "security" is noise.
+        precomputedDetectors = runDetectors({
+          result,
+          commits: enriched,
+          monitorUrl: monitor.url,
+          monitorCondition: monitor.condition_text,
+        });
+        if (precomputedDetectors.length > 0) {
+          const topConfidence = precomputedDetectors.reduce(
+            (max, d) => (d.confidence > max ? d.confidence : max),
+            0,
           );
-          if (hit.length > 0) {
-            result.conditionMet = true;
-            result.confidence = Math.max(result.confidence, 70);
-            result.evidence = hit
-              .slice(0, 3)
-              .map((c) => `${c.sha.slice(0, 7)}: ${c.message.split('\n')[0]}`)
-              .join('\n');
-            result.summary = `github-direct: ${hit.length}/${enriched.length} commits match keywords`;
-            checkMethod = 'github-direct';
-          }
+          result.conditionMet = true;
+          result.confidence = Math.max(result.confidence, topConfidence);
+          // Evidence the agent can cite: SHA, first line, size stats
+          // (the list API omits stats, so only show them when present).
+          result.evidence = enriched
+            .slice(0, 6)
+            .map((c) => {
+              const sizes =
+                c.additions + c.deletions > 0 ? ` (+${c.additions}/-${c.deletions})` : '';
+              return `${c.sha.slice(0, 7)}: ${c.message.split('\n')[0]}${sizes}`;
+            })
+            .join('\n');
+          result.summary = `github-direct: ${precomputedDetectors.map((d) => d.type).join(', ')} across ${enriched.length} new commit(s)`;
+          checkMethod = 'github-direct';
+        } else {
+          // New commits but no detector fired → heartbeat, regardless
+          // of what the page-scrape keyword tier thought.
+          result.conditionMet = false;
         }
         logger.info(
           {
@@ -227,10 +242,14 @@ export async function executeCheck(monitor: Monitor): Promise<{
             commits: enriched.length,
             latestHash: (latestHash ?? '').slice(0, 7),
             priorScrapeCommits: priorCommits.length,
+            detectorsFired: precomputedDetectors.map((d) => d.type),
           },
           'github-direct enrichment populated commits',
         );
       } else {
+        // No new settled commits → nothing to signal on. Suppress the
+        // scrape tier's keyword matches for GitHub monitors.
+        result.conditionMet = false;
         logger.debug({ monitorId: monitor.id }, 'github-direct: no new commits');
       }
     } catch (err) {
@@ -362,12 +381,17 @@ export async function executeCheck(monitor: Monitor): Promise<{
   }> = [];
   if (!isHeartbeat && signalId && result.commits && result.commits.length > 0) {
     try {
-      const detectorResults = runDetectors({
-        result,
-        commits: result.commits,
-        monitorUrl: monitor.url,
-        monitorCondition: monitor.condition_text,
-      });
+      // Reuse the detector run from the github-direct gate (2b) when
+      // present; only the legacy scrape path re-runs detectors here.
+      const detectorResults =
+        precomputedDetectors.length > 0
+          ? precomputedDetectors
+          : runDetectors({
+              result,
+              commits: result.commits,
+              monitorUrl: monitor.url,
+              monitorCondition: monitor.condition_text,
+            });
       if (detectorResults.length > 0) {
         classifications = detectorResults.map((c) => ({
           type: c.type,
@@ -520,7 +544,10 @@ export async function executeCheck(monitor: Monitor): Promise<{
       // for this asset. Lets the agent string commits across repos
       // and weigh corroboration instead of scoring in isolation.
       const { buildNarrativeContext } = await import('../services/agent/narrative.js');
-      const narrativeContext = await buildNarrativeContext(monitor.asset_mapping);
+      const [narrativeContext, bookContext] = await Promise.all([
+        buildNarrativeContext(monitor.asset_mapping),
+        buildBookContext(),
+      ]);
 
       agentScore = await scoreAndPersist(
         {
@@ -539,29 +566,19 @@ export async function executeCheck(monitor: Monitor): Promise<{
           past_outcomes: outcomeContext ?? undefined,
           market_context: marketContext,
           narrative_context: narrativeContext || undefined,
+          book_context: bookContext || undefined,
         },
         env,
       );
       if (agentScore.conviction < threshold) {
         gate2Blocked = true;
+        // Sub-threshold scores are archived in agent_scores (public
+        // reasoning archive on the web) but NOT broadcast — the
+        // Telegram channel carries only above-threshold calls.
         logger.info(
           { signalId, monitorId: monitor.id, conviction: agentScore.conviction, threshold },
-          'agent below threshold — no trade, signal still public',
+          'agent below threshold — no trade, archived to reasoning archive',
         );
-        // Broadcast every score to prove the agent is thinking.
-        // Sub-threshold messages are shorter; above-threshold gets the full trade broadcast.
-        broadcastSubThreshold({
-          summary: result.summary,
-          monitorUrl: monitor.url,
-          agentScore: {
-            conviction: agentScore.conviction,
-            thesis: agentScore.thesis,
-            recommended_action: agentScore.recommended_action,
-            confidence_band: agentScore.confidence_band,
-          },
-        }).catch((err) => {
-          logger.error({ err, signalId }, 'sub-threshold broadcast errored');
-        });
       } else {
         logger.info(
           { signalId, monitorId: monitor.id, conviction: agentScore.conviction },

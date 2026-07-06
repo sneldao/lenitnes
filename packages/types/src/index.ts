@@ -194,6 +194,12 @@ export interface AgentInput {
    * corroboration rather than scoring each signal in isolation. v3.
    */
   narrative_context?: string;
+  /**
+   * Current open positions — asset, direction, conviction at open,
+   * age, entry thesis. Drives the rubric's book discipline (no
+   * pile-ons, no evidence-free reversals). Empty string = flat. v4.
+   */
+  book_context?: string;
 }
 
 // ── Treasury (system wallets) ────────────────────────────────
