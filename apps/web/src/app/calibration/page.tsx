@@ -56,13 +56,13 @@ export default function CalibrationPage() {
           Is the agent&apos;s conviction predictive?
         </h1>
         <p className="text-base leading-relaxed text-slate-400">
-          The hardest question in agent trading is whether the model&apos;s confidence is calibrated
-          — does conviction 90 actually outperform conviction 70? This page is the ongoing answer,
+          Does conviction 90 actually outperform conviction 70? This page is the ongoing answer,
           recomputed from the same outcome tables as the{' '}
           <Link href="/scorecard" className="link-underline text-accent">
             scorecard
           </Link>
-          .
+          . Calibrated conviction is also what makes the same score trustworthy when the engine runs
+          leak-scans over customer repos.
         </p>
         <p className="font-mono text-[10px] text-slate-500">
           conviction floor: 70/100 · settling delay: 30m · {sampleSizeLabel}
@@ -194,7 +194,7 @@ export default function CalibrationPage() {
                     </td>
                     <td className="py-2 px-3 text-right text-slate-400">{row.total}</td>
                     <td className="py-2 px-3 text-right font-semibold text-slate-200">
-                      {row.total > 0 ? `${row.hits} / ${row.total}` : '—'}
+                      {row.withT1d > 0 ? `${row.hits} / ${row.withT1d}` : '—'}
                     </td>
                     <td className={`py-2 px-3 text-right ${pctTone(row.avgT1hPct)}`}>
                       {fmtPct(row.avgT1hPct)}

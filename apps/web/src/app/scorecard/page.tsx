@@ -226,7 +226,7 @@ export default function ScorecardPage() {
                   </thead>
                   <tbody>
                     {data.byConvictionBand.map((band) => {
-                      const isFireBand = band.bandMin >= 80;
+                      const isFireBand = band.bandMin >= 70;
                       return (
                         <tr
                           key={band.label}

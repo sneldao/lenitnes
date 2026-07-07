@@ -34,7 +34,8 @@ export default function MonitorsPage() {
       <div className="mb-8">
         <h1 className="font-display text-2xl font-semibold text-slate-100">Watchlist</h1>
         <p className="mt-1 text-sm text-slate-400">
-          {monitors.length} active monitors across {grouped.size} repositories
+          {monitors.length} active monitors across {grouped.size} repositories — the same monitoring
+          that runs over customer repos in a leak-scan engagement
         </p>
       </div>
 

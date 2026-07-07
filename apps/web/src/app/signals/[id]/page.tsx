@@ -447,7 +447,7 @@ export default function SignalDetailPage({ params }: { params: Promise<{ id: str
           </div>
         ) : (
           <p className="font-mono text-sm text-slate-700">
-            price outcome data not yet available — backtest runs periodically
+            price outcome data not yet available — outcomes record once each window matures
           </p>
         )}
       </div>
@@ -641,7 +641,7 @@ function VerdictCard({
             </h2>
             <p className="mt-1 text-sm text-slate-400">
               The T+1h price snapshot will land within the hour; T+1d is the canonical check.
-              Outcomes are auto-recorded by the backtest scheduler — no manual update needed.
+              Outcomes are auto-recorded hourly as each window matures — no manual update needed.
             </p>
             <p className="mt-2 font-mono text-[10px] uppercase tracking-wider text-slate-500">
               Agent called {recommendedAction.toUpperCase()} · {conviction}/100

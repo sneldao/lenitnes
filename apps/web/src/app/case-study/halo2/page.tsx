@@ -10,13 +10,9 @@ import {
   Loader2,
   GitCommit,
   Layers,
-  Shield,
   Zap,
-  Clock,
-  Eye,
-  FileText,
 } from 'lucide-react';
-import { api, type ScorecardRecentCall } from '@/lib/api';
+import { type ScorecardRecentCall } from '@/lib/api';
 
 interface Halo2Verdict {
   hash: string;
@@ -61,7 +57,7 @@ const ZEC_PRICE_POINTS = [
   { t: 'T-3d', price: 600, date: '2026-05-30' },
   { t: 'T-1d', price: 615, date: '2026-06-01' },
   { t: 'T+0', price: 600, label: 'agent fires · SHORT', date: '2026-06-02' },
-  { t: 'T+1d', price: 624, label: 'peak', date: '2026-06-04' },
+  { t: 'T+2d', price: 624, label: 'peak', date: '2026-06-04' },
   { t: 'T+3d', price: 309, label: 'disclosure', date: '2026-06-05' },
   { t: 'T+5d', price: 380, date: '2026-06-07' },
   { t: 'T+7d', price: 425, label: 'after', date: '2026-06-09' },
@@ -72,27 +68,6 @@ const TIMELINE = [
   { date: 'Jun 2', event: 'Zebra 4.5.3 soft fork — agent fires SHORT' },
   { date: 'Jun 5', event: 'Public disclosure — ZEC drops -50%' },
   { date: 'Jun 9', event: 'Recovery settles at ~$425' },
-];
-
-const KEY_POINTS = [
-  {
-    icon: Eye,
-    title: 'The signal was public',
-    detail:
-      'The emergency forks were in the public Zebra repo. Anyone reading commits on 2-Jun had a 2-3 day window before disclosure.',
-  },
-  {
-    icon: Clock,
-    title: 'The window is the product',
-    detail:
-      "A retail trader can't watch every consensus-critical repo. A frontier-model agent can — and it committed its thesis on HCS before the crash.",
-  },
-  {
-    icon: FileText,
-    title: 'No retrofitting',
-    detail:
-      'Detectors were built before this event. We picked it because the agent should flag it — not because it happened to catch it.',
-  },
 ];
 
 export default function Halo2CaseStudyPage() {
@@ -131,18 +106,13 @@ export default function Halo2CaseStudyPage() {
   // (T+3d), recovery = T+7d. For a SHORT trade, profit = -(exit-entry).
   const entryIdx = ZEC_PRICE_POINTS.findIndex((p) => p.label === 'agent fires · SHORT');
   const troughIdx = ZEC_PRICE_POINTS.findIndex((p) => p.label === 'disclosure');
-  const exitIdx = ZEC_PRICE_POINTS.length - 1;
   const entryPrice = ZEC_PRICE_POINTS[entryIdx]?.price ?? ZEC_PRICE_POINTS[0]!.price;
   const troughPrice = ZEC_PRICE_POINTS[troughIdx]?.price ?? entryPrice;
-  const exitPrice = ZEC_PRICE_POINTS[exitIdx]!.price;
   const isShort = verdict.wouldHaveTraded.side === 'short';
   // Directional return — sign-flipped for shorts so positive = trade was right.
   const peakReturnPct = isShort
     ? ((entryPrice - troughPrice) / entryPrice) * 100
     : ((troughPrice - entryPrice) / entryPrice) * 100;
-  const settledReturnPct = isShort
-    ? ((entryPrice - exitPrice) / entryPrice) * 100
-    : ((exitPrice - entryPrice) / entryPrice) * 100;
   const minP = Math.min(...ZEC_PRICE_POINTS.map((p) => p.price));
   const maxP = Math.max(...ZEC_PRICE_POINTS.map((p) => p.price));
 
@@ -224,7 +194,7 @@ export default function Halo2CaseStudyPage() {
             icon={Layers}
             label="Detector consensus"
             value={`${verdict.detectorClassifications.length} detectors`}
-            hint="emergency_patch · security_critical · consensus_relevant"
+            hint={verdict.detectorClassifications.map((c) => c.detector_type).join(' · ')}
           />
           <DetailTile
             icon={TrendingUp}
@@ -240,7 +210,7 @@ export default function Halo2CaseStudyPage() {
       <section className="card reveal reveal-delay-1 in-view">
         <h2 className="section-title mb-4 flex items-center gap-2">
           <Zap className="h-3.5 w-3.5 text-accent" />
-          Detector consensus — 95/100 because the signals agreed
+          Detector consensus — why the score was high
         </h2>
         <ul className="space-y-3">
           {verdict.detectorClassifications.map((c) => (
@@ -298,23 +268,6 @@ export default function Halo2CaseStudyPage() {
                   {p.label}
                 </div>
               )}
-            </div>
-          ))}
-        </div>
-      </section>
-
-      {/* ── What it means ── */}
-      <section className="card reveal reveal-delay-3 in-view">
-        <h2 className="section-title mb-4 flex items-center gap-2">
-          <Shield className="h-3.5 w-3.5 text-accent" />
-          Why this matters
-        </h2>
-        <div className="grid gap-3 sm:grid-cols-3">
-          {KEY_POINTS.map((point) => (
-            <div key={point.title} className="rounded-xl border border-edge/30 bg-ink-light/30 p-4">
-              <point.icon className="h-4 w-4 text-accent" />
-              <h3 className="mt-2 text-sm font-semibold text-slate-200">{point.title}</h3>
-              <p className="mt-1 text-xs leading-relaxed text-slate-400">{point.detail}</p>
             </div>
           ))}
         </div>

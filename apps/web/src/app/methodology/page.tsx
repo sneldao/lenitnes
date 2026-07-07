@@ -82,7 +82,9 @@ export default function MethodologyPage() {
           Fast classification pass before the LLM. Each returns a score (0-100) + confidence. The
           agent sees detector output plus commit evidence (SHAs, messages, size stats) and a
           cross-signal narrative of what every other monitored repo did in the same 24h window. News
-          is corroboration only — it never trades on its own.
+          is corroboration only — it never trades on its own. These same detectors also power the
+          enterprise leak-scan: pointed at any repo&apos;s history, they show what its commits
+          signaled before anyone announced it.
         </p>
         <div className="grid gap-2 sm:grid-cols-2">
           {DETECTORS.map((d) => (

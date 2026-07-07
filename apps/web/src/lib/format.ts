@@ -229,5 +229,6 @@ export function assetTicker(coingeckoId: string): string {
  */
 export function explorerUrl(chain: string, txHash: string): string {
   if (chain === 'bsc' || chain === 'bnb') return `https://testnet.bscscan.com/tx/${txHash}`;
+  if (chain === 'arbitrum') return `https://sepolia.arbiscan.io/tx/${txHash}`;
   return '#';
 }

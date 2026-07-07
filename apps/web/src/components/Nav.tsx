@@ -11,6 +11,7 @@ const NAV_LINKS = [
   { href: '/calibration', label: 'Calibration' },
   { href: '/portfolio', label: 'Portfolio' },
   { href: '/monitors', label: 'Watchlist' },
+  { href: '/scan', label: 'Scan' },
   { href: '/methodology', label: 'How it works' },
   { href: '/case-study/halo2', label: 'Case Study' },
 ];

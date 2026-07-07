@@ -40,10 +40,9 @@ export default function LandingPage() {
             <span className="text-slate-100">halo2.</span>
           </h1>
           <p className="mt-8 max-w-2xl text-sm leading-relaxed text-slate-400">
-            In June 2026, Shielded Labs disclosed a four-year-old soundness bug in ZCash&apos;s
-            halo2 circuit. The emergency soft fork shipped 2-Jun, the disclosure landed 4-5 Jun, and
-            ZEC dropped ~50% in 48 hours. The public repo activity was the signal — every thesis the
-            agent forms is anchored on Hedera HCS, in its own words, before the market moves.
+            The June 2026 halo2 soundness bug was visible in public commits two days before
+            disclosure took ZEC down ~50%. Reading that leak — and committing every thesis on-chain
+            before the market moves — is the whole operation.
           </p>
           <div className="mt-10 flex flex-wrap items-center gap-3">
             <Link
@@ -74,9 +73,8 @@ export default function LandingPage() {
           </h2>
           <TrackRecordStrip />
           <p className="mt-6 max-w-prose text-xs leading-relaxed text-slate-500">
-            Every signal scored, every call tracked as a paper position, every price outcome
-            snapshotted at T+1h, T+1d, T+7d — the scorecard recomputes from the same tables the
-            calls are written to, so the system cannot misremember its own performance.
+            Recomputed live from the same tables the calls are written to — the system cannot
+            misremember its own performance.
           </p>
         </section>
 
@@ -207,6 +205,13 @@ export default function LandingPage() {
             noticed. The public track record on this site is the proof the engine works; the
             leak-scan is what it does for you.
           </p>
+          <Link
+            href="/scan"
+            className="mt-6 inline-flex items-center gap-2 font-mono text-sm text-accent hover:underline"
+          >
+            Run it on any repo
+            <ArrowUpRight className="h-4 w-4" />
+          </Link>
           <p className="mt-4 text-xs text-slate-500">
             Part of the{' '}
             <a href="https://persidian.com" className="link-underline text-accent">

@@ -284,20 +284,6 @@ export interface PortfolioResponse {
 
 // ── Backtest ──────────────────────────────────────────────────
 
-export interface BacktestStat {
-  detectorType: string;
-  asset: string;
-  totalSignals: number;
-  correctCount: number;
-  // Decimal columns from the materialized view are returned as strings.
-  accuracy: string;
-  avgPctChange: string;
-  medianPctChange: string;
-  avgAbsReturn: string;
-  sharpeEstimate: string;
-  bestWindow: number | null;
-}
-
 // ── Admin ─────────────────────────────────────────────────────
 
 export interface AdminStatusResponse {
@@ -351,14 +337,6 @@ export const api = {
         movedAt: string;
       }>;
     }>(`/dlq?limit=${limit}`),
-
-  getBacktestStats: (filters?: { detectorType?: string; asset?: string }) => {
-    const params = new URLSearchParams();
-    if (filters?.detectorType) params.set('detector', filters.detectorType);
-    if (filters?.asset) params.set('asset', filters.asset);
-    const qs = params.toString();
-    return reqCamel<BacktestStat[]>(`/backtest/stats${qs ? `?${qs}` : ''}`);
-  },
 
   getScorecard: () => reqCamel<ScorecardResponse>(`/scorecard`),
   getScorecardRecent: (limit?: number) =>
