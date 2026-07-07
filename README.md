@@ -9,7 +9,7 @@ No users, no per-monitor staking, no SaaS dashboard. The agent runs continuously
 The unit of proof is the **call**, not the trade: a directional thesis, committed on-chain before the outcome, scored against what the price actually did. That makes the same engine serve two audiences:
 
 1. **Public (this site)** — the autonomous agent trades its own theses in public. The track record is the product.
-2. **Enterprise (the direction)** — the same nine detectors + versioned rubric, pointed at _your_ repos: what is your commit history telling the market before you announce it? `GET /backtest/replay?repo=owner/repo` runs the real engine over any public repo's history — the leak-scan demo. The public track record is the sales proof; the leak-scan is the product.
+2. **Enterprise (the direction)** — the same nine detectors + versioned rubric, pointed at _your_ repos: what is your commit history telling the market before you announce it? `GET /backtest/replay?repo=owner/repo` runs the real engine over any public repo's history — the leak-scan demo. The public track record is the sales proof; the leak-scan is the product. This is a demo today, not a product — see [`docs/ROADMAP.md`](./docs/ROADMAP.md) for what's missing.
 
 LENITNES is part of the [Persidian](https://persidian.com) portfolio — sentinels for different business rhythms: money in (Sikizana), messages out (Nuncio), theses tested (Lenitnes), data trusted (DataBard).
 
@@ -85,6 +85,7 @@ Visit `http://localhost:3000/scorecard` to see the track record.
 
 ## Documentation
 
+- [`docs/ROADMAP.md`](./docs/ROADMAP.md) — what's built vs. demo, and what the enterprise leak-scan direction needs to become a real product
 - [`docs/AGENT_ARCHITECTURE.md`](./docs/AGENT_ARCHITECTURE.md) — frozen design decisions: where the agent sits, what it adds, how the gates interact
 - [`docs/RUNBOOK.md`](./docs/RUNBOOK.md) — operator runbook: preflight checks, first-live-trade dry run, emergency exit
 - [`docs/CALIBRATION.md`](./docs/CALIBRATION.md) — per-knob empirical rationale + change log
