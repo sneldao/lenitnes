@@ -249,14 +249,19 @@ async function checkGasBalance(): Promise<void> {
     const thresholdBnb = parseFloat(ethers.formatEther(GAS_WARNING_THRESHOLD));
 
     if (balanceBnb < thresholdBnb) {
+      // Ops alert → operator channel only. Gas levels are internal
+      // hygiene, not signal content; airing them publicly reads as
+      // "the operation is underfunded" to subscribers.
       const msg = [
-        `🛡️ LENITNES · gas low · ${balanceBnb.toFixed(4)} BNB (floor ${thresholdBnb.toFixed(4)})`,
+        `⚠️ LENITNES operator alert · gas low · ${balanceBnb.toFixed(4)} BNB (floor ${thresholdBnb.toFixed(4)})`,
         ``,
-        `Trading will pause once the wallet can't cover swap gas.`,
+        `Live trading would pause once the wallet can't cover swap gas.`,
         `🔗 https://testnet.bscscan.com/address/${BSC_TREASURY_WALLET}`,
       ].join('\n');
-      await sendTelegram(config.telegram.publicChannelId, msg);
-      logger.warn({ balanceBnb, threshold: thresholdBnb }, 'low gas balance — alert sent');
+      if (config.telegram.operatorChatId) {
+        await sendTelegram(config.telegram.operatorChatId, msg);
+      }
+      logger.warn({ balanceBnb, threshold: thresholdBnb }, 'low gas balance — operator alerted');
     } else {
       logger.debug({ balanceBnb }, 'gas balance OK');
     }
