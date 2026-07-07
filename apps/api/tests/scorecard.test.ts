@@ -105,6 +105,7 @@ describe('scorecard.overall — with signals + trades', () => {
           {
             detector_type: 'emergency_patch',
             total: '3',
+            with_t1d: '3',
             hits: '2',
             avg_t1h_pct: null,
             avg_t1d_pct: null,
@@ -113,6 +114,7 @@ describe('scorecard.overall — with signals + trades', () => {
           {
             detector_type: 'security_critical_patch',
             total: '2',
+            with_t1d: '2',
             hits: '1',
             avg_t1h_pct: null,
             avg_t1d_pct: null,
@@ -123,8 +125,14 @@ describe('scorecard.overall — with signals + trades', () => {
       })
       .mockResolvedValueOnce({
         rows: [
-          { monitor_id: 'm-1', url: 'https://github.com/zcash/halo2', total: '3', hits: '2' },
-          { monitor_id: 'm-2', url: 'https://example.com', total: '2', hits: '1' },
+          {
+            monitor_id: 'm-1',
+            url: 'https://github.com/zcash/halo2',
+            total: '3',
+            with_t1d: '3',
+            hits: '2',
+          },
+          { monitor_id: 'm-2', url: 'https://example.com', total: '2', with_t1d: '2', hits: '1' },
         ],
         rowCount: 2,
       })
@@ -165,6 +173,7 @@ describe('scorecard.overall — with signals + trades', () => {
     expect(result.bySignalType[0]).toEqual({
       detectorType: 'emergency_patch',
       total: 3,
+      withT1d: 3,
       hits: 2,
       hitRatio: 2 / 3,
       avgT1hPct: null,
@@ -174,6 +183,7 @@ describe('scorecard.overall — with signals + trades', () => {
     expect(result.bySignalType[1]).toEqual({
       detectorType: 'security_critical_patch',
       total: 2,
+      withT1d: 2,
       hits: 1,
       hitRatio: 0.5,
       avgT1hPct: null,

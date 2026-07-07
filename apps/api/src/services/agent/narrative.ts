@@ -372,9 +372,15 @@ export async function runNarrativeScan(): Promise<void> {
     // Create the synthesis signal row.
     const detectedAt = new Date().toISOString();
     const { rows: sigRows } = await query<{ id: string }>(
-      `INSERT INTO signals (monitor_id, detected_at, evidence_text, condition_summary, is_heartbeat)
-       VALUES ($1, $2, $3, $4, false) RETURNING id`,
-      [monitor.id, detectedAt, cluster.evidenceSummary, cluster.evidenceSummary],
+      `INSERT INTO signals (monitor_id, detected_at, evidence_text, condition_summary, is_heartbeat, asset)
+       VALUES ($1, $2, $3, $4, false, $5) RETURNING id`,
+      [
+        monitor.id,
+        detectedAt,
+        cluster.evidenceSummary,
+        cluster.evidenceSummary,
+        cluster.dominantAsset,
+      ],
     );
     const signalId = sigRows[0].id;
     cacheInvalidate('scorecard:');

@@ -176,6 +176,8 @@ export interface ScorecardRecentCall {
 export interface ScorecardBySignalType {
   detectorType: string;
   total: number;
+  /** Signals with a matured T+1d outcome — the hit-ratio denominator. */
+  withT1d: number;
   hits: number;
   hitRatio: number;
   // Directional avg pct change at each window (sign-flipped so
@@ -191,6 +193,8 @@ export interface ScorecardByConvictionBand {
   label: string;
   total: number;
   traded: number;
+  /** Traded calls with a matured T+1d outcome — the hit-ratio denominator. */
+  closed: number;
   hits: number;
   hitRatio: number;
   avgT1hPct: number | null;
@@ -202,6 +206,8 @@ export interface ScorecardByWatchlist {
   monitorId: string;
   url: string;
   total: number;
+  /** Signals with a matured T+1d outcome — the hit-ratio denominator. */
+  withT1d: number;
   hits: number;
   hitRatio: number;
 }

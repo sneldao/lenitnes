@@ -336,6 +336,19 @@ export async function score(input: AgentInput, env: AgentEnv): Promise<AgentScor
     }
   }
   if (!parsed) throw new AgentScoreError('Agent response unparseable after retry');
+
+  // Enforce the rubric invariant the model sometimes violates:
+  // action "none" with conviction > 50 is only legitimate when the
+  // book already expresses the thesis (book discipline). With a flat
+  // book, a high-conviction "none" is a contradiction — clamp it so
+  // the public archive doesn't show "88/100 · none" head-scratchers.
+  if (parsed.recommended_action === 'none' && parsed.conviction > 50 && !input.book_context) {
+    logger.warn(
+      { signalId: input.signal_id, conviction: parsed.conviction },
+      'agent invariant clamp: action=none with empty book — conviction capped at 50',
+    );
+    parsed.conviction = 50;
+  }
   logger.debug({ signalId: input.signal_id, dailySpendUsd, estimatedUsd }, 'agent scored signal');
 
   return {

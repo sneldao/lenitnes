@@ -53,7 +53,7 @@ describe('processSignalOutcomes', () => {
       rows: windows.map((w) => ({
         signal_id: 'sig-1',
         detected_at: '2026-06-01T12:00:00Z',
-        asset_mapping: { coingeckoId: 'zcash' },
+        asset_id: 'zcash',
         window_seconds: w,
       })),
       rowCount: 4,
@@ -84,7 +84,7 @@ describe('processSignalOutcomes', () => {
         {
           signal_id: 'sig-2',
           detected_at: '2026-06-01T12:00:00Z',
-          asset_mapping: { tokenizedStock: 'NVDA' }, // not resolvable by price service
+          asset_id: null, // unresolvable — no coingeckoId on signal or monitor
           window_seconds: 3600,
         },
       ],
@@ -103,7 +103,7 @@ describe('processSignalOutcomes', () => {
         {
           signal_id: 'sig-3',
           detected_at: '2026-06-01T12:00:00Z',
-          asset_mapping: { coingeckoId: 'bitcoin' },
+          asset_id: 'bitcoin',
           window_seconds: 3600,
         },
       ],

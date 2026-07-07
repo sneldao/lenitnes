@@ -3,7 +3,7 @@ import { priceData } from '../data-providers/registry.js';
 import { config } from '../../config.js';
 import { sendTelegram } from '../notify.js';
 import { logger } from '../../logger.js';
-import type { AssetMapping, DetectorBacktestStats, SignalOutcome } from '@lenitnes/types';
+import type { DetectorBacktestStats, SignalOutcome } from '@lenitnes/types';
 
 const DEFAULT_WINDOWS = [3600, 14400, 86400, 604800]; // 1h, 4h, 24h, 7d
 
@@ -14,11 +14,6 @@ const WINDOW_LABEL: Record<number, string> = {
   604800: 'T+7d',
 };
 
-function resolveAsset(mapping: AssetMapping): { id: string } | null {
-  if (mapping.coingeckoId) return { id: mapping.coingeckoId };
-  return null;
-}
-
 export async function processSignalOutcomes(
   windows: number[] = DEFAULT_WINDOWS,
 ): Promise<{ processed: number; errors: number }> {
@@ -28,13 +23,19 @@ export async function processSignalOutcomes(
   // had classifications, so a T+7d "outcome" recorded on day 0 was
   // just the current price mislabeled — polluting the scorecard the
   // whole system exists to keep honest.
+  // Asset resolution prefers the per-signal override (narrative
+  // signals carry their dominant asset there; the narrative monitor
+  // itself has no fixed coingeckoId) and falls back to the monitor's
+  // asset_mapping for repo monitors.
   const { rows: pending } = await query<{
     signal_id: string;
     detected_at: string;
-    asset_mapping: AssetMapping;
+    asset_id: string;
     window_seconds: number;
   }>(
-    `SELECT s.id AS signal_id, s.detected_at, m.asset_mapping, w.window_seconds
+    `SELECT s.id AS signal_id, s.detected_at,
+            COALESCE(s.asset, m.asset_mapping->>'coingeckoId') AS asset_id,
+            w.window_seconds
        FROM signals s
        JOIN monitors m ON m.id = s.monitor_id
        CROSS JOIN unnest($1::int[]) AS w(window_seconds)
@@ -45,7 +46,7 @@ export async function processSignalOutcomes(
           SELECT 1 FROM signal_outcomes so
            WHERE so.signal_id = s.id AND so.window_seconds = w.window_seconds
         )
-        AND m.asset_mapping != '{}'::jsonb
+        AND COALESCE(s.asset, m.asset_mapping->>'coingeckoId') IS NOT NULL
         AND s.is_heartbeat = false
         AND s.detected_at + (w.window_seconds || ' seconds')::interval <= now()
       ORDER BY s.detected_at DESC, w.window_seconds
@@ -57,11 +58,13 @@ export async function processSignalOutcomes(
   let errors = 0;
 
   for (const row of pending) {
-    const asset = resolveAsset(row.asset_mapping);
-    if (!asset) {
+    // The SQL filters unresolvable assets; this guard covers callers
+    // (and tests) that bypass it.
+    if (!row.asset_id) {
       errors++;
       continue;
     }
+    const asset = { id: row.asset_id };
 
     try {
       const result = await priceData.getPriceAtWindow(

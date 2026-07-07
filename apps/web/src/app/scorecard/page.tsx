@@ -249,7 +249,7 @@ export default function ScorecardPage() {
                             {band.traded > 0 ? band.traded : '—'}
                           </td>
                           <td className="py-2 px-3 text-right font-semibold text-slate-200">
-                            {band.traded > 0 ? formatRatio(band.hitRatio) : '—'}
+                            {band.closed > 0 ? formatRatio(band.hitRatio) : '—'}
                           </td>
                           <td className={`py-2 px-3 text-right ${pctTone(band.avgT1hPct)}`}>
                             {fmtPct(band.avgT1hPct)}
@@ -311,7 +311,7 @@ export default function ScorecardPage() {
                         </td>
                         <td className="py-2 px-3 text-right text-slate-400">{row.total}</td>
                         <td className="py-2 px-3 text-right font-semibold text-slate-200">
-                          {row.total > 0 ? `${row.hits}/${row.total}` : '—'}
+                          {row.withT1d > 0 ? `${row.hits}/${row.withT1d}` : '—'}
                         </td>
                         <td className={`py-2 px-3 text-right ${pctTone(row.avgT1hPct)}`}>
                           {fmtPct(row.avgT1hPct)}
@@ -351,9 +351,11 @@ export default function ScorecardPage() {
                       <tr key={row.monitorId} className="border-b border-edge/20 last:border-0">
                         <td className="py-2 pr-4 text-slate-300">{shortUrl(row.url)}</td>
                         <td className="py-2 px-4 text-right text-slate-400">{row.total}</td>
-                        <td className="py-2 px-4 text-right text-slate-400">{row.hits}</td>
+                        <td className="py-2 px-4 text-right text-slate-400">
+                          {row.withT1d > 0 ? row.hits : '—'}
+                        </td>
                         <td className="py-2 pl-4 text-right font-semibold text-slate-200">
-                          {row.total > 0 ? formatRatio(row.hitRatio) : '—'}
+                          {row.withT1d > 0 ? formatRatio(row.hitRatio) : '—'}
                         </td>
                       </tr>
                     ))}

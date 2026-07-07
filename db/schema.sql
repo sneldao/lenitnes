@@ -62,6 +62,11 @@ CREATE TABLE IF NOT EXISTS signals (
   screenshot_urls        JSONB NOT NULL DEFAULT '[]'::jsonb,
   condition_summary      TEXT,
   is_heartbeat           BOOLEAN NOT NULL DEFAULT false,
+  -- Per-signal asset override (coingeckoId). Set by the narrative
+  -- scan, whose monitor row has no fixed asset — the dominant asset
+  -- varies per synthesis. Outcome attribution prefers this over the
+  -- monitor's asset_mapping.
+  asset                  TEXT,
   -- Set when the owning user opens the signal detail page. Used by the
   -- dashboard to distinguish a fresh, unread signal from an old one the
   -- user has already seen. NULL = unviewed.

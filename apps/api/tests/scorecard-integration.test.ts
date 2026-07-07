@@ -85,6 +85,7 @@ function mockScorecardQueries(opts: {
       rows: opts.byType.map((b) => ({
         detector_type: b.detector_type,
         total: String(b.total),
+        with_t1d: String(b.total),
         hits: String(b.hits),
         avg_t1h_pct: null,
         avg_t1d_pct: null,
@@ -98,6 +99,7 @@ function mockScorecardQueries(opts: {
         monitor_id: b.monitor_id,
         url: b.url,
         total: String(b.total),
+        with_t1d: String(b.total),
         hits: String(b.hits),
       })),
       rowCount: opts.byWatchlist.length,
@@ -242,6 +244,7 @@ describe('scorecard — end-to-end integration', () => {
       {
         detectorType: 'security_critical_patch',
         total: 1,
+        withT1d: 1,
         hits: 1,
         hitRatio: 1,
         avgT1hPct: null,
@@ -251,6 +254,7 @@ describe('scorecard — end-to-end integration', () => {
       {
         detectorType: 'consensus_relevant',
         total: 1,
+        withT1d: 1,
         hits: 1,
         hitRatio: 1,
         avgT1hPct: null,
@@ -260,6 +264,7 @@ describe('scorecard — end-to-end integration', () => {
       {
         detectorType: 'documentation_only',
         total: 1,
+        withT1d: 1,
         hits: 0,
         hitRatio: 0,
         avgT1hPct: null,
@@ -269,6 +274,7 @@ describe('scorecard — end-to-end integration', () => {
       {
         detectorType: 'minor_improvement',
         total: 1,
+        withT1d: 1,
         hits: 0,
         hitRatio: 0,
         avgT1hPct: null,
@@ -284,6 +290,7 @@ describe('scorecard — end-to-end integration', () => {
       monitorId: '11111111-1111-1111-1111-111111111111',
       url: 'https://github.com/zcash/halo2/releases',
       total: 2,
+      withT1d: 2,
       hits: 1,
       hitRatio: 0.5,
     });

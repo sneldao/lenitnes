@@ -71,6 +71,7 @@ cp .env.example .env
 createdb lenitnes
 psql -d lenitnes -f db/schema.sql
 psql -d lenitnes -f db/migrations/003_pivot.sql
+psql -d lenitnes -f db/migrations/004_signal_asset.sql
 psql -d lenitnes -f db/seed/watchlist.sql
 psql -d lenitnes -f db/seed/treasury_wallets.sql
 

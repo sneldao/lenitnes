@@ -138,10 +138,10 @@ export default function CalibrationPage() {
                       {band.traded > 0 ? band.traded : '—'}
                     </td>
                     <td className="py-2 px-3 text-right text-slate-400">
-                      {band.traded > 0 ? `${band.hits} / ${band.traded}` : '—'}
+                      {band.closed > 0 ? `${band.hits} / ${band.closed}` : '—'}
                     </td>
                     <td className="py-2 px-3 text-right font-semibold text-slate-200">
-                      {band.traded > 0 ? formatRatio(band.hitRatio) : '—'}
+                      {band.closed > 0 ? formatRatio(band.hitRatio) : '—'}
                     </td>
                     <td className={`py-2 px-3 text-right ${pctTone(band.avgT1hPct)}`}>
                       {fmtPct(band.avgT1hPct)}

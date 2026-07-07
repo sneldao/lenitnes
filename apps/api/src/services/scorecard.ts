@@ -28,6 +28,8 @@ export interface RecentCall {
 export interface ScorecardBySignalType {
   detectorType: string;
   total: number;
+  /** Signals with a matured T+1d outcome — the honest hit-ratio denominator. */
+  withT1d: number;
   hits: number;
   hitRatio: number;
   // Average directional pct change at each window — sign-adjusted
@@ -42,6 +44,8 @@ export interface ScorecardByWatchlist {
   monitorId: string;
   url: string;
   total: number;
+  /** Signals with a matured T+1d outcome — the honest hit-ratio denominator. */
+  withT1d: number;
   hits: number;
   hitRatio: number;
 }
@@ -57,6 +61,8 @@ export interface ScorecardByConvictionBand {
   total: number;
   /** Subset that traded at all (above the firing threshold). */
   traded: number;
+  /** Traded calls whose T+1d outcome has matured — the hit-ratio denominator. */
+  closed: number;
   /** Subset of traded calls whose t1d outcome matched the recommended direction. */
   hits: number;
   hitRatio: number;
@@ -211,50 +217,56 @@ async function countsQuery(): Promise<CountsRow> {
 }
 
 async function outcomesQuery(): Promise<OutcomesRow> {
-  // One pass over T+1d outcomes, computing hit count, pnl, sharpe,
-  // and max drawdown via a CTE.
+  // Hit ratio + sharpe come from TRADED signals' T+1d outcomes,
+  // direction-adjusted (a short profits when pct_change is negative).
+  // Cumulative P&L + max drawdown come from the positions ledger —
+  // realized, sized, direction-aware pnl_usd — NOT from raw price
+  // deltas. (The previous version summed price_after −
+  // price_at_signal across every outcome row: a $400 BTC daily move
+  // showed up as -$400 "P&L" on a 0.01-unit paper position that was
+  // never even traded on. The scorecard's whole premise is that it
+  // cannot misremember performance; that math was misremembering it.)
   const { rows } = await query<OutcomesRow>(
     `WITH t1d AS (
        SELECT
          so.signal_id,
-         so.pct_change,
-         so.price_at_signal,
-         so.price_after,
-         so.direction,
          ag.recommended_action,
-         (so.price_after - so.price_at_signal) AS pnl_abs
+         so.direction,
+         CASE WHEN ag.recommended_action = 'short'
+              THEN -so.pct_change ELSE so.pct_change END AS d_pct
        FROM signal_outcomes so
-       LEFT JOIN agent_scores ag ON ag.signal_id = so.signal_id
+       JOIN agent_scores ag ON ag.signal_id = so.signal_id
+       JOIN orders o ON o.signal_id = so.signal_id AND o.status = 'filled'
        WHERE so.window_seconds = $1
+         AND ag.recommended_action != 'none'
      ),
      hits AS (
-       -- total = every closed T+1d outcome with a scored recommendation (the
-       -- denominator). hits = the subset that moved in the predicted direction
-       -- (the numerator). Computing both off the same predicate-filtered set
-       -- would force hitRatio to 1.0.
        SELECT
          COUNT(*) FILTER (WHERE ${isHitPredicate()})::text AS hits,
-         COUNT(*) FILTER (WHERE recommended_action IS NOT NULL)::text AS total
+         COUNT(*)::text AS total
        FROM t1d
      ),
-     pnl AS (
-       SELECT
-         COALESCE(SUM(pnl_abs), 0)::text AS cumulative_pnl,
-         COALESCE(AVG(pct_change) / NULLIF(STDDEV_SAMP(pct_change), 0), 0)::text AS sharpe
+     returns AS (
+       SELECT COALESCE(AVG(d_pct) / NULLIF(STDDEV_SAMP(d_pct), 0), 0)::text AS sharpe
        FROM t1d
+     ),
+     ledger AS (
+       SELECT COALESCE(SUM(pnl_usd), 0)::text AS cumulative_pnl
+       FROM positions WHERE status = 'closed'
      ),
      drawdown AS (
        WITH ordered AS (
          SELECT
-           signal_id,
-           SUM(pnl_abs) OVER (ORDER BY signal_id ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW) AS cum_pnl
-         FROM t1d
+           closed_at,
+           SUM(pnl_usd) OVER (ORDER BY closed_at ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW) AS cum_pnl
+         FROM positions
+         WHERE status = 'closed' AND pnl_usd IS NOT NULL
        )
        SELECT COALESCE(MAX(peak - cum_pnl), 0)::text AS max_drawdown
        FROM (
          SELECT
            cum_pnl,
-           MAX(cum_pnl) OVER (ORDER BY signal_id ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW) AS peak
+           MAX(cum_pnl) OVER (ORDER BY closed_at ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW) AS peak
          FROM ordered
        ) t
      )
@@ -264,8 +276,8 @@ async function outcomesQuery(): Promise<OutcomesRow> {
        CASE WHEN (SELECT total FROM hits)::int > 0
             THEN (SELECT hits FROM hits)::float / (SELECT total FROM hits)::int
             ELSE NULL END AS hit_ratio,
-       (SELECT cumulative_pnl FROM pnl) AS cumulative_pnl,
-       (SELECT sharpe FROM pnl) AS sharpe,
+       (SELECT cumulative_pnl FROM ledger) AS cumulative_pnl,
+       (SELECT sharpe FROM returns) AS sharpe,
        (SELECT max_drawdown FROM drawdown) AS max_drawdown`,
     [T1D_WINDOW],
   );
@@ -290,6 +302,7 @@ async function bySignalTypeQuery(): Promise<ScorecardBySignalType[]> {
   const { rows } = await query<{
     detector_type: string;
     total: string;
+    with_t1d: string;
     hits: string;
     avg_t1h_pct: string | null;
     avg_t1d_pct: string | null;
@@ -322,6 +335,7 @@ async function bySignalTypeQuery(): Promise<ScorecardBySignalType[]> {
      SELECT
        sc.detector_type,
        COUNT(DISTINCT sc.signal_id)::text AS total,
+       COUNT(DISTINCT CASE WHEN d.d_t1d IS NOT NULL THEN sc.signal_id END)::text AS with_t1d,
        COUNT(DISTINCT CASE WHEN ${isHitPredicate()} THEN sc.signal_id END)::text AS hits,
        AVG(d.d_t1h)::text AS avg_t1h_pct,
        AVG(d.d_t1d)::text AS avg_t1d_pct,
@@ -334,8 +348,9 @@ async function bySignalTypeQuery(): Promise<ScorecardBySignalType[]> {
   return rows.map((r) => ({
     detectorType: r.detector_type,
     total: Number(r.total),
+    withT1d: Number(r.with_t1d),
     hits: Number(r.hits),
-    hitRatio: Number(r.total) > 0 ? Number(r.hits) / Number(r.total) : 0,
+    hitRatio: Number(r.with_t1d) > 0 ? Number(r.hits) / Number(r.with_t1d) : 0,
     avgT1hPct: r.avg_t1h_pct != null ? Number(r.avg_t1h_pct) : null,
     avgT1dPct: r.avg_t1d_pct != null ? Number(r.avg_t1d_pct) : null,
     avgT7dPct: r.avg_t7d_pct != null ? Number(r.avg_t7d_pct) : null,
@@ -369,6 +384,7 @@ async function byConvictionBandQuery(): Promise<ScorecardByConvictionBand[]> {
     band_label: string;
     total: string;
     traded: string;
+    closed: string;
     hits: string;
     avg_t1h_pct: string | null;
     avg_t1d_pct: string | null;
@@ -415,6 +431,7 @@ async function byConvictionBandQuery(): Promise<ScorecardByConvictionBand[]> {
        b.b_label AS band_label,
        COUNT(d.signal_id)::text AS total,
        COUNT(d.signal_id) FILTER (WHERE d.traded)::text AS traded,
+       COUNT(d.signal_id) FILTER (WHERE d.traded AND d.d_t1d IS NOT NULL)::text AS closed,
        COUNT(d.signal_id) FILTER (WHERE d.traded AND ${isHitPredicate()})::text AS hits,
        AVG(d.d_t1h)::text AS avg_t1h_pct,
        AVG(d.d_t1d)::text AS avg_t1d_pct,
@@ -432,6 +449,7 @@ async function byConvictionBandQuery(): Promise<ScorecardByConvictionBand[]> {
     const row = rows.find((r) => r.band_label === band.label);
     const total = row ? Number(row.total) : 0;
     const traded = row ? Number(row.traded) : 0;
+    const closed = row ? Number(row.closed) : 0;
     const hits = row ? Number(row.hits) : 0;
     return {
       bandMin: band.min,
@@ -439,8 +457,9 @@ async function byConvictionBandQuery(): Promise<ScorecardByConvictionBand[]> {
       label: band.label,
       total,
       traded,
+      closed,
       hits,
-      hitRatio: traded > 0 ? hits / traded : 0,
+      hitRatio: closed > 0 ? hits / closed : 0,
       avgT1hPct: row?.avg_t1h_pct != null ? Number(row.avg_t1h_pct) : null,
       avgT1dPct: row?.avg_t1d_pct != null ? Number(row.avg_t1d_pct) : null,
       avgT7dPct: row?.avg_t7d_pct != null ? Number(row.avg_t7d_pct) : null,
@@ -453,6 +472,7 @@ async function byWatchlistQuery(): Promise<ScorecardByWatchlist[]> {
     monitor_id: string;
     url: string;
     total: string;
+    with_t1d: string;
     hits: string;
   }>(
     `WITH t1d_per_signal AS (
@@ -469,6 +489,7 @@ async function byWatchlistQuery(): Promise<ScorecardByWatchlist[]> {
        m.id AS monitor_id,
        m.url,
        COUNT(DISTINCT s.id)::text AS total,
+       COUNT(DISTINCT CASE WHEN t.signal_id IS NOT NULL THEN s.id END)::text AS with_t1d,
        COUNT(DISTINCT CASE WHEN ${isHitPredicate()} THEN s.id END)::text AS hits
      FROM monitors m
      LEFT JOIN signals s ON s.monitor_id = m.id AND s.is_heartbeat = false
@@ -481,8 +502,9 @@ async function byWatchlistQuery(): Promise<ScorecardByWatchlist[]> {
     monitorId: r.monitor_id,
     url: r.url,
     total: Number(r.total),
+    withT1d: Number(r.with_t1d),
     hits: Number(r.hits),
-    hitRatio: Number(r.total) > 0 ? Number(r.hits) / Number(r.total) : 0,
+    hitRatio: Number(r.with_t1d) > 0 ? Number(r.hits) / Number(r.with_t1d) : 0,
   }));
 }
 
