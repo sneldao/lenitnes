@@ -101,7 +101,13 @@ export async function processSignalOutcomes(
       // "we said X, price did Y". This is the accountability post —
       // the channel's best content — and it only exists because the
       // window genuinely elapsed before the snapshot was taken.
-      if (row.window_seconds === 86400 || row.window_seconds === 604800) {
+      // FRESH maturities only: a window that matured more than 6h
+      // ago is a historical backfill (e.g. re-recording purged
+      // premature rows), and broadcasting a burst of stale verdicts
+      // would flood the channel with old-era noise.
+      const maturedAt = new Date(row.detected_at).getTime() + row.window_seconds * 1000;
+      const isFresh = Date.now() - maturedAt < 6 * 3_600_000;
+      if (isFresh && (row.window_seconds === 86400 || row.window_seconds === 604800)) {
         await broadcastOutcomeVerdict(row.signal_id, asset.id, row.window_seconds, pctChange);
       }
     } catch (err) {
