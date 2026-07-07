@@ -60,8 +60,9 @@ the dry-run procedure for the first live trade.
 **When to enable**: Only after the
 [`/calibration`](https://lenitnes.persidian.com/calibration) page
 shows higher conviction = better outcomes for a meaningful sample
-(target: n ≥ 30 closed positions in the 80+ band with avg T+1d
-visibly positive).
+(target: n ≥ 30 closed trades total, with avg T+1d rising as
+conviction rises band-over-band — not just the top band positive
+in isolation).
 
 ---
 
