@@ -143,6 +143,11 @@ export default function PortfolioPage() {
 
       {/* Closed positions */}
       <h2 className="section-title">Trade History</h2>
+      <p className="mb-3 text-[11px] leading-relaxed text-slate-500">
+        Positions opened before 7 Jul 2026 predate rubric v4 (commit-citation requirement, book
+        discipline, hardened calibration) and were closed manually at market on that date. The
+        record the agent stands on starts there.
+      </p>
       {closedPositions.length === 0 ? (
         <div className="rounded-xl border border-dashed border-edge/60 p-6 text-center">
           <p className="text-sm text-slate-500">No closed trades yet.</p>
