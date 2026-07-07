@@ -25,22 +25,22 @@ window before the next change.
 
 ## Knobs in scope
 
-| Env var                        | Default    | Used in                            | Status               |
-| ------------------------------ | ---------- | ---------------------------------- | -------------------- |
-| `TRADING_ENABLED`              | `false`    | services/treasury/risk.ts          | Hard gate (kill sw.) |
-| `CONVICTION_THRESHOLD`         | `80`       | execution/loop.ts                  | Empirical (cohort 1) |
-| `MIN_COMMIT_AGE_MINUTES`       | `30`       | execution/loop.ts                  | Hypothesis-driven    |
-| `MAX_CONCURRENT_POSITIONS`     | `5`        | services/treasury/risk.ts          | Risk cap             |
-| `MAX_PER_ASSET_POSITIONS`      | `1`        | services/treasury/risk.ts          | Concentration cap    |
-| `POSITION_TAKE_PROFIT_BPS`     | `1500`     | services/treasury/risk.ts          | MVP default          |
-| `POSITION_STOP_LOSS_BPS`       | `700`      | services/treasury/risk.ts          | MVP default          |
-| `DAILY_AGENT_BUDGET_USD`       | `20`       | services/agent.ts (live path only) | MVP default          |
-| `AGENT_INPUT_COST_PER_1M_USD`  | `0.60`     | services/agent.ts                  | Vendor-listed        |
-| `AGENT_OUTPUT_COST_PER_1M_USD` | `2.50`     | services/agent.ts                  | Vendor-listed        |
-| `TREASURY_DEFAULT_AMOUNT`      | `0.01`     | execution/loop.ts                  | MVP default          |
-| `TREASURY_SLIPPAGE_BPS`        | `50`       | execution/loop.ts                  | Industry std         |
-| `TREASURY_DEFAULT_CHAIN`       | `arbitrum` | execution/loop.ts                  | MVP default          |
-| `MOCK_AGENT`                   | unset      | services/agent.ts                  | N/A                  |
+| Env var                        | Default    | Used in                            | Status                          |
+| ------------------------------ | ---------- | ---------------------------------- | ------------------------------- |
+| `TRADING_ENABLED`              | `false`    | services/treasury/risk.ts          | Hard gate (kill sw.)            |
+| `CONVICTION_THRESHOLD`         | `70`       | execution/loop.ts                  | Empirical (reverted 2026-07-07) |
+| `MIN_COMMIT_AGE_MINUTES`       | `30`       | execution/loop.ts                  | Hypothesis-driven               |
+| `MAX_CONCURRENT_POSITIONS`     | `5`        | services/treasury/risk.ts          | Risk cap                        |
+| `MAX_PER_ASSET_POSITIONS`      | `1`        | services/treasury/risk.ts          | Concentration cap               |
+| `POSITION_TAKE_PROFIT_BPS`     | `1500`     | services/treasury/risk.ts          | MVP default                     |
+| `POSITION_STOP_LOSS_BPS`       | `700`      | services/treasury/risk.ts          | MVP default                     |
+| `DAILY_AGENT_BUDGET_USD`       | `20`       | services/agent.ts (live path only) | MVP default                     |
+| `AGENT_INPUT_COST_PER_1M_USD`  | `0.60`     | services/agent.ts                  | Vendor-listed                   |
+| `AGENT_OUTPUT_COST_PER_1M_USD` | `2.50`     | services/agent.ts                  | Vendor-listed                   |
+| `TREASURY_DEFAULT_AMOUNT`      | `0.01`     | execution/loop.ts                  | MVP default                     |
+| `TREASURY_SLIPPAGE_BPS`        | `50`       | execution/loop.ts                  | Industry std                    |
+| `TREASURY_DEFAULT_CHAIN`       | `arbitrum` | execution/loop.ts                  | MVP default                     |
+| `MOCK_AGENT`                   | unset      | services/agent.ts                  | N/A                             |
 
 ---
 
@@ -65,7 +65,7 @@ visibly positive).
 
 ---
 
-## `CONVICTION_THRESHOLD` — default `80`
+## `CONVICTION_THRESHOLD` — default `70`
 
 **Used by**: `apps/api/src/execution/loop.ts:406`
 
@@ -74,28 +74,37 @@ visibly positive).
 trade; below it, the verdict is still persisted (in
 `agent_scores`) but produces no trade.
 
-**Why 80** (raised from 70 on 2026-06-26): The first conviction
-cohort ran at the 70 floor for 5 trades and closed at 0% win
-rate with avg T+1h ≈ −0.5%. Looking at the cohort breakdown:
+**History**: 70 → 80 on 2026-06-26 (see below) → **back to 70 on
+2026-07-07**. The 80 experiment is inconclusive, not vindicated:
+the cohort that motivated it (raised on a 5-trade sample) never
+grew past a handful of trades before the pipeline stalled for an
+unrelated reason — a scheduler bug excluded any monitor that had
+ever fired from being checked again (fixed 2026-07-07), so most
+watched repos silently stopped producing signals for over a
+week. There was never a real 20+ trade cohort at 80 to judge.
 
-- 4 of 5 trades were in the 80-82 band (avg T+1h still −0.5%)
-- 1 trade in the 70-79 band (also negative)
+**Why revert instead of re-measure at 80**: rubric v4 (also
+shipped 2026-07-07) is a bigger lever than the threshold —
+book discipline, a commit-citation requirement, and a hard cap
+of 65 on news-only signals change what a given conviction score
+_means_. Measuring the old threshold question against the new
+rubric would conflate two variables. 70 is the floor the rubric
+itself defines as "trade candidate" (see rubric-v4.md
+Calibration section); re-running the threshold experiment (if
+still warranted) should happen after v4 has its own clean
+cohort.
 
-The 70 floor was producing trades at noise quality. Raising to
-80 is the conservative move while we accumulate more data; if
-the 80+ cohort also runs negative after 20+ trades, the rubric
-itself needs work (not just the threshold).
-
-**Why not 75 / 85 / 90**: 75 splits the difference but doesn't
-move enough of the cohort. 85 would cut signal flow too
-aggressively for the current sample; we'd take months to
-accumulate 30 closed positions. 90 is the eventual target if the
-80 cohort calibrates well.
+**Original 2026-06-26 rationale** (kept for the record): The
+first conviction cohort ran at the 70 floor for 5 trades and
+closed at 0% win rate with avg T+1h ≈ −0.5% — 4 of 5 trades in
+the 80-82 band, 1 in 70-79, both negative. Raising to 80 was the
+conservative move pending more data.
 
 **Live measurement**: The `/calibration` page's conviction-band
-table is the source of truth. Once the 80+ row's avg T+1d trends
-positive (target +1% on n ≥ 30), consider lowering back to 75 OR
-raising to 85, depending on which band shows clearer separation.
+table is the source of truth, and it now shows a matured-outcome
+denominator (`closed`) instead of counting pending trades as
+misses — see the 2026-07-07 change-log entries below. Watch it
+accumulate a real v4-era cohort before touching this knob again.
 
 ---
 
@@ -397,11 +406,18 @@ The loop:
 
 ## Change log
 
-| Date       | Change                                                   | Reason                                                                       |
-| ---------- | -------------------------------------------------------- | ---------------------------------------------------------------------------- |
-| 2026-06-26 | `CONVICTION_THRESHOLD` 70 → 80                           | Cohort 1 (5 trades) ran 0% win rate at 70+; raise floor while measuring more |
-| 2026-06-26 | `MIN_COMMIT_AGE_MINUTES` new, default 30                 | Hypothesis: cohort 1 fired on news already priced in within the hour         |
-| 2026-06-26 | `TRADING_ENABLED` new, default false                     | Master kill switch — every live trade requires explicit opt-in               |
-| 2026-06-26 | `MAX_CONCURRENT_POSITIONS=5`, `PER_ASSET=1` new          | Concentration + risk caps                                                    |
-| 2026-06-26 | `POSITION_TAKE_PROFIT_BPS=1500`, `STOP_LOSS_BPS=700` new | TP/SL levels written at position open, conviction-scaled                     |
-| 2026-06-26 | `TREASURY_SLIPPAGE_BPS=50` enforced via real quote       | Previous `amountOutMin=0` allowed infinite slippage                          |
+| Date       | Change                                                                               | Reason                                                                                                                                                                                                                                                                                                                               |
+| ---------- | ------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| 2026-06-26 | `CONVICTION_THRESHOLD` 70 → 80                                                       | Cohort 1 (5 trades) ran 0% win rate at 70+; raise floor while measuring more                                                                                                                                                                                                                                                         |
+| 2026-06-26 | `MIN_COMMIT_AGE_MINUTES` new, default 30                                             | Hypothesis: cohort 1 fired on news already priced in within the hour                                                                                                                                                                                                                                                                 |
+| 2026-06-26 | `TRADING_ENABLED` new, default false                                                 | Master kill switch — every live trade requires explicit opt-in                                                                                                                                                                                                                                                                       |
+| 2026-06-26 | `MAX_CONCURRENT_POSITIONS=5`, `PER_ASSET=1` new                                      | Concentration + risk caps                                                                                                                                                                                                                                                                                                            |
+| 2026-06-26 | `POSITION_TAKE_PROFIT_BPS=1500`, `STOP_LOSS_BPS=700` new                             | TP/SL levels written at position open, conviction-scaled                                                                                                                                                                                                                                                                             |
+| 2026-06-26 | `TREASURY_SLIPPAGE_BPS=50` enforced via real quote                                   | Previous `amountOutMin=0` allowed infinite slippage                                                                                                                                                                                                                                                                                  |
+| 2026-07-07 | `CONVICTION_THRESHOLD` 80 → 70 (reverted)                                            | The 80 experiment never got a real cohort — a scheduler bug (fixed same day) stranded any monitor that had ever fired, so signal volume collapsed for over a week. Reverting rather than re-measuring at 80 because rubric v4 (same day) changes what conviction means anyway                                                        |
+| 2026-07-07 | Rubric v3 → v4                                                                       | Adds `book_context` (no pile-ons, no evidence-free reversals), commit-citation requirement (thesis must cite the SHA or conviction ≤ 50), and a hard cap of 65 on news-only signals — the operation's edge is commits, not headlines                                                                                                 |
+| 2026-07-07 | Scheduler + worker: include `status='triggered'` in due-monitor queries              | A monitor that fires is marked 'triggered' and only resets to 'active' on its _next_ check — but both the scheduler's enqueue query and the worker's job lookup filtered to 'active' only, so any monitor that had ever fired was never checked again. Root cause of the commit pipeline going silent after the initial signal burst |
+| 2026-07-07 | Scorecard: cumulative P&L / drawdown from the positions ledger, not raw price deltas | The scorecard was summing `price_after − price_at_signal` across every T+1d outcome row — unsized, not direction-adjusted, counting signals never traded on. A $400 BTC daily move showed as −$400 "P&L" on a 0.01-unit paper position. Now reads realized, direction-aware `pnl_usd` from `positions`                               |
+| 2026-07-07 | Scorecard/calibration: hit-ratio denominators now `withT1d`/`closed`, not `total`    | Signals with no matured T+1d outcome were counted as misses ("0/47"). All three breakdowns (detector, watchlist, conviction band) now expose the matured-outcome count separately; frontend renders "—" until data exists                                                                                                            |
+| 2026-07-07 | `signals.asset` column added; narrative-scan signals now resolve a price             | Outcome attribution resolved the asset from the _monitor_ row, and `narrative:portfolio` has no fixed coingeckoId — 47 news-era signals were permanently unpriceable. The narrative scan now writes its dominant asset onto the signal row directly                                                                                  |
+| 2026-07-07 | Agent invariant clamp: `action=none` + conviction > 50 + empty book → capped at 50   | The model occasionally violated its own rubric invariant (observed live: conviction 88, action "none", flat book). That combination is only legitimate when the book already expresses the thesis                                                                                                                                    |

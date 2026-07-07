@@ -27,6 +27,7 @@ Public surfaces — no signup, no auth:
 - **[`/portfolio`](https://lenitnes.persidian.com/portfolio)** — open + closed positions with entry price, unrealized P&L, TP/SL levels.
 - **[`/case-study/halo2`](https://lenitnes.persidian.com/case-study/halo2)** — the founding case study.
 - **[`/signals/:id`](https://lenitnes.persidian.com/signals/)** — every committed signal with the full proof chain and a "was the agent right?" verdict card.
+- **[`/scan`](https://lenitnes.persidian.com/scan)** — the enterprise pitch as a working demo: point the production engine at any public repo and see what its commit history signaled, day by day.
 
 ## How it works
 

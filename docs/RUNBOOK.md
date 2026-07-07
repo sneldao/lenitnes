@@ -217,6 +217,49 @@ the token. To recover:
 
 ---
 
+## Operator alerts (2026-07-07)
+
+The pipeline died silently once — an invalid `SOSO_VALUE_API_KEY`
+stopped the narrative scan, no agent score was produced for ~30
+hours, and nothing paged anyone. The channel kept posting stale
+heartbeats the whole time. Two things now exist to prevent a
+repeat, both delivered to a **private operator chat**, never the
+public Telegram channel:
+
+### Setup
+
+1. Message the bot directly (search its username in Telegram,
+   tap Start) so it has a private chat to reply into.
+2. Pull your chat id from the bot's own update log:
+   ```bash
+   ssh nuncio-vultr 'cd /opt/lenitnes && TOKEN=$(grep "^TELEGRAM_BOT_TOKEN=" .env | cut -d= -f2) \
+     && curl -s "https://api.telegram.org/bot$TOKEN/getUpdates" \
+     | python3 -c "import json,sys; [print(u[\"message\"][\"chat\"][\"id\"]) for u in json.load(sys.stdin)[\"result\"] if u.get(\"message\",{}).get(\"chat\",{}).get(\"type\")==\"private\"]"'
+   ```
+3. Set `TELEGRAM_OPERATOR_CHAT_ID` in `.env` to that id, then
+   `sudo docker compose up -d worker api` to pick it up.
+4. Verify: send a manual test message to that chat id via
+   `sendMessage` and confirm it lands.
+
+### What pages you
+
+- **Dead-man's switch** (`checkPipelinePulse`, runs hourly):
+  pages if no monitor check has run in 2h (worker dead / queue
+  stuck), or no agent score has been produced in 48h (scoring
+  pipeline starved — check API keys and data feeds). Rate-limited
+  to one alert per condition per 12h.
+- **Low gas** (`checkGasBalance`, every 6h): pages when the BSC
+  treasury wallet balance drops below
+  `TREASURY_GAS_WARNING_THRESHOLD`. Only matters once live
+  trading is enabled — paper calls use no gas.
+
+If `TELEGRAM_OPERATOR_CHAT_ID` is unset, both checks still run
+and log at `warn`/`error` — they just have nowhere to page. Check
+`docker logs lenitnes-worker-1 | grep "operator alert"` if you
+suspect the channel isn't wired.
+
+---
+
 ## Quick reference — what each kill switch does
 
 | Switch                         | Default | What it stops                                                       |
