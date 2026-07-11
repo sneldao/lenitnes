@@ -1,19 +1,15 @@
 import { query } from '../../db/pool.js';
 import { priceData } from '../data-providers/registry.js';
-import { config } from '../../config.js';
-import { sendTelegram } from '../notify.js';
 import { logger } from '../../logger.js';
 import { sqlHitPredicate } from './outcome-metrics.js';
+import {
+  loadVerdictContext,
+  broadcastVerdictBatch,
+  type VerdictBroadcastItem,
+} from '../telegram-messages.js';
 import type { DetectorBacktestStats, SignalOutcome } from '@lenitnes/types';
 
 const DEFAULT_WINDOWS = [3600, 14400, 86400, 604800]; // 1h, 4h, 24h, 7d
-
-const WINDOW_LABEL: Record<number, string> = {
-  3600: 'T+1h',
-  14400: 'T+4h',
-  86400: 'T+1d',
-  604800: 'T+7d',
-};
 
 export async function processSignalOutcomes(
   windows: number[] = DEFAULT_WINDOWS,
@@ -57,6 +53,7 @@ export async function processSignalOutcomes(
 
   let processed = 0;
   let errors = 0;
+  const verdictQueue: VerdictBroadcastItem[] = [];
 
   for (const row of pending) {
     // The SQL filters unresolvable assets; this guard covers callers
@@ -109,7 +106,14 @@ export async function processSignalOutcomes(
       const maturedAt = new Date(row.detected_at).getTime() + row.window_seconds * 1000;
       const isFresh = Date.now() - maturedAt < 6 * 3_600_000;
       if (isFresh && (row.window_seconds === 86400 || row.window_seconds === 604800)) {
-        await broadcastOutcomeVerdict(row.signal_id, asset.id, row.window_seconds, pctChange);
+        const ctx = await loadVerdictContext(row.signal_id, asset.id);
+        if (ctx) {
+          verdictQueue.push({
+            ...ctx,
+            windowSeconds: row.window_seconds,
+            pctChange,
+          });
+        }
       }
     } catch (err) {
       logger.warn(
@@ -120,65 +124,15 @@ export async function processSignalOutcomes(
     }
   }
 
+  if (verdictQueue.length > 0) {
+    await broadcastVerdictBatch(verdictQueue);
+  }
+
   if (processed > 0) {
     await refreshBacktestStats();
   }
 
   return { processed, errors };
-}
-
-/**
- * Post a "was the agent right?" verdict to the public channel for an
- * above-threshold directional call whose outcome window just matured.
- * Best-effort; never throws.
- */
-async function broadcastOutcomeVerdict(
-  signalId: string,
-  asset: string,
-  windowSeconds: number,
-  pctChange: number,
-): Promise<void> {
-  try {
-    if (!config.telegram.botToken || !config.telegram.publicChannelId) return;
-
-    const { rows } = await query<{
-      conviction: number;
-      recommended_action: string;
-    }>(
-      `SELECT conviction, recommended_action FROM agent_scores
-        WHERE signal_id = $1 ORDER BY created_at DESC LIMIT 1`,
-      [signalId],
-    );
-    const score = rows[0];
-    if (!score || score.conviction < 70 || score.recommended_action === 'none') return;
-
-    const action = score.recommended_action.toUpperCase();
-    const label = WINDOW_LABEL[windowSeconds] ?? `${windowSeconds}s`;
-    const move = `${pctChange >= 0 ? '+' : ''}${pctChange.toFixed(2)}%`;
-
-    let verdict: string;
-    if (Math.abs(pctChange) <= 0.5) {
-      verdict = `⚪ flat (${move}) — no verdict`;
-    } else {
-      const correct =
-        (score.recommended_action === 'long' && pctChange > 0) ||
-        (score.recommended_action === 'short' && pctChange < 0);
-      verdict = correct ? `✅ ${move} — call CORRECT` : `❌ ${move} — call WRONG`;
-    }
-
-    const message = [
-      `🔎 LENITNES · verdict · ${asset.toUpperCase()} ${action} @ ${score.conviction}/100 · ${label}`,
-      ``,
-      verdict,
-      ``,
-      `🔗 ${config.webOrigin}/signals/${signalId}`,
-    ].join('\n');
-
-    await sendTelegram(config.telegram.publicChannelId, message);
-    logger.info({ signalId, windowSeconds, pctChange }, 'outcome verdict broadcast');
-  } catch (err) {
-    logger.error({ err, signalId, windowSeconds }, 'outcome verdict broadcast failed');
-  }
 }
 
 export async function refreshBacktestStats(): Promise<void> {

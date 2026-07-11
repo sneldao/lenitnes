@@ -758,11 +758,14 @@ export async function executeCheck(monitor: Monitor): Promise<{
     ]);
     const signalProofs = signalRows[0];
 
+    const topDetector = [...detectorResultsFull].sort((a, b) => b.score - a.score)[0]?.type;
+
     const broadcastInput: BroadcastSignalInput = {
       signalId,
       summary: result.summary,
       monitorUrl: monitor.url,
       detectedAt: new Date().toISOString(),
+      primaryDetector: topDetector ?? null,
       agentScore: {
         conviction: agentScore.conviction,
         thesis: agentScore.thesis,

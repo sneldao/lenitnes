@@ -1,5 +1,7 @@
 import { config } from '../config.js';
 import { logger } from '../logger.js';
+import { monitorRepoFromUrl } from './domain/repo-tier-policy.js';
+import { formatUtcShort } from './telegram-messages.js';
 
 // ─────────────────────────────────────────────────────────────
 // Non-trade actions: webhook, telegram, email.
@@ -199,6 +201,8 @@ export interface BroadcastSignalInput {
   summary: string;
   monitorUrl: string;
   detectedAt: string;
+  /** Top detector type that fired (optional). */
+  primaryDetector?: string | null;
   agentScore: {
     conviction: number;
     thesis: string;
@@ -235,16 +239,18 @@ export interface BroadcastSignalInput {
  */
 export function formatSignalBroadcastMessage(input: BroadcastSignalInput): string {
   const lines: string[] = [];
-  const asset = (input.tradeReceipt?.pair ?? 'watchlist').toUpperCase();
+  const asset = (input.tradeReceipt?.pair ?? 'watchlist').replace(/USD$/i, '').toUpperCase();
   const action = input.agentScore.recommended_action.toUpperCase();
   const conviction = input.agentScore.conviction;
   const band = input.agentScore.confidence_band;
+  const repo = monitorRepoFromUrl(input.monitorUrl);
+  const modeTag = input.tradeReceipt?.mode === 'live' ? 'LIVE' : 'PAPER';
+  const detector = input.primaryDetector ? ` · ${input.primaryDetector}` : '';
 
-  // Header — verdict-forward, no banner.
-  lines.push(`🛡️ LENITNES · ${asset} ${action} · ${conviction}/100 (${band})`);
+  lines.push(`🛡️ LENITNES · ${asset} ${action} · ${conviction}/100 (${band}) · ${modeTag}`);
+  lines.push(`📍 ${repo}${detector} · ${formatUtcShort(input.detectedAt)}`);
   lines.push('');
 
-  // Thesis is the story; lead with it.
   lines.push(`💭 ${input.agentScore.thesis}`);
   lines.push('');
 
@@ -297,9 +303,10 @@ export function formatSignalBroadcastMessage(input: BroadcastSignalInput): strin
   lines.push(...proofLines);
   lines.push('');
 
-  // Outcome schedule + scorecard pointer — one line each.
-  lines.push(`⏱ Outcome at T+1h · T+1d · T+7d (auto-snapshot)`);
-  lines.push(`🔗 ${config.webOrigin}/scorecard`);
+  // Outcome schedule + deep links.
+  lines.push(`⏱ Verdict at T+1d · T+7d (auto-posted)`);
+  lines.push(`🔗 ${config.webOrigin}/signals/${input.signalId}`);
+  lines.push(`📊 ${config.webOrigin}/calibration`);
 
   return lines.join('\n');
 }

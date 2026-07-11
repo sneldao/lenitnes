@@ -37,9 +37,13 @@ const baseInput: BroadcastSignalInput = {
 // proof links survive); the chrome that used to be there (pair label,
 // "Mode:" prefix, T+ timestamps in-message) is intentionally gone.
 describe('formatSignalBroadcastMessage', () => {
-  it('leads with asset, action, and conviction in the header', () => {
-    const msg = formatSignalBroadcastMessage(baseInput);
-    expect(msg).toContain('🛡️ LENITNES · ZECUSD LONG · 85/100 (high)');
+  it('leads with asset, action, conviction, mode, and repo context', () => {
+    const msg = formatSignalBroadcastMessage({
+      ...baseInput,
+      primaryDetector: 'emergency_patch',
+    });
+    expect(msg).toContain('🛡️ LENITNES · ZEC LONG · 85/100 (high) · PAPER');
+    expect(msg).toContain('📍 zcash/halo2 · emergency_patch');
     expect(msg).toContain('Critical soundness fix merged');
   });
 
@@ -82,9 +86,11 @@ describe('formatSignalBroadcastMessage', () => {
     expect(msg).toContain('📦 Grove: https://grove.lens.xyz/ipfs/bafkreihello');
   });
 
-  it('surfaces the outcome-window schedule (T+1h/1d/7d)', () => {
+  it('surfaces verdict schedule and signal deep link', () => {
     const msg = formatSignalBroadcastMessage(baseInput);
-    expect(msg).toContain('T+1h · T+1d · T+7d');
+    expect(msg).toContain('Verdict at T+1d · T+7d');
+    expect(msg).toContain('/signals/sig-1');
+    expect(msg).toContain('/calibration');
   });
 
   it('omits the trade line when no receipt', () => {
