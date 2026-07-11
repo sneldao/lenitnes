@@ -379,8 +379,10 @@ paths:
         Replay the commit-level watchlist over the last 90 days and
         rank repos by historical commit-signal → price responsiveness.
         Mock agent by default (zero LLM cost); X-Admin-Key unlocks
-        live agent scoring. Background sweep — returns 202 while
-        pending, 200 when cached (30 minutes, Redis-backed).
+        live agent scoring. Optional `tier=A|B|C` (admin only) scopes
+        a live sweep to repos with that label in the latest mock sweep.
+        Background sweep — returns 202 while pending, 200 when cached
+        (30 minutes, Redis-backed).
       security: []
       parameters:
         - name: from
@@ -389,6 +391,10 @@ paths:
         - name: to
           in: query
           schema: { type: string, format: date-time }
+        - name: tier
+          in: query
+          description: Admin-only — restrict live sweep to A/B/C repos from mock tier map
+          schema: { type: string, enum: ['A', 'B', 'C'] }
       responses:
         '200':
           description: Responsiveness profiles (ready)
@@ -401,6 +407,7 @@ paths:
                   from: { type: string }
                   to: { type: string }
                   mode: { type: string, enum: ['mock', 'live'] }
+                  tierFilter: { type: string, enum: ['A', 'B', 'C'], nullable: true }
                   completedAt: { type: string }
                   profiles:
                     type: array

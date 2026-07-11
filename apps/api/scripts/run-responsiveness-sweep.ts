@@ -5,32 +5,20 @@
  *   MOCK_AGENT=1 npx tsx scripts/run-responsiveness-sweep.ts
  *   MOCK_AGENT=0 npx tsx scripts/run-responsiveness-sweep.ts --live --tier A
  */
-import { CONSENSUS_WATCHLIST } from '@lenitnes/types';
 import { replayWatchlistResponsiveness } from '../src/services/replay.js';
 import { tierProfiles } from '../src/services/domain/repo-tiers.js';
-import { getResponsivenessSweepState } from '../src/services/responsiveness-sweep.js';
+import { resolveSweepRepos } from '../src/services/responsiveness-sweep.js';
 
 const args = process.argv.slice(2);
 const live = args.includes('--live');
 const tierFilter = args.includes('--tier')
   ? (args[args.indexOf('--tier') + 1]?.toUpperCase() as 'A' | 'B' | 'C')
-  : null;
+  : undefined;
 
 async function main() {
-  let repos = CONSENSUS_WATCHLIST.map(({ repo, asset }) => ({ repo, asset }));
-
-  if (tierFilter && !live) {
-    const state = await getResponsivenessSweepState('mock');
-    const profiles = state.payload?.profiles ?? [];
-    if (profiles.length === 0) {
-      console.error('No mock sweep cached — run without --tier first.');
-      process.exit(1);
-    }
-    const allowed = new Set(
-      profiles.filter((p) => p.tier === tierFilter).map((p) => p.repo.toLowerCase()),
-    );
-    repos = repos.filter((r) => allowed.has(r.repo.toLowerCase()));
-    console.log(`Filtering to tier ${tierFilter}: ${repos.map((r) => r.repo).join(', ')}\n`);
+  const { repos, tier } = await resolveSweepRepos({ tier: tierFilter });
+  if (tier) {
+    console.log(`Filtering to tier ${tier}: ${repos.map((r) => r.repo).join(', ')}\n`);
   }
 
   const profiles = tierProfiles(await replayWatchlistResponsiveness({ mock: !live, repos }));

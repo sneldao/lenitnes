@@ -491,11 +491,25 @@ signals get +10 conviction (`domain/chain-conviction.ts`).
 **Live A-tier comparison sweep:**
 
 ```bash
-# After mock sweep is cached:
+# CLI (after mock sweep is cached):
 MOCK_AGENT=0 npx tsx apps/api/scripts/run-responsiveness-sweep.ts --live --tier A
+
+# HTTP (admin key, same engine as CLI):
+curl -H "X-Admin-Key: $ADMIN_API_KEY" \
+  "https://lenitnes.persidian.com/api/backtest/responsiveness?tier=A"
 ```
 
-Compare hit rates to mock on `/calibration` before expanding live spend.
+**First live A-tier baseline (2026-07-11, 90d):**
+
+| Repo                  | Mock T+7d hit | Live T+7d hit | Live tier      |
+| --------------------- | ------------- | ------------- | -------------- |
+| ZcashFoundation/zebra | 29%           | **67%**       | A              |
+| anza-xyz/agave        | 50%           | 20%           | B (downgraded) |
+| MystenLabs/sui        | 75%           | **100%**      | A              |
+
+Agave live run failed to confirm mock A-tier — keep B-default trade floor (80).
+
+Compare hit rates on `/calibration` before expanding live spend.
 
 **Agent token efficiency:** Rubric sent as system message; optional
 context fields omitted when empty; `agent_input` snapshot persisted in
@@ -527,3 +541,4 @@ learning uses direction-adjusted hits via `domain/outcome-metrics.ts`.
 | 2026-07-11 | `GET /backtest/responsiveness` + `/calibration` replay table                         | Empirical commit→price responsiveness ranking before watchlist expansion; one CoinGecko range prefetch per asset in replay to avoid 429s                                                                                                                                                                                             |
 | 2026-07-11 | Background responsiveness sweep + Redis price cache + repo tiers + sequence_context  | Prod 429/timeouts on inline HTTP sweep; tier list turns measurement into spend policy; sector-chain context for Zcash pilot                                                                                                                                                                                                          |
 | 2026-07-11 | Tier-gated agent scoring + chain conviction boost + rubric system-message split      | C-tier mock-only saves tokens; B-tier trade floor 80; upstream emergency chain +10; operator alerts on sweep failure                                                                                                                                                                                                                 |
+| 2026-07-11 | Live sweep `?tier=A` admin API + CLI `--live --tier` fix                             | A-tier live comparison without SSH; Redis key per tier scope; Jul 11 live baseline documented                                                                                                                                                                                                                                        |

@@ -9,9 +9,11 @@ import {
   ensureResponsivenessSweep,
   getResponsivenessSweepState,
   type SweepMode,
+  type SweepTierFilter,
 } from '../services/responsiveness-sweep.js';
 import { cacheGet, cacheSet } from '../middleware/cache.js';
 import { config } from '../config.js';
+import type { RepoTier } from '@lenitnes/types';
 
 export const backtestRouter = Router();
 
@@ -77,14 +79,36 @@ function sweepModeFromRequest(req: Request): SweepMode {
   return live ? 'live' : 'mock';
 }
 
-// GET /backtest/responsiveness?from=...&to=...
+function isAdminRequest(req: Request): boolean {
+  const adminKey = req.header('x-admin-key') ?? '';
+  return config.admin.apiKey !== '' && adminKey === config.admin.apiKey;
+}
+
+function tierFromQuery(req: Request): SweepTierFilter | undefined {
+  const raw = req.query.tier ? String(req.query.tier).toUpperCase() : undefined;
+  if (raw === 'A' || raw === 'B' || raw === 'C') return raw as RepoTier;
+  return undefined;
+}
+
+// GET /backtest/responsiveness?from=...&to=...&tier=A
 // Background sweep — returns 202 while running, 200 when cached.
+// tier= requires X-Admin-Key (live agent, scoped to mock tier labels).
 backtestRouter.get('/responsiveness', async (req: Request, res: Response) => {
   const from = req.query.from ? String(req.query.from) : undefined;
   const to = req.query.to ? String(req.query.to) : undefined;
   const mode = sweepModeFromRequest(req);
+  const tier = tierFromQuery(req);
 
-  const state = await getResponsivenessSweepState(mode, from, to);
+  if (tier && !isAdminRequest(req)) {
+    res.status(403).json({
+      error: 'tier_filter_requires_admin',
+      message: 'tier=A|B|C requires X-Admin-Key for live scoped sweeps',
+    });
+    return;
+  }
+
+  const sweepOptions = { from, to, tier };
+  const state = await getResponsivenessSweepState(mode, from, to, tier);
   if (state.status === 'ready' && state.payload) {
     res.json({ ...state.payload, status: 'ready' });
     return;
@@ -93,6 +117,7 @@ backtestRouter.get('/responsiveness', async (req: Request, res: Response) => {
     res.status(202).json({
       status: 'pending',
       mode,
+      tierFilter: tier,
       startedAt: state.startedAt,
       message: 'Responsiveness sweep in progress — retry in 30–60s',
     });
@@ -103,7 +128,7 @@ backtestRouter.get('/responsiveness', async (req: Request, res: Response) => {
     return;
   }
 
-  const next = await ensureResponsivenessSweep(mode, from, to);
+  const next = await ensureResponsivenessSweep(mode, sweepOptions);
   if (next.status === 'ready' && next.payload) {
     res.json({ ...next.payload, status: 'ready' });
     return;
@@ -111,6 +136,7 @@ backtestRouter.get('/responsiveness', async (req: Request, res: Response) => {
   res.status(202).json({
     status: 'pending',
     mode,
+    tierFilter: tier,
     startedAt: next.startedAt,
     message: 'Responsiveness sweep started — retry in 30–60s',
   });
