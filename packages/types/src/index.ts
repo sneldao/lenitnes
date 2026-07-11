@@ -361,3 +361,13 @@ export interface TinyFishResult {
     total: number;
   }>;
 }
+
+export {
+  CONSENSUS_WATCHLIST,
+  SECTOR_GRAPHS,
+  findWatchlistEntry,
+  watchlistAssetForRepo,
+  type WatchlistEntry,
+  type SectorGraphDef,
+  type RepoTier,
+} from './watchlist.js';

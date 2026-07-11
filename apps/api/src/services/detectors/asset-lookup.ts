@@ -1,4 +1,5 @@
 import type { AssetMapping } from '@lenitnes/types';
+import { CONSENSUS_WATCHLIST } from '@lenitnes/types';
 
 const REPO_ASSET_MAP: Record<string, AssetMapping> = {
   'zcash/zcash': { coingeckoId: 'zcash', direction: 'both' },
@@ -46,15 +47,8 @@ const REPO_ASSET_MAP: Record<string, AssetMapping> = {
 };
 
 /** Commit-level monitors from db/seed/watchlist.sql — replay responsiveness sweep. */
-export const CONSENSUS_WATCHLIST_REPOS: ReadonlyArray<{ repo: string; asset: string }> = [
-  { repo: 'zcash/halo2', asset: 'zcash' },
-  { repo: 'ZcashFoundation/zebra', asset: 'zcash' },
-  { repo: 'bitcoin/bitcoin', asset: 'bitcoin' },
-  { repo: 'ethereum/go-ethereum', asset: 'ethereum' },
-  { repo: 'anza-xyz/agave', asset: 'solana' },
-  { repo: 'paradigmxyz/reth', asset: 'ethereum' },
-  { repo: 'MystenLabs/sui', asset: 'sui' },
-];
+export const CONSENSUS_WATCHLIST_REPOS: ReadonlyArray<{ repo: string; asset: string }> =
+  CONSENSUS_WATCHLIST.map(({ repo, asset }) => ({ repo, asset }));
 
 function normalizeRepoKey(url: string): string {
   return url

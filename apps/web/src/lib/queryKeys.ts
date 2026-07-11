@@ -9,6 +9,7 @@ export const qk = {
   scorecard: () => ['scorecard', 'summary'] as const,
   scorecardRecent: (limit?: number) => ['scorecard', 'recent', limit ?? 'default'] as const,
   responsiveness: () => ['backtest', 'responsiveness'] as const,
+  repoTiers: () => ['backtest', 'tiers'] as const,
   signal: (id: string) => ['signal', id] as const,
   publicProof: (id: string) => ['public-proof', id] as const,
   monitors: () => ['monitors'] as const,

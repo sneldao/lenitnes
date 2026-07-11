@@ -10,7 +10,7 @@ import Link from 'next/link';
 import { Activity, AlertTriangle, GitBranch, Target, TrendingUp } from 'lucide-react';
 import { api, type ScorecardResponse, type ResponsivenessResponse } from '@/lib/api';
 import { qk, REFETCH } from '@/lib/queryKeys';
-import { formatRatio, formatDetectorType } from '@/lib/format';
+import { formatRatio, formatDetectorType, tierBadgeClass, formatNullableRatio } from '@/lib/format';
 import { PageLoader, PageError } from '@/components/ui/page-states';
 
 function fmtPct(n: number | null): string {
@@ -24,18 +24,6 @@ function pctTone(n: number | null): string {
   if (n > 0.1) return 'text-signal';
   if (n < -0.1) return 'text-danger';
   return 'text-slate-400';
-}
-
-function tierBadge(tier?: 'A' | 'B' | 'C'): string {
-  if (tier === 'A') return 'bg-signal/15 text-signal';
-  if (tier === 'C') return 'bg-danger/15 text-danger';
-  if (tier === 'B') return 'bg-accent/10 text-accent';
-  return 'bg-slate-800 text-slate-500';
-}
-
-function fmtRatio(n: number | null): string {
-  if (n == null) return '—';
-  return formatRatio(n);
 }
 
 export default function CalibrationPage() {
@@ -281,7 +269,7 @@ export default function CalibrationPage() {
                     <tr key={row.repo} className="border-b border-edge/20 last:border-0">
                       <td className="py-2 pr-3">
                         <span
-                          className={`rounded px-1.5 py-0.5 font-mono text-[10px] uppercase ${tierBadge(row.tier)}`}
+                          className={`rounded px-1.5 py-0.5 font-mono text-[10px] uppercase ${tierBadgeClass(row.tier)}`}
                           title={row.tierReason}
                         >
                           {row.tier ?? '—'}
@@ -293,10 +281,10 @@ export default function CalibrationPage() {
                       <td className="py-2 px-3 text-right text-slate-400">{row.flaggedBatches}</td>
                       <td className="py-2 px-3 text-right text-slate-400">{row.tradeGradeCalls}</td>
                       <td className="py-2 px-3 text-right text-slate-200">
-                        {fmtRatio(row.hitRateT1d)}
+                        {formatNullableRatio(row.hitRateT1d)}
                       </td>
                       <td className="py-2 px-3 text-right font-semibold text-slate-200">
-                        {fmtRatio(row.hitRateT7d)}
+                        {formatNullableRatio(row.hitRateT7d)}
                       </td>
                       <td className={`py-2 px-3 text-right ${pctTone(row.avgDirectionalT1d)}`}>
                         {fmtPct(row.avgDirectionalT1d)}

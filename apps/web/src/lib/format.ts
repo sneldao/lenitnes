@@ -3,7 +3,7 @@
  * Import from here. Do not inline format functions in components or pages.
  */
 
-import type { MonitorStatus } from '@lenitnes/types';
+import type { MonitorStatus, RepoTier } from '@lenitnes/types';
 
 // ── Time ──────────────────────────────────────────────────────────────────
 
@@ -54,6 +54,12 @@ export function formatWindow(seconds: number | null): string {
  */
 export function formatRatio(n: number, decimals = 1): string {
   return `${(n * 100).toFixed(decimals)}%`;
+}
+
+/** Nullable hit-rate display for calibration / tier tables. */
+export function formatNullableRatio(n: number | null, decimals = 0): string {
+  if (n == null) return '—';
+  return formatRatio(n, decimals);
 }
 
 /**
@@ -231,4 +237,12 @@ export function explorerUrl(chain: string, txHash: string): string {
   if (chain === 'bsc' || chain === 'bnb') return `https://testnet.bscscan.com/tx/${txHash}`;
   if (chain === 'arbitrum') return `https://sepolia.arbiscan.io/tx/${txHash}`;
   return '#';
+}
+
+/** Tailwind classes for A/B/C repo tier badges (calibration, scan, scorecard). */
+export function tierBadgeClass(tier?: RepoTier): string {
+  if (tier === 'A') return 'bg-signal/15 text-signal';
+  if (tier === 'C') return 'bg-danger/15 text-danger';
+  if (tier === 'B') return 'bg-accent/10 text-accent';
+  return 'bg-slate-800 text-slate-500';
 }

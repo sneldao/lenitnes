@@ -3,6 +3,10 @@
 import { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { Search, GitCommit, Loader2, TrendingDown, TrendingUp, Minus } from 'lucide-react';
+import { CONSENSUS_WATCHLIST, findWatchlistEntry } from '@lenitnes/types';
+import { api, type RepoTiersResponse } from '@/lib/api';
+import { qk, REFETCH } from '@/lib/queryKeys';
+import { tierBadgeClass } from '@/lib/format';
 
 // ─────────────────────────────────────────────────────────────
 // /scan — the leak-scan demo. Point the production engine at any
@@ -42,16 +46,24 @@ interface ScanResponse {
   verdicts: ScanVerdict[];
 }
 
-const EXAMPLES = [
-  { repo: 'ZcashFoundation/zebra', asset: 'zcash' },
-  { repo: 'bitcoin/bitcoin', asset: 'bitcoin' },
-  { repo: 'ethereum/go-ethereum', asset: 'ethereum' },
-];
+const EXAMPLES = ['zcash/halo2', 'ZcashFoundation/zebra', 'MystenLabs/sui'].map((repo) => {
+  const entry = findWatchlistEntry(repo)!;
+  return { repo: entry.repo, asset: entry.asset };
+});
 
 export default function ScanPage() {
   const [repoInput, setRepoInput] = useState('');
   const [assetInput, setAssetInput] = useState('');
   const [submitted, setSubmitted] = useState<{ repo: string; asset: string } | null>(null);
+
+  const { data: repoTiers } = useQuery<RepoTiersResponse>({
+    queryKey: qk.repoTiers(),
+    queryFn: () => api.getRepoTiers(),
+    staleTime: REFETCH.backtest,
+  });
+
+  const tierForRepo = (repo: string) =>
+    repoTiers?.tiers?.find((t) => t.repo.toLowerCase() === repo.toLowerCase());
 
   const { data, isLoading, isError } = useQuery<ScanResponse>({
     queryKey: ['scan', submitted?.repo, submitted?.asset],
@@ -72,8 +84,14 @@ export default function ScanPage() {
       .replace(/^https?:\/\/(www\.)?github\.com\//i, '')
       .replace(/\/$/, '');
     if (!/^[\w.-]+\/[\w.-]+$/.test(cleaned)) return;
-    setSubmitted({ repo: cleaned, asset: asset.trim().toLowerCase() });
+    const fromWatchlist = findWatchlistEntry(cleaned);
+    setSubmitted({
+      repo: cleaned,
+      asset: (asset.trim() || fromWatchlist?.asset || '').toLowerCase(),
+    });
   };
+
+  const activeTier = submitted ? tierForRepo(submitted.repo) : undefined;
 
   return (
     <div className="mx-auto max-w-3xl">
@@ -81,7 +99,8 @@ export default function ScanPage() {
         <h1 className="font-display text-2xl font-semibold text-slate-100">Leak-scan</h1>
         <p className="mt-2 max-w-xl text-sm leading-relaxed text-slate-400">
           The same nine detectors that build the public track record, pointed at any repo&apos;s
-          last 90 days. What did the commits signal — before anyone announced it?
+          last 90 days. What did the commits signal — before anyone announced it? Watchlist repos
+          show their A/B/C replay tier when available.
         </p>
       </div>
 
@@ -114,7 +133,7 @@ export default function ScanPage() {
       </form>
 
       <div className="mb-10 flex flex-wrap items-center gap-2 text-xs text-slate-500">
-        try:
+        watchlist:
         {EXAMPLES.map((ex) => (
           <button
             key={ex.repo}
@@ -128,6 +147,10 @@ export default function ScanPage() {
             {ex.repo}
           </button>
         ))}
+        <span className="text-slate-600">·</span>
+        <span className="font-mono text-[10px] text-slate-600">
+          {CONSENSUS_WATCHLIST.length} commit-level repos
+        </span>
       </div>
 
       {isLoading && (
@@ -147,6 +170,14 @@ export default function ScanPage() {
         <div>
           <div className="mb-6 flex flex-wrap items-center gap-3 text-xs text-slate-500">
             <span className="font-mono text-slate-300">{data.repo}</span>
+            {activeTier && (
+              <span
+                className={`rounded px-1.5 py-0.5 font-mono text-[10px] uppercase ${tierBadgeClass(activeTier.tier)}`}
+                title={activeTier.tierReason}
+              >
+                {activeTier.tier}-tier · 90d replay
+              </span>
+            )}
             <span>·</span>
             <span>
               {data.from.slice(0, 10)} → {data.to.slice(0, 10)}
@@ -156,6 +187,14 @@ export default function ScanPage() {
               {data.mode === 'mock' ? 'detector scoring' : 'live agent reasoning'}
             </span>
           </div>
+
+          {activeTier?.tier === 'C' && (
+            <p className="mb-4 rounded-lg border border-warn/20 bg-warn/[0.04] px-3 py-2 text-xs text-slate-400">
+              This repo scored C-tier in our 90-day responsiveness sweep — high flag rate, weak
+              historical price co-movement. Treat scan results as exploratory, not tradability
+              proof.
+            </p>
+          )}
 
           {data.verdicts.length === 0 ? (
             <div className="rounded-xl border border-dashed border-edge/60 p-10 text-center">
@@ -179,6 +218,10 @@ export default function ScanPage() {
             delivery) — the engine behind the{' '}
             <a href="/scorecard" className="link-underline text-accent">
               public track record
+            </a>
+            . Tier rankings live on{' '}
+            <a href="/calibration" className="link-underline text-accent">
+              calibration
             </a>
             .
           </p>

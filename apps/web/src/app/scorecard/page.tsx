@@ -13,7 +13,7 @@ import {
   ArrowUpRight,
   Shield,
 } from 'lucide-react';
-import { api, type ScorecardResponse } from '@/lib/api';
+import { api, type ScorecardResponse, type RepoTiersResponse } from '@/lib/api';
 import { qk, REFETCH } from '@/lib/queryKeys';
 import {
   formatRatio,
@@ -22,6 +22,7 @@ import {
   formatDate,
   shortUrl,
   formatDetectorType,
+  tierBadgeClass,
 } from '@/lib/format';
 import { StatCard } from '@/components/ui/stat-card';
 import { OutcomePill } from '@/components/ui/outcome-pill';
@@ -45,6 +46,13 @@ export default function ScorecardPage() {
     queryKey: qk.scorecard(),
     queryFn: () => api.getScorecard(),
     refetchInterval: REFETCH.medium,
+  });
+
+  const { data: repoTiers } = useQuery<RepoTiersResponse>({
+    queryKey: qk.repoTiers(),
+    queryFn: () => api.getRepoTiers(),
+    staleTime: REFETCH.backtest,
+    refetchInterval: REFETCH.backtest,
   });
 
   if (isLoading) return <PageLoader label="Loading scorecard…" />;
@@ -88,6 +96,45 @@ export default function ScorecardPage() {
           how it works →
         </Link>
       </div>
+
+      {repoTiers?.tiers && repoTiers.tiers.length > 0 && (
+        <section className="card border-edge/30 reveal in-view">
+          <div className="flex flex-wrap items-start justify-between gap-3">
+            <div>
+              <h2 className="section-title mb-1 flex items-center gap-2">
+                <Layers className="h-3.5 w-3.5 text-accent" />
+                Repo tradability (90d replay)
+              </h2>
+              <p className="max-w-prose text-xs leading-relaxed text-slate-500">
+                Which watchlist repos&apos; commit signals historically co-moved with price — mock
+                agent, background sweep. A-tier = expand spend; C-tier = deprioritize.
+              </p>
+            </div>
+            <Link
+              href="/calibration"
+              className="font-mono text-[10px] uppercase tracking-wider text-accent hover:underline"
+            >
+              full table →
+            </Link>
+          </div>
+          <div className="mt-4 flex flex-wrap gap-2">
+            {repoTiers.tiers.map((t) => (
+              <span
+                key={t.repo}
+                title={t.tierReason}
+                className="inline-flex items-center gap-1.5 rounded-lg border border-edge/30 bg-ink-light/40 px-2.5 py-1.5 font-mono text-[11px] text-slate-400"
+              >
+                <span
+                  className={`rounded px-1 py-0.5 text-[9px] uppercase ${tierBadgeClass(t.tier)}`}
+                >
+                  {t.tier}
+                </span>
+                {t.repo.split('/')[1] ?? t.repo}
+              </span>
+            ))}
+          </div>
+        </section>
+      )}
 
       {isEmpty ? (
         <div className="card border-edge/30">

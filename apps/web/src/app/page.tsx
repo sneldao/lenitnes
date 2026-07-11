@@ -74,7 +74,12 @@ export default function LandingPage() {
           <TrackRecordStrip />
           <p className="mt-6 max-w-prose text-xs leading-relaxed text-slate-500">
             Recomputed live from the same tables the calls are written to — the system cannot
-            misremember its own performance.
+            misremember its own performance. Before expanding the watchlist, see which repos&apos;
+            commits historically co-moved with price on the{' '}
+            <Link href="/calibration" className="link-underline text-accent">
+              calibration page
+            </Link>
+            .
           </p>
         </section>
 
@@ -371,7 +376,7 @@ const LOOP_STEPS: { title: string; icon: LucideIcon; body: string }[] = [
   {
     title: 'Watchlist',
     icon: Eye,
-    body: 'Curated consensus- and security-critical repos — Zcash (halo2, Zebra), Bitcoin, Ethereum, Solana (Agave), Arbitrum, Sui. News is corroboration, never the primary signal.',
+    body: 'Curated consensus- and security-critical repos — Zcash stack (halo2, Zebra), Bitcoin, Ethereum (geth, reth), Solana (Agave), Sui. Ranked by 90-day replay responsiveness before expanding spend.',
   },
   {
     title: 'Detect',
@@ -381,7 +386,7 @@ const LOOP_STEPS: { title: string; icon: LucideIcon; body: string }[] = [
   {
     title: 'Score',
     icon: Brain,
-    body: 'A frontier-model agent evaluates the signal against a versioned rubric — conviction 0–100, thesis, action.',
+    body: 'Frontier-model agent + versioned rubric (v4). Sees sector-chain sequence, cross-repo narrative, market context, and open book — conviction 0–100, thesis, action.',
   },
   {
     title: 'Gate',

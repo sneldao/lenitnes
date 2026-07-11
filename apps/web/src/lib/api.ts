@@ -328,6 +328,22 @@ export interface ResponsivenessResponse {
   completedAt?: string;
 }
 
+export interface RepoTierEntry {
+  repo: string;
+  asset: string;
+  tier: 'A' | 'B' | 'C';
+  tierReason: string;
+  hitRateT7d: number | null;
+  hitRateT1d: number | null;
+}
+
+export interface RepoTiersResponse {
+  mode: string;
+  completedAt?: string;
+  status?: 'ready' | 'pending' | 'idle';
+  tiers: RepoTierEntry[];
+}
+
 // ── Admin ─────────────────────────────────────────────────────
 
 export interface AdminStatusResponse {
@@ -399,6 +415,9 @@ export const api = {
     }
     throw new Error('responsiveness_timeout');
   },
+
+  /** A/B/C tier list from latest responsiveness sweep (cached server-side). */
+  getRepoTiers: () => reqCamel<RepoTiersResponse>(`/backtest/tiers`),
 
   getAdminStatus: (adminKey: string) =>
     reqCamel<AdminStatusResponse>(`/admin/status`, {

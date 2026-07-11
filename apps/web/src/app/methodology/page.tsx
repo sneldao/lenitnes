@@ -2,6 +2,7 @@
 // timelines instead of prose. Sister surface to /scorecard.
 
 import Link from 'next/link';
+import { CONSENSUS_WATCHLIST, SECTOR_GRAPHS } from '@lenitnes/types';
 import {
   GitCommit,
   Brain,
@@ -53,16 +54,16 @@ export default function MethodologyPage() {
       {/* ── The watchlist ── */}
       <Section id="watchlist" icon={Eye} title="What we watch">
         <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
-          {WATCHLIST.map((repo) => (
+          {CONSENSUS_WATCHLIST.map((repo) => (
             <a
-              key={repo.url}
-              href={`https://github.com/${repo.url}`}
+              key={repo.repo}
+              href={`https://github.com/${repo.repo}`}
               target="_blank"
               rel="noreferrer"
               className="group rounded-xl border border-edge/30 bg-ink-light/40 p-3 transition-all duration-200 hover:border-accent/30 hover:bg-ink-light/60"
             >
               <div className="font-mono text-xs text-slate-300 group-hover:text-accent">
-                {repo.url}
+                {repo.repo}
               </div>
               <div className="mt-1 text-[11px] text-slate-500">{repo.why}</div>
             </a>
@@ -80,9 +81,11 @@ export default function MethodologyPage() {
       <Section id="detectors" icon={GitCommit} title="9 typed detectors">
         <p className="text-sm text-slate-400">
           Fast classification pass before the LLM. Each returns a score (0-100) + confidence. The
-          agent sees detector output plus commit evidence (SHAs, messages, size stats) and a
-          cross-signal narrative of what every other monitored repo did in the same 24h window. News
-          is corroboration only — it never trades on its own. These same detectors also power the
+          agent sees detector output, commit evidence (SHAs, messages, diff stats), a{' '}
+          <strong className="font-normal text-slate-300">sector-chain sequence</strong> (upstream→
+          downstream repos in the last 7d — e.g. halo2 → zebra → zcash), plus a cross-signal
+          narrative of what every other monitored repo did in the same 24h window. News is
+          corroboration only — it never trades on its own. These same detectors also power the
           enterprise leak-scan: pointed at any repo&apos;s history, they show what its commits
           signaled before anyone announced it.
         </p>
@@ -109,6 +112,56 @@ export default function MethodologyPage() {
         <p className="text-xs text-slate-500">
           Not binary — a commit can trip multiple detectors. The agent reads all scores + commit
           message + 7-day price context + past outcomes, then forms its own verdict.
+        </p>
+      </Section>
+
+      {/* ── Sector chains (sequence context) ── */}
+      <Section id="sequence" icon={GitCommit} title="Sector chains">
+        <p className="text-sm text-slate-400">
+          Commits in related repos often form a causal chain — circuit fix in halo2, emergency fork
+          in zebra, protocol release in zcash. The agent receives a compact{' '}
+          <code className="rounded bg-ink-light px-1 py-0.5 font-mono text-[11px]">
+            sequence_context
+          </code>{' '}
+          string listing upstream events in the same sector within the prior 7 days before scoring
+          each batch.
+        </p>
+        <div className="space-y-3">
+          {SECTOR_GRAPHS.map((sector) => (
+            <div key={sector.id} className="rounded-xl border border-edge/30 bg-ink-light/40 p-3">
+              <div className="font-mono text-[10px] uppercase tracking-wider text-accent">
+                {sector.label}
+              </div>
+              <div className="mt-2 flex flex-wrap items-center gap-1.5 font-mono text-[11px] text-slate-400">
+                {sector.sequence.map((repo, i) => (
+                  <span key={repo} className="flex items-center gap-1.5">
+                    {i > 0 && <ArrowRight className="h-3 w-3 text-slate-600" />}
+                    <span className="text-slate-300">{repo}</span>
+                  </span>
+                ))}
+              </div>
+            </div>
+          ))}
+        </div>
+      </Section>
+
+      {/* ── Repo responsiveness ── */}
+      <Section id="responsiveness" icon={TrendingUp} title="Repo responsiveness">
+        <p className="text-sm text-slate-400">
+          Before expanding the watchlist or burning agent tokens on noisy repos, we run a 90-day
+          replay sweep: same detectors + mock agent, matured T+1d/T+7d price outcomes. Repos get an
+          A/B/C tier — A means historical commit signals co-moved with price; C means deprioritize.
+        </p>
+        <Link
+          href="/calibration"
+          className="inline-flex items-center gap-2 rounded-xl border border-accent/30 bg-accent/[0.04] px-4 py-3 text-sm text-accent transition-colors hover:border-accent/50"
+        >
+          See live tier table
+          <ArrowRight className="h-4 w-4" />
+        </Link>
+        <p className="text-xs text-slate-500">
+          Sweeps run in the background (worker cron + cache). Public scans use mock scoring; live
+          agent reasoning requires an admin engagement.
         </p>
       </Section>
 
@@ -208,10 +261,11 @@ export default function MethodologyPage() {
           <p className="text-sm text-slate-300">
             Every trade today is paper. That&apos;s the strategy, not a placeholder. Live trading
             flips on only after the{' '}
-            <Link href="/scorecard" className="link-underline text-accent">
-              calibration table
+            <Link href="/calibration" className="link-underline text-accent">
+              calibration loop
             </Link>{' '}
-            shows higher conviction = better outcomes (target: n ≥ 30 closed positions).
+            shows higher conviction = better outcomes (target: n ≥ 30 closed positions) and A-tier
+            repos justify live agent spend.
           </p>
         </div>
       </Section>
@@ -325,16 +379,6 @@ const PIPELINE = [
   { label: 'Prove', icon: Zap },
 ];
 
-const WATCHLIST = [
-  { url: 'zcash/halo2', why: 'Founding case study · Orchard soundness' },
-  { url: 'ZcashFoundation/zebra', why: 'ZEC consensus client · where the emergency fork landed' },
-  { url: 'bitcoin/bitcoin', why: 'L1 · largest USD volume' },
-  { url: 'ethereum/go-ethereum', why: 'L1 · largest USD volume' },
-  { url: 'anza-xyz/agave', why: 'Solana validator client · high-velocity consensus' },
-  { url: 'MystenLabs/sui', why: 'L1 · high-velocity consensus' },
-  { url: 'OffchainLabs/nitro', why: 'L2 · bugs cascade to L1' },
-];
-
 const DETECTORS = [
   {
     name: 'emergency_patch',
@@ -441,6 +485,7 @@ const LIFECYCLE = [
 const OPEN_QUESTIONS = [
   'Does conviction 80+ actually outperform 70-79? (Data pending — threshold recently adjusted.)',
   'Does the 30-minute settling delay filter already-priced-in noise?',
+  'Which repos are A-tier in the 90d replay — and does live agent scoring agree with mock?',
   'Which detectors carry predictive weight vs decoration? The by-detector table answers this as outcomes accumulate.',
 ];
 
