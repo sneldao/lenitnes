@@ -392,8 +392,11 @@ The loop:
 
 2. **Read** — the `/calibration` page reads back from the same
    tables and shows hit ratio + avg directional pct change by
-   conviction band and by detector. Recomputed on every page
-   load.
+   conviction band and by detector. It also surfaces a **90-day
+   replay responsiveness** table (`GET /backtest/responsiveness`)
+   — which watchlist repos' commit signals historically predicted
+   price (mock agent by default; live agent with admin key).
+   Recomputed on every page load (replay sweep cached 30m).
 
 3. **Diagnose** — if avg T+1d in the 80-89 band trends
    negative over n ≥ 20, the rubric needs work. If it trends
@@ -404,6 +407,49 @@ The loop:
 4. **Adjust** — change one default at a time, ship it, wait at
    least a week before reading the change. Document the rationale
    in this file (a new row in the change log below).
+
+---
+
+## Historical responsiveness (replay sweep)
+
+Before expanding the watchlist or tuning the rubric on intuition,
+run the **commit→price responsiveness** sweep. It reuses the live
+detector pipeline + replay engine over each commit-level watchlist
+repo's last 90 days of public history, attaches matured T+1d/T+7d
+price outcomes, and ranks repos by directional hit rate and avg
+return.
+
+**Surfaces:**
+
+- **`GET /backtest/responsiveness`** — JSON profiles (public,
+  mock agent; `X-Admin-Key` for live LLM scoring). Cached 30m.
+- **`/calibration`** — same data in the "Repo responsiveness"
+  table.
+- **CLI** — `MOCK_AGENT=1 npx tsx apps/api/scripts/run-responsiveness-sweep.ts`
+  (requires `GITHUB_TOKEN` in env; ~3 min for 7 repos).
+
+**How to read it:**
+
+- **flagged days** — UTC day-batches where ≥1 detector fired.
+  High count ≠ alpha; bitcoin flags often, rarely trades well.
+- **trade-grade** — mock-agent calls at conviction ≥ 70 (cap 8
+  scored batches per repo). Live-agent sweep differs; use admin
+  key when evaluating rubric changes.
+- **Hit T+7d vs T+1d** — disclosure-lag theses (security
+  emergencies) resolve over days; prefer T+7d for those event
+  classes. T+1d is the live scorecard's canonical window.
+- **Avg dir T+7d** — sign-adjusted for long/short; positive
+  means commit signals on average pointed the right way.
+
+**First sweep (2026-07-11, mock agent, 90d):** Sui and Solana
+(agave) showed the strongest T+7d directional averages; Bitcoin
+the weakest (0% T+7d hit, negative avg). Zebra had strong T+1d
+(63%) but weaker T+7d (29%) — consistent with pricing the
+emergency before the disclosure drawdown fully lands.
+
+**Signal fidelity (same release):** GitHub list API omits diff
+stats; live + replay now call `enrichCommitStats()`. Outcome
+learning uses direction-adjusted hits via `domain/outcome-metrics.ts`.
 
 ## Change log
 
@@ -422,3 +468,6 @@ The loop:
 | 2026-07-07 | Scorecard/calibration: hit-ratio denominators now `withT1d`/`closed`, not `total`    | Signals with no matured T+1d outcome were counted as misses ("0/47"). All three breakdowns (detector, watchlist, conviction band) now expose the matured-outcome count separately; frontend renders "—" until data exists                                                                                                            |
 | 2026-07-07 | `signals.asset` column added; narrative-scan signals now resolve a price             | Outcome attribution resolved the asset from the _monitor_ row, and `narrative:portfolio` has no fixed coingeckoId — 47 news-era signals were permanently unpriceable. The narrative scan now writes its dominant asset onto the signal row directly                                                                                  |
 | 2026-07-07 | Agent invariant clamp: `action=none` + conviction > 50 + empty book → capped at 50   | The model occasionally violated its own rubric invariant (observed live: conviction 88, action "none", flat book). That combination is only legitimate when the book already expresses the thesis                                                                                                                                    |
+| 2026-07-11 | GitHub commit stats enrichment (`enrichCommitStats`) on live + replay paths          | List API omits diff sizes; `emergency_patch` / `silent_merge` size gates were blind in production and backtest                                                                                                                                                                                                                       |
+| 2026-07-11 | Direction-adjusted outcomes in `fetchOutcomeContext` + `refreshBacktestStats`        | Past-outcomes prompt counted `direction=up` as a win regardless of long/short; backtest stats used `ABS(pct_change)>1`. Centralized in `domain/outcome-metrics.ts`                                                                                                                                                                   |
+| 2026-07-11 | `GET /backtest/responsiveness` + `/calibration` replay table                         | Empirical commit→price responsiveness ranking before watchlist expansion; one CoinGecko range prefetch per asset in replay to avoid 429s                                                                                                                                                                                             |

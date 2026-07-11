@@ -14,9 +14,19 @@
 
 import type { AgentScore, Chain } from '@lenitnes/types';
 import { buildAgentEnvFromConfig, score } from './agent.js';
-import { fetchCommitsRange, type GitHubCommit } from './github.js';
+import {
+  enrichCommitStats,
+  fetchCommitsRange,
+  formatCommitEvidence,
+  type GitHubCommit,
+} from './github.js';
 import { runDetectors } from './detectors/registry.js';
+import { CONSENSUS_WATCHLIST_REPOS } from './detectors/asset-lookup.js';
+import type { PricePoint } from './data-providers/types.js';
 import { priceData } from './data-providers/registry.js';
+import { prefetchPriceSeries, priceAtFromSeries } from './data-providers/coingecko/index.js';
+import { config } from '../config.js';
+import { directionalPctChange, isDirectionalHit } from './domain/outcome-metrics.js';
 import { logger } from '../logger.js';
 
 export interface ReplayCommitInput {
@@ -67,7 +77,24 @@ export interface ReplayCommitVerdict {
     t7dPct: number | null;
     /** T+1d verdict vs the recommended action; null when flat/unknown. */
     correct: boolean | null;
+    /** T+7d directional verdict when matured. */
+    correctT7d: boolean | null;
   };
+}
+
+export interface ReplayResponsiveness {
+  repo: string;
+  asset: string;
+  from: string;
+  to: string;
+  flaggedBatches: number;
+  scoredBatches: number;
+  tradeGradeCalls: number;
+  /** Fraction of trade-grade calls with matured T+1d that were directionally correct. */
+  hitRateT1d: number | null;
+  hitRateT7d: number | null;
+  avgDirectionalT1d: number | null;
+  avgDirectionalT7d: number | null;
 }
 
 /** Canonical halo2 example — the founding case study.
@@ -179,22 +206,37 @@ async function fetchPriceOutcome(
   asset: string,
   dayIso: string,
   recommendedAction: 'long' | 'short' | 'none',
+  series: PricePoint[] | null,
 ): Promise<ReplayCommitVerdict['priceOutcome']> {
   const dayStart = new Date(`${dayIso}T00:00:00Z`);
+
   const pctFor = async (windowSec: number): Promise<number | null> => {
     if (dayStart.getTime() + windowSec * 1000 > Date.now()) return null;
+    if (series && series.length > 0) {
+      const atSignal = priceAtFromSeries(series, dayStart);
+      const after = priceAtFromSeries(series, new Date(dayStart.getTime() + windowSec * 1000));
+      if (atSignal == null || after == null) return null;
+      return ((after - atSignal) / atSignal) * 100;
+    }
     const result = await priceData.getPriceAtWindow(asset, dayStart, windowSec).catch(() => null);
     if (!result) return null;
     return ((result.afterWindow - result.atSignal) / result.atSignal) * 100;
   };
+
   const [t1dPct, t7dPct] = await Promise.all([pctFor(86_400), pctFor(604_800)]);
 
+  const t1dDir = t1dPct == null ? null : t1dPct > 0.5 ? 'up' : t1dPct < -0.5 ? 'down' : 'flat';
+  const t7dDir = t7dPct == null ? null : t7dPct > 0.5 ? 'up' : t7dPct < -0.5 ? 'down' : 'flat';
+
   let correct: boolean | null = null;
-  if (t1dPct != null && Math.abs(t1dPct) > 0.5 && recommendedAction !== 'none') {
-    correct =
-      (recommendedAction === 'long' && t1dPct > 0) || (recommendedAction === 'short' && t1dPct < 0);
+  let correctT7d: boolean | null = null;
+  if (t1dPct != null && recommendedAction !== 'none') {
+    correct = isDirectionalHit(recommendedAction, t1dDir);
   }
-  return { t1dPct, t7dPct, correct };
+  if (t7dPct != null && recommendedAction !== 'none') {
+    correctT7d = isDirectionalHit(recommendedAction, t7dDir);
+  }
+  return { t1dPct, t7dPct, correct, correctT7d };
 }
 
 /**
@@ -206,7 +248,10 @@ async function fetchPriceOutcome(
  * T+1d / T+7d windows are attached so every verdict carries its own
  * "was it right?" answer.
  */
-export async function replay(input: ReplayInput): Promise<ReplayCommitVerdict[]> {
+export async function replay(input: ReplayInput): Promise<{
+  verdicts: ReplayCommitVerdict[];
+  flaggedBatches: number;
+}> {
   logger.info(
     { repo: input.repo, from: input.from, to: input.to, asset: input.asset, mock: input.mock },
     'replay: scanning historical commit range',
@@ -215,7 +260,26 @@ export async function replay(input: ReplayInput): Promise<ReplayCommitVerdict[]>
   const commits = await fetchCommitsRange(input.repo, input.from, input.to);
   if (!commits || commits.length === 0) {
     logger.info({ repo: input.repo }, 'replay: no commits found in range');
-    return [];
+    return { verdicts: [], flaggedBatches: 0 };
+  }
+
+  let priceSeries: PricePoint[] | null = null;
+  const watchlisted = CONSENSUS_WATCHLIST_REPOS.some(
+    (w) => w.repo === input.repo && w.asset === input.asset,
+  );
+  if (input.asset && watchlisted) {
+    try {
+      const from = new Date(input.from);
+      const to = new Date(input.to);
+      to.setUTCDate(to.getUTCDate() + 8);
+      priceSeries = await prefetchPriceSeries(input.asset, from, to);
+      logger.debug(
+        { asset: input.asset, points: priceSeries.length },
+        'replay: prefetched price series',
+      );
+    } catch (err) {
+      logger.warn({ err, asset: input.asset }, 'replay: price series prefetch failed');
+    }
   }
 
   // Detector pass per day-batch — free, runs on everything.
@@ -226,11 +290,12 @@ export async function replay(input: ReplayInput): Promise<ReplayCommitVerdict[]>
     topScore: number;
   }> = [];
   for (const [day, batch] of groupByDay(commits)) {
+    await enrichCommitStats(input.repo, batch, { maxEnrich: batch.length });
     const classifications = runDetectors({
       result: {
         conditionMet: true,
         confidence: 100,
-        evidence: batch.map((c) => `${c.sha.slice(0, 7)}: ${c.message.split('\n')[0]}`).join('\n'),
+        evidence: formatCommitEvidence(batch, 10),
         summary: `replay batch ${day} · ${batch.length} commit(s)`,
       },
       commits: batch,
@@ -276,10 +341,7 @@ export async function replay(input: ReplayInput): Promise<ReplayCommitVerdict[]>
             metadata: c.metadata,
           })),
           asset_mapping: { coingeckoId: input.asset, direction: 'both' },
-          evidence_text: f.batch
-            .slice(0, 10)
-            .map((c) => `${c.sha.slice(0, 7)}: ${c.message.split('\n')[0]}`)
-            .join('\n'),
+          evidence_text: formatCommitEvidence(f.batch, 10),
           condition_summary: `Replay ${input.repo} · ${f.day} · ${f.batch.length} commit(s)`,
           precedent_count: 0,
         },
@@ -287,7 +349,7 @@ export async function replay(input: ReplayInput): Promise<ReplayCommitVerdict[]>
       );
 
       const priceOutcome = input.asset
-        ? await fetchPriceOutcome(input.asset, f.day, agentScore.recommended_action)
+        ? await fetchPriceOutcome(input.asset, f.day, agentScore.recommended_action, priceSeries)
         : undefined;
 
       verdicts.push({
@@ -317,7 +379,90 @@ export async function replay(input: ReplayInput): Promise<ReplayCommitVerdict[]>
 
   // Chronological order reads as a narrative.
   verdicts.sort((a, b) => a.committedAt.localeCompare(b.committedAt));
-  return verdicts;
+  return { verdicts, flaggedBatches: firing.length };
+}
+
+/** Aggregate replay verdicts into a responsiveness profile for one repo. */
+export function summarizeReplayResponsiveness(
+  verdicts: ReplayCommitVerdict[],
+  input: ReplayInput,
+  flaggedBatches: number,
+): ReplayResponsiveness {
+  const threshold = config.agent.convictionThreshold;
+  const tradeGrade = verdicts.filter(
+    (v) => v.agentScore.recommended_action !== 'none' && v.agentScore.conviction >= threshold,
+  );
+
+  const withT1d = tradeGrade.filter((v) => v.priceOutcome?.t1dPct != null);
+  const withT7d = tradeGrade.filter((v) => v.priceOutcome?.t7dPct != null);
+
+  const hitsT1d = withT1d.filter((v) => v.priceOutcome?.correct === true);
+  const hitsT7d = withT7d.filter((v) => v.priceOutcome?.correctT7d === true);
+
+  const avgDir = (subset: ReplayCommitVerdict[], window: 't1dPct' | 't7dPct'): number | null => {
+    const values = subset
+      .map((v) =>
+        directionalPctChange(v.priceOutcome?.[window] ?? null, v.agentScore.recommended_action),
+      )
+      .filter((n): n is number => n != null);
+    if (values.length === 0) return null;
+    return values.reduce((s, n) => s + n, 0) / values.length;
+  };
+
+  return {
+    repo: input.repo,
+    asset: input.asset,
+    from: input.from,
+    to: input.to,
+    flaggedBatches,
+    scoredBatches: verdicts.length,
+    tradeGradeCalls: tradeGrade.length,
+    hitRateT1d: withT1d.length > 0 ? hitsT1d.length / withT1d.length : null,
+    hitRateT7d: withT7d.length > 0 ? hitsT7d.length / withT7d.length : null,
+    avgDirectionalT1d: avgDir(tradeGrade, 't1dPct'),
+    avgDirectionalT7d: avgDir(tradeGrade, 't7dPct'),
+  };
+}
+
+/**
+ * Run replay + responsiveness summary across the consensus watchlist.
+ * Uses mock agent by default to bound cost; pass mock:false for live scoring.
+ */
+export async function replayWatchlistResponsiveness(options?: {
+  from?: string;
+  to?: string;
+  mock?: boolean;
+  repos?: Array<{ repo: string; asset: string }>;
+}): Promise<ReplayResponsiveness[]> {
+  const targets = options?.repos ?? CONSENSUS_WATCHLIST_REPOS;
+  const results: ReplayResponsiveness[] = [];
+
+  for (const target of targets) {
+    const input = describeReplay({
+      repo: target.repo,
+      asset: target.asset,
+      from: options?.from,
+      to: options?.to,
+    });
+    try {
+      const { verdicts, flaggedBatches } = await replay({
+        ...input,
+        mock: options?.mock ?? true,
+      });
+      results.push(summarizeReplayResponsiveness(verdicts, input, flaggedBatches));
+    } catch (err) {
+      logger.warn({ err, repo: target.repo }, 'replayWatchlistResponsiveness: repo failed');
+      results.push(
+        summarizeReplayResponsiveness(
+          [],
+          describeReplay({ repo: target.repo, asset: target.asset }),
+          0,
+        ),
+      );
+    }
+  }
+
+  return results;
 }
 
 /**

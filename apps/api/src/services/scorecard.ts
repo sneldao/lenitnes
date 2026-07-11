@@ -6,6 +6,7 @@
 // ─────────────────────────────────────────────────────────────
 
 import { query } from '../db/pool.js';
+import { sqlHitPredicate } from './domain/outcome-metrics.js';
 
 export interface RecentCallOutcome {
   t1h: number | null;
@@ -110,20 +111,8 @@ export interface ScorecardOverall {
  */
 const T1D_WINDOW = 86400;
 
-/** A signal is a "hit" if the price moved in the agent's predicted
- * direction at T+1d. Direction comes from signal_outcomes; the
- * agent's predicted direction comes from agent_scores.
- *
- * Uses the column aliases from the consuming CTE (recommended_action,
- * direction). The caller is responsible for the JOIN. */
-function isHitPredicate(): string {
-  return `
-    (
-      (recommended_action = 'long' AND direction = 'up') OR
-      (recommended_action = 'short' AND direction = 'down')
-    )
-  `;
-}
+/** Uses shared hit predicate — see domain/outcome-metrics.ts */
+const isHitPredicate = sqlHitPredicate;
 
 interface CountsRow {
   total_signals: string;

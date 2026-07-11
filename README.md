@@ -22,7 +22,7 @@ In late May 2026, a four-year-old soundness bug in Zcash's `halo2_gadgets` crate
 Public surfaces — no signup, no auth:
 
 - **[`/scorecard`](https://lenitnes.persidian.com/scorecard)** — live track record. Hit ratio, Sharpe, drawdown, per-detector outcomes, recent calls.
-- **[`/calibration`](https://lenitnes.persidian.com/calibration)** — is higher conviction actually predictive? Honest "early sample" framing while N is small.
+- **[`/calibration`](https://lenitnes.persidian.com/calibration)** — is higher conviction actually predictive? Includes a 90-day replay sweep showing which watchlist repos' commit signals historically co-moved with price.
 - **[`/methodology`](https://lenitnes.persidian.com/methodology)** — all 9 detectors with examples, how the agent scores, every safety gate.
 - **[`/portfolio`](https://lenitnes.persidian.com/portfolio)** — open + closed positions with entry price, unrealized P&L, TP/SL levels.
 - **[`/case-study/halo2`](https://lenitnes.persidian.com/case-study/halo2)** — the founding case study.
@@ -37,7 +37,7 @@ Public surfaces — no signup, no auth:
 4. **Gate** — conviction ≥ 70 to trade. Sub-threshold scores persist as the public reasoning archive but produce no trade and no broadcast.
 5. **Commit** — open a tracked position in the recommended direction, long or short, explicitly labeled paper (live swaps exist behind the `TRADING_ENABLED` kill switch, off until calibration clears). Notarize the thesis on Hedera HCS, broadcast to Telegram.
 6. **Track** — once each window genuinely matures (T+1h/4h/1d/7d), the price is snapshotted from CoinGecko and attributed back to the signal. T+1d and T+7d resolutions post a public "call CORRECT / WRONG" verdict to Telegram. Drives the scorecard.
-7. **Replay** — the same engine runs over any repo's history (`/backtest/replay`) for case studies and leak-scans.
+7. **Replay** — the same engine runs over any repo's history (`/backtest/replay`) for case studies and leak-scans. `GET /backtest/responsiveness` sweeps the commit-level watchlist and ranks repos by historical commit→price responsiveness.
 
 No human input in the steady state. See [`docs/AGENT_ARCHITECTURE.md`](./docs/AGENT_ARCHITECTURE.md) for the full design decisions, [`docs/RUNBOOK.md`](./docs/RUNBOOK.md) for the operator runbook, and [`docs/CALIBRATION.md`](./docs/CALIBRATION.md) for the per-knob empirical rationale.
 

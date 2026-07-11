@@ -7,6 +7,13 @@ const fetchCommitsRangeMock = vi.fn();
 vi.mock('../src/services/github.js', () => ({
   fetchCommitsRange: (...args: unknown[]) => fetchCommitsRangeMock(...args),
   fetchCommitsSince: vi.fn(),
+  enrichCommitStats: vi.fn().mockResolvedValue(undefined),
+  formatCommitEvidence: (commits: Array<{ sha: string; message: string }>) =>
+    commits.map((c) => `${c.sha.slice(0, 7)}: ${c.message.split('\n')[0]}`).join('\n'),
+}));
+vi.mock('../src/services/data-providers/coingecko/index.js', () => ({
+  prefetchPriceSeries: vi.fn().mockResolvedValue([]),
+  priceAtFromSeries: vi.fn().mockReturnValue(null),
 }));
 vi.mock('../src/services/data-providers/registry.js', () => ({
   priceData: {
@@ -16,7 +23,7 @@ vi.mock('../src/services/data-providers/registry.js', () => ({
   marketData: {},
 }));
 
-const { describeReplay, replay, HALO2_REPLAY, scoreCommit } =
+const { describeReplay, replay, HALO2_REPLAY, scoreCommit, summarizeReplayResponsiveness } =
   await import('../src/services/replay.js');
 
 describe('replay — halo2 canonical example', () => {
@@ -95,8 +102,8 @@ describe('replay.replay() — real engine', () => {
       asset: 'zcash',
       mock: true,
     });
-    expect(verdicts.length).toBeGreaterThanOrEqual(1);
-    const v = verdicts[0];
+    expect(verdicts.verdicts.length).toBeGreaterThanOrEqual(1);
+    const v = verdicts.verdicts[0];
     expect(v.commitCount).toBe(2);
     expect(v.detectorClassifications.length).toBeGreaterThan(0);
     expect(v.wouldHaveTraded.paper).toBe(true);
@@ -123,13 +130,34 @@ describe('replay.replay() — real engine', () => {
       asset: 'foo',
       mock: true,
     });
-    expect(verdicts).toEqual([]);
+    expect(verdicts.verdicts).toEqual([]);
   });
 
   it('returns [] when the range has no commits', async () => {
     fetchCommitsRangeMock.mockResolvedValueOnce([]);
     const verdicts = await replay(describeReplay({ repo: 'foo/bar', asset: 'foo' }));
-    expect(verdicts).toEqual([]);
+    expect(verdicts.verdicts).toEqual([]);
+  });
+});
+
+describe('replay.summarizeReplayResponsiveness()', () => {
+  it('computes directional hit rates for trade-grade calls', () => {
+    const input = describeReplay({ repo: 'zcash/halo2', asset: 'zcash' });
+    const summary = summarizeReplayResponsiveness(
+      [
+        {
+          ...HALO2_REPLAY,
+          agentScore: { ...HALO2_REPLAY.agentScore, conviction: 88, recommended_action: 'short' },
+          priceOutcome: { t1dPct: -5, t7dPct: -16, correct: true, correctT7d: true },
+        },
+      ],
+      input,
+      3,
+    );
+    expect(summary.flaggedBatches).toBe(3);
+    expect(summary.tradeGradeCalls).toBe(1);
+    expect(summary.hitRateT1d).toBe(1);
+    expect(summary.avgDirectionalT7d).toBeCloseTo(16);
   });
 });
 

@@ -8,6 +8,7 @@
 export const qk = {
   scorecard: () => ['scorecard', 'summary'] as const,
   scorecardRecent: (limit?: number) => ['scorecard', 'recent', limit ?? 'default'] as const,
+  responsiveness: () => ['backtest', 'responsiveness'] as const,
   signal: (id: string) => ['signal', id] as const,
   publicProof: (id: string) => ['public-proof', id] as const,
   monitors: () => ['monitors'] as const,
@@ -24,4 +25,6 @@ export const REFETCH = {
   medium: 60_000,
   // Slowly-changing data (monitor configuration)
   slow: 120_000,
+  // Expensive backtest sweep (server caches 30m)
+  backtest: 30 * 60_000,
 } as const;

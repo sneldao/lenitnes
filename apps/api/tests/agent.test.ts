@@ -5,6 +5,7 @@ import {
   saveAgentScore,
   fetchAgentScore,
   precedentCount,
+  fetchOutcomeContext,
   buildAgentEnvFromConfig,
   AgentBudgetExceededError,
   _internalResetForTests,
@@ -205,6 +206,51 @@ describe('agent.fetchAgentScore', () => {
       recommended_action: 'long',
       confidence_band: 'mid',
     });
+  });
+});
+
+describe('agent.fetchOutcomeContext', () => {
+  beforeEach(() => {
+    mockQuery.mockReset();
+  });
+
+  it('returns null when no matured T+1d outcomes exist', async () => {
+    mockQuery.mockResolvedValueOnce({
+      rows: [
+        {
+          total_signals: '3',
+          matured_t1d: '0',
+          hits_t1d: '0',
+          avg_dir_1d: '0',
+          avg_dir_7d: '0',
+          avg_conviction: '0',
+        },
+      ],
+      rowCount: 1,
+    });
+    const result = await fetchOutcomeContext('m-1', ['emergency_patch']);
+    expect(result).toBeNull();
+  });
+
+  it('uses direction-adjusted hit logic in SQL', async () => {
+    mockQuery.mockResolvedValueOnce({
+      rows: [
+        {
+          total_signals: '4',
+          matured_t1d: '2',
+          hits_t1d: '1',
+          avg_dir_1d: '-3.50',
+          avg_dir_7d: '-8.00',
+          avg_conviction: '82',
+        },
+      ],
+      rowCount: 1,
+    });
+    const result = await fetchOutcomeContext('m-1', ['security_critical_patch']);
+    expect(result).toContain('50.0% directional hit rate');
+    expect(result).toContain('Avg directional T+1d: -3.50%');
+    const sql = mockQuery.mock.calls[0]?.[0] as string;
+    expect(sql).toContain("recommended_action = 'short'");
   });
 });
 

@@ -4,7 +4,12 @@ import {
   getSignalOutcomes,
   processSignalOutcomes,
 } from '../services/domain/backtest.service.js';
-import { describeReplay, replay, HALO2_REPLAY } from '../services/replay.js';
+import {
+  describeReplay,
+  replay,
+  HALO2_REPLAY,
+  replayWatchlistResponsiveness,
+} from '../services/replay.js';
 import { cacheGet, cacheSet } from '../middleware/cache.js';
 import { config } from '../config.js';
 
@@ -55,19 +60,55 @@ backtestRouter.get('/replay', async (req: Request, res: Response) => {
 
   try {
     const input = describeReplay({ repo, from, to, asset });
-    const verdicts = await replay({ ...input, mock: !live });
+    const { verdicts, flaggedBatches } = await replay({ ...input, mock: !live });
     const payload = {
       repo,
       from: input.from,
       to: input.to,
       asset: input.asset,
       mode: live ? 'live' : 'mock',
+      flaggedBatches,
       verdicts,
     };
     cacheSet(cacheKey, payload, 10 * 60 * 1000);
     res.json(payload);
   } catch (err) {
     res.status(500).json({ error: 'replay_failed', detail: (err as Error).message });
+  }
+});
+
+// GET /backtest/responsiveness?from=...&to=...
+// Replay sweep across the consensus watchlist — measures which repos'
+// commit signals historically predicted price (mock agent by default).
+backtestRouter.get('/responsiveness', async (req: Request, res: Response) => {
+  const from = req.query.from ? String(req.query.from) : undefined;
+  const to = req.query.to ? String(req.query.to) : undefined;
+  const adminKey = req.header('x-admin-key') ?? '';
+  const live = config.admin.apiKey !== '' && adminKey === config.admin.apiKey;
+
+  const cacheKey = `responsiveness:${from ?? ''}:${to ?? ''}:${live ? 'live' : 'mock'}`;
+  const cached = cacheGet<object>(cacheKey);
+  if (cached) {
+    res.json(cached);
+    return;
+  }
+
+  try {
+    const profiles = await replayWatchlistResponsiveness({
+      from,
+      to,
+      mock: !live,
+    });
+    const payload = {
+      from: from ?? describeReplay({ repo: 'zcash/halo2' }).from,
+      to: to ?? describeReplay({ repo: 'zcash/halo2' }).to,
+      mode: live ? 'live' : 'mock',
+      profiles,
+    };
+    cacheSet(cacheKey, payload, 30 * 60 * 1000);
+    res.json(payload);
+  } catch (err) {
+    res.status(500).json({ error: 'responsiveness_failed', detail: (err as Error).message });
   }
 });
 

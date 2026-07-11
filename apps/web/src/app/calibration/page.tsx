@@ -7,8 +7,8 @@
 
 import { useQuery } from '@tanstack/react-query';
 import Link from 'next/link';
-import { Activity, AlertTriangle, Target, TrendingUp } from 'lucide-react';
-import { api, type ScorecardResponse } from '@/lib/api';
+import { Activity, AlertTriangle, GitBranch, Target, TrendingUp } from 'lucide-react';
+import { api, type ScorecardResponse, type ResponsivenessResponse } from '@/lib/api';
 import { qk, REFETCH } from '@/lib/queryKeys';
 import { formatRatio, formatDetectorType } from '@/lib/format';
 import { PageLoader, PageError } from '@/components/ui/page-states';
@@ -26,11 +26,27 @@ function pctTone(n: number | null): string {
   return 'text-slate-400';
 }
 
+function fmtRatio(n: number | null): string {
+  if (n == null) return '—';
+  return `${(n * 100).toFixed(0)}%`;
+}
+
 export default function CalibrationPage() {
   const { data, isLoading, isError } = useQuery<ScorecardResponse>({
     queryKey: qk.scorecard(),
     queryFn: () => api.getScorecard(),
     refetchInterval: REFETCH.medium,
+  });
+
+  const {
+    data: responsiveness,
+    isLoading: respLoading,
+    isError: respError,
+  } = useQuery<ResponsivenessResponse>({
+    queryKey: qk.responsiveness(),
+    queryFn: () => api.getResponsiveness(),
+    staleTime: REFETCH.backtest,
+    refetchInterval: REFETCH.backtest,
   });
 
   if (isLoading) return <PageLoader label="Loading calibration…" />;
@@ -209,6 +225,84 @@ export default function CalibrationPage() {
           </div>
         </section>
       )}
+
+      {/* ── Historical responsiveness (replay sweep) ── */}
+      <section className="card reveal in-view reveal-delay-1">
+        <h2 className="section-title mb-2 flex items-center gap-2">
+          <GitBranch className="h-3.5 w-3.5 text-accent" />
+          Repo responsiveness (90-day replay)
+        </h2>
+        <p className="mb-4 text-xs leading-relaxed text-slate-500">
+          Same detectors + mock agent as{' '}
+          <Link href="/scan" className="link-underline text-accent">
+            leak-scan
+          </Link>
+          , run over each commit-level watchlist repo. Measures which codebases&apos; commit signals
+          historically co-moved with price — the tradability filter before expanding the watchlist.
+        </p>
+        {respLoading && (
+          <p className="font-mono text-xs text-slate-500">
+            Running replay sweep (may take a minute)…
+          </p>
+        )}
+        {respError && (
+          <p className="text-xs text-danger">Failed to load responsiveness profiles.</p>
+        )}
+        {responsiveness && responsiveness.profiles.length > 0 && (
+          <div className="overflow-x-auto">
+            <table className="w-full font-mono text-xs">
+              <thead>
+                <tr className="border-b border-edge/30 text-left text-slate-500">
+                  <th className="py-2 pr-3 font-normal">Repo</th>
+                  <th className="py-2 px-3 text-right font-normal">Flagged days</th>
+                  <th className="py-2 px-3 text-right font-normal">Trade-grade</th>
+                  <th className="py-2 px-3 text-right font-normal">Hit T+1d</th>
+                  <th className="py-2 px-3 text-right font-normal">Hit T+7d</th>
+                  <th className="py-2 px-3 text-right font-normal">Avg dir T+1d</th>
+                  <th className="py-2 pl-3 text-right font-normal">Avg dir T+7d</th>
+                </tr>
+              </thead>
+              <tbody>
+                {[...responsiveness.profiles]
+                  .sort(
+                    (a, b) =>
+                      (b.avgDirectionalT7d ?? -999) - (a.avgDirectionalT7d ?? -999) ||
+                      b.flaggedBatches - a.flaggedBatches,
+                  )
+                  .map((row) => (
+                    <tr key={row.repo} className="border-b border-edge/20 last:border-0">
+                      <td className="py-2 pr-3 text-slate-300">
+                        <span className="text-slate-500">{row.asset.toUpperCase()}</span> {row.repo}
+                      </td>
+                      <td className="py-2 px-3 text-right text-slate-400">{row.flaggedBatches}</td>
+                      <td className="py-2 px-3 text-right text-slate-400">{row.tradeGradeCalls}</td>
+                      <td className="py-2 px-3 text-right text-slate-200">
+                        {fmtRatio(row.hitRateT1d)}
+                      </td>
+                      <td className="py-2 px-3 text-right font-semibold text-slate-200">
+                        {fmtRatio(row.hitRateT7d)}
+                      </td>
+                      <td className={`py-2 px-3 text-right ${pctTone(row.avgDirectionalT1d)}`}>
+                        {fmtPct(row.avgDirectionalT1d)}
+                      </td>
+                      <td
+                        className={`py-2 pl-3 text-right font-semibold ${pctTone(row.avgDirectionalT7d)}`}
+                      >
+                        {fmtPct(row.avgDirectionalT7d)}
+                      </td>
+                    </tr>
+                  ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+        {responsiveness && (
+          <p className="mt-3 font-mono text-[10px] text-slate-600">
+            window {responsiveness.from.slice(0, 10)} → {responsiveness.to.slice(0, 10)} · mode{' '}
+            {responsiveness.mode} · cached 30m
+          </p>
+        )}
+      </section>
 
       {/* ── What we're learning ── */}
       <section className="card border-edge/30 reveal in-view reveal-delay-2">

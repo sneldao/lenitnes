@@ -362,12 +362,59 @@ paths:
                   from: { type: string, nullable: true }
                   to: { type: string, nullable: true }
                   asset: { type: string, nullable: true }
+                  mode: { type: string, enum: ['mock', 'live'] }
+                  flaggedBatches: { type: integer }
                   verdicts:
                     type: array
                     items:
                       $ref: '#/components/schemas/ReplayVerdict'
         '500':
           description: Replay failed
+
+  /backtest/responsiveness:
+    get:
+      tags: [Public]
+      summary: Watchlist responsiveness sweep
+      description: |
+        Replay the commit-level watchlist over the last 90 days and
+        rank repos by historical commit-signal → price responsiveness.
+        Mock agent by default (zero LLM cost); X-Admin-Key unlocks
+        live agent scoring. Cached 30 minutes.
+      security: []
+      parameters:
+        - name: from
+          in: query
+          schema: { type: string, format: date-time }
+        - name: to
+          in: query
+          schema: { type: string, format: date-time }
+      responses:
+        '200':
+          description: Responsiveness profiles
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  from: { type: string }
+                  to: { type: string }
+                  mode: { type: string, enum: ['mock', 'live'] }
+                  profiles:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        repo: { type: string }
+                        asset: { type: string }
+                        flaggedBatches: { type: integer }
+                        scoredBatches: { type: integer }
+                        tradeGradeCalls: { type: integer }
+                        hitRateT1d: { type: number, nullable: true }
+                        hitRateT7d: { type: number, nullable: true }
+                        avgDirectionalT1d: { type: number, nullable: true }
+                        avgDirectionalT7d: { type: number, nullable: true }
+        '500':
+          description: Sweep failed
 
   /backtest/replay/halo2:
     get:

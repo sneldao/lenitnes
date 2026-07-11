@@ -39,7 +39,22 @@ const REPO_ASSET_MAP: Record<string, AssetMapping> = {
   },
   'makerdao/dss': { coingeckoId: 'maker', direction: 'both' },
   'lido/lido-dao': { coingeckoId: 'lido-dao', direction: 'both' },
+  'OffchainLabs/nitro': { coingeckoId: 'arbitrum', direction: 'both' },
+  'ZcashFoundation/zebra': { coingeckoId: 'zcash', direction: 'both' },
+  'paradigmxyz/reth': { coingeckoId: 'ethereum', direction: 'both' },
+  'MystenLabs/sui': { coingeckoId: 'sui', direction: 'both' },
 };
+
+/** Commit-level monitors from db/seed/watchlist.sql — replay responsiveness sweep. */
+export const CONSENSUS_WATCHLIST_REPOS: ReadonlyArray<{ repo: string; asset: string }> = [
+  { repo: 'zcash/halo2', asset: 'zcash' },
+  { repo: 'ZcashFoundation/zebra', asset: 'zcash' },
+  { repo: 'bitcoin/bitcoin', asset: 'bitcoin' },
+  { repo: 'ethereum/go-ethereum', asset: 'ethereum' },
+  { repo: 'anza-xyz/agave', asset: 'solana' },
+  { repo: 'paradigmxyz/reth', asset: 'ethereum' },
+  { repo: 'MystenLabs/sui', asset: 'sui' },
+];
 
 function normalizeRepoKey(url: string): string {
   return url

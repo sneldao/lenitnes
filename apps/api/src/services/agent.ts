@@ -13,6 +13,7 @@ import { fileURLToPath } from 'node:url';
 import OpenAI from 'openai';
 import type { AgentInput, AgentScore } from '@lenitnes/types';
 import { query } from '../db/pool.js';
+import { sqlHitPredicate } from './domain/outcome-metrics.js';
 import { logger } from '../logger.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -476,44 +477,60 @@ export async function fetchOutcomeContext(
   detectorTypes: string[],
 ): Promise<string | null> {
   if (detectorTypes.length === 0) return null;
+  const hitSql = sqlHitPredicate();
   const { rows } = await query<{
     total_signals: string;
-    total_outcomes: string;
-    correct_count: string;
-    avg_1d_return: string;
-    avg_7d_return: string;
+    matured_t1d: string;
+    hits_t1d: string;
+    avg_dir_1d: string;
+    avg_dir_7d: string;
     avg_conviction: string;
   }>(
-    `SELECT
+    `WITH per_signal AS (
+       SELECT
+         s.id AS signal_id,
+         ag.recommended_action,
+         MAX(so.pct_change) FILTER (WHERE so.window_seconds = 86400)::float AS t1d_pct,
+         MAX(so.pct_change) FILTER (WHERE so.window_seconds = 604800)::float AS t7d_pct,
+         MAX(so.direction) FILTER (WHERE so.window_seconds = 86400) AS direction,
+         MAX(ag.conviction) AS conviction
+       FROM signals s
+       JOIN signal_classifications sc ON sc.signal_id = s.id
+       LEFT JOIN agent_scores ag ON ag.signal_id = s.id
+       LEFT JOIN signal_outcomes so ON so.signal_id = s.id
+       WHERE s.monitor_id = $1
+         AND sc.detector_type = ANY($2)
+         AND s.detected_at > now() - interval '90 days'
+       GROUP BY s.id, ag.recommended_action
+     )
+     SELECT
        COUNT(*)::text AS total_signals,
-       COUNT(so.id)::text AS total_outcomes,
-       COUNT(so.id) FILTER (WHERE so.window_seconds = 86400 AND so.direction = 'up')::text AS correct_count,
-       COALESCE(AVG(so.pct_change) FILTER (WHERE so.window_seconds = 86400), 0)::text AS avg_1d_return,
-       COALESCE(AVG(so.pct_change) FILTER (WHERE so.window_seconds = 604800), 0)::text AS avg_7d_return,
-       COALESCE(AVG(as2.conviction) FILTER (WHERE so.window_seconds = 86400), 0)::text AS avg_conviction
-      FROM signals s
-      JOIN signal_classifications sc ON sc.signal_id = s.id
-      LEFT JOIN signal_outcomes so ON so.signal_id = s.id
-      LEFT JOIN agent_scores as2 ON as2.signal_id = s.id
-      WHERE s.monitor_id = $1
-        AND sc.detector_type = ANY($2)
-        AND s.detected_at > now() - interval '90 days'`,
+       COUNT(*) FILTER (WHERE t1d_pct IS NOT NULL)::text AS matured_t1d,
+       COUNT(*) FILTER (WHERE t1d_pct IS NOT NULL AND ${hitSql})::text AS hits_t1d,
+       COALESCE(AVG(
+         CASE WHEN recommended_action = 'short' THEN -t1d_pct ELSE t1d_pct END
+       ) FILTER (WHERE t1d_pct IS NOT NULL AND recommended_action != 'none'), 0)::text AS avg_dir_1d,
+       COALESCE(AVG(
+         CASE WHEN recommended_action = 'short' THEN -t7d_pct ELSE t7d_pct END
+       ) FILTER (WHERE t7d_pct IS NOT NULL AND recommended_action != 'none'), 0)::text AS avg_dir_7d,
+       COALESCE(AVG(conviction) FILTER (WHERE t1d_pct IS NOT NULL), 0)::text AS avg_conviction
+     FROM per_signal`,
     [monitorId, detectorTypes],
   );
   const row = rows[0];
-  if (!row || parseInt(row.total_outcomes, 10) === 0) return null;
+  const matured = parseInt(row?.matured_t1d ?? '0', 10);
+  if (!row || matured === 0) return null;
 
-  const total = parseInt(row.total_outcomes, 10);
-  const correct = parseInt(row.correct_count, 10);
-  const winRate = total > 0 ? ((correct / total) * 100).toFixed(1) : '0.0';
-  const avg1d = parseFloat(row.avg_1d_return).toFixed(2);
-  const avg7d = parseFloat(row.avg_7d_return).toFixed(2);
+  const hits = parseInt(row.hits_t1d, 10);
+  const winRate = matured > 0 ? ((hits / matured) * 100).toFixed(1) : '0.0';
+  const avg1d = parseFloat(row.avg_dir_1d).toFixed(2);
+  const avg7d = parseFloat(row.avg_dir_7d).toFixed(2);
   const avgConv = parseFloat(row.avg_conviction).toFixed(0);
 
   return (
-    `Past signals: ${row.total_signals} total, ${total} with outcomes. ` +
-    `${winRate}% win rate (T+1d). Avg T+1d return: ${avg1d}%. ` +
-    `Avg T+7d return: ${avg7d}%. Avg conviction of scored signals: ${avgConv}.`
+    `Past signals: ${row.total_signals} total, ${matured} with matured T+1d outcomes. ` +
+    `${winRate}% directional hit rate (T+1d). Avg directional T+1d: ${avg1d}%. ` +
+    `Avg directional T+7d: ${avg7d}%. Avg conviction: ${avgConv}.`
   );
 }
 

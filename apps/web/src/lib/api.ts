@@ -284,6 +284,27 @@ export interface PortfolioResponse {
 
 // ── Backtest ──────────────────────────────────────────────────
 
+export interface ReplayResponsivenessProfile {
+  repo: string;
+  asset: string;
+  from: string;
+  to: string;
+  flaggedBatches: number;
+  scoredBatches: number;
+  tradeGradeCalls: number;
+  hitRateT1d: number | null;
+  hitRateT7d: number | null;
+  avgDirectionalT1d: number | null;
+  avgDirectionalT7d: number | null;
+}
+
+export interface ResponsivenessResponse {
+  from: string;
+  to: string;
+  mode: string;
+  profiles: ReplayResponsivenessProfile[];
+}
+
 // ── Admin ─────────────────────────────────────────────────────
 
 export interface AdminStatusResponse {
@@ -341,6 +362,9 @@ export const api = {
   getScorecard: () => reqCamel<ScorecardResponse>(`/scorecard`),
   getScorecardRecent: (limit?: number) =>
     reqCamel<ScorecardRecentCall[]>(`/scorecard/recent${limit ? `?limit=${limit}` : ''}`),
+
+  /** 90-day replay sweep — which watchlist repos' commits predicted price. Cached 30m server-side. */
+  getResponsiveness: () => reqCamel<ResponsivenessResponse>(`/backtest/responsiveness`),
 
   getAdminStatus: (adminKey: string) =>
     reqCamel<AdminStatusResponse>(`/admin/status`, {

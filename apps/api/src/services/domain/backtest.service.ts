@@ -3,6 +3,7 @@ import { priceData } from '../data-providers/registry.js';
 import { config } from '../../config.js';
 import { sendTelegram } from '../notify.js';
 import { logger } from '../../logger.js';
+import { sqlHitPredicate } from './outcome-metrics.js';
 import type { DetectorBacktestStats, SignalOutcome } from '@lenitnes/types';
 
 const DEFAULT_WINDOWS = [3600, 14400, 86400, 604800]; // 1h, 4h, 24h, 7d
@@ -181,7 +182,8 @@ async function broadcastOutcomeVerdict(
 }
 
 export async function refreshBacktestStats(): Promise<void> {
-  // Aggregate per (detector_type, asset) across all outcomes.
+  const hitSql = sqlHitPredicate();
+  // Aggregate per (detector_type, asset) with direction-adjusted hits.
   const { rows } = await query<{
     detector_type: string;
     asset: string;
@@ -193,20 +195,41 @@ export async function refreshBacktestStats(): Promise<void> {
     returns: string;
   }>(
     `WITH joined AS (
-       SELECT sc.detector_type, so.asset, so.pct_change, so.window_seconds
+       SELECT sc.detector_type,
+              so.asset,
+              so.pct_change,
+              so.window_seconds,
+              ag.recommended_action,
+              so.direction
          FROM signal_classifications sc
          JOIN signal_outcomes so ON so.signal_id = sc.signal_id
+         LEFT JOIN agent_scores ag ON ag.signal_id = sc.signal_id
+        WHERE so.window_seconds = 86400
+          AND ag.recommended_action IS NOT NULL
+          AND ag.recommended_action != 'none'
+     ),
+     directional AS (
+       SELECT detector_type,
+              asset,
+              CASE WHEN recommended_action = 'short'
+                   THEN -pct_change::numeric
+                   ELSE pct_change::numeric
+              END AS d_pct,
+              window_seconds,
+              recommended_action,
+              direction
+         FROM joined
      ),
      agg AS (
        SELECT detector_type,
               asset,
               COUNT(*) AS total_signals,
-              COUNT(*) FILTER (WHERE ABS(pct_change::numeric) > 1) AS correct_count,
-              AVG(pct_change::numeric) AS avg_pct,
-              AVG(ABS(pct_change::numeric)) AS avg_abs,
-              (ARRAY_AGG(window_seconds ORDER BY ABS(pct_change::numeric) DESC))[1] AS best_window,
-              ARRAY_AGG(pct_change::numeric ORDER BY pct_change::numeric) AS returns
-         FROM joined
+              COUNT(*) FILTER (WHERE ${hitSql}) AS correct_count,
+              AVG(d_pct) AS avg_pct,
+              AVG(ABS(d_pct)) AS avg_abs,
+              (ARRAY_AGG(window_seconds ORDER BY ABS(d_pct) DESC))[1] AS best_window,
+              ARRAY_AGG(d_pct ORDER BY d_pct) AS returns
+         FROM directional
         GROUP BY detector_type, asset
      )
      SELECT detector_type, asset,

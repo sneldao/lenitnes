@@ -5,7 +5,7 @@ import type { Monitor, TinyFishResult } from '@lenitnes/types';
 import * as tinyfish from '../services/tinyfish.js';
 import * as scraper from '../services/scraper.js';
 import * as ipfs from '../services/ipfs.js';
-import { fetchCommitsSince } from '../services/github.js';
+import { fetchCommitsSince, formatCommitEvidence } from '../services/github.js';
 import { getProofService } from '../services/proof.js';
 import { isCircuitOpen, recordSuccess, recordFailure } from '../services/circuit.js';
 import { incCounter } from '../middleware/metrics.js';
@@ -226,16 +226,8 @@ export async function executeCheck(monitor: Monitor): Promise<{
           );
           result.conditionMet = true;
           result.confidence = Math.max(result.confidence, topConfidence);
-          // Evidence the agent can cite: SHA, first line, size stats
-          // (the list API omits stats, so only show them when present).
-          result.evidence = enriched
-            .slice(0, 6)
-            .map((c) => {
-              const sizes =
-                c.additions + c.deletions > 0 ? ` (+${c.additions}/-${c.deletions})` : '';
-              return `${c.sha.slice(0, 7)}: ${c.message.split('\n')[0]}${sizes}`;
-            })
-            .join('\n');
+          // Evidence the agent can cite: SHA, first line, size stats.
+          result.evidence = formatCommitEvidence(enriched);
           result.summary = `github-direct: ${precomputedDetectors.map((d) => d.type).join(', ')} across ${enriched.length} new commit(s)`;
           checkMethod = 'github-direct';
         } else {

@@ -54,6 +54,27 @@ function nearestPrice(points: PricePoint[], targetUnix: number): number | null {
   return best.price;
 }
 
+/** One range fetch for replay/backtest sweeps — avoids N×2 point lookups. */
+export async function prefetchPriceSeries(
+  coingeckoId: string,
+  from: Date,
+  to: Date,
+): Promise<PricePoint[]> {
+  const fromUnix = Math.floor(from.getTime() / 1000);
+  const toUnix = Math.floor(to.getTime() / 1000);
+  return coinGeckoLimit(() =>
+    withRetry(() => fetchCoinGeckoRange(coingeckoId, fromUnix, toUnix), {
+      retries: 3,
+      baseDelayMs: 8_000,
+    }),
+  );
+}
+
+export function priceAtFromSeries(points: PricePoint[], timestamp: Date): number | null {
+  if (points.length === 0) return null;
+  return nearestPrice(points, Math.floor(timestamp.getTime() / 1000));
+}
+
 async function fetchPriceAt(coingeckoId: string, timestamp: Date): Promise<number | null> {
   const ts = Math.floor(timestamp.getTime() / 1000);
   const from = ts - 3600;
