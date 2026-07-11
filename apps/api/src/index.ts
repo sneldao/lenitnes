@@ -213,6 +213,10 @@ if (isMain) {
         .then(({ logTreasuryStatus }) => logTreasuryStatus())
         .catch((err) => logger.warn({ err }, 'treasury status log failed (non-blocking)'));
 
+      import('./services/responsiveness-sweep.js')
+        .then(({ warmResponsivenessCacheOnBoot }) => warmResponsivenessCacheOnBoot())
+        .catch((err) => logger.warn({ err }, 'responsiveness warm failed (non-blocking)'));
+
       server.listen(config.port, () => {
         logger.info({ port: config.port, env: config.env }, 'API listening');
       });

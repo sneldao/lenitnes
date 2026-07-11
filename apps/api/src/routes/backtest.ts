@@ -4,12 +4,12 @@ import {
   getSignalOutcomes,
   processSignalOutcomes,
 } from '../services/domain/backtest.service.js';
+import { describeReplay, replay, HALO2_REPLAY } from '../services/replay.js';
 import {
-  describeReplay,
-  replay,
-  HALO2_REPLAY,
-  replayWatchlistResponsiveness,
-} from '../services/replay.js';
+  ensureResponsivenessSweep,
+  getResponsivenessSweepState,
+  type SweepMode,
+} from '../services/responsiveness-sweep.js';
 import { cacheGet, cacheSet } from '../middleware/cache.js';
 import { config } from '../config.js';
 
@@ -36,12 +36,6 @@ backtestRouter.post('/process', async (_req: Request, res: Response) => {
 });
 
 // GET /backtest/replay?repo=zcash/halo2&from=...&to=...&asset=zcash
-// Real repo-range scan: fetches actual commit history, batches by
-// day, runs the live detectors, scores firing batches. PUBLIC calls
-// run in mock mode (deterministic detector-max conviction — zero
-// LLM cost, still a real leak-scan). A valid X-Admin-Key unlocks
-// live agent reasoning for paid/demo scans. 10-min cache bounds
-// GitHub API pressure from repeat lookups.
 backtestRouter.get('/replay', async (req: Request, res: Response) => {
   const repo = String(req.query.repo ?? 'zcash/halo2');
   const from = req.query.from ? String(req.query.from) : undefined;
@@ -77,39 +71,74 @@ backtestRouter.get('/replay', async (req: Request, res: Response) => {
   }
 });
 
+function sweepModeFromRequest(req: Request): SweepMode {
+  const adminKey = req.header('x-admin-key') ?? '';
+  const live = config.admin.apiKey !== '' && adminKey === config.admin.apiKey;
+  return live ? 'live' : 'mock';
+}
+
 // GET /backtest/responsiveness?from=...&to=...
-// Replay sweep across the consensus watchlist — measures which repos'
-// commit signals historically predicted price (mock agent by default).
+// Background sweep — returns 202 while running, 200 when cached.
 backtestRouter.get('/responsiveness', async (req: Request, res: Response) => {
   const from = req.query.from ? String(req.query.from) : undefined;
   const to = req.query.to ? String(req.query.to) : undefined;
-  const adminKey = req.header('x-admin-key') ?? '';
-  const live = config.admin.apiKey !== '' && adminKey === config.admin.apiKey;
+  const mode = sweepModeFromRequest(req);
 
-  const cacheKey = `responsiveness:${from ?? ''}:${to ?? ''}:${live ? 'live' : 'mock'}`;
-  const cached = cacheGet<object>(cacheKey);
-  if (cached) {
-    res.json(cached);
+  const state = await getResponsivenessSweepState(mode, from, to);
+  if (state.status === 'ready' && state.payload) {
+    res.json({ ...state.payload, status: 'ready' });
+    return;
+  }
+  if (state.status === 'pending') {
+    res.status(202).json({
+      status: 'pending',
+      mode,
+      startedAt: state.startedAt,
+      message: 'Responsiveness sweep in progress — retry in 30–60s',
+    });
+    return;
+  }
+  if (state.status === 'error') {
+    res.status(500).json({ error: 'responsiveness_failed', detail: state.error });
     return;
   }
 
-  try {
-    const profiles = await replayWatchlistResponsiveness({
-      from,
-      to,
-      mock: !live,
-    });
-    const payload = {
-      from: from ?? describeReplay({ repo: 'zcash/halo2' }).from,
-      to: to ?? describeReplay({ repo: 'zcash/halo2' }).to,
-      mode: live ? 'live' : 'mock',
-      profiles,
-    };
-    cacheSet(cacheKey, payload, 30 * 60 * 1000);
-    res.json(payload);
-  } catch (err) {
-    res.status(500).json({ error: 'responsiveness_failed', detail: (err as Error).message });
+  const next = await ensureResponsivenessSweep(mode, from, to);
+  if (next.status === 'ready' && next.payload) {
+    res.json({ ...next.payload, status: 'ready' });
+    return;
   }
+  res.status(202).json({
+    status: 'pending',
+    mode,
+    startedAt: next.startedAt,
+    message: 'Responsiveness sweep started — retry in 30–60s',
+  });
+});
+
+// GET /backtest/tiers — repo A/B/C tier list from latest sweep
+backtestRouter.get('/tiers', async (req: Request, res: Response) => {
+  const mode = sweepModeFromRequest(req);
+  const state = await getResponsivenessSweepState(mode);
+  if (state.status !== 'ready' || !state.payload) {
+    res.status(202).json({
+      status: state.status === 'pending' ? 'pending' : 'idle',
+      message: 'Tier list requires a completed responsiveness sweep',
+    });
+    return;
+  }
+  res.json({
+    mode,
+    completedAt: state.payload.completedAt,
+    tiers: state.payload.profiles.map((p) => ({
+      repo: p.repo,
+      asset: p.asset,
+      tier: p.tier,
+      tierReason: p.tierReason,
+      hitRateT7d: p.hitRateT7d,
+      hitRateT1d: p.hitRateT1d,
+    })),
+  });
 });
 
 // GET /backtest/replay/halo2 — the canonical example. Public.

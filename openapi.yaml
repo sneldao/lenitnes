@@ -379,7 +379,8 @@ paths:
         Replay the commit-level watchlist over the last 90 days and
         rank repos by historical commit-signal → price responsiveness.
         Mock agent by default (zero LLM cost); X-Admin-Key unlocks
-        live agent scoring. Cached 30 minutes.
+        live agent scoring. Background sweep — returns 202 while
+        pending, 200 when cached (30 minutes, Redis-backed).
       security: []
       parameters:
         - name: from
@@ -390,15 +391,17 @@ paths:
           schema: { type: string, format: date-time }
       responses:
         '200':
-          description: Responsiveness profiles
+          description: Responsiveness profiles (ready)
           content:
             application/json:
               schema:
                 type: object
                 properties:
+                  status: { type: string, enum: ['ready'] }
                   from: { type: string }
                   to: { type: string }
                   mode: { type: string, enum: ['mock', 'live'] }
+                  completedAt: { type: string }
                   profiles:
                     type: array
                     items:
@@ -406,6 +409,8 @@ paths:
                       properties:
                         repo: { type: string }
                         asset: { type: string }
+                        tier: { type: string, enum: ['A', 'B', 'C'] }
+                        tierReason: { type: string }
                         flaggedBatches: { type: integer }
                         scoredBatches: { type: integer }
                         tradeGradeCalls: { type: integer }
@@ -413,8 +418,22 @@ paths:
                         hitRateT7d: { type: number, nullable: true }
                         avgDirectionalT1d: { type: number, nullable: true }
                         avgDirectionalT7d: { type: number, nullable: true }
+        '202':
+          description: Sweep in progress — retry in 30–60s
         '500':
           description: Sweep failed
+
+  /backtest/tiers:
+    get:
+      tags: [Public]
+      summary: Repo tier list from latest sweep
+      description: A/B/C tiers derived from responsiveness profiles.
+      security: []
+      responses:
+        '200':
+          description: Tier list
+        '202':
+          description: Sweep not ready yet
 
   /backtest/replay/halo2:
     get:

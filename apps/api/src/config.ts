@@ -187,6 +187,10 @@ export const config = {
     token: env.GITHUB_TOKEN,
   },
 
+  coingecko: {
+    apiKey: env.COINGECKO_API_KEY,
+  },
+
   // Build REDIS_URL from REDIS_HOST/PORT if not set. Same pattern
   // as databaseUrlFromPgVars above (config.ts composes URLs from
   // individual env vars so the compose file doesn't have to write

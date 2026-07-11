@@ -23,10 +23,15 @@ import {
 import { runDetectors } from './detectors/registry.js';
 import { CONSENSUS_WATCHLIST_REPOS } from './detectors/asset-lookup.js';
 import type { PricePoint } from './data-providers/types.js';
-import { priceData } from './data-providers/registry.js';
-import { prefetchPriceSeries, priceAtFromSeries } from './data-providers/coingecko/index.js';
+import {
+  prefetchPriceSeries,
+  prefetchPriceSeriesForAssets,
+  priceAtFromSeries,
+} from './data-providers/coingecko/index.js';
 import { config } from '../config.js';
 import { directionalPctChange, isDirectionalHit } from './domain/outcome-metrics.js';
+import { sortReposBySectorSequence } from './domain/sector-graph.js';
+import { buildSequenceContextFromEvents, type SequenceEvent } from './domain/sequence-context.js';
 import { logger } from '../logger.js';
 
 export interface ReplayCommitInput {
@@ -48,6 +53,10 @@ export interface ReplayInput {
   asset: string;
   /** Optional override — defaults to MOCK_AGENT from env so tests are deterministic. */
   mock?: boolean;
+  /** Pre-fetched price series (watchlist sweep shares one series per asset). */
+  priceSeries?: PricePoint[] | null;
+  /** Cross-repo sequence events accumulated during a watchlist sweep. */
+  sequenceLog?: SequenceEvent[];
 }
 
 export interface ReplayCommitVerdict {
@@ -218,9 +227,9 @@ async function fetchPriceOutcome(
       if (atSignal == null || after == null) return null;
       return ((after - atSignal) / atSignal) * 100;
     }
-    const result = await priceData.getPriceAtWindow(asset, dayStart, windowSec).catch(() => null);
-    if (!result) return null;
-    return ((result.afterWindow - result.atSignal) / result.atSignal) * 100;
+    // Replay sweeps must not fall back to per-batch CoinGecko calls —
+    // that pattern triggers 429s when prefetch fails.
+    return null;
   };
 
   const [t1dPct, t7dPct] = await Promise.all([pctFor(86_400), pctFor(604_800)]);
@@ -263,11 +272,11 @@ export async function replay(input: ReplayInput): Promise<{
     return { verdicts: [], flaggedBatches: 0 };
   }
 
-  let priceSeries: PricePoint[] | null = null;
+  let priceSeries: PricePoint[] | null = input.priceSeries ?? null;
   const watchlisted = CONSENSUS_WATCHLIST_REPOS.some(
     (w) => w.repo === input.repo && w.asset === input.asset,
   );
-  if (input.asset && watchlisted) {
+  if (priceSeries == null && input.asset && watchlisted) {
     try {
       const from = new Date(input.from);
       const to = new Date(input.to);
@@ -279,8 +288,11 @@ export async function replay(input: ReplayInput): Promise<{
       );
     } catch (err) {
       logger.warn({ err, asset: input.asset }, 'replay: price series prefetch failed');
+      priceSeries = [];
     }
   }
+
+  const sequenceLog = input.sequenceLog ?? [];
 
   // Detector pass per day-batch — free, runs on everything.
   const firing: Array<{
@@ -304,12 +316,21 @@ export async function replay(input: ReplayInput): Promise<{
         'Any commit referencing a consensus-critical change, emergency patch, or security vulnerability fix.',
     });
     if (classifications.length > 0) {
+      const topScore = Math.max(...classifications.map((c) => c.score));
       firing.push({
         day,
         batch,
         classifications,
-        topScore: Math.max(...classifications.map((c) => c.score)),
+        topScore,
       });
+      const seqEvent: SequenceEvent = {
+        repo: input.repo,
+        asset: input.asset,
+        day,
+        detectors: classifications.map((c) => c.type),
+        summary: batch[0]?.message.split('\n')[0] ?? `batch ${day}`,
+      };
+      sequenceLog.push(seqEvent);
     }
   }
 
@@ -330,6 +351,8 @@ export async function replay(input: ReplayInput): Promise<{
   for (const f of toScore) {
     const strongest = f.batch[0];
     try {
+      const sequence_context = buildSequenceContextFromEvents(input.repo, f.day, sequenceLog);
+
       const agentScore = await score(
         {
           signal_id: `replay-${f.day}-${strongest.sha.slice(0, 8)}`,
@@ -344,6 +367,7 @@ export async function replay(input: ReplayInput): Promise<{
           evidence_text: formatCommitEvidence(f.batch, 10),
           condition_summary: `Replay ${input.repo} · ${f.day} · ${f.batch.length} commit(s)`,
           precedent_count: 0,
+          sequence_context: sequence_context || undefined,
         },
         env,
       );
@@ -434,8 +458,18 @@ export async function replayWatchlistResponsiveness(options?: {
   mock?: boolean;
   repos?: Array<{ repo: string; asset: string }>;
 }): Promise<ReplayResponsiveness[]> {
-  const targets = options?.repos ?? CONSENSUS_WATCHLIST_REPOS;
+  const targets = sortReposBySectorSequence(options?.repos ?? CONSENSUS_WATCHLIST_REPOS);
   const results: ReplayResponsiveness[] = [];
+  const sequenceLog: SequenceEvent[] = [];
+
+  const fromIso = options?.from ?? describeReplay({ repo: 'zcash/halo2' }).from;
+  const toIso = options?.to ?? describeReplay({ repo: 'zcash/halo2' }).to;
+  const rangeFrom = new Date(fromIso);
+  const rangeTo = new Date(toIso);
+  rangeTo.setUTCDate(rangeTo.getUTCDate() + 8);
+
+  const assetIds = Array.from(new Set(targets.map((t) => t.asset)));
+  const priceByAsset = await prefetchPriceSeriesForAssets(assetIds, rangeFrom, rangeTo);
 
   for (const target of targets) {
     const input = describeReplay({
@@ -448,6 +482,8 @@ export async function replayWatchlistResponsiveness(options?: {
       const { verdicts, flaggedBatches } = await replay({
         ...input,
         mock: options?.mock ?? true,
+        priceSeries: priceByAsset.get(target.asset) ?? [],
+        sequenceLog,
       });
       results.push(summarizeReplayResponsiveness(verdicts, input, flaggedBatches));
     } catch (err) {

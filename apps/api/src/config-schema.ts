@@ -156,6 +156,9 @@ export const envSchema = z
     // ── CoinMarketCap ──
     CMC_API_KEY: z.string().optional().default(''),
 
+    // ── CoinGecko (optional — raises rate limits for price/replay) ──
+    COINGECKO_API_KEY: z.string().optional().default(''),
+
     // ── SoSoValue ──
     SOSO_VALUE_API_KEY: z.string().optional().default(''),
 

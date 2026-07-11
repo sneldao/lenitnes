@@ -13,6 +13,7 @@ vi.mock('../src/services/github.js', () => ({
 }));
 vi.mock('../src/services/data-providers/coingecko/index.js', () => ({
   prefetchPriceSeries: vi.fn().mockResolvedValue([]),
+  prefetchPriceSeriesForAssets: vi.fn().mockResolvedValue(new Map()),
   priceAtFromSeries: vi.fn().mockReturnValue(null),
 }));
 vi.mock('../src/services/data-providers/registry.js', () => ({

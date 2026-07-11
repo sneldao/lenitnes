@@ -26,9 +26,16 @@ function pctTone(n: number | null): string {
   return 'text-slate-400';
 }
 
+function tierBadge(tier?: 'A' | 'B' | 'C'): string {
+  if (tier === 'A') return 'bg-signal/15 text-signal';
+  if (tier === 'C') return 'bg-danger/15 text-danger';
+  if (tier === 'B') return 'bg-accent/10 text-accent';
+  return 'bg-slate-800 text-slate-500';
+}
+
 function fmtRatio(n: number | null): string {
   if (n == null) return '—';
-  return `${(n * 100).toFixed(0)}%`;
+  return formatRatio(n);
 }
 
 export default function CalibrationPage() {
@@ -242,7 +249,7 @@ export default function CalibrationPage() {
         </p>
         {respLoading && (
           <p className="font-mono text-xs text-slate-500">
-            Running replay sweep (may take a minute)…
+            Running replay sweep in background (typically 2–4 min on first load)…
           </p>
         )}
         {respError && (
@@ -253,6 +260,7 @@ export default function CalibrationPage() {
             <table className="w-full font-mono text-xs">
               <thead>
                 <tr className="border-b border-edge/30 text-left text-slate-500">
+                  <th className="py-2 pr-3 font-normal">Tier</th>
                   <th className="py-2 pr-3 font-normal">Repo</th>
                   <th className="py-2 px-3 text-right font-normal">Flagged days</th>
                   <th className="py-2 px-3 text-right font-normal">Trade-grade</th>
@@ -271,6 +279,14 @@ export default function CalibrationPage() {
                   )
                   .map((row) => (
                     <tr key={row.repo} className="border-b border-edge/20 last:border-0">
+                      <td className="py-2 pr-3">
+                        <span
+                          className={`rounded px-1.5 py-0.5 font-mono text-[10px] uppercase ${tierBadge(row.tier)}`}
+                          title={row.tierReason}
+                        >
+                          {row.tier ?? '—'}
+                        </span>
+                      </td>
                       <td className="py-2 pr-3 text-slate-300">
                         <span className="text-slate-500">{row.asset.toUpperCase()}</span> {row.repo}
                       </td>
@@ -299,7 +315,8 @@ export default function CalibrationPage() {
         {responsiveness && (
           <p className="mt-3 font-mono text-[10px] text-slate-600">
             window {responsiveness.from.slice(0, 10)} → {responsiveness.to.slice(0, 10)} · mode{' '}
-            {responsiveness.mode} · cached 30m
+            {responsiveness.mode} · background sweep · cached 30m · A-tier = expand spend, C-tier =
+            deprioritize
           </p>
         )}
       </section>

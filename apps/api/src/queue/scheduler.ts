@@ -21,6 +21,7 @@ let deadmanJob: cron.ScheduledTask | null = null;
 let gasCheckJob: cron.ScheduledTask | null = null;
 let tpSlCheckJob: cron.ScheduledTask | null = null;
 let narrativeJob: cron.ScheduledTask | null = null;
+let responsivenessJob: cron.ScheduledTask | null = null;
 let monitorRunning = false;
 let backtestRunning = false;
 let proofRetryRunning = false;
@@ -460,9 +461,18 @@ async function checkTakeProfitStopLoss(): Promise<void> {
   }
 }
 
+async function runResponsivenessSweep(): Promise<void> {
+  try {
+    const { scheduleResponsivenessSweep } = await import('../services/responsiveness-sweep.js');
+    scheduleResponsivenessSweep('mock');
+  } catch (err) {
+    logger.error({ err }, 'responsiveness sweep schedule failed');
+  }
+}
+
 export function startScheduler(): void {
   logger.info(
-    'scheduler started — monitors every 30s, backtest hourly, proof retries every 2m, watch report daily at 09:00, dead-man check hourly, gas check every 6h, TP/SL check every 5m, narrative scan every 2h',
+    'scheduler started — monitors every 30s, backtest hourly, proof retries every 2m, watch report daily at 09:00, dead-man check hourly, gas check every 6h, TP/SL check every 5m, narrative scan every 2h, responsiveness sweep every 6h',
   );
   monitorJob = cron.schedule('*/30 * * * * *', scanAndEnqueue);
   // Hourly (was 6h): outcomes only process windows that have
@@ -480,6 +490,9 @@ export function startScheduler(): void {
   narrativeJob = cron.schedule('0 */2 * * *', () =>
     import('../services/agent/narrative.js').then((m) => m.runNarrativeScan()),
   );
+  // Warm responsiveness cache for /calibration — mock agent, 6h cadence.
+  responsivenessJob = cron.schedule('15 */6 * * *', runResponsivenessSweep);
+  void runResponsivenessSweep();
 }
 
 export function stopScheduler(): void {
@@ -514,5 +527,9 @@ export function stopScheduler(): void {
   if (narrativeJob) {
     narrativeJob.stop();
     narrativeJob = null;
+  }
+  if (responsivenessJob) {
+    responsivenessJob.stop();
+    responsivenessJob = null;
   }
 }

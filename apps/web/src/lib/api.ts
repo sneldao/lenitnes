@@ -47,6 +47,25 @@ async function reqCamel<T>(path: string, init?: RequestInit): Promise<T> {
   return toCamel<T>(raw);
 }
 
+async function reqCamelWithStatus<T>(
+  path: string,
+  init?: RequestInit,
+): Promise<{ data: T; status: number }> {
+  const res = await fetch(`${BASE}${path}`, {
+    ...init,
+    credentials: 'include',
+    headers: {
+      'Content-Type': 'application/json',
+      ...(init?.headers ?? {}),
+    },
+    cache: process.env.NODE_ENV === 'development' ? 'no-store' : 'default',
+  });
+  if (res.status === 401) throw new Error('session_expired');
+  if (!res.ok && res.status !== 202) throw new Error(`API ${res.status}: ${await res.text()}`);
+  const raw = (await res.json()) as unknown;
+  return { data: toCamel<T>(raw), status: res.status };
+}
+
 // ── Domain types (camelCase, UI-facing) ───────────────────────
 
 export interface OutcomeWindow {
@@ -296,13 +315,17 @@ export interface ReplayResponsivenessProfile {
   hitRateT7d: number | null;
   avgDirectionalT1d: number | null;
   avgDirectionalT7d: number | null;
+  tier?: 'A' | 'B' | 'C';
+  tierReason?: string;
 }
 
 export interface ResponsivenessResponse {
   from: string;
   to: string;
   mode: string;
+  status?: 'ready' | 'pending';
   profiles: ReplayResponsivenessProfile[];
+  completedAt?: string;
 }
 
 // ── Admin ─────────────────────────────────────────────────────
@@ -363,8 +386,19 @@ export const api = {
   getScorecardRecent: (limit?: number) =>
     reqCamel<ScorecardRecentCall[]>(`/scorecard/recent${limit ? `?limit=${limit}` : ''}`),
 
-  /** 90-day replay sweep — which watchlist repos' commits predicted price. Cached 30m server-side. */
-  getResponsiveness: () => reqCamel<ResponsivenessResponse>(`/backtest/responsiveness`),
+  /** 90-day replay sweep — background job; polls until ready. */
+  getResponsiveness: async (): Promise<ResponsivenessResponse> => {
+    const maxAttempts = 40;
+    for (let attempt = 0; attempt < maxAttempts; attempt++) {
+      const { data, status } =
+        await reqCamelWithStatus<ResponsivenessResponse>(`/backtest/responsiveness`);
+      if (status === 200 || data.status === 'ready' || (data.profiles?.length ?? 0) > 0) {
+        return { ...data, status: 'ready' };
+      }
+      await new Promise((r) => setTimeout(r, 4_000));
+    }
+    throw new Error('responsiveness_timeout');
+  },
 
   getAdminStatus: (adminKey: string) =>
     reqCamel<AdminStatusResponse>(`/admin/status`, {

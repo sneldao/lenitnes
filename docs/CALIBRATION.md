@@ -396,7 +396,9 @@ The loop:
    replay responsiveness** table (`GET /backtest/responsiveness`)
    — which watchlist repos' commit signals historically predicted
    price (mock agent by default; live agent with admin key).
-   Recomputed on every page load (replay sweep cached 30m).
+   Sweeps run as a **background job** (worker cron every 6h + warm
+   on API boot); HTTP returns 202 while pending, 200 when cached
+   (30m TTL, Redis-backed price series cache 7d).
 
 3. **Diagnose** — if avg T+1d in the 80-89 band trends
    negative over n ≥ 20, the rubric needs work. If it trends
@@ -422,9 +424,12 @@ return.
 **Surfaces:**
 
 - **`GET /backtest/responsiveness`** — JSON profiles (public,
-  mock agent; `X-Admin-Key` for live LLM scoring). Cached 30m.
+  mock agent; `X-Admin-Key` for live LLM scoring). Background
+  sweep; 202 while pending, 30m cache when ready.
+- **`GET /backtest/tiers`** — A/B/C tier list derived from the
+  latest sweep (A = expand agent spend, C = deprioritize).
 - **`/calibration`** — same data in the "Repo responsiveness"
-  table.
+  table (tier column + tooltips).
 - **CLI** — `MOCK_AGENT=1 npx tsx apps/api/scripts/run-responsiveness-sweep.ts`
   (requires `GITHUB_TOKEN` in env; ~3 min for 7 repos).
 
@@ -446,6 +451,28 @@ return.
 the weakest (0% T+7d hit, negative avg). Zebra had strong T+1d
 (63%) but weaker T+7d (29%) — consistent with pricing the
 emergency before the disclosure drawdown fully lands.
+
+**Repo tier list (same sweep, heuristic v1):**
+
+| Tier  | Repos                                                                      | Action                                                    |
+| ----- | -------------------------------------------------------------------------- | --------------------------------------------------------- |
+| **A** | MystenLabs/sui, anza-xyz/agave                                             | Prioritize live-agent scoring; allow T+7d outcome windows |
+| **B** | zcash/halo2, ZcashFoundation/zebra, ethereum/go-ethereum, paradigmxyz/reth | Monitor; sequence_context wired (Zcash stack pilot)       |
+| **C** | bitcoin/bitcoin                                                            | Deprioritize — high flag rate, weak price co-movement     |
+
+Tier rules live in `apps/api/src/services/domain/repo-tiers.ts`
+(≥50% T+7d hit or strong T+1d + positive T+7d drift → A;
+both T+1d and T+7d below 35–40% → C).
+
+**CoinGecko reliability (2026-07-11):** Optional `COINGECKO_API_KEY`
+raises rate limits; price series cached in Redis (7d) + in-memory
+(24h); replay sweeps prefetch one range per asset (no per-batch
+fallback calls); request pacing 4.5s (free) / 1.2s (key).
+
+**Sequence context (Phase 2 pilot):** Static sector graph in
+`domain/sector-graph.ts`; `sequence_context` injected on live scores
+and replay batches (upstream→downstream chain, 7d lookback). Zcash
+stack: halo2 → zebra → zcash.
 
 **Signal fidelity (same release):** GitHub list API omits diff
 stats; live + replay now call `enrichCommitStats()`. Outcome
@@ -471,3 +498,4 @@ learning uses direction-adjusted hits via `domain/outcome-metrics.ts`.
 | 2026-07-11 | GitHub commit stats enrichment (`enrichCommitStats`) on live + replay paths          | List API omits diff sizes; `emergency_patch` / `silent_merge` size gates were blind in production and backtest                                                                                                                                                                                                                       |
 | 2026-07-11 | Direction-adjusted outcomes in `fetchOutcomeContext` + `refreshBacktestStats`        | Past-outcomes prompt counted `direction=up` as a win regardless of long/short; backtest stats used `ABS(pct_change)>1`. Centralized in `domain/outcome-metrics.ts`                                                                                                                                                                   |
 | 2026-07-11 | `GET /backtest/responsiveness` + `/calibration` replay table                         | Empirical commit→price responsiveness ranking before watchlist expansion; one CoinGecko range prefetch per asset in replay to avoid 429s                                                                                                                                                                                             |
+| 2026-07-11 | Background responsiveness sweep + Redis price cache + repo tiers + sequence_context  | Prod 429/timeouts on inline HTTP sweep; tier list turns measurement into spend policy; sector-chain context for Zcash pilot                                                                                                                                                                                                          |

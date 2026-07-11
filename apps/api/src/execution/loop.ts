@@ -543,9 +543,11 @@ export async function executeCheck(monitor: Monitor): Promise<{
       // for this asset. Lets the agent string commits across repos
       // and weigh corroboration instead of scoring in isolation.
       const { buildNarrativeContext } = await import('../services/agent/narrative.js');
-      const [narrativeContext, bookContext] = await Promise.all([
+      const { buildSequenceContextLive } = await import('../services/domain/sequence-context.js');
+      const [narrativeContext, bookContext, sequenceContext] = await Promise.all([
         buildNarrativeContext(monitor.asset_mapping),
         buildBookContext(),
+        buildSequenceContextLive(monitor.url, monitor.asset_mapping),
       ]);
 
       agentScore = await scoreAndPersist(
@@ -565,6 +567,7 @@ export async function executeCheck(monitor: Monitor): Promise<{
           past_outcomes: outcomeContext ?? undefined,
           market_context: marketContext,
           narrative_context: narrativeContext || undefined,
+          sequence_context: sequenceContext || undefined,
           book_context: bookContext || undefined,
         },
         env,
