@@ -317,6 +317,57 @@ export interface ReplayResponsivenessProfile {
   avgDirectionalT7d: number | null;
   tier?: 'A' | 'B' | 'C';
   tierReason?: string;
+  detectorBreakdown?: DetectorResponsivenessProfile[];
+}
+
+export interface DetectorResponsivenessProfile {
+  detectorType: string;
+  scoredBatches: number;
+  tradeGradeCalls: number;
+  hitRateT1d: number | null;
+  hitRateT7d: number | null;
+  avgDirectionalT1d: number | null;
+  avgDirectionalT7d: number | null;
+}
+
+export interface TierDriftEntry {
+  repo: string;
+  mockTier: 'A' | 'B' | 'C';
+  liveTier: 'A' | 'B' | 'C' | null;
+  diverged: boolean;
+}
+
+export interface ResponsivenessCompareResponse {
+  status: 'ready' | 'pending';
+  mock?: ResponsivenessResponse;
+  live?: ResponsivenessResponse | null;
+  liveStatus?: string;
+  drift?: TierDriftEntry[];
+  message?: string;
+}
+
+export interface ForwardPaperEntry {
+  signalId: string;
+  repo: string;
+  asset: string | null;
+  detectedAt: string;
+  conviction: number;
+  recommendedAction: string;
+  tierPolicy: string | null;
+  liveConfirmed: boolean;
+  t1dPct: number | null;
+  hitT1d: boolean | null;
+  matured: boolean;
+}
+
+export interface ForwardPaperResponse {
+  days: number;
+  entries: ForwardPaperEntry[];
+  liveAgentCount: number;
+  tradeGradeCount: number;
+  hitRateT1d: number | null;
+  avgDirectionalT1d: number | null;
+  liveConfirmedCount: number;
 }
 
 export interface ResponsivenessResponse {
@@ -418,6 +469,14 @@ export const api = {
 
   /** A/B/C tier list from latest responsiveness sweep (cached server-side). */
   getRepoTiers: () => reqCamel<RepoTiersResponse>(`/backtest/tiers`),
+
+  /** Mock vs cached live A-tier profiles + tier drift. */
+  getResponsivenessCompare: () =>
+    reqCamel<ResponsivenessCompareResponse>(`/backtest/responsiveness/compare`),
+
+  /** Forward paper log — live agent scores with matured T+1d outcomes. */
+  getForwardPaper: (days = 7) =>
+    reqCamel<ForwardPaperResponse>(`/backtest/forward-paper?days=${days}`),
 
   getAdminStatus: (adminKey: string) =>
     reqCamel<AdminStatusResponse>(`/admin/status`, {

@@ -23,6 +23,8 @@ let tpSlCheckJob: cron.ScheduledTask | null = null;
 let narrativeJob: cron.ScheduledTask | null = null;
 let responsivenessJob: cron.ScheduledTask | null = null;
 let responsivenessHealthJob: cron.ScheduledTask | null = null;
+let responsivenessQueueJob: cron.ScheduledTask | null = null;
+let liveATierJob: cron.ScheduledTask | null = null;
 let monitorRunning = false;
 let backtestRunning = false;
 let proofRetryRunning = false;
@@ -496,6 +498,13 @@ export function startScheduler(): void {
   responsivenessHealthJob = cron.schedule('30 * * * *', () =>
     import('../services/responsiveness-sweep.js').then((m) => m.checkResponsivenessSweepHealth()),
   );
+  responsivenessQueueJob = cron.schedule('*/30 * * * * *', () =>
+    import('../services/responsiveness-sweep.js').then((m) => m.drainResponsivenessQueue()),
+  );
+  // Weekly live A-tier validation (Sunday 03:15 UTC).
+  liveATierJob = cron.schedule('15 3 * * 0', () =>
+    import('../services/responsiveness-sweep.js').then((m) => m.scheduleWeeklyLiveATierSweep()),
+  );
   void runResponsivenessSweep();
 }
 
@@ -539,5 +548,13 @@ export function stopScheduler(): void {
   if (responsivenessHealthJob) {
     responsivenessHealthJob.stop();
     responsivenessHealthJob = null;
+  }
+  if (responsivenessQueueJob) {
+    responsivenessQueueJob.stop();
+    responsivenessQueueJob = null;
+  }
+  if (liveATierJob) {
+    liveATierJob.stop();
+    liveATierJob = null;
   }
 }

@@ -16,9 +16,7 @@ export type SweepTierFilter = RepoTier;
 export interface SweepRunOptions {
   from?: string;
   to?: string;
-  /** Restrict sweep to repos assigned this tier in the latest mock sweep. */
   tier?: SweepTierFilter;
-  /** Explicit repo list — overrides tier and full watchlist. */
   repos?: WatchlistRepo[];
 }
 
@@ -43,10 +41,26 @@ export interface SweepState {
   payload?: ResponsivenessPayload;
 }
 
+export interface SweepQueueJob {
+  mode: SweepMode;
+  from?: string;
+  to?: string;
+  tier?: SweepTierFilter;
+  enqueuedAt: string;
+}
+
 const SWEEP_TTL_MS = 30 * 60 * 1000;
 const REDIS_TTL_SEC = 31 * 60;
+const SWEEP_QUEUE_KEY = 'responsiveness:queue';
+const PENDING_STALE_MS = 20 * 60 * 1000;
+
+/** Worker container runs sweeps; API enqueues only (avoids OOM on replay+LLM). */
+export function isResponsivenessSweepWorker(): boolean {
+  return process.env.RUN_RESPONSIVENESS_SWEEPS === '1';
+}
 
 const inFlight = new Map<string, Promise<void>>();
+let drainingQueue = false;
 
 function inFlightKey(mode: SweepMode, tier?: SweepTierFilter): string {
   return tier ? `${mode}:tier:${tier}` : mode;
@@ -60,18 +74,31 @@ function redisKey(mode: SweepMode, tier?: SweepTierFilter): string {
   return tier ? `responsiveness:sweep:${mode}:tier:${tier}` : `responsiveness:sweep:${mode}`;
 }
 
-async function readRedisState(mode: SweepMode, tier?: SweepTierFilter): Promise<SweepState | null> {
+async function withRedis<T>(
+  fn: (client: Awaited<ReturnType<typeof createRedisClient>>) => Promise<T>,
+): Promise<T | null> {
   try {
     const client = await createRedisClient({ socket: { reconnectStrategy: false } });
     client.on('error', () => {});
     await client.connect();
-    const raw = await client.get(redisKey(mode, tier));
-    await client.quit();
-    if (!raw) return null;
-    return JSON.parse(raw) as SweepState;
+    try {
+      return await fn(client);
+    } finally {
+      await client.quit();
+    }
   } catch {
     return null;
   }
+}
+
+async function readRedisState(mode: SweepMode, tier?: SweepTierFilter): Promise<SweepState | null> {
+  return (
+    (await withRedis(async (client) => {
+      const raw = await client.get(redisKey(mode, tier));
+      if (!raw) return null;
+      return JSON.parse(raw) as SweepState;
+    })) ?? null
+  );
 }
 
 async function writeRedisState(
@@ -79,24 +106,20 @@ async function writeRedisState(
   state: SweepState,
   tier?: SweepTierFilter,
 ): Promise<void> {
-  try {
-    const client = await createRedisClient({ socket: { reconnectStrategy: false } });
-    client.on('error', () => {});
-    await client.connect();
+  await withRedis(async (client) => {
     await client.setEx(redisKey(mode, tier), REDIS_TTL_SEC, JSON.stringify(state));
-    await client.quit();
-  } catch (err) {
-    logger.debug({ err, mode, tier }, 'responsiveness sweep: redis write failed');
-  }
+  });
 }
 
-/** Resolve repo targets for a sweep (full watchlist, tier slice, or explicit list). */
+async function enqueueSweepJob(job: SweepQueueJob): Promise<void> {
+  await withRedis(async (client) => {
+    await client.rPush(SWEEP_QUEUE_KEY, JSON.stringify(job));
+  });
+}
+
 export async function resolveSweepRepos(
   options?: Pick<SweepRunOptions, 'tier' | 'repos'>,
-): Promise<{
-  repos: WatchlistRepo[];
-  tier?: SweepTierFilter;
-}> {
+): Promise<{ repos: WatchlistRepo[]; tier?: SweepTierFilter }> {
   if (options?.repos?.length) {
     return { repos: options.repos, tier: options.tier };
   }
@@ -138,10 +161,7 @@ export async function getResponsivenessSweepState(
     cacheSet(memKey, redisState.payload, SWEEP_TTL_MS);
     return redisState;
   }
-  if (redisState?.status === 'pending') {
-    return redisState;
-  }
-  if (redisState?.status === 'error') {
+  if (redisState?.status === 'pending' || redisState?.status === 'error') {
     return redisState;
   }
 
@@ -149,7 +169,7 @@ export async function getResponsivenessSweepState(
 }
 
 async function runSweep(mode: SweepMode, options: SweepRunOptions = {}): Promise<void> {
-  const { from, to, tier: tierOpt } = options;
+  const { from, to } = options;
   const { repos, tier } = await resolveSweepRepos(options);
   const startedAt = new Date().toISOString();
   const pending: SweepState = { status: 'pending', mode, tierFilter: tier, startedAt };
@@ -180,9 +200,7 @@ async function runSweep(mode: SweepMode, options: SweepRunOptions = {}): Promise
       { status: 'ready', mode, tierFilter: tier, startedAt, completedAt, payload },
       tier,
     );
-    if (!tier) {
-      invalidateRepoTierCache();
-    }
+    invalidateRepoTierCache();
     logger.info(
       {
         mode,
@@ -219,21 +237,60 @@ async function notifySweepFailure(
   ).catch((err) => logger.error({ err }, 'responsiveness sweep: operator telegram failed'));
 }
 
-/** Fire-and-forget unless a sweep for this mode+scope is already running. */
-export function scheduleResponsivenessSweep(
-  mode: SweepMode = 'mock',
-  options: SweepRunOptions = {},
-): void {
+function runSweepTracked(mode: SweepMode, options: SweepRunOptions): Promise<void> {
   const key = inFlightKey(mode, options.tier);
-  if (inFlight.has(key)) return;
+  if (inFlight.has(key)) return inFlight.get(key)!;
   const job = runSweep(mode, options)
-    .catch(() => {
-      /* logged in runSweep */
-    })
+    .catch(() => {})
     .finally(() => {
       inFlight.delete(key);
     });
   inFlight.set(key, job);
+  return job;
+}
+
+/** Enqueue sweep for worker execution (API path). */
+async function enqueueResponsivenessSweep(
+  mode: SweepMode = 'mock',
+  options: SweepRunOptions = {},
+): Promise<void> {
+  const { from, to, tier } = options;
+  const state = await getResponsivenessSweepState(mode, from, to, tier);
+  if (state.status === 'ready' || state.status === 'pending') return;
+
+  const startedAt = new Date().toISOString();
+  await writeRedisState(mode, { status: 'pending', mode, tierFilter: tier, startedAt }, tier);
+  await enqueueSweepJob({ mode, from, to, tier, enqueuedAt: startedAt });
+  logger.info({ mode, tier: tier ?? 'all' }, 'responsiveness sweep enqueued for worker');
+}
+
+/** Worker drains one queued sweep at a time. */
+export async function drainResponsivenessQueue(): Promise<void> {
+  if (!isResponsivenessSweepWorker() || drainingQueue) return;
+  drainingQueue = true;
+  try {
+    const raw = await withRedis(async (client) => client.lPop(SWEEP_QUEUE_KEY));
+    if (!raw) return;
+    const job = JSON.parse(raw) as SweepQueueJob;
+    logger.info({ mode: job.mode, tier: job.tier ?? 'all' }, 'draining responsiveness sweep queue');
+    await runSweepTracked(job.mode, { from: job.from, to: job.to, tier: job.tier });
+  } finally {
+    drainingQueue = false;
+  }
+}
+
+/** Schedule sweep — worker runs inline; API enqueues to Redis. */
+export function scheduleResponsivenessSweep(
+  mode: SweepMode = 'mock',
+  options: SweepRunOptions = {},
+): void {
+  if (isResponsivenessSweepWorker()) {
+    void runSweepTracked(mode, options);
+    return;
+  }
+  void enqueueResponsivenessSweep(mode, options).catch((err) => {
+    logger.error({ err, mode }, 'responsiveness sweep enqueue failed');
+  });
 }
 
 export async function ensureResponsivenessSweep(
@@ -249,7 +306,6 @@ export async function ensureResponsivenessSweep(
   return { status: 'pending', mode, tierFilter: tier, startedAt: new Date().toISOString() };
 }
 
-/** Warm mock sweep on deploy — non-blocking. */
 export function warmResponsivenessCacheOnBoot(): void {
   void ensureResponsivenessSweep('mock').catch((err) => {
     logger.warn({ err }, 'responsiveness warm on boot failed');
@@ -260,13 +316,47 @@ export function profilesFromState(state: SweepState): ReplayResponsiveness[] | n
   return state.payload?.profiles ?? null;
 }
 
-/** Operator alert when sweep is error/stale (scheduler watchdog). */
-const lastSweepHealthAlertAt = { error: 0 };
+const SWEEP_SCOPES: Array<{ mode: SweepMode; tier?: SweepTierFilter }> = [
+  { mode: 'mock' },
+  { mode: 'live' },
+  { mode: 'live', tier: 'A' },
+  { mode: 'live', tier: 'B' },
+  { mode: 'live', tier: 'C' },
+];
+
+async function recoverStalePending(mode: SweepMode, tier?: SweepTierFilter): Promise<boolean> {
+  const state = await getResponsivenessSweepState(mode, undefined, undefined, tier);
+  if (state.status !== 'pending' || !state.startedAt) return false;
+  const ageMs = Date.now() - new Date(state.startedAt).getTime();
+  if (ageMs < PENDING_STALE_MS) return false;
+
+  logger.warn({ mode, tier, ageMs }, 'responsiveness sweep pending stale — resetting');
+  await writeRedisState(
+    mode,
+    {
+      status: 'error',
+      mode,
+      tierFilter: tier,
+      startedAt: state.startedAt,
+      error: 'sweep timed out (pending > 20m)',
+    },
+    tier,
+  );
+  scheduleResponsivenessSweep(mode, { tier });
+  return true;
+}
+
+const lastSweepHealthAlertAt = { error: 0, stale: 0 };
 const SWEEP_HEALTH_ALERT_COOLDOWN_MS = 12 * 3_600_000;
 
 export async function checkResponsivenessSweepHealth(): Promise<void> {
-  const state = await getResponsivenessSweepState('mock');
   const operatorChatId = config.telegram.operatorChatId;
+
+  for (const scope of SWEEP_SCOPES) {
+    await recoverStalePending(scope.mode, scope.tier);
+  }
+
+  const state = await getResponsivenessSweepState('mock');
 
   if (state.status === 'error') {
     logger.error({ error: state.error }, 'responsiveness sweep in error state');
@@ -298,4 +388,9 @@ export async function checkResponsivenessSweepHealth(): Promise<void> {
   if (state.status === 'idle') {
     scheduleResponsivenessSweep('mock');
   }
+}
+
+/** Weekly live A-tier validation sweep (worker cron). */
+export function scheduleWeeklyLiveATierSweep(): void {
+  scheduleResponsivenessSweep('live', { tier: 'A' });
 }

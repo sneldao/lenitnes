@@ -433,7 +433,6 @@ export async function saveAgentScore(signalId: string, score: AgentScore): Promi
   );
 }
 
-/** Apply sector-chain conviction boost to the latest persisted score. */
 export async function bumpAgentConviction(
   signalId: string,
   score: AgentScore,
@@ -465,6 +464,29 @@ export async function scoreAndPersist(input: AgentInput, env: AgentEnv): Promise
   const result = await score(input, env);
   await saveAgentScore(input.signal_id, result);
   return result;
+}
+
+/** Stamp tier policy metadata on the latest score row (forward paper log). */
+export async function annotateTierPolicyOnScore(
+  signalId: string,
+  meta: { label: string; liveConfirmed: boolean; mockTier: string | null; liveTier: string | null },
+): Promise<void> {
+  await query(
+    `UPDATE agent_scores
+        SET raw_response = raw_response
+          || jsonb_build_object(
+               'tier_policy', $1::text,
+               'live_confirmed', $2::boolean,
+               'mock_tier', $3::text,
+               'live_tier', $4::text
+             )
+      WHERE signal_id = $5
+        AND id = (
+          SELECT id FROM agent_scores WHERE signal_id = $5
+          ORDER BY created_at DESC LIMIT 1
+        )`,
+    [meta.label, meta.liveConfirmed, meta.mockTier, meta.liveTier, signalId],
+  );
 }
 
 /**

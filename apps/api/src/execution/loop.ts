@@ -21,6 +21,7 @@ import {
   fetchOutcomeContext,
   scoreAndPersist,
   bumpAgentConviction,
+  annotateTierPolicyOnScore,
 } from '../services/agent.js';
 import {
   loadTierPolicyForMonitor,
@@ -582,6 +583,13 @@ export async function executeCheck(monitor: Monitor): Promise<{
         },
         env,
       );
+
+      await annotateTierPolicyOnScore(signalId, {
+        label: tierPolicy.label,
+        liveConfirmed: tierPolicy.liveConfirmed,
+        mockTier: tierPolicy.mockTier,
+        liveTier: tierPolicy.liveTier,
+      });
 
       const chain = await computeChainConvictionBoost(monitor.url);
       if (chain.boost > 0) {

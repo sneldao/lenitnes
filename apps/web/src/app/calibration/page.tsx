@@ -8,7 +8,13 @@
 import { useQuery } from '@tanstack/react-query';
 import Link from 'next/link';
 import { Activity, AlertTriangle, GitBranch, Target, TrendingUp } from 'lucide-react';
-import { api, type ScorecardResponse, type ResponsivenessResponse } from '@/lib/api';
+import {
+  api,
+  type ScorecardResponse,
+  type ResponsivenessResponse,
+  type ResponsivenessCompareResponse,
+  type ForwardPaperResponse,
+} from '@/lib/api';
 import { qk, REFETCH } from '@/lib/queryKeys';
 import { formatRatio, formatDetectorType, tierBadgeClass, formatNullableRatio } from '@/lib/format';
 import { PageLoader, PageError } from '@/components/ui/page-states';
@@ -43,6 +49,23 @@ export default function CalibrationPage() {
     staleTime: REFETCH.backtest,
     refetchInterval: REFETCH.backtest,
   });
+
+  const { data: compare } = useQuery<ResponsivenessCompareResponse>({
+    queryKey: qk.responsivenessCompare(),
+    queryFn: () => api.getResponsivenessCompare(),
+    staleTime: REFETCH.backtest,
+    refetchInterval: REFETCH.backtest,
+  });
+
+  const { data: forwardPaper } = useQuery<ForwardPaperResponse>({
+    queryKey: qk.forwardPaper(7),
+    queryFn: () => api.getForwardPaper(7),
+    staleTime: REFETCH.medium,
+    refetchInterval: REFETCH.medium,
+  });
+
+  const liveByRepo = new Map(compare?.live?.profiles?.map((p) => [p.repo.toLowerCase(), p]) ?? []);
+  const driftByRepo = new Map(compare?.drift?.map((d) => [d.repo.toLowerCase(), d]) ?? []);
 
   if (isLoading) return <PageLoader label="Loading calibration…" />;
   if (isError || !data) return <PageError message="Failed to load calibration data." />;
@@ -232,8 +255,8 @@ export default function CalibrationPage() {
           <Link href="/scan" className="link-underline text-accent">
             leak-scan
           </Link>
-          , run over each commit-level watchlist repo. Measures which codebases&apos; commit signals
-          historically co-moved with price — the tradability filter before expanding the watchlist.
+          , run over each commit-level watchlist repo. Live A-tier column shows cached admin sweep
+          results — mock A without live A keeps the elevated 80 trade floor in production.
         </p>
         {respLoading && (
           <p className="font-mono text-xs text-slate-500">
@@ -254,6 +277,8 @@ export default function CalibrationPage() {
                   <th className="py-2 px-3 text-right font-normal">Trade-grade</th>
                   <th className="py-2 px-3 text-right font-normal">Hit T+1d</th>
                   <th className="py-2 px-3 text-right font-normal">Hit T+7d</th>
+                  <th className="py-2 px-3 text-right font-normal">Live T+7d</th>
+                  <th className="py-2 px-3 text-right font-normal">Live tier</th>
                   <th className="py-2 px-3 text-right font-normal">Avg dir T+1d</th>
                   <th className="py-2 pl-3 text-right font-normal">Avg dir T+7d</th>
                 </tr>
@@ -274,6 +299,14 @@ export default function CalibrationPage() {
                         >
                           {row.tier ?? '—'}
                         </span>
+                        {driftByRepo.get(row.repo.toLowerCase())?.diverged && (
+                          <span
+                            className="ml-1 rounded bg-warn/15 px-1 py-0.5 font-mono text-[9px] uppercase text-warn"
+                            title="Mock vs live tier mismatch"
+                          >
+                            drift
+                          </span>
+                        )}
                       </td>
                       <td className="py-2 pr-3 text-slate-300">
                         <span className="text-slate-500">{row.asset.toUpperCase()}</span> {row.repo}
@@ -285,6 +318,22 @@ export default function CalibrationPage() {
                       </td>
                       <td className="py-2 px-3 text-right font-semibold text-slate-200">
                         {formatNullableRatio(row.hitRateT7d)}
+                      </td>
+                      <td className="py-2 px-3 text-right text-slate-300">
+                        {formatNullableRatio(
+                          liveByRepo.get(row.repo.toLowerCase())?.hitRateT7d ?? null,
+                        )}
+                      </td>
+                      <td className="py-2 px-3 text-right">
+                        {liveByRepo.get(row.repo.toLowerCase())?.tier ? (
+                          <span
+                            className={`rounded px-1.5 py-0.5 font-mono text-[10px] uppercase ${tierBadgeClass(liveByRepo.get(row.repo.toLowerCase())?.tier)}`}
+                          >
+                            {liveByRepo.get(row.repo.toLowerCase())?.tier}
+                          </span>
+                        ) : (
+                          <span className="text-slate-600">—</span>
+                        )}
                       </td>
                       <td className={`py-2 px-3 text-right ${pctTone(row.avgDirectionalT1d)}`}>
                         {fmtPct(row.avgDirectionalT1d)}
@@ -302,12 +351,63 @@ export default function CalibrationPage() {
         )}
         {responsiveness && (
           <p className="mt-3 font-mono text-[10px] text-slate-600">
-            window {responsiveness.from.slice(0, 10)} → {responsiveness.to.slice(0, 10)} · mode{' '}
-            {responsiveness.mode} · background sweep · cached 30m · A-tier = expand spend, C-tier =
-            deprioritize
+            window {responsiveness.from.slice(0, 10)} → {responsiveness.to.slice(0, 10)} · mock
+            sweep · live compare {compare?.live ? 'cached' : (compare?.liveStatus ?? 'pending')} ·
+            mock A requires live A for full spend
           </p>
         )}
       </section>
+
+      {/* ── Forward paper log (live agent) ── */}
+      {forwardPaper && forwardPaper.entries.length > 0 && (
+        <section className="card reveal in-view reveal-delay-1">
+          <h2 className="section-title mb-2 flex items-center gap-2">
+            <Activity className="h-3.5 w-3.5 text-accent" />
+            Forward paper log (7d)
+          </h2>
+          <p className="mb-3 text-xs text-slate-500">
+            Live agent scores on production monitors — paper only while{' '}
+            <code className="text-slate-400">TRADING_ENABLED=false</code>.{' '}
+            {forwardPaper.liveConfirmedCount} on live-confirmed A-tier repos.
+          </p>
+          <div className="mb-3 flex flex-wrap gap-4 font-mono text-xs text-slate-400">
+            <span>live scores: {forwardPaper.liveAgentCount}</span>
+            <span>trade-grade: {forwardPaper.tradeGradeCount}</span>
+            <span>T+1d hit: {formatNullableRatio(forwardPaper.hitRateT1d)}</span>
+            <span>avg dir T+1d: {fmtPct(forwardPaper.avgDirectionalT1d)}</span>
+          </div>
+          <div className="overflow-x-auto">
+            <table className="w-full font-mono text-xs">
+              <thead>
+                <tr className="border-b border-edge/30 text-left text-slate-500">
+                  <th className="py-2 pr-3 font-normal">When</th>
+                  <th className="py-2 pr-3 font-normal">Repo</th>
+                  <th className="py-2 px-3 text-right font-normal">Conv</th>
+                  <th className="py-2 px-3 text-right font-normal">Action</th>
+                  <th className="py-2 px-3 text-right font-normal">T+1d</th>
+                  <th className="py-2 pl-3 font-normal">Tier policy</th>
+                </tr>
+              </thead>
+              <tbody>
+                {forwardPaper.entries.slice(0, 15).map((e) => (
+                  <tr key={e.signalId} className="border-b border-edge/20 last:border-0">
+                    <td className="py-2 pr-3 text-slate-500">{e.detectedAt.slice(0, 10)}</td>
+                    <td className="py-2 pr-3 text-slate-300">{e.repo}</td>
+                    <td className="py-2 px-3 text-right text-slate-200">{e.conviction}</td>
+                    <td className="py-2 px-3 text-right text-slate-400">{e.recommendedAction}</td>
+                    <td
+                      className={`py-2 px-3 text-right ${e.hitT1d === true ? 'text-signal' : e.hitT1d === false ? 'text-danger' : 'text-slate-600'}`}
+                    >
+                      {e.matured ? (e.hitT1d ? 'hit' : 'miss') : 'pending'}
+                    </td>
+                    <td className="py-2 pl-3 text-[10px] text-slate-500">{e.tierPolicy ?? '—'}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </section>
+      )}
 
       {/* ── What we're learning ── */}
       <section className="card border-edge/30 reveal in-view reveal-delay-2">

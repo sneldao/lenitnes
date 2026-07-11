@@ -430,6 +430,33 @@ paths:
         '500':
           description: Sweep failed
 
+  /backtest/responsiveness/compare:
+    get:
+      tags: [Public]
+      summary: Mock vs live A-tier responsiveness compare
+      description: |
+        Side-by-side mock sweep and cached live A-tier sweep with tier drift
+        flags (mock A without live A = not promoted for full spend).
+      security: []
+      responses:
+        '200':
+          description: Compare payload
+        '202':
+          description: Mock sweep not ready
+
+  /backtest/forward-paper:
+    get:
+      tags: [Public]
+      summary: Forward paper log for live agent scores
+      security: []
+      parameters:
+        - name: days
+          in: query
+          schema: { type: integer, default: 7, maximum: 90 }
+      responses:
+        '200':
+          description: Forward paper summary + recent entries
+
   /backtest/tiers:
     get:
       tags: [Public]

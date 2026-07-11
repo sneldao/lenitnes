@@ -11,6 +11,8 @@ import {
   type SweepMode,
   type SweepTierFilter,
 } from '../services/responsiveness-sweep.js';
+import { computeTierDrift } from '../services/domain/repo-tier-policy.js';
+import { getForwardPaperLog } from '../services/domain/forward-paper.service.js';
 import { cacheGet, cacheSet } from '../middleware/cache.js';
 import { config } from '../config.js';
 import type { RepoTier } from '@lenitnes/types';
@@ -140,6 +142,36 @@ backtestRouter.get('/responsiveness', async (req: Request, res: Response) => {
     startedAt: next.startedAt,
     message: 'Responsiveness sweep started — retry in 30–60s',
   });
+});
+
+// GET /backtest/responsiveness/compare — mock vs cached live A-tier + drift
+backtestRouter.get('/responsiveness/compare', async (_req: Request, res: Response) => {
+  const mockState = await getResponsivenessSweepState('mock');
+  const liveState = await getResponsivenessSweepState('live', undefined, undefined, 'A');
+
+  if (mockState.status !== 'ready' || !mockState.payload) {
+    res.status(202).json({
+      status: 'pending',
+      message: 'Mock sweep required before compare view',
+    });
+    return;
+  }
+
+  const drift = computeTierDrift(mockState.payload.profiles, liveState.payload?.profiles);
+  res.json({
+    status: 'ready',
+    mock: mockState.payload,
+    live: liveState.status === 'ready' ? liveState.payload : null,
+    liveStatus: liveState.status,
+    drift,
+  });
+});
+
+// GET /backtest/forward-paper?days=7 — live agent forward paper log
+backtestRouter.get('/forward-paper', async (req: Request, res: Response) => {
+  const days = Math.min(90, Math.max(1, Number(req.query.days ?? 7) || 7));
+  const summary = await getForwardPaperLog(days);
+  res.json(summary);
 });
 
 // GET /backtest/tiers — repo A/B/C tier list from latest sweep

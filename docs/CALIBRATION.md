@@ -511,6 +511,23 @@ Agave live run failed to confirm mock A-tier — keep B-default trade floor (80)
 
 Compare hit rates on `/calibration` before expanding live spend.
 
+**Sweep ops (2026-07-11):** Worker runs all sweeps (`RUN_RESPONSIVENESS_SWEEPS=1`);
+API enqueues to Redis. Stale `pending` (>20m) auto-resets. Weekly live A-tier
+cron (Sun 03:15 UTC).
+
+**Live promotion gate:** Mock A-tier alone does **not** unlock the 70 trade
+floor — requires live A-tier confirmation in cached live sweep. Mock A + live B
+(Agave Jul 11) stays at B floor (80).
+
+**Surfaces:**
+
+- `GET /backtest/responsiveness/compare` — mock vs cached live A + drift badges
+- `GET /backtest/forward-paper?days=7` — live agent forward paper log
+- `/calibration` — mock/live columns, drift indicator, forward paper table
+
+**Per-detector breakdown:** Each repo profile includes `detectorBreakdown[]`
+(primary detector = highest score per batch).
+
 **Agent token efficiency:** Rubric sent as system message; optional
 context fields omitted when empty; `agent_input` snapshot persisted in
 `raw_response` for audit.
@@ -542,3 +559,4 @@ learning uses direction-adjusted hits via `domain/outcome-metrics.ts`.
 | 2026-07-11 | Background responsiveness sweep + Redis price cache + repo tiers + sequence_context  | Prod 429/timeouts on inline HTTP sweep; tier list turns measurement into spend policy; sector-chain context for Zcash pilot                                                                                                                                                                                                          |
 | 2026-07-11 | Tier-gated agent scoring + chain conviction boost + rubric system-message split      | C-tier mock-only saves tokens; B-tier trade floor 80; upstream emergency chain +10; operator alerts on sweep failure                                                                                                                                                                                                                 |
 | 2026-07-11 | Live sweep `?tier=A` admin API + CLI `--live --tier` fix                             | A-tier live comparison without SSH; Redis key per tier scope; Jul 11 live baseline documented                                                                                                                                                                                                                                        |
+| 2026-07-11 | Worker sweeps + live promotion gate + calibration compare + forward paper log        | API enqueues sweeps (OOM fix); mock A requires live A for 70 floor; mock/live drift on /calibration; per-detector breakdown; weekly live A cron                                                                                                                                                                                      |

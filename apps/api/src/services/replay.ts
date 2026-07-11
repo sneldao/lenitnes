@@ -104,6 +104,18 @@ export interface ReplayResponsiveness {
   hitRateT7d: number | null;
   avgDirectionalT1d: number | null;
   avgDirectionalT7d: number | null;
+  /** Per-detector slice of the same metrics (primary detector = highest score). */
+  detectorBreakdown?: DetectorResponsiveness[];
+}
+
+export interface DetectorResponsiveness {
+  detectorType: string;
+  scoredBatches: number;
+  tradeGradeCalls: number;
+  hitRateT1d: number | null;
+  hitRateT7d: number | null;
+  avgDirectionalT1d: number | null;
+  avgDirectionalT7d: number | null;
 }
 
 /** Canonical halo2 example — the founding case study.
@@ -407,11 +419,10 @@ export async function replay(input: ReplayInput): Promise<{
 }
 
 /** Aggregate replay verdicts into a responsiveness profile for one repo. */
-export function summarizeReplayResponsiveness(
+function summarizeVerdictMetrics(
   verdicts: ReplayCommitVerdict[],
-  input: ReplayInput,
   flaggedBatches: number,
-): ReplayResponsiveness {
+): Omit<ReplayResponsiveness, 'repo' | 'asset' | 'from' | 'to' | 'detectorBreakdown'> {
   const threshold = config.agent.convictionThreshold;
   const tradeGrade = verdicts.filter(
     (v) => v.agentScore.recommended_action !== 'none' && v.agentScore.conviction >= threshold,
@@ -434,10 +445,6 @@ export function summarizeReplayResponsiveness(
   };
 
   return {
-    repo: input.repo,
-    asset: input.asset,
-    from: input.from,
-    to: input.to,
     flaggedBatches,
     scoredBatches: verdicts.length,
     tradeGradeCalls: tradeGrade.length,
@@ -446,6 +453,46 @@ export function summarizeReplayResponsiveness(
     avgDirectionalT1d: avgDir(tradeGrade, 't1dPct'),
     avgDirectionalT7d: avgDir(tradeGrade, 't7dPct'),
   };
+}
+
+export function summarizeReplayResponsiveness(
+  verdicts: ReplayCommitVerdict[],
+  input: ReplayInput,
+  flaggedBatches: number,
+): ReplayResponsiveness {
+  return {
+    repo: input.repo,
+    asset: input.asset,
+    from: input.from,
+    to: input.to,
+    ...summarizeVerdictMetrics(verdicts, flaggedBatches),
+    detectorBreakdown: summarizeDetectorBreakdown(verdicts),
+  };
+}
+
+function primaryDetectorType(verdict: ReplayCommitVerdict): string {
+  const top = [...verdict.detectorClassifications].sort((a, b) => b.score - a.score)[0];
+  return top?.detector_type ?? 'unknown';
+}
+
+/** Aggregate trade-grade metrics by primary detector type. */
+export function summarizeDetectorBreakdown(
+  verdicts: ReplayCommitVerdict[],
+): DetectorResponsiveness[] {
+  const groups = new Map<string, ReplayCommitVerdict[]>();
+  for (const v of verdicts) {
+    const dt = primaryDetectorType(v);
+    const list = groups.get(dt) ?? [];
+    list.push(v);
+    groups.set(dt, list);
+  }
+
+  return [...groups.entries()]
+    .map(([detectorType, group]) => ({
+      detectorType,
+      ...summarizeVerdictMetrics(group, group.length),
+    }))
+    .sort((a, b) => b.tradeGradeCalls - a.tradeGradeCalls);
 }
 
 /**
