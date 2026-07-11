@@ -20,7 +20,16 @@ import {
   precedentCount,
   fetchOutcomeContext,
   scoreAndPersist,
+  bumpAgentConviction,
 } from '../services/agent.js';
+import {
+  loadTierPolicyForMonitor,
+  applyTierToAgentEnv,
+} from '../services/domain/repo-tier-policy.js';
+import {
+  computeChainConvictionBoost,
+  applyChainConvictionBoost,
+} from '../services/domain/chain-conviction.js';
 import { marketData } from '../services/data-providers/registry.js';
 import type { AgentScore } from '@lenitnes/types';
 import { executeAgentTrade, type TradeReceipt } from '../services/treasury.js';
@@ -513,8 +522,9 @@ export async function executeCheck(monitor: Monitor): Promise<{
   let agentScore: AgentScore | null = null;
   let gate2Blocked = false;
   if (!isHeartbeat && signalId && detectorResultsFull.length > 0) {
-    const env = buildAgentEnvFromConfig();
-    const threshold = config.agent.convictionThreshold;
+    const tierPolicy = await loadTierPolicyForMonitor(monitor.url);
+    const env = applyTierToAgentEnv(buildAgentEnvFromConfig(), tierPolicy);
+    const threshold = tierPolicy.tradeThreshold;
     try {
       const detectorTypes = detectorResultsFull.map((d) => d.type);
       const [precedent, outcomeContext] = await Promise.all([
@@ -572,13 +582,32 @@ export async function executeCheck(monitor: Monitor): Promise<{
         },
         env,
       );
+
+      const chain = await computeChainConvictionBoost(monitor.url);
+      if (chain.boost > 0) {
+        const boosted = applyChainConvictionBoost(agentScore.conviction, chain.boost);
+        if (boosted !== agentScore.conviction) {
+          agentScore = await bumpAgentConviction(signalId, agentScore, boosted, chain.reason ?? '');
+          logger.info(
+            { signalId, boost: chain.boost, conviction: boosted, reason: chain.reason },
+            'sector chain conviction boost applied',
+          );
+        }
+      }
+
       if (agentScore.conviction < threshold) {
         gate2Blocked = true;
         // Sub-threshold scores are archived in agent_scores (public
         // reasoning archive on the web) but NOT broadcast — the
         // Telegram channel carries only above-threshold calls.
         logger.info(
-          { signalId, monitorId: monitor.id, conviction: agentScore.conviction, threshold },
+          {
+            signalId,
+            monitorId: monitor.id,
+            conviction: agentScore.conviction,
+            threshold,
+            tierPolicy: tierPolicy.label,
+          },
           'agent below threshold — no trade, archived to reasoning archive',
         );
       } else {

@@ -7,6 +7,7 @@ import {
   precedentCount,
   fetchOutcomeContext,
   buildAgentEnvFromConfig,
+  compactAgentInput,
   AgentBudgetExceededError,
   _internalResetForTests,
 } from '../src/services/agent.js';
@@ -38,6 +39,20 @@ const mockEnv = {
   inputCostPer1M: 0.6,
   outputCostPer1M: 2.5,
 };
+
+describe('agent.compactAgentInput', () => {
+  it('omits empty optional context fields', () => {
+    const compact = compactAgentInput({
+      ...baseInput,
+      narrative_context: '',
+      sequence_context: undefined,
+      market_context: 'btc up',
+    });
+    expect(compact).not.toHaveProperty('narrative_context');
+    expect(compact).not.toHaveProperty('sequence_context');
+    expect(compact.market_context).toBe('btc up');
+  });
+});
 
 describe('agent.score (MOCK path)', () => {
   beforeEach(() => {

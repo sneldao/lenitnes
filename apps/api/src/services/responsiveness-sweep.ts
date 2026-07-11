@@ -3,6 +3,9 @@ import { createRedisClient } from '../queue/connection.js';
 import { logger } from '../logger.js';
 import { describeReplay, replayWatchlistResponsiveness } from './replay.js';
 import { tierProfiles, type TieredProfile } from './domain/repo-tiers.js';
+import { invalidateRepoTierCache } from './domain/repo-tier-policy.js';
+import { config } from '../config.js';
+import { sendTelegram } from './notify.js';
 import type { ReplayResponsiveness } from './replay.js';
 
 export type SweepMode = 'mock' | 'live';
@@ -112,6 +115,7 @@ async function runSweep(mode: SweepMode, from?: string, to?: string): Promise<vo
     const memKey = memoryKey(mode, from, to);
     cacheSet(memKey, payload, SWEEP_TTL_MS);
     await writeRedisState(mode, { status: 'ready', mode, startedAt, completedAt, payload });
+    invalidateRepoTierCache();
     logger.info(
       {
         mode,
@@ -124,8 +128,18 @@ async function runSweep(mode: SweepMode, from?: string, to?: string): Promise<vo
     const message = (err as Error).message;
     await writeRedisState(mode, { status: 'error', mode, startedAt, error: message });
     logger.error({ err, mode }, 'responsiveness sweep failed');
+    await notifySweepFailure(mode, message);
     throw err;
   }
+}
+
+async function notifySweepFailure(mode: SweepMode, message: string): Promise<void> {
+  const operatorChatId = config.telegram.operatorChatId;
+  if (!operatorChatId || !config.telegram.botToken) return;
+  await sendTelegram(
+    operatorChatId,
+    `⚠️ LENITNES · responsiveness sweep failed (${mode})\n\n${message.slice(0, 400)}`,
+  ).catch((err) => logger.error({ err }, 'responsiveness sweep: operator telegram failed'));
 }
 
 /** Fire-and-forget unless a sweep for this mode is already running. */
@@ -167,4 +181,44 @@ export function warmResponsivenessCacheOnBoot(): void {
 
 export function profilesFromState(state: SweepState): ReplayResponsiveness[] | null {
   return state.payload?.profiles ?? null;
+}
+
+/** Operator alert when sweep is error/stale (scheduler watchdog). */
+const lastSweepHealthAlertAt = { error: 0 };
+const SWEEP_HEALTH_ALERT_COOLDOWN_MS = 12 * 3_600_000;
+
+export async function checkResponsivenessSweepHealth(): Promise<void> {
+  const state = await getResponsivenessSweepState('mock');
+  const operatorChatId = config.telegram.operatorChatId;
+
+  if (state.status === 'error') {
+    logger.error({ error: state.error }, 'responsiveness sweep in error state');
+    const now = Date.now();
+    if (
+      operatorChatId &&
+      config.telegram.botToken &&
+      now - lastSweepHealthAlertAt.error > SWEEP_HEALTH_ALERT_COOLDOWN_MS
+    ) {
+      lastSweepHealthAlertAt.error = now;
+      await sendTelegram(
+        operatorChatId,
+        `⚠️ LENITNES · responsiveness sweep ERROR\n\n${state.error ?? 'unknown'}`,
+      ).catch(() => {});
+    }
+    scheduleResponsivenessSweep('mock');
+    return;
+  }
+
+  if (state.status === 'ready' && state.completedAt) {
+    const ageH = (Date.now() - new Date(state.completedAt).getTime()) / 3_600_000;
+    if (ageH > 8) {
+      logger.warn({ ageH }, 'responsiveness sweep stale — rescheduling');
+      scheduleResponsivenessSweep('mock');
+    }
+    return;
+  }
+
+  if (state.status === 'idle') {
+    scheduleResponsivenessSweep('mock');
+  }
 }

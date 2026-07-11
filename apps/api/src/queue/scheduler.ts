@@ -22,6 +22,7 @@ let gasCheckJob: cron.ScheduledTask | null = null;
 let tpSlCheckJob: cron.ScheduledTask | null = null;
 let narrativeJob: cron.ScheduledTask | null = null;
 let responsivenessJob: cron.ScheduledTask | null = null;
+let responsivenessHealthJob: cron.ScheduledTask | null = null;
 let monitorRunning = false;
 let backtestRunning = false;
 let proofRetryRunning = false;
@@ -492,6 +493,9 @@ export function startScheduler(): void {
   );
   // Warm responsiveness cache for /calibration — mock agent, 6h cadence.
   responsivenessJob = cron.schedule('15 */6 * * *', runResponsivenessSweep);
+  responsivenessHealthJob = cron.schedule('30 * * * *', () =>
+    import('../services/responsiveness-sweep.js').then((m) => m.checkResponsivenessSweepHealth()),
+  );
   void runResponsivenessSweep();
 }
 
@@ -531,5 +535,9 @@ export function stopScheduler(): void {
   if (responsivenessJob) {
     responsivenessJob.stop();
     responsivenessJob = null;
+  }
+  if (responsivenessHealthJob) {
+    responsivenessHealthJob.stop();
+    responsivenessHealthJob = null;
   }
 }

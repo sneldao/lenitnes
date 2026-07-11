@@ -474,6 +474,33 @@ fallback calls); request pacing 4.5s (free) / 1.2s (key).
 and replay batches (upstream→downstream chain, 7d lookback). Zcash
 stack: halo2 → zebra → zcash.
 
+**Tier-gated agent spend (2026-07-11):** Execution loop reads the
+cached mock sweep tier map (`domain/repo-tier-policy.ts`):
+
+| Tier    | Agent scoring             | Trade floor                      |
+| ------- | ------------------------- | -------------------------------- |
+| **A**   | Live LLM                  | `CONVICTION_THRESHOLD` (70)      |
+| **B**   | Live LLM                  | 80                               |
+| **C**   | Mock only (zero LLM cost) | 70 (archive only)                |
+| unknown | Live LLM                  | 80 (B-default until sweep warms) |
+
+**Sector chain boost:** If an upstream repo in the same sector fired
+`emergency_patch` / `security_critical_patch` within 7d, downstream
+signals get +10 conviction (`domain/chain-conviction.ts`).
+
+**Live A-tier comparison sweep:**
+
+```bash
+# After mock sweep is cached:
+MOCK_AGENT=0 npx tsx apps/api/scripts/run-responsiveness-sweep.ts --live --tier A
+```
+
+Compare hit rates to mock on `/calibration` before expanding live spend.
+
+**Agent token efficiency:** Rubric sent as system message; optional
+context fields omitted when empty; `agent_input` snapshot persisted in
+`raw_response` for audit.
+
 **Signal fidelity (same release):** GitHub list API omits diff
 stats; live + replay now call `enrichCommitStats()`. Outcome
 learning uses direction-adjusted hits via `domain/outcome-metrics.ts`.
@@ -499,3 +526,4 @@ learning uses direction-adjusted hits via `domain/outcome-metrics.ts`.
 | 2026-07-11 | Direction-adjusted outcomes in `fetchOutcomeContext` + `refreshBacktestStats`        | Past-outcomes prompt counted `direction=up` as a win regardless of long/short; backtest stats used `ABS(pct_change)>1`. Centralized in `domain/outcome-metrics.ts`                                                                                                                                                                   |
 | 2026-07-11 | `GET /backtest/responsiveness` + `/calibration` replay table                         | Empirical commit→price responsiveness ranking before watchlist expansion; one CoinGecko range prefetch per asset in replay to avoid 429s                                                                                                                                                                                             |
 | 2026-07-11 | Background responsiveness sweep + Redis price cache + repo tiers + sequence_context  | Prod 429/timeouts on inline HTTP sweep; tier list turns measurement into spend policy; sector-chain context for Zcash pilot                                                                                                                                                                                                          |
+| 2026-07-11 | Tier-gated agent scoring + chain conviction boost + rubric system-message split      | C-tier mock-only saves tokens; B-tier trade floor 80; upstream emergency chain +10; operator alerts on sweep failure                                                                                                                                                                                                                 |

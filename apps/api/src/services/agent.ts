@@ -95,6 +95,24 @@ function readRubric(): string {
   return fs.readFileSync(RUBRIC_PATH, 'utf8');
 }
 
+/** Omit empty optional context fields before serializing agent input. */
+export function compactAgentInput(input: AgentInput): Record<string, unknown> {
+  const out: Record<string, unknown> = {
+    signal_id: input.signal_id,
+    detector_classifications: input.detector_classifications,
+    asset_mapping: input.asset_mapping,
+    evidence_text: input.evidence_text,
+    condition_summary: input.condition_summary,
+    precedent_count: input.precedent_count,
+  };
+  if (input.past_outcomes) out.past_outcomes = input.past_outcomes;
+  if (input.market_context) out.market_context = input.market_context;
+  if (input.narrative_context) out.narrative_context = input.narrative_context;
+  if (input.sequence_context) out.sequence_context = input.sequence_context;
+  if (input.book_context) out.book_context = input.book_context;
+  return out;
+}
+
 /**
  * Extract the first parseable JSON object from a model response.
  * Models wrap JSON in markdown fences, prepend headings ("### Output"),
@@ -272,29 +290,33 @@ function mockScore(input: AgentInput): AgentScore {
 }
 
 export async function score(input: AgentInput, env: AgentEnv): Promise<AgentScore> {
-  // Budget check is bypassed in MOCK mode — the deterministic stub
-  // costs nothing, and a developer running seed:demo or a local
-  // backtest should not need to set DAILY_AGENT_BUDGET_USD just to
-  // exercise the pipeline. The circuit-breaker behavior is still
-  // exercised by the live path (env.mock === false).
   const rubric = readRubric();
-  const userContent = JSON.stringify(input);
-  const prompt = `${rubric}\n\n## Input\n\n${userContent}`;
+  const compactInput = compactAgentInput(input);
+  const userContent = JSON.stringify(compactInput);
 
   if (env.mock) {
     const result = mockScore(input);
-    return result;
+    return {
+      ...result,
+      raw_response: {
+        mock: true,
+        input: compactInput,
+        response: result.raw_response,
+      },
+    };
   }
 
+  const prompt = `## Input\n\n${userContent}`;
   resetIfNewDay();
-  const estimatedUsd = estimateCost(env, prompt);
+  const estimatedUsd = estimateCost(env, rubric + prompt);
   if (dailySpendUsd + estimatedUsd > env.dailyBudgetUsd) {
     throw new AgentBudgetExceededError(dailySpendUsd, env.dailyBudgetUsd, estimatedUsd);
   }
 
   const client = new OpenAI({ apiKey: env.apiKey, baseURL: env.baseUrl });
   const temperature = Number(process.env.AGENT_TEMPERATURE ?? 0);
-  const messages: Array<{ role: 'user' | 'assistant'; content: string }> = [
+  const messages: Array<{ role: 'system' | 'user' | 'assistant'; content: string }> = [
+    { role: 'system', content: rubric },
     { role: 'user', content: prompt },
   ];
 
@@ -362,7 +384,12 @@ export async function score(input: AgentInput, env: AgentEnv): Promise<AgentScor
     confidence_band: parsed.confidence_band,
     hcs_dispatch: parsed.hcs_dispatch,
     proof_action: parsed.proof_action,
-    raw_response: { model: env.model, response: parsed, content: message },
+    raw_response: {
+      model: env.model,
+      response: parsed,
+      content: message,
+      agent_input: compactInput,
+    },
     created_at: new Date().toISOString(),
   };
 }
@@ -404,6 +431,31 @@ export async function saveAgentScore(signalId: string, score: AgentScore): Promi
       JSON.stringify(score.raw_response),
     ],
   );
+}
+
+/** Apply sector-chain conviction boost to the latest persisted score. */
+export async function bumpAgentConviction(
+  signalId: string,
+  score: AgentScore,
+  newConviction: number,
+  chainNote: string,
+): Promise<AgentScore> {
+  const raw = {
+    ...score.raw_response,
+    chain_boost: { boost: newConviction - score.conviction, reason: chainNote },
+  };
+  await query(
+    `UPDATE agent_scores
+        SET conviction = $1,
+            raw_response = $2::jsonb
+      WHERE signal_id = $3
+        AND id = (
+          SELECT id FROM agent_scores WHERE signal_id = $3
+          ORDER BY created_at DESC LIMIT 1
+        )`,
+    [newConviction, JSON.stringify(raw), signalId],
+  );
+  return { ...score, conviction: newConviction, raw_response: raw };
 }
 
 /**
