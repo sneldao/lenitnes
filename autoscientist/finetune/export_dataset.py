@@ -186,7 +186,7 @@ def load_signals(conn: Any, window: int) -> list[dict[str, Any]]:
 
 def main() -> None:
     parser = argparse.ArgumentParser()
-    parser.add_argument("--output", default="data/train.jsonl")
+    parser.add_argument("--output", default="data/all.jsonl")
     parser.add_argument("--window", type=int, default=86400)
     parser.add_argument("--github-token", default=os.environ.get("GITHUB_TOKEN"))
     parser.add_argument("--database-url", default=os.environ.get("DATABASE_URL"))
@@ -219,7 +219,14 @@ def main() -> None:
                     },
                     {"role": "user", "content": prompt},
                     {"role": "assistant", "content": completion},
-                ]
+                ],
+                "metadata": {
+                    "signal_id": signal["id"],
+                    "detected_at": signal["detected_at"],
+                    "asset": signal["asset"],
+                    "repo": "/".join(signal["repo"]),
+                    "pct_change": signal["pct_change"],
+                },
             }
             f.write(json.dumps(record, ensure_ascii=False) + "\n")
             written += 1
