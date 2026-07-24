@@ -1,6 +1,5 @@
 import argparse
 import json
-import math
 import random
 from collections import Counter
 from pathlib import Path
@@ -215,7 +214,8 @@ def main() -> None:
         "primary_delta_95ci": delta_ci,
         "n_test": base["n_test"],
         "valid": base["valid"],
-        "json_extracted_rate": round(base["json_extracted"] / base["valid"], 4) if base["valid"] else 0.0,
+        "json_extracted_rate_base": round(base["json_extracted"] / base["valid"], 4) if base["valid"] else 0.0,
+        "json_extracted_rate_adapted": round(adapted["json_extracted"] / adapted["valid"], 4) if adapted["valid"] else 0.0,
         "schema_valid_rate_base": round(base["schema_valid"] / base["valid"], 4) if base["valid"] else 0.0,
         "schema_valid_rate_adapted": round(adapted["schema_valid"] / adapted["valid"], 4) if adapted["valid"] else 0.0,
         "class_distribution": class_distribution,

@@ -145,8 +145,8 @@ def evaluate_model(
         return {
             "n_test": 0,
             "valid": 0,
+            "json_extracted_rate": 0.0,
             "schema_valid_rate": 0.0,
-            "parse_success_rate": 0.0,
             "price_direction_accuracy": 0.0,
             "direction_macro_f1": 0.0,
             "direction_balanced_accuracy": 0.0,

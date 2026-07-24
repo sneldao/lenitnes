@@ -1,4 +1,5 @@
 import argparse
+import hashlib
 import json
 import os
 import shutil
@@ -14,6 +15,14 @@ def load_metrics(metrics_file: Path | None) -> dict | None:
         return None
     with open(metrics_file) as f:
         return json.load(f)
+
+
+def sha256_file(path: Path) -> str:
+    h = hashlib.sha256()
+    with open(path, "rb") as f:
+        for chunk in iter(lambda: f.read(8192), b""):
+            h.update(chunk)
+    return h.hexdigest()
 
 
 def build_readme(
@@ -129,7 +138,8 @@ def main() -> None:
         help="License for the training dataset. You must verify this is compatible with any embedded code diffs.",
     )
     parser.add_argument("--metrics_file", default=None, help="Path to metrics_compare.json for the model card")
-    parser.add_argument("--provenance", default=None, help="Path to training provenance file; smoke runs are blocked unless --allow_smoke_release")
+    parser.add_argument("--provenance", required=True, help="Path to training provenance file")
+    parser.add_argument("--test_file", default=None, help="Optional frozen test file to verify against metrics manifest")
     parser.add_argument("--allow_smoke_release", action="store_true", help="Allow releasing a smoke-trained model/dataset")
     parser.add_argument("--hf_model", default=None)
     parser.add_argument("--hf_dataset", default=None)
@@ -142,14 +152,32 @@ def main() -> None:
     dataset_file = Path(args.dataset_file)
     metrics = load_metrics(Path(args.metrics_file) if args.metrics_file else None)
 
-    if args.provenance and Path(args.provenance).exists():
-        with open(args.provenance) as f:
-            provenance = json.load(f)
-        if provenance.get("max_rows") is not None and not args.allow_smoke_release:
-            raise SystemExit(
-                "Refusing to release a smoke-trained artifact (provenance max_rows is set). "
-                "Use --allow_smoke_release if this is intentional."
-            )
+    with open(args.provenance) as f:
+        provenance = json.load(f)
+
+    if provenance.get("max_rows") is not None and not args.allow_smoke_release:
+        raise SystemExit(
+            "Refusing to release a smoke-trained artifact (provenance max_rows is set). "
+            "Use --allow_smoke_release if this is intentional."
+        )
+
+    actual_dataset_sha = sha256_file(dataset_file)
+    if provenance.get("adapted_output_sha256") != actual_dataset_sha:
+        raise SystemExit("Dataset does not match training provenance")
+
+    adapter_config = model_dir / "adapter_config.json"
+    if adapter_config.exists():
+        adapter_hash = sha256_file(adapter_config)
+        if metrics and metrics.get("adapted_adapter_hash") and metrics["adapted_adapter_hash"] != adapter_hash:
+            raise SystemExit("Metrics adapted_adapter_hash does not match model directory")
+    elif metrics and metrics.get("adapted_adapter_hash"):
+        raise SystemExit("Metrics reference an adapter hash but model directory has no adapter_config.json")
+
+    if args.test_file and metrics:
+        test_manifest = metrics.get("manifest", {})
+        actual_test_sha = sha256_file(Path(args.test_file))
+        if test_manifest.get("test_sha256") != actual_test_sha:
+            raise SystemExit("Test file does not match metrics manifest")
 
     if not model_dir.exists():
         raise SystemExit(f"Model directory not found: {model_dir}")
