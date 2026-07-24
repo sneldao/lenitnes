@@ -9,26 +9,14 @@ from pathlib import Path
 from adaption import Adaption
 
 
-def load_records(path: Path) -> list[dict]:
-    records = []
-    with open(path) as f:
-        for line in f:
-            line = line.strip()
-            if line:
-                records.append(json.loads(line))
-    return records
-
-
 def write_upload_file(input_path: Path, upload_path: Path) -> None:
     with open(input_path) as src, open(upload_path, "w") as dst:
         for line in src:
             record = json.loads(line)
-            messages = record.pop("messages", None) or record.pop("chat", None)
+            messages = record.get("messages") or record.get("chat")
             new_record: dict[str, object] = {"chat": messages}
             if "metadata" in record and isinstance(record["metadata"], dict):
-                detected_at = record["metadata"].get("detected_at")
-                if detected_at:
-                    new_record["detected_at"] = detected_at
+                new_record["metadata"] = json.dumps(record["metadata"], ensure_ascii=False)
             dst.write(json.dumps(new_record, ensure_ascii=False) + "\n")
 
 
@@ -38,6 +26,11 @@ def normalize_output(download_path: Path, output_path: Path) -> None:
             record = json.loads(line)
             if "chat" in record and "messages" not in record:
                 record["messages"] = record.pop("chat")
+            if "metadata" in record and isinstance(record["metadata"], str):
+                try:
+                    record["metadata"] = json.loads(record["metadata"])
+                except json.JSONDecodeError:
+                    pass
             dst.write(json.dumps(record, ensure_ascii=False) + "\n")
 
 
@@ -52,10 +45,12 @@ def wait_for_rows(client: Adaption, dataset_id: str, timeout: int) -> None:
 
 
 def main() -> None:
-    parser = argparse.ArgumentParser()
-    parser.add_argument("--input", default="data/all.jsonl")
-    parser.add_argument("--output", default="data/adapted.jsonl")
-    parser.add_argument("--name", default="autoscientist-lenitnes-math-code")
+    parser = argparse.ArgumentParser(
+        description="Adapt a raw JSONL train split using the Adaption API."
+    )
+    parser.add_argument("--input", default="data/train_raw.jsonl")
+    parser.add_argument("--output", default="data/train.jsonl")
+    parser.add_argument("--name", default="autoscientist-lenitnes-math-code-train")
     parser.add_argument("--estimate", action="store_true")
     parser.add_argument("--upload_timeout", type=int, default=300)
     parser.add_argument("--run_timeout", type=int, default=1800)
@@ -92,8 +87,8 @@ def main() -> None:
 
     final = client.datasets.wait_for_completion(upload.dataset_id, timeout=args.run_timeout)
     print(f"Run finished: {final.status}")
-    if final.error:
-        raise SystemExit(f"Adaption run failed: {final.error}")
+    if final.error_data:
+        raise SystemExit(f"Adaption run failed: {final.error_data.message}")
 
     url = client.datasets.download(upload.dataset_id)
     download_path = Path(args.output).with_suffix(".download.jsonl")
