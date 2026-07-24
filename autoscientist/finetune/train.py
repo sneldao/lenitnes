@@ -27,8 +27,8 @@ def parse_args() -> argparse.Namespace:
 
 
 def format_example(example: dict[str, Any], tokenizer: AutoTokenizer) -> str:
-    if "messages" in example:
-        messages = example["messages"]
+    messages = example.get("messages") or example.get("chat")
+    if messages:
         return tokenizer.apply_chat_template(messages, tokenize=False, add_generation_prompt=False)
     if "text" in example:
         return example["text"]
