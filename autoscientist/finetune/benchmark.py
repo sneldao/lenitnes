@@ -1,6 +1,7 @@
 import argparse
 import hashlib
 import json
+import math
 import re
 from pathlib import Path
 from typing import Any
@@ -35,28 +36,38 @@ def load_jsonl(path: Path) -> list[dict]:
     return records
 
 
-def parse_json_blob(text: str) -> dict:
+def parse_json_blob(text: str) -> dict | None:
     match = re.search(r"\{.*\}", text, re.DOTALL)
     if not match:
-        return {}
+        return None
     try:
         return json.loads(match.group(0))
     except json.JSONDecodeError:
-        return {}
+        return None
 
 
-def normalize_prediction(pred: dict) -> dict:
+def normalize_prediction(pred: dict | None) -> dict:
+    if pred is None:
+        return {"_valid": False}
+
     labels = pred.get("detector_labels", [])
     direction = pred.get("price_direction_24h", "")
     action = pred.get("recommended_action", "")
     confidence = pred.get("confidence", None)
+
+    valid_confidence = (
+        isinstance(confidence, (int, float))
+        and not isinstance(confidence, bool)
+        and math.isfinite(confidence)
+        and 0 <= confidence <= 100
+    )
 
     if (
         not isinstance(labels, list)
         or not all(isinstance(l, str) for l in labels)
         or direction not in VALID_DIRECTIONS
         or action not in VALID_ACTIONS
-        or not isinstance(confidence, (int, float))
+        or not valid_confidence
     ):
         return {"_valid": False}
 
@@ -154,7 +165,7 @@ def evaluate_model(
     pred_labels: list[list[str]] = []
     gold_directions: list[str] = []
     pred_directions: list[str] = []
-    parsed = 0
+    json_extracted = 0
     schema_valid = 0
 
     for record in records:
@@ -167,20 +178,23 @@ def evaluate_model(
             continue
 
         raw = generate(model, tokenizer, messages)
-        pred = normalize_prediction(parse_json_blob(raw))
+        blob = parse_json_blob(raw)
+        pred = normalize_prediction(blob)
 
-        if pred["_valid"]:
-            schema_valid += 1
-            parsed += 1
-            gold_labels.append(list(gold.get("detector_labels", [])))
-            pred_labels.append(pred["detector_labels"])
-            gold_directions.append(gold.get("price_direction_24h", "flat"))
-            pred_directions.append(pred["price_direction_24h"])
+        gold_labels.append(list(gold.get("detector_labels", [])))
+        gold_directions.append(gold.get("price_direction_24h", "flat"))
+
+        if blob is not None:
+            json_extracted += 1
+            if pred["_valid"]:
+                schema_valid += 1
+                pred_labels.append(pred["detector_labels"])
+                pred_directions.append(pred["price_direction_24h"])
+            else:
+                pred_labels.append([INVALID_LABEL])
+                pred_directions.append(INVALID_DIRECTION)
         else:
-            parsed += 1  # JSON was present but schema invalid
-            gold_labels.append(list(gold.get("detector_labels", [])))
             pred_labels.append([INVALID_LABEL])
-            gold_directions.append(gold.get("price_direction_24h", "flat"))
             pred_directions.append(INVALID_DIRECTION)
 
     n = len(gold_directions)
@@ -188,8 +202,8 @@ def evaluate_model(
         return {
             "n_test": len(records),
             "valid": 0,
+            "json_extracted_rate": 0.0,
             "schema_valid_rate": 0.0,
-            "parse_success_rate": 0.0,
             "price_direction_accuracy": 0.0,
             "direction_macro_f1": 0.0,
             "direction_balanced_accuracy": 0.0,
@@ -218,8 +232,8 @@ def evaluate_model(
     metrics = {
         "n_test": len(records),
         "valid": n,
+        "json_extracted_rate": round(json_extracted / n, 4),
         "schema_valid_rate": round(schema_valid / n, 4),
-        "parse_success_rate": round(parsed / n, 4),
         "price_direction_accuracy": round(accuracy_score(gold_directions, pred_directions), 4),
         "direction_macro_f1": round(f1_score(gold_directions, pred_directions, labels=["up", "down", "flat"], average="macro", zero_division=0), 4),
         "direction_balanced_accuracy": round(balanced_accuracy_score(gold_directions, pred_directions), 4),

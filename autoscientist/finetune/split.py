@@ -54,6 +54,7 @@ def main() -> None:
     parser.add_argument("--test_cutoff", default=None, help="ISO date; records after this go to test")
     parser.add_argument("--test_ratio", type=float, default=0.15)
     parser.add_argument("--seed", type=int, default=42)
+    parser.add_argument("--allow_missing_dates", action="store_true", help="Place records without detected_at into train instead of failing")
     args = parser.parse_args()
 
     input_path = Path(args.input)
@@ -72,12 +73,17 @@ def main() -> None:
             ts = get_detected_at(r)
             if ts is None:
                 missing += 1
-                train_records.append(r)
+                if args.allow_missing_dates:
+                    train_records.append(r)
+                else:
+                    raise SystemExit(
+                        f"record lacks metadata.detected_at; use --allow_missing_dates to place these in train"
+                    )
             elif parse_iso(ts) <= cutoff:
                 train_records.append(r)
             else:
                 test_records.append(r)
-        if missing:
+        if missing and args.allow_missing_dates:
             print(
                 f"warning: {missing} records lack metadata.detected_at and were placed in train",
                 file=sys.stderr,
