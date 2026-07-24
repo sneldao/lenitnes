@@ -7,3 +7,5 @@ accelerate==0.33.0
 bitsandbytes==0.43.3
 scipy==1.14.0
 psycopg2-binary==2.9.9
+huggingface_hub==0.24.6
+kaggle==1.6.17
