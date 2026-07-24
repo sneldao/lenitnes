@@ -134,7 +134,7 @@ def make_handler(model, tokenizer):
 def main() -> None:
     parser = argparse.ArgumentParser()
     parser.add_argument("--base_model", default="Qwen/Qwen2.5-Coder-0.5B-Instruct")
-    parser.add_argument("--adapter_dir", default="outputs/autoscientist-math-code-lenitnes")
+    parser.add_argument("--adapter_dir", default="outputs/autoscientist-market-analysis-lenitnes")
     parser.add_argument("--host", default="0.0.0.0")
     parser.add_argument("--port", type=int, default=8000)
     args = parser.parse_args()

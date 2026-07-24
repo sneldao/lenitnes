@@ -119,10 +119,15 @@ def kaggle_upload(folder: Path, dataset_id: str) -> None:
 
 def main() -> None:
     parser = argparse.ArgumentParser()
-    parser.add_argument("--model_dir", default="outputs/autoscientist-math-code-lenitnes")
+    parser.add_argument("--model_dir", default="outputs/autoscientist-market-analysis-lenitnes")
     parser.add_argument("--dataset_file", default="data/train.jsonl")
     parser.add_argument("--base_model", default="Qwen/Qwen2.5-Coder-0.5B-Instruct")
-    parser.add_argument("--license", default="CC0-1.0", help="Dataset/model license. Verify this is appropriate for your data before publishing.")
+    parser.add_argument("--model_license", required=True, help="License for the model weights")
+    parser.add_argument(
+        "--dataset_license",
+        required=True,
+        help="License for the training dataset. You must verify this is compatible with any embedded code diffs.",
+    )
     parser.add_argument("--metrics_file", default=None, help="Path to metrics_compare.json for the model card")
     parser.add_argument("--hf_model", default=None)
     parser.add_argument("--hf_dataset", default=None)
@@ -141,10 +146,10 @@ def main() -> None:
         raise SystemExit(f"Dataset file not found: {dataset_file}")
 
     if args.hf_model:
-        hf_upload_model(model_dir, args.hf_model, args.base_model, args.license, metrics, hf_token)
+        hf_upload_model(model_dir, args.hf_model, args.base_model, args.model_license, metrics, hf_token)
 
     if args.hf_dataset:
-        hf_upload_dataset(dataset_file, args.hf_dataset, args.base_model, args.license, metrics, hf_token)
+        hf_upload_dataset(dataset_file, args.hf_dataset, args.base_model, args.dataset_license, metrics, hf_token)
 
     if args.kaggle_weights:
         with tempfile.TemporaryDirectory() as tmp:
@@ -154,7 +159,7 @@ def main() -> None:
                 tmp_weights,
                 args.kaggle_weights,
                 "AutoScientist Part 2 fine-tuned model weights (LoRA/merged adapter).",
-                args.license,
+                args.model_license,
             )
             kaggle_upload(tmp_weights, args.kaggle_weights)
 
@@ -166,7 +171,7 @@ def main() -> None:
                 tmp_ds,
                 args.kaggle_dataset,
                 "AutoScientist Part 2 fine-tuning dataset.",
-                args.license,
+                args.dataset_license,
             )
             kaggle_upload(tmp_ds, args.kaggle_dataset)
 

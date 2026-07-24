@@ -14,7 +14,7 @@ def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser()
     parser.add_argument("--dataset", default="data/train.jsonl")
     parser.add_argument("--base_model", default="Qwen/Qwen2.5-Coder-0.5B-Instruct")
-    parser.add_argument("--output_dir", default="outputs/autoscientist-math-code-lenitnes")
+    parser.add_argument("--output_dir", default="outputs/autoscientist-market-analysis-lenitnes")
     parser.add_argument("--epochs", type=int, default=3)
     parser.add_argument("--batch_size", type=int, default=2)
     parser.add_argument("--gradient_accumulation_steps", type=int, default=4)

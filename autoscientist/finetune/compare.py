@@ -1,9 +1,96 @@
 import argparse
 import json
-import sys
+import random
+from collections import Counter
 from pathlib import Path
 
 import benchmark as bm
+from sklearn.metrics import accuracy_score, f1_score
+
+
+def extract_gold(record: dict) -> dict | None:
+    messages = record.get("messages") or record.get("chat") or []
+    if not messages:
+        return None
+    try:
+        content = messages[-1]["content"]
+        blob = json.loads(content)
+    except (json.JSONDecodeError, KeyError, IndexError, TypeError):
+        return None
+    return bm.normalize_prediction(blob)
+
+
+def collect_predictions(base_model: str, adapter_dir: Path | None, test_records: list[dict], max_samples: int | None = None):
+    model, tokenizer, adapter_hash = bm.load_model(base_model, adapter_dir)
+    records = test_records[:max_samples] if max_samples else test_records
+
+    gold_directions: list[str] = []
+    pred_directions: list[str] = []
+    gold_labels: list[list[str]] = []
+    pred_labels: list[list[str]] = []
+    schema_valid = 0
+    parsed = 0
+
+    for record in records:
+        gold = extract_gold(record)
+        if not gold or not gold["_valid"]:
+            continue
+
+        messages = record.get("messages") or record.get("chat") or []
+        raw = bm.generate(model, tokenizer, messages)
+        pred = bm.normalize_prediction(bm.parse_json_blob(raw))
+
+        parsed += 1
+        gold_directions.append(gold["price_direction_24h"])
+        gold_labels.append(list(gold.get("detector_labels", [])))
+
+        if pred["_valid"]:
+            schema_valid += 1
+            pred_directions.append(pred["price_direction_24h"])
+            pred_labels.append(pred["detector_labels"])
+        else:
+            pred_directions.append(bm.INVALID_DIRECTION)
+            pred_labels.append([bm.INVALID_LABEL])
+
+    return {
+        "gold_directions": gold_directions,
+        "pred_directions": pred_directions,
+        "gold_labels": gold_labels,
+        "pred_labels": pred_labels,
+        "n_test": len(records),
+        "valid": len(gold_directions),
+        "schema_valid": schema_valid,
+        "parsed": parsed,
+        "adapter_hash": adapter_hash,
+    }
+
+
+def direction_metrics(gold: list[str], pred: list[str]) -> dict:
+    return {
+        "accuracy": round(accuracy_score(gold, pred), 4),
+        "macro_f1": round(f1_score(gold, pred, labels=["up", "down", "flat"], average="macro", zero_division=0), 4),
+    }
+
+
+def majority_baseline(gold: list[str]) -> tuple[str, dict]:
+    most_common = Counter(gold).most_common(1)[0][0]
+    pred = [most_common] * len(gold)
+    return most_common, direction_metrics(gold, pred)
+
+
+def bootstrap_ci(gold: list[str], pred: list[str], n_bootstrap: int = 1000) -> tuple[float, float, float]:
+    n = len(gold)
+    if n == 0:
+        return 0.0, 0.0, 0.0
+    rng = random.Random(42)
+    scores = []
+    for _ in range(n_bootstrap):
+        indices = [rng.randint(0, n - 1) for _ in range(n)]
+        sample_gold = [gold[i] for i in indices]
+        sample_pred = [pred[i] for i in indices]
+        scores.append(f1_score(sample_gold, sample_pred, labels=["up", "down", "flat"], average="macro", zero_division=0))
+    scores.sort()
+    return round(scores[0], 4), round(scores[len(scores) // 2], 4), round(scores[-1], 4)
 
 
 def relative_change(base: float, adapted: float) -> float | None:
@@ -12,74 +99,83 @@ def relative_change(base: float, adapted: float) -> float | None:
     return round((adapted - base) / base, 4)
 
 
-def build_table(base: dict, adapted: dict) -> list[dict]:
-    metrics = [
-        "price_direction_accuracy",
-        "detector_micro_f1",
-        "detector_macro_f1",
-        "detector_exact_match",
-        "parse_success_rate",
-    ]
-    rows = []
-    for m in metrics:
-        b = base.get(m, 0.0)
-        a = adapted.get(m, 0.0)
-        rows.append({
-            "metric": m,
-            "base": b,
-            "adapted": a,
-            "relative_change": relative_change(b, a),
-        })
-    return rows
-
-
-def print_table(rows: list[dict]) -> None:
-    print(f"{'Metric':<30} {'Base':<10} {'Adapted':<10} {'Relative change':<15}")
-    print("-" * 70)
-    for r in rows:
-        rel = f"{r['relative_change']:+7.2%}" if r["relative_change"] is not None else "N/A"
-        print(f"{r['metric']:<30} {r['base']:<10.4f} {r['adapted']:<10.4f} {rel:<15}")
-
-
 def main() -> None:
     parser = argparse.ArgumentParser()
     parser.add_argument("--test_file", default="data/test.jsonl")
     parser.add_argument("--base_model", default="Qwen/Qwen2.5-Coder-0.5B-Instruct")
-    parser.add_argument("--adapter_dir", default="outputs/autoscientist-math-code-lenitnes")
+    parser.add_argument("--adapter_dir", default="outputs/autoscientist-market-analysis-lenitnes")
     parser.add_argument("--output", default="metrics_compare.json")
     parser.add_argument("--max_samples", type=int, default=None)
+    parser.add_argument("--n_bootstrap", type=int, default=1000)
     args = parser.parse_args()
 
     test_records = bm.load_jsonl(Path(args.test_file))
     if not test_records:
         raise SystemExit(f"No test records found in {args.test_file}")
 
+    manifest_path = Path(args.test_file).with_suffix(".manifest.json")
+    manifest = json.loads(manifest_path.read_text()) if manifest_path.exists() else {}
+
     print("Evaluating zero-shot base model...")
-    base_metrics = bm.evaluate_model(args.base_model, None, test_records, args.max_samples)
-    if base_metrics.get("valid", 0) == 0:
+    base = collect_predictions(args.base_model, None, test_records, args.max_samples)
+    if base["valid"] == 0:
         raise SystemExit("Base model produced no valid predictions")
 
     print("Evaluating fine-tuned (adapted) model...")
-    adapted_metrics = bm.evaluate_model(
-        args.base_model,
-        Path(args.adapter_dir),
-        test_records,
-        args.max_samples,
-    )
-    if adapted_metrics.get("valid", 0) == 0:
+    adapted = collect_predictions(args.base_model, Path(args.adapter_dir), test_records, args.max_samples)
+    if adapted["valid"] == 0:
         raise SystemExit("Adapted model produced no valid predictions")
 
-    table = build_table(base_metrics, adapted_metrics)
-    primary_metric = "detector_micro_f1"
-    primary_row = next((r for r in table if r["metric"] == primary_metric), None)
+    base_dir = direction_metrics(base["gold_directions"], base["pred_directions"])
+    adapted_dir = direction_metrics(adapted["gold_directions"], adapted["pred_directions"])
+    majority_class, majority = majority_baseline(base["gold_directions"])
+
+    base_ci = bootstrap_ci(base["gold_directions"], base["pred_directions"], args.n_bootstrap)
+    adapted_ci = bootstrap_ci(adapted["gold_directions"], adapted["pred_directions"], args.n_bootstrap)
+
+    primary_metric = "direction_macro_f1"
+    primary_base = base_dir["macro_f1"]
+    primary_adapted = adapted_dir["macro_f1"]
+
+    class_distribution = dict(Counter(base["gold_directions"]))
+
+    comparison = [
+        {
+            "metric": "price_direction_accuracy",
+            "base": base_dir["accuracy"],
+            "adapted": adapted_dir["accuracy"],
+            "majority_baseline": majority["accuracy"],
+            "absolute_gain": round(adapted_dir["accuracy"] - base_dir["accuracy"], 4),
+            "relative_change": relative_change(base_dir["accuracy"], adapted_dir["accuracy"]),
+        },
+        {
+            "metric": "direction_macro_f1",
+            "base": base_dir["macro_f1"],
+            "adapted": adapted_dir["macro_f1"],
+            "majority_baseline": majority["macro_f1"],
+            "absolute_gain": round(adapted_dir["macro_f1"] - base_dir["macro_f1"], 4),
+            "relative_change": relative_change(base_dir["macro_f1"], adapted_dir["macro_f1"]),
+            "base_95ci": base_ci,
+            "adapted_95ci": adapted_ci,
+        },
+    ]
 
     result = {
         "primary_metric": primary_metric,
-        "primary_relative_change": primary_row["relative_change"] if primary_row else None,
-        "n_test": base_metrics.get("n_test", 0),
-        "base": base_metrics,
-        "adapted": adapted_metrics,
-        "comparison_table": table,
+        "primary_relative_change": relative_change(primary_base, primary_adapted),
+        "primary_absolute_gain": round(primary_adapted - primary_base, 4),
+        "n_test": base["n_test"],
+        "valid": base["valid"],
+        "schema_valid_rate": round(adapted["schema_valid"] / adapted["valid"], 4) if adapted["valid"] else 0.0,
+        "class_distribution": class_distribution,
+        "majority_class": majority_class,
+        "base": base_dir,
+        "adapted": adapted_dir,
+        "majority_baseline": majority,
+        "comparison_table": comparison,
+        "manifest": manifest,
+        "base_adapter_hash": None,
+        "adapted_adapter_hash": adapted["adapter_hash"],
     }
 
     Path(args.output).parent.mkdir(parents=True, exist_ok=True)
@@ -87,7 +183,11 @@ def main() -> None:
         json.dump(result, f, indent=2)
 
     print(f"\nWrote comparison to {args.output}\n")
-    print_table(table)
+    print(f"{'Metric':<30} {'Baseline':<10} {'Base':<10} {'Adapted':<10} {'Change':<12}")
+    print("-" * 80)
+    for r in comparison:
+        change = f"{r['absolute_gain']:+.4f}"
+        print(f"{r['metric']:<30} {r['majority_baseline']:<10.4f} {r['base']:<10.4f} {r['adapted']:<10.4f} {change:<12}")
 
 
 if __name__ == "__main__":
