@@ -9,6 +9,7 @@ import { silentMergeDetector } from './silent-merge.js';
 import { protocolUpgradeDetector } from './protocol-upgrade.js';
 import { supplyChainRiskDetector } from './supply-chain-risk.js';
 import { newsSignalDetector } from './news-signal.js';
+import { mlDetector } from './ml.js';
 
 const detectors: SignalDetector[] = [
   emergencyPatchDetector,
@@ -20,12 +21,13 @@ const detectors: SignalDetector[] = [
   protocolUpgradeDetector,
   supplyChainRiskDetector,
   newsSignalDetector,
+  mlDetector,
 ];
 
-export function runDetectors(input: DetectorInput): SignalClassification[] {
+export async function runDetectors(input: DetectorInput): Promise<SignalClassification[]> {
   const results: SignalClassification[] = [];
   for (const detector of detectors) {
-    const classification = detector.detect(input);
+    const classification = await detector.detect(input);
     if (classification) results.push(classification);
   }
   return results;

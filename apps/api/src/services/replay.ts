@@ -12,7 +12,7 @@
 // detector or scoring logic.
 // ─────────────────────────────────────────────────────────────
 
-import type { AgentScore, Chain } from '@lenitnes/types';
+import type { AgentScore, Chain, SignalClassification } from '@lenitnes/types';
 import { buildAgentEnvFromConfig, score } from './agent.js';
 import {
   enrichCommitStats,
@@ -310,12 +310,12 @@ export async function replay(input: ReplayInput): Promise<{
   const firing: Array<{
     day: string;
     batch: GitHubCommit[];
-    classifications: ReturnType<typeof runDetectors>;
+    classifications: SignalClassification[];
     topScore: number;
   }> = [];
   for (const [day, batch] of groupByDay(commits)) {
     await enrichCommitStats(input.repo, batch, { maxEnrich: batch.length });
-    const classifications = runDetectors({
+    const classifications = await runDetectors({
       result: {
         conditionMet: true,
         confidence: 100,

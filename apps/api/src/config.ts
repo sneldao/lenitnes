@@ -187,6 +187,13 @@ export const config = {
     token: env.GITHUB_TOKEN,
   },
 
+  ml: {
+    enabled: env.ML_ENABLED ?? false,
+    modelUrl: env.ML_MODEL_URL,
+    timeoutMs: env.ML_TIMEOUT_MS,
+    assetOverride: env.ML_ASSET_OVERRIDE,
+  },
+
   coingecko: {
     apiKey: env.COINGECKO_API_KEY,
   },

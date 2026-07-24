@@ -145,6 +145,15 @@ export const envSchema = z
     TINYFISH_API_KEY: z.string().optional().default(''),
     GITHUB_TOKEN: z.string().optional().default(''),
 
+    // ── ML detector (AutoScientist Part 2) ──
+    ML_ENABLED: z
+      .string()
+      .optional()
+      .transform((v) => v === 'true'),
+    ML_MODEL_URL: z.string().url().default('http://localhost:8000'),
+    ML_TIMEOUT_MS: intFromString(100, 60_000).default(10_000),
+    ML_ASSET_OVERRIDE: z.string().optional().default(''),
+
     // ── TWAK (BSC self-custody signing) ──
     TWAK_ACCESS_ID: z.string().optional().default(''),
     TWAK_HMAC_SECRET: z.string().optional().default(''),

@@ -1,7 +1,7 @@
 import pLimit from 'p-limit';
 import { query, withTransaction } from '../db/pool.js';
 import { config } from '../config.js';
-import type { Monitor, TinyFishResult } from '@lenitnes/types';
+import type { Monitor, SignalClassification, TinyFishResult } from '@lenitnes/types';
 import * as tinyfish from '../services/tinyfish.js';
 import * as scraper from '../services/scraper.js';
 import * as ipfs from '../services/ipfs.js';
@@ -172,7 +172,7 @@ export async function executeCheck(monitor: Monitor): Promise<{
   // match of commit messages against the monitor's condition text —
   // routine commits never matched, which is why the commit pipeline
   // produced zero real signals after the initial backfill burst.)
-  let precomputedDetectors: ReturnType<typeof runDetectors> = [];
+  let precomputedDetectors: SignalClassification[] = [];
   if (monitor.url.includes('github.com') && config.github.token) {
     try {
       const allCommits = await fetchCommitsSince(
@@ -223,7 +223,7 @@ export async function executeCheck(monitor: Monitor): Promise<{
         // commits NOW and let them decide signal vs heartbeat. The
         // page-scrape tier's keyword confidence is ignored for GitHub
         // monitors — old page content matching "security" is noise.
-        precomputedDetectors = runDetectors({
+        precomputedDetectors = await runDetectors({
           result,
           commits: enriched,
           monitorUrl: monitor.url,
@@ -395,7 +395,7 @@ export async function executeCheck(monitor: Monitor): Promise<{
       const detectorResults =
         precomputedDetectors.length > 0
           ? precomputedDetectors
-          : runDetectors({
+          : await runDetectors({
               result,
               commits: result.commits,
               monitorUrl: monitor.url,

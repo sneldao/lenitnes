@@ -28,7 +28,7 @@ export interface SignalDetector {
   readonly type: SignalType;
   readonly label: string;
   readonly description: string;
-  detect(input: DetectorInput): SignalClassification | null;
+  detect(input: DetectorInput): SignalClassification | null | Promise<SignalClassification | null>;
 }
 
 // Word-boundary match for single tokens; literal substring match for phrases
