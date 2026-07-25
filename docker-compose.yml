@@ -82,6 +82,21 @@ services:
       TREASURY_DEFAULT_AMOUNT: ${TREASURY_DEFAULT_AMOUNT:-0.01}
       TREASURY_SLIPPAGE_BPS: ${TREASURY_SLIPPAGE_BPS:-50}
       TREASURY_DEFAULT_TOKEN_IN: ${TREASURY_DEFAULT_TOKEN_IN:-0xUSDC_PLACEHOLDER}
+      TRADING_ENABLED: ${TRADING_ENABLED:-false}
+      # ── Propr (Hyperliquid perps: live shorts + L1 assets) ──
+      # Gated behind BOTH TRADING_ENABLED + PROPR_ENABLED (both default
+      # off). PROPR_API_KEY must be set when PROPR_ENABLED=true (enforced
+      # by config-schema.ts superRefine). Get a key at app.propr.xyz/settings.
+      PROPR_ENABLED: ${PROPR_ENABLED:-false}
+      PROPR_API_KEY: ${PROPR_API_KEY:-}
+      PROPR_API_URL: ${PROPR_API_URL:-https://api.propr.xyz/v1}
+      PROPR_WS_URL: ${PROPR_WS_URL:-wss://api.propr.xyz/ws}
+      PROPR_ACCOUNT_ID: ${PROPR_ACCOUNT_ID:-}
+      PROPR_MIN_NOTIONAL_USD: ${PROPR_MIN_NOTIONAL_USD:-20}
+      PROPR_MAX_NOTIONAL_USD: ${PROPR_MAX_NOTIONAL_USD:-500}
+      PROPR_LEVERAGE: ${PROPR_LEVERAGE:-1}
+      PROPR_SL_TP_ENABLED: ${PROPR_SL_TP_ENABLED:-true}
+      PROPR_NOTARIZE: ${PROPR_NOTARIZE:-true}
       ARBITRUM_RPC_URL: ${ARBITRUM_RPC_URL:-https://sepolia-rollup.arbitrum.io/rpc}
       ARB_SIGNAL_REGISTRY_ADDRESS: ${ARB_SIGNAL_REGISTRY_ADDRESS:-}
       ARB_TRADE_EXECUTOR_ADDRESS: ${ARB_TRADE_EXECUTOR_ADDRESS:-}
@@ -136,6 +151,18 @@ services:
       AGENT_OUTPUT_COST_PER_1M_USD: ${AGENT_OUTPUT_COST_PER_1M_USD:-0.60}
       TREASURY_PRIVATE_KEY: ${TREASURY_PRIVATE_KEY}
       TREASURY_MODE: ${TREASURY_MODE:-live}
+      TRADING_ENABLED: ${TRADING_ENABLED:-false}
+      # ── Propr (Hyperliquid perps: live shorts + L1 assets) ──
+      PROPR_ENABLED: ${PROPR_ENABLED:-false}
+      PROPR_API_KEY: ${PROPR_API_KEY:-}
+      PROPR_API_URL: ${PROPR_API_URL:-https://api.propr.xyz/v1}
+      PROPR_WS_URL: ${PROPR_WS_URL:-wss://api.propr.xyz/ws}
+      PROPR_ACCOUNT_ID: ${PROPR_ACCOUNT_ID:-}
+      PROPR_MIN_NOTIONAL_USD: ${PROPR_MIN_NOTIONAL_USD:-20}
+      PROPR_MAX_NOTIONAL_USD: ${PROPR_MAX_NOTIONAL_USD:-500}
+      PROPR_LEVERAGE: ${PROPR_LEVERAGE:-1}
+      PROPR_SL_TP_ENABLED: ${PROPR_SL_TP_ENABLED:-true}
+      PROPR_NOTARIZE: ${PROPR_NOTARIZE:-true}
       TELEGRAM_BOT_TOKEN: ${TELEGRAM_BOT_TOKEN:-}
       TINYFISH_API_KEY: ${TINYFISH_API_KEY:-}
       GITHUB_TOKEN: ${GITHUB_TOKEN:-}
