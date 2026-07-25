@@ -444,6 +444,10 @@ const SAFETY_GATES = [
     body: 'Only verified tokens with real on-chain addresses. Unlisted assets → paper.',
   },
   {
+    title: 'Perp venue (Propr)',
+    body: 'Shorts + L1 assets (ZEC/SOL/SUI/ARB) route to Hyperliquid perps. Second kill switch (PROPR_ENABLED), leverage clamped, mandatory SL/TP, every fill notarized to HCS.',
+  },
+  {
     title: 'Chain-ID guard',
     body: 'Live trades refuse unless chainId matches mainnet. Catches misconfigured RPC.',
   },
@@ -466,7 +470,7 @@ const LIFECYCLE = [
     label: 'Open',
     icon: Target,
     detail:
-      'A tracked position opens in the recommended direction — long or short, labeled paper. Entry price snapshotted at open. (Live mode swaps on-chain; gated off until calibration clears.)',
+      'A tracked position opens in the recommended direction — long or short. Longs on BTC/ETH swap on-chain via PancakeSwap; shorts and L1 assets (ZEC/SOL/SUI/ARB) trade live perps on Hyperliquid via Propr. Entry price snapshotted at open. All gated behind kill switches; paper is the safe default.',
   },
   {
     label: 'Settle',

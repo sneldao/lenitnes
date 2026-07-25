@@ -420,7 +420,7 @@ export async function runNarrativeScan(): Promise<void> {
       metadata: Record<string, unknown>;
     }> = [];
     if (cluster.news.length > 0) {
-      const newsResult = newsSignalDetector.detect({
+      const newsResult = await newsSignalDetector.detect({
         result: { conditionMet: true, confidence: 100, evidence: '', summary: '' },
         commits: [],
         monitorUrl: NARRATIVE_MONITOR_URL,

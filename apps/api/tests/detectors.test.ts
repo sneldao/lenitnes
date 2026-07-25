@@ -212,7 +212,7 @@ describe('supply_chain_risk detector', () => {
 });
 
 describe('runDetectors registry', () => {
-  it('collects multiple classifications from a single commit set', () => {
+  it('collects multiple classifications from a single commit set', async () => {
     const input = makeInput({
       commits: [
         makeCommit({
@@ -229,14 +229,14 @@ describe('runDetectors registry', () => {
         summary: '',
       },
     });
-    const results = runDetectors(input);
+    const results = await runDetectors(input);
     expect(results.length).toBeGreaterThan(1);
     const types = results.map((r) => r.type);
     expect(types).toContain('emergency_patch');
     expect(types).toContain('security_critical_patch');
   });
 
-  it('returns empty array when no detectors match', () => {
+  it('returns empty array when no detectors match', async () => {
     const input = makeInput({
       commits: [
         makeCommit({
@@ -247,7 +247,7 @@ describe('runDetectors registry', () => {
         }),
       ],
     });
-    expect(runDetectors(input)).toEqual([]);
+    expect(await runDetectors(input)).toEqual([]);
   });
 });
 

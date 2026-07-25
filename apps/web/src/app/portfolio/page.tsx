@@ -16,7 +16,7 @@ import {
 } from 'lucide-react';
 import { api, type PortfolioResponse, type OpenPosition } from '@/lib/api';
 import { qk, REFETCH } from '@/lib/queryKeys';
-import { formatPct, formatUsd, timeAgo, explorerUrl } from '@/lib/format';
+import { formatPct, formatUsd, timeAgo, explorerUrl, txHashVenue } from '@/lib/format';
 import { StatCard } from '@/components/ui/stat-card';
 import { SkeletonStatCard, SkeletonList } from '@/components/ui/skeleton';
 import { Breadcrumbs } from '@/components/ui/breadcrumbs';
@@ -225,6 +225,7 @@ function OpenPositionCard({ position: p, index }: { position: OpenPosition; inde
       ? 'border-danger/30 bg-danger/[0.03]'
       : 'border-edge/60';
   const pnlColor = isUp ? 'text-signal' : isDown ? 'text-danger' : 'text-slate-400';
+  const venue = txHashVenue(p.entryTxHash);
 
   return (
     <div
@@ -299,14 +300,25 @@ function OpenPositionCard({ position: p, index }: { position: OpenPosition; inde
 
       {p.entryTxHash && (
         <div className="mt-3 border-t border-edge/30 pt-2">
-          <Link
-            href={explorerUrl(p.chain, p.entryTxHash)}
-            target="_blank"
-            className="inline-flex items-center gap-1 text-[10px] font-mono text-slate-500 hover:text-accent"
-          >
-            entry tx {p.entryTxHash.slice(0, 14)}…
-            <ExternalLink className="h-2.5 w-2.5" />
-          </Link>
+          {venue === 'onchain' ? (
+            <Link
+              href={explorerUrl(p.chain, p.entryTxHash)}
+              target="_blank"
+              className="inline-flex items-center gap-1 text-[10px] font-mono text-slate-500 hover:text-accent"
+            >
+              entry tx {p.entryTxHash.slice(0, 14)}…
+              <ExternalLink className="h-2.5 w-2.5" />
+            </Link>
+          ) : (
+            <span
+              className={`inline-flex items-center gap-1 text-[10px] font-mono ${
+                venue === 'propr' ? 'text-accent' : 'text-slate-500'
+              }`}
+            >
+              {venue === 'propr' ? 'Propr perp' : 'paper'} ·{' '}
+              {p.entryTxHash.slice(0, venue === 'propr' ? 16 : 14)}…
+            </span>
+          )}
         </div>
       )}
     </div>

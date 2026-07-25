@@ -479,7 +479,7 @@ export async function executeCheck(monitor: Monitor): Promise<{
               tags: n.tags ?? [],
             })),
           };
-          const newsResult = newsSignalDetector.detect(detectorInput);
+          const newsResult = await newsSignalDetector.detect(detectorInput);
           if (newsResult) {
             classifications.push({
               type: newsResult.type,

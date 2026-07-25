@@ -16,6 +16,7 @@ import { priceData } from './data-providers/registry.js';
 import { computeTpSlLevels, applyRiskGate } from './treasury/risk.js';
 import { initVenues, getVenueForChain } from './venues/registry.js';
 import { resolveTradeableToken } from './treasury/asset-registry.js';
+import { openProprPosition, resolveProprAsset, closeProprPosition } from './venues/propr/index.js';
 import { config } from '../config.js';
 
 export type TradeMode = 'paper' | 'live';
@@ -364,6 +365,89 @@ export async function executeAgentTrade(
     }
   }
 
+  // ── Propr perp path (additive) ──────────────────────────────
+  // Shorts and assets the spot venue can't reach (ZEC/SOL/SUI/ARB,
+  // which the spot registry omits for lack of BSC liquidity) route
+  // to Propr Hyperliquid perps. This is the first venue that can take
+  // a LIVE short. Gated behind BOTH TRADING_ENABLED and PROPR_ENABLED;
+  // falls through to the existing spot/paper path when Propr declines
+  // (disabled, asset not listed, price unavailable, or rejection).
+  if (
+    coingeckoId &&
+    config.treasury.tradingEnabled &&
+    config.propr.enabled &&
+    resolveProprAsset(coingeckoId)
+  ) {
+    const spotCanHandle = side === 'long' && resolveTradeableToken(coingeckoId, chain) != null;
+    const proprShouldHandle = side === 'short' || !spotCanHandle;
+    if (proprShouldHandle) {
+      try {
+        const proprReceipt = await openProprPosition({
+          signalId,
+          coingeckoId,
+          side,
+          conviction: agentScore.conviction ?? 70,
+        });
+        if (proprReceipt) {
+          // Record into the same orders + positions tables so the
+          // scorecard/portfolio sees the live perp position. The
+          // `0xpropr:` tx-hash prefix lets closePositionById route
+          // the close back through Propr (not the spot venue).
+          const proprAction: TradeAction = {
+            signalId,
+            chain,
+            side,
+            pair: coingeckoId,
+            amountIn: String(proprReceipt.notionalUsd),
+            tokenIn: 'USDC',
+            tokenOut: proprReceipt.base,
+            slippageBps: 0,
+            mode: 'live',
+          };
+          const proprTradeReceipt: TradeReceipt = {
+            chain,
+            txHash: `0xpropr:${proprReceipt.orderId}`,
+            pair: coingeckoId,
+            amountIn: String(proprReceipt.notionalUsd),
+            amountOut: proprReceipt.quantity,
+            mode: 'live',
+            timestamp: proprReceipt.timestamp,
+          };
+          const orderId = await recordTrade(
+            signalId,
+            proprAction,
+            proprTradeReceipt,
+            'filled',
+            agentScore.conviction,
+          );
+          logger.info(
+            {
+              signalId,
+              orderId,
+              proprOrderId: proprReceipt.orderId,
+              positionId: proprReceipt.positionId,
+              base: proprReceipt.base,
+              side,
+              notionalUsd: proprReceipt.notionalUsd,
+              leverage: proprReceipt.leverage,
+              slOrderId: proprReceipt.slOrderId,
+              tpOrderId: proprReceipt.tpOrderId,
+              hederaTxId: proprReceipt.hederaTxId,
+            },
+            'treasury: propr live perp trade recorded',
+          );
+          return { tradeReceipt: proprTradeReceipt, orderId };
+        }
+        // proprReceipt null → Propr declined; fall through to spot/paper.
+      } catch (err) {
+        logger.error(
+          { err, signalId, coingeckoId, side },
+          'treasury: propr path errored — falling back to spot/paper',
+        );
+      }
+    }
+  }
+
   // Resolve the real on-chain token address from the registry.
   // If the asset isn't tradeable on this chain, we still derive the
   // action — but with the placeholder token. The risk gate catches
@@ -477,10 +561,11 @@ export async function recordTrade(
   const orderId = rows[0]?.id ?? '';
 
   // Track position lifecycle — every filled order OPENS a position
-  // in the recommended direction. Shorts are directional calls
-  // tracked as paper positions (spot venues have no short primitive);
-  // closes happen via the TP/SL scheduler, a signal reversal in
-  // executeAgentTrade, or the admin endpoint — never implicitly.
+  // in the recommended direction. Shorts now execute live as
+  // Hyperliquid perps via Propr (0xpropr: tx-hash prefix) when
+  // enabled; when Propr is disabled they fall back to paper (0xpap
+  // prefix). Closes happen via the TP/SL scheduler, a signal reversal
+  // in executeAgentTrade, or the admin endpoint — never implicitly.
   if (status === 'filled' && orderId) {
     try {
       const asset = action.pair ?? action.tokenOut ?? 'unknown';
@@ -581,11 +666,33 @@ export async function closePositionById(
   // on-chain close. The entry tx hash with the `0xpap` prefix
   // marks the open as paper — its close mirrors that.
   const wasPaperOpen = row.entry_tx_hash?.startsWith('0xpap') ?? true;
+  const isProprOpen = row.entry_tx_hash?.startsWith('0xpropr:') ?? false;
   const tradeable = resolveTradeableToken(row.asset, chain);
-  const canClose = config.treasury.tradingEnabled && !wasPaperOpen && tradeable != null;
+  const canClose =
+    config.treasury.tradingEnabled && !wasPaperOpen && !isProprOpen && tradeable != null;
 
   let closeTxHash: string | null = null;
-  if (canClose && tradeable) {
+
+  // Propr perp close — route back through the Propr adapter (the
+  // `0xpropr:` prefix marks the open). Independent of the spot venue
+  // and its chain/token-address resolution. Best-effort: bookkeeping
+  // proceeds even if the Propr close fails (same contract as the
+  // spot close below).
+  if (isProprOpen && config.treasury.tradingEnabled && config.propr.enabled) {
+    try {
+      const result = await closeProprPosition(row.asset, reason);
+      closeTxHash = result.txHash;
+      logger.info(
+        { positionId, asset: row.asset, reason, closeTxHash },
+        'closePositionById: propr perp close executed',
+      );
+    } catch (err) {
+      logger.error(
+        { err, positionId, asset: row.asset, reason },
+        'closePositionById: propr close failed — bookkeeping only',
+      );
+    }
+  } else if (canClose && tradeable) {
     try {
       await initVenues();
       const venue = getVenueForChain(chain);

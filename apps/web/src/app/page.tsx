@@ -396,7 +396,7 @@ const LOOP_STEPS: { title: string; icon: LucideIcon; body: string }[] = [
   {
     title: 'Commit + Proof',
     icon: Zap,
-    body: 'Open a tracked position — long or short, explicitly labeled paper — notarize the thesis on Hedera HCS, broadcast to Telegram.',
+    body: 'Open a tracked position — long or short — notarize the thesis on Hedera HCS, broadcast to Telegram. Shorts and L1 assets (ZEC/SOL/SUI/ARB) execute live perps on Hyperliquid via Propr; longs on BTC/ETH swap on-chain. All gated behind a double kill switch.',
   },
   {
     title: 'Track outcome',

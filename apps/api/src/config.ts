@@ -247,4 +247,21 @@ export const config = {
       return '0xUNDERLYING_PLACEHOLDER';
     })(),
   },
+
+  // Propr (Hyperliquid perps via the Propr API) — the perp venue that
+  // can take live shorts + longs on assets the spot registry omits
+  // (ZEC/SOL/SUI/ARB). Gated behind BOTH treasury.tradingEnabled (the
+  // master kill switch) AND propr.enabled. Default: off.
+  propr: {
+    enabled: env.PROPR_ENABLED,
+    apiKey: env.PROPR_API_KEY,
+    apiUrl: env.PROPR_API_URL,
+    wsUrl: env.PROPR_WS_URL,
+    accountId: env.PROPR_ACCOUNT_ID,
+    minNotionalUsd: env.PROPR_MIN_NOTIONAL_USD,
+    maxNotionalUsd: env.PROPR_MAX_NOTIONAL_USD,
+    leverage: env.PROPR_LEVERAGE,
+    slTpEnabled: env.PROPR_SL_TP_ENABLED,
+    notarize: env.PROPR_NOTARIZE,
+  },
 } as const;

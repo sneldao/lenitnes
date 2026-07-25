@@ -214,6 +214,37 @@ export const envSchema = z
     BNB_DEFAULT_TOKEN_IN: z.string().default(''),
     BNB_DEFAULT_TOKEN_OUT: z.string().default('0xUNDERLYING_PLACEHOLDER'),
 
+    // ── Propr (Hyperliquid perps via the Propr API) ──
+    // The perp venue that can take live SHORTS + longs on assets the
+    // spot registry omits (ZEC/SOL/SUI/ARB). Gated behind BOTH
+    // TRADING_ENABLED (the master kill switch) AND PROPR_ENABLED.
+    // Default: off. Get a key at https://app.propr.xyz/settings.
+    PROPR_ENABLED: z
+      .string()
+      .optional()
+      .transform((v) => v === 'true'),
+    PROPR_API_KEY: z.string().optional().default(''),
+    PROPR_API_URL: z.string().url().default('https://api.propr.xyz/v1'),
+    PROPR_WS_URL: z.string().url().default('wss://api.propr.xyz/ws'),
+    // Pin a specific account; otherwise the adapter auto-discovers via
+    // funded → competition → challenge (3-tier findTradeableAccountId).
+    PROPR_ACCOUNT_ID: z.string().optional().default(''),
+    PROPR_MIN_NOTIONAL_USD: floatFromString().default(20),
+    PROPR_MAX_NOTIONAL_USD: floatFromString().default(500),
+    // Leverage to use (clamped to the per-asset venue cap). Default 1x.
+    PROPR_LEVERAGE: intFromString(1, 100).default(1),
+    // Attach conviction-scaled stop-loss + take-profit to every fill.
+    // Defaults ON (v !== 'false') — naked positions are unsafe.
+    PROPR_SL_TP_ENABLED: z
+      .string()
+      .optional()
+      .transform((v) => v !== 'false'),
+    // Notarize every fill to Hedera HCS (best-effort). Defaults ON.
+    PROPR_NOTARIZE: z
+      .string()
+      .optional()
+      .transform((v) => v !== 'false'),
+
     // ── Misc ──
     GROVE_CHAIN_ID: intFromString().default(37111),
   })
@@ -226,6 +257,15 @@ export const envSchema = z
         code: z.ZodIssueCode.custom,
         path: ['TWAK_ACCESS_ID'],
         message: 'TWAK_ENABLED=true requires both TWAK_ACCESS_ID and TWAK_HMAC_SECRET to be set',
+      });
+    }
+
+    // Propr enabled ⇒ API key must be set
+    if (data.PROPR_ENABLED && !data.PROPR_API_KEY) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ['PROPR_API_KEY'],
+        message: 'PROPR_ENABLED=true requires PROPR_API_KEY to be set',
       });
     }
 

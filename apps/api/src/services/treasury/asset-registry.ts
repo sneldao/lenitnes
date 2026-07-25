@@ -67,12 +67,13 @@ export const ASSET_REGISTRY: Record<string, TradeableAsset> = {
       },
     },
   },
-  // Note: solana, sui, zcash, arbitrum are deliberately omitted.
-  //   - solana / sui: L1 chains, no canonical BEP-20 with deep liquidity
-  //   - zcash: very thin BSC liquidity (privacy-coin bridges are sparse)
-  //   - arbitrum: governance token, not the action we'd actually want
-  // Signals on these assets still fire on Telegram; the trade just
-  // goes to paper mode via the risk layer's fallback.
+  // Note: solana, sui, zcash, arbitrum are deliberately omitted from
+  // the SPOT registry — no canonical BEP-20 with deep BSC liquidity.
+  // They are, however, tradeable as Hyperliquid perps via the Propr
+  // adapter (services/venues/propr/asset-registry.ts), which is where
+  // shorts and L1-asset longs now execute live. Signals on these
+  // assets still fire on Telegram; if Propr is disabled they fall back
+  // to paper mode via the risk layer's fallback.
 };
 
 /**

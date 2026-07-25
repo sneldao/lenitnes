@@ -44,8 +44,10 @@ on the same log line include `bnbBalance`, `bnbChainId`, `bnbWallet`.
    `apps/api/src/services/treasury/asset-registry.ts` with a
    verified token address. Cross-check on BscScan against the
    official Binance-Peg token list. Only BTC + ETH are
-   pre-registered — L1s (SOL/SUI/ZEC) are deliberately omitted
-   (no canonical BEP-20 with deep liquidity).
+   pre-registered — L1s (SOL/SUI/ZEC) are omitted from the SPOT
+   registry (no canonical BEP-20 with deep liquidity) but trade live
+   as Hyperliquid perps via the Propr adapter (see the Propr section
+   below).
 
 2. **BSC chain-ID guard.** Live BNB trades refuse unless
    `config.chains.bnb.chainId === 56`. Testnet (chainId 97)
@@ -74,6 +76,68 @@ on the same log line include `bnbBalance`, `bnbChainId`, `bnbWallet`.
 
 7. **Admin API key.** `ADMIN_API_KEY` non-empty so manual close
    and risk-check are reachable.
+
+---
+
+## Propr perp venue (live shorts + L1 assets)
+
+Propr is the perp venue that takes **shorts** and **L1 assets**
+(ZEC/SOL/SUI/ARB) live on Hyperliquid perpetuals — the cases the
+spot PancakeSwap path can't handle (spot has no short primitive;
+those assets have no deep BSC liquidity). This is what lets the
+flagship SHORT ZEC thesis go live instead of paper.
+
+### Enabling Propr
+
+Two kill switches must **both** be on (both default off):
+
+```bash
+TRADING_ENABLED=true      # master kill switch (already required for spot)
+PROPR_ENABLED=true        # Propr-specific gate
+PROPR_API_KEY=pk_live_…   # get it at https://app.propr.xyz/settings
+```
+
+Optional tuning (defaults shown):
+
+```bash
+PROPR_ACCOUNT_ID=           # blank = auto-discover (funded → competition → challenge)
+PROPR_MIN_NOTIONAL_USD=20
+PROPR_MAX_NOTIONAL_USD=500  # ~1% of a $50k tournament account
+PROPR_LEVERAGE=1            # clamped to per-asset venue cap (BTC/ETH 5x, others 2x)
+PROPR_SL_TP_ENABLED=true    # attach conviction-scaled SL+TP to every fill
+PROPR_NOTARIZE=true         # notarize every fill to Hedera HCS
+```
+
+### What it does differently from spot
+
+- **Shorts execute live** (sell/short entry, buy close) — not paper.
+- **Leverage** clamped to `min(PROPR_LEVERAGE, venue cap)`; default 1x.
+- **Notional** clamped to `[PROPR_MIN_NOTIONAL_USD, PROPR_MAX_NOTIONAL_USD]`.
+- **SL + TP** attached to every fill (conviction-scaled via the shared
+  `computeTpSlLevels`). A naked position (attachment failed) logs at WARN.
+- **Every fill notarized** to Hedera HCS — the live track record stays
+  un-gameable.
+- **Closes always `reduceOnly:true`** (selling without it opens a separate
+  short — the #1 Propr pitfall).
+- The `0xpropr:` tx-hash prefix marks a Propr open; `closePositionById`
+  routes the close back through Propr, not the spot venue.
+
+### Account discovery
+
+The adapter's `setup()` runs 3-tier discovery: funded accounts
+(`/book-account-issuances`) → competition participations
+(`/competition-participations`) → challenge attempts
+(`/challenge-attempts`). If you've joined a tournament (e.g. the
+Lighter x Propr Trading Tournament), the competition participation
+surfaces the `accountId` automatically. Pin it with
+`PROPR_ACCOUNT_ID` to skip discovery.
+
+### Failure mode
+
+Propr declines (kill switch off, asset not listed, price unavailable,
+order rejected) return `null` and fall through to the spot/paper path —
+they **never throw** out of the trade loop. All declines + fills log
+with the `propr:` prefix.
 
 ---
 
@@ -260,16 +324,53 @@ suspect the channel isn't wired.
 
 ---
 
+## Public Telegram format (2026-07-11)
+
+Implementation: `apps/api/src/services/telegram-messages.ts`
+(signal posts: `apps/api/src/services/notify.ts`).
+
+### New signal broadcast (above-threshold trades)
+
+- Header: asset · action · conviction · band · **PAPER/LIVE**
+- Context line: **repo · primary detector · signal date**
+- Full thesis, proof block, deep link to `/signals/:id` + `/calibration`
+- Footer: “Verdict at T+1d · T+7d (auto-posted)”
+
+### Outcome verdict (T+1d / T+7d)
+
+Posted when a trade-grade call’s window matures (fresh ≤6h only).
+
+**Single verdict** includes:
+
+- Repo · detector · date · paper/live
+- Plain-language move: “Price rose +9% — SHORT loses — call WRONG”
+- Thesis snippet (≤100 chars)
+- Tier policy label when present
+- Cohort footer when ≥3 matured calls exist for that asset+window
+
+**Digest** (≥2 same asset + window in one hourly batch):
+
+- One post: “4 calls matured — 0/4 correct · avg directional”
+- Numbered entries with thesis + per-signal links
+- All-time cohort stat footer → `/calibration`
+
+Stale backfill verdicts are **not** broadcast (6h freshness gate).
+
+---
+
 ## Quick reference — what each kill switch does
 
-| Switch                         | Default | What it stops                                                       |
-| ------------------------------ | ------- | ------------------------------------------------------------------- |
-| `TRADING_ENABLED=false`        | yes     | Every live swap. Signals + scoring continue, trades route to paper. |
-| `TREASURY_MODE=paper`          | yes     | Same as above (older toggle). Both must be true for live.           |
-| Asset not in registry          | n/a     | Live swap for that asset; downgraded to paper.                      |
-| BSC chain ID ≠ 56              | n/a     | Live BNB trades on testnet (chainId 97). Registry is mainnet-only.  |
-| Treasury balance < amount+gas  | n/a     | Live swap when wallet can't cover. Fund the wallet.                 |
-| Pool TVL below floor           | n/a     | Live swap for that asset on that chain.                             |
-| 24h volume below floor         | n/a     | Live swap for that asset (CMC-gated).                               |
-| `MAX_CONCURRENT_POSITIONS` hit | 5       | New live opens; existing positions unaffected.                      |
-| `MAX_PER_ASSET_POSITIONS` hit  | 1       | Concentration in one asset; close existing first.                   |
+| Switch                         | Default | What it stops                                                        |
+| ------------------------------ | ------- | -------------------------------------------------------------------- |
+| `TRADING_ENABLED=false`        | yes     | Every live swap. Signals + scoring continue, trades route to paper.  |
+| `TREASURY_MODE=paper`          | yes     | Same as above (older toggle). Both must be true for live.            |
+| Asset not in registry          | n/a     | Live swap for that asset; downgraded to paper.                       |
+| BSC chain ID ≠ 56              | n/a     | Live BNB trades on testnet (chainId 97). Registry is mainnet-only.   |
+| Treasury balance < amount+gas  | n/a     | Live swap when wallet can't cover. Fund the wallet.                  |
+| Pool TVL below floor           | n/a     | Live swap for that asset on that chain.                              |
+| 24h volume below floor         | n/a     | Live swap for that asset (CMC-gated).                                |
+| `MAX_CONCURRENT_POSITIONS` hit | 5       | New live opens; existing positions unaffected.                       |
+| `MAX_PER_ASSET_POSITIONS` hit  | 1       | Concentration in one asset; close existing first.                    |
+| `PROPR_ENABLED=false`          | yes     | Live perp trades (shorts + L1 assets). Falls back to paper.          |
+| Propr asset not listed         | n/a     | Live perp for that asset; falls back to spot/paper.                  |
+| `PROPR_MAX_NOTIONAL_USD` clamp | 500     | Per-trade notional cap on perps. Floor via `PROPR_MIN_NOTIONAL_USD`. |

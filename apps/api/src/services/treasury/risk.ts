@@ -125,10 +125,14 @@ const PAPER: TradeMode = 'paper';
  * is just a paper-mode decision.
  */
 export async function evaluateTradeRisk(input: RiskGateInput): Promise<RiskGateDecision> {
-  // Shorts are always paper: spot venues have no short primitive,
-  // so a short is a tracked directional call, never an on-chain
-  // swap. (The old "close path" bypass sent shorts to the live swap
-  // route with a placeholder token, where every one of them crashed.)
+  // Spot venues have no short primitive, so a short that reaches
+  // this spot risk gate is forced to paper — it's a tracked
+  // directional call, never an on-chain swap. (Shorts now route to
+  // Propr Hyperliquid perps first, in executeAgentTrade, before this
+  // gate runs; this is the fallback when Propr is disabled or the
+  // asset isn't listed there. The old "close path" bypass sent shorts
+  // to the live swap route with a placeholder token, where every one
+  // of them crashed.)
   if (input.side === 'short') {
     return {
       effectiveMode: PAPER,

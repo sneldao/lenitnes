@@ -245,8 +245,11 @@ Three new modules, all under `services/treasury/`:
 
 - **`asset-registry.ts`** — coingeckoId → per-chain verified
   token address + liquidity floors. BSC mainnet only (BTCB, ETH);
-  L1s (SOL/SUI/ZEC) deliberately omitted. The registry is the
-  single source of truth for what's safe to trade live.
+  L1s (SOL/SUI/ZEC) omitted from the SPOT registry (no deep BSC
+  liquidity) but covered as Hyperliquid perps by the Propr adapter
+  (`services/venues/propr/`). The spot registry is the single source
+  of truth for what's safe to swap live on-chain; the Propr perp
+  registry is the equivalent for perps (shorts + L1-asset longs).
 - **`risk.ts`** — `evaluateTradeRisk()` runs every gate in order
   before the swap is signed. The kill switch
   (`TRADING_ENABLED=false` default), asset-registry membership,
