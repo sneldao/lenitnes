@@ -2,6 +2,7 @@ import { config } from '../config.js';
 import { logger } from '../logger.js';
 import { monitorRepoFromUrl } from './domain/repo-tier-policy.js';
 import { formatUtcShort } from './telegram-messages.js';
+import { classifySignalSource } from './domain/signal-source.js';
 
 // ─────────────────────────────────────────────────────────────
 // Non-trade actions: webhook, telegram, email.
@@ -203,6 +204,8 @@ export interface BroadcastSignalInput {
   detectedAt: string;
   /** Top detector type that fired (optional). */
   primaryDetector?: string | null;
+  /** All detector types that fired, used to derive signal source. */
+  detectorTypes?: string[];
   agentScore: {
     conviction: number;
     thesis: string;
@@ -247,8 +250,16 @@ export function formatSignalBroadcastMessage(input: BroadcastSignalInput): strin
   const modeTag = input.tradeReceipt?.mode === 'live' ? 'LIVE' : 'PAPER';
   const detector = input.primaryDetector ? ` · ${input.primaryDetector}` : '';
 
+  // Signal source attribution — the credibility layer. Tells readers
+  // whether this came from a single commit or a cross-repo synthesis.
+  const source = classifySignalSource(input.monitorUrl, input.detectorTypes);
+  const isSynthesis = source.category !== 'commit';
+
   lines.push(`🛡️ LENITNES · ${asset} ${action} · ${conviction}/100 (${band}) · ${modeTag}`);
   lines.push(`📍 ${repo}${detector} · ${formatUtcShort(input.detectedAt)}`);
+  if (isSynthesis) {
+    lines.push(`${source.tag} ${source.label} — ${source.explanation}`);
+  }
   lines.push('');
 
   lines.push(`💭 ${input.agentScore.thesis}`);

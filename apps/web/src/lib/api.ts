@@ -170,6 +170,7 @@ export interface SignalDetail extends Signal {
   classifications: DetectorClassification[];
   outcomes: OutcomeWindow[];
   agentScore: AgentScore | null;
+  signalSource?: SignalSource;
 }
 
 // ── Scorecard (public, the credibility surface) ───────────────
@@ -247,7 +248,30 @@ export interface ScorecardResponse {
   generatedAt: string;
 }
 
+// ── Signal source attribution ─────────────────────────────────
+
+export type SignalSourceCategory = 'commit' | 'narrative' | 'thesis' | 'proactive';
+
+export interface SignalSource {
+  category: SignalSourceCategory;
+  label: string;
+  explanation: string;
+  tag: string;
+}
+
 // ── Portfolio ─────────────────────────────────────────────────
+
+export interface PositionReasoning {
+  signalId: string | null;
+  thesis: string | null;
+  recommendedAction: 'long' | 'short' | 'none' | null;
+  conviction: number | null;
+  detectorTypes: string[];
+  sourceCategory: SignalSourceCategory;
+  sourceLabel: string;
+  sourceExplanation: string;
+  repo: string | null;
+}
 
 export interface PortfolioSummary {
   totalOpenPositions: number;
@@ -277,6 +301,7 @@ export interface OpenPosition {
   unrealizedPnlPct: number | null;
   takeProfitPrice: number | null;
   stopLossPrice: number | null;
+  reasoning: PositionReasoning | null;
 }
 
 export interface ClosedPosition {
@@ -293,6 +318,7 @@ export interface ClosedPosition {
   openedAt: string;
   closedAt: string;
   convictionAtOpen: number | null;
+  reasoning: PositionReasoning | null;
 }
 
 export interface PortfolioResponse {
@@ -395,6 +421,72 @@ export interface RepoTiersResponse {
   tiers: RepoTierEntry[];
 }
 
+// ── Intelligence dashboard ────────────────────────────────────
+
+export interface VelocityReading {
+  monitorId: string;
+  url: string;
+  repo: string;
+  asset: string | null;
+  current7d: number;
+  baselineWeekly: number;
+  stdWeekly: number;
+  deviation: number;
+  direction: 'elevated' | 'suppressed' | 'stable';
+  triggered: boolean;
+  score: number;
+}
+
+export interface PullRequestReading {
+  monitorId: string;
+  url: string;
+  repo: string;
+  asset: string | null;
+  prNumber: number;
+  title: string;
+  author: string;
+  prUrl: string;
+  additions: number;
+  deletions: number;
+  changedFiles: number;
+  comments: number;
+  reviewComments: number;
+  labels: string[];
+  score: number;
+  confidence: number;
+  reasons: string[];
+  triggered: boolean;
+}
+
+export interface NearMissSignal {
+  signalId: string;
+  detectedAt: string;
+  asset: string | null;
+  sourceCategory: SignalSourceCategory;
+  sourceLabel: string;
+  conviction: number;
+  recommendedAction: 'long' | 'short' | 'none';
+  thesis: string | null;
+  repo: string | null;
+}
+
+export interface SynthesisActivity {
+  category: string;
+  label: string;
+  total: number;
+  traded: number;
+  avgConviction: number | null;
+}
+
+export interface IntelligenceSnapshot {
+  generatedAt: string;
+  velocity: VelocityReading[];
+  pullRequests: PullRequestReading[];
+  nearMisses: NearMissSignal[];
+  synthesisActivity: SynthesisActivity[];
+  thresholds: { velocitySigma: number; prScore: number; conviction: number };
+}
+
 // ── Admin ─────────────────────────────────────────────────────
 
 export interface AdminStatusResponse {
@@ -484,6 +576,9 @@ export const api = {
     }),
 
   listPortfolio: () => reqCamel<PortfolioResponse>(`/portfolio`),
+
+  getIntelligence: (refresh = false) =>
+    reqCamel<IntelligenceSnapshot>(`/intelligence${refresh ? '?refresh=true' : ''}`),
 };
 
 // Backwards-compatible re-exports for old callers that imported

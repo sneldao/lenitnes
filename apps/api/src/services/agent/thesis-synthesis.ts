@@ -401,6 +401,7 @@ export async function runThesisSynthesis(): Promise<void> {
           confidence_band: agentScore.confidence_band,
           hcs_dispatch: agentScore.hcs_dispatch,
         },
+        detectorTypes: ['thesis_synthesis'],
         tradeReceipt: {
           chain: tradeReceipt.chain,
           txHash: tradeReceipt.txHash,

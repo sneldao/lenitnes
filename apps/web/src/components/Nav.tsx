@@ -10,6 +10,7 @@ const NAV_LINKS = [
   { href: '/scorecard', label: 'Scorecard' },
   { href: '/calibration', label: 'Calibration' },
   { href: '/portfolio', label: 'Portfolio' },
+  { href: '/intelligence', label: 'Intelligence' },
   { href: '/monitors', label: 'Watchlist' },
   { href: '/scan', label: 'Scan' },
   { href: '/methodology', label: 'How it works' },

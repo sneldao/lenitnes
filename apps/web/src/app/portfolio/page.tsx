@@ -20,6 +20,8 @@ import { formatPct, formatUsd, timeAgo, explorerUrl, txHashVenue } from '@/lib/f
 import { StatCard } from '@/components/ui/stat-card';
 import { SkeletonStatCard, SkeletonList } from '@/components/ui/skeleton';
 import { Breadcrumbs } from '@/components/ui/breadcrumbs';
+import { Tooltip } from '@/components/ui/tooltip';
+import { SignalSourceBadge } from '@/components/SignalSourceBadge';
 
 function priceUsd(n: number | null): string {
   if (n == null) return '—';
@@ -280,7 +282,12 @@ function OpenPositionCard({ position: p, index }: { position: OpenPosition; inde
           </p>
         </div>
         <div className="text-slate-500">
-          <span className="font-mono uppercase tracking-wider text-[10px]">tp / sl</span>
+          <Tooltip
+            wide
+            label="Take-profit (green target) and stop-loss (red shield) price levels. The stop-loss widens and the take-profit extends as conviction rises."
+          >
+            <span className="font-mono uppercase tracking-wider text-[10px]">tp / sl</span>
+          </Tooltip>
           <p className="mt-0.5 font-mono tabular-nums text-slate-400">
             {p.takeProfitPrice != null ? (
               <span className="text-signal/80">
@@ -297,6 +304,43 @@ function OpenPositionCard({ position: p, index }: { position: OpenPosition; inde
           </p>
         </div>
       </div>
+
+      {p.reasoning && (p.reasoning.thesis || p.reasoning.sourceCategory !== 'commit') && (
+        <div className="mt-3 rounded-lg border border-edge/40 bg-ink-light/40 p-3">
+          <div className="mb-1.5 flex items-center gap-2">
+            <SignalSourceBadge
+              category={p.reasoning.sourceCategory}
+              label={p.reasoning.sourceLabel}
+            />
+            {p.reasoning.repo && (
+              <span className="truncate font-mono text-[10px] text-slate-500">
+                {p.reasoning.repo}
+              </span>
+            )}
+            {p.reasoning.detectorTypes.length > 0 && (
+              <span className="truncate font-mono text-[10px] text-slate-600">
+                {p.reasoning.detectorTypes.join(' · ')}
+              </span>
+            )}
+          </div>
+          {p.reasoning.thesis && (
+            <p className="text-xs leading-relaxed text-slate-400">{p.reasoning.thesis}</p>
+          )}
+          {p.reasoning.sourceCategory !== 'commit' && (
+            <p className="mt-1 text-[10px] leading-relaxed text-slate-600">
+              {p.reasoning.sourceExplanation}
+            </p>
+          )}
+          {p.reasoning.signalId && (
+            <Link
+              href={`/signals/${p.reasoning.signalId}`}
+              className="mt-1.5 inline-flex items-center gap-1 text-[10px] font-mono text-accent hover:underline"
+            >
+              full reasoning →
+            </Link>
+          )}
+        </div>
+      )}
 
       {p.entryTxHash && (
         <div className="mt-3 border-t border-edge/30 pt-2">

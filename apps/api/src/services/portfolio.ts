@@ -1,6 +1,19 @@
 import { query } from '../db/pool.js';
 import { priceData } from './data-providers/registry.js';
 import { logger } from '../logger.js';
+import { classifySignalSource, explainSignalSource } from './domain/signal-source.js';
+
+export interface PositionReasoning {
+  signalId: string | null;
+  thesis: string | null;
+  recommendedAction: 'long' | 'short' | 'none' | null;
+  conviction: number | null;
+  detectorTypes: string[];
+  sourceCategory: string;
+  sourceLabel: string;
+  sourceExplanation: string;
+  repo: string | null;
+}
 
 export interface OpenPosition {
   id: string;
@@ -17,6 +30,8 @@ export interface OpenPosition {
   current_price_usd: number | null;
   unrealized_pnl_usd: number | null;
   unrealized_pnl_pct: number | null;
+  /** The reasoning chain behind this position (signal source + thesis). */
+  reasoning: PositionReasoning | null;
 }
 
 export interface ClosedPosition {
@@ -33,6 +48,7 @@ export interface ClosedPosition {
   opened_at: string;
   closed_at: string;
   conviction_at_open: number | null;
+  reasoning: PositionReasoning | null;
 }
 
 export interface PortfolioSummary {
@@ -102,6 +118,66 @@ async function fetchCurrentPrices(assets: string[]): Promise<Record<string, numb
   return out;
 }
 
+/**
+ * Fetch the reasoning chain behind positions: the originating
+ * signal's thesis, the agent's verdict, the detectors that fired,
+ * and the signal's source category (commit / narrative / thesis /
+ * proactive). Joins positions → signals → agent_scores +
+ * signal_classifications + monitors. Returns a map keyed by
+ * position_id.
+ */
+async function fetchPositionReasoning(
+  positionIds: string[],
+): Promise<Map<string, PositionReasoning>> {
+  const map = new Map<string, PositionReasoning>();
+  if (positionIds.length === 0) return map;
+
+  const { rows } = await query<{
+    position_id: string;
+    signal_id: string;
+    thesis: string | null;
+    recommended_action: 'long' | 'short' | 'none' | null;
+    conviction: number | null;
+    detector_types: string[] | null;
+    detector_metadata: Record<string, unknown> | null;
+    monitor_url: string | null;
+  }>(
+    `SELECT p.id AS position_id,
+            p.signal_id,
+            ag.thesis,
+            ag.recommended_action,
+            ag.conviction,
+            ARRAY_AGG(sc.detector_type) FILTER (WHERE sc.detector_type IS NOT NULL) AS detector_types,
+            (ARRAY_AGG(sc.metadata) FILTER (WHERE sc.metadata IS NOT NULL) ORDER BY sc.score DESC)[1] AS detector_metadata,
+            m.url AS monitor_url
+       FROM positions p
+       LEFT JOIN agent_scores ag ON ag.signal_id = p.signal_id
+       LEFT JOIN signal_classifications sc ON sc.signal_id = p.signal_id
+       LEFT JOIN signals s ON s.id = p.signal_id
+       LEFT JOIN monitors m ON m.id = s.monitor_id
+      WHERE p.id = ANY($1::uuid[])
+      GROUP BY p.id, ag.thesis, ag.recommended_action, ag.conviction, m.url`,
+    [positionIds],
+  );
+
+  for (const r of rows) {
+    const detectorTypes = (r.detector_types ?? []).filter(Boolean);
+    const source = classifySignalSource(r.monitor_url, detectorTypes);
+    map.set(r.position_id, {
+      signalId: r.signal_id,
+      thesis: r.thesis,
+      recommendedAction: r.recommended_action,
+      conviction: r.conviction,
+      detectorTypes,
+      sourceCategory: source.category,
+      sourceLabel: source.label,
+      sourceExplanation: explainSignalSource(r.monitor_url, detectorTypes, r.detector_metadata),
+      repo: r.monitor_url ? r.monitor_url.replace(/^https?:\/\/github\.com\//, '') : null,
+    });
+  }
+  return map;
+}
+
 export async function getOpenPositions(): Promise<OpenPosition[]> {
   const { rows } = await query<{
     id: string;
@@ -139,7 +215,10 @@ export async function getOpenPositions(): Promise<OpenPosition[]> {
     }),
   );
 
-  const currentPrices = await fetchCurrentPrices(enriched.map((r) => r.asset));
+  const [currentPrices, reasoningMap] = await Promise.all([
+    fetchCurrentPrices(enriched.map((r) => r.asset)),
+    fetchPositionReasoning(enriched.map((r) => r.id)),
+  ]);
 
   return enriched.map((r) => {
     const entryAmount = parseFloat(r.entry_amount);
@@ -168,6 +247,7 @@ export async function getOpenPositions(): Promise<OpenPosition[]> {
       current_price_usd: currentPrice,
       unrealized_pnl_usd: unrealizedPnlUsd,
       unrealized_pnl_pct: unrealizedPnlPct,
+      reasoning: reasoningMap.get(r.id) ?? null,
     };
   });
 }
@@ -201,6 +281,8 @@ export async function getClosedPositions(limit = 20): Promise<ClosedPosition[]> 
     [limit],
   );
 
+  const reasoningMap = await fetchPositionReasoning(rows.map((r) => r.id));
+
   return rows.map((r) => ({
     id: r.id,
     asset: r.asset,
@@ -215,6 +297,7 @@ export async function getClosedPositions(limit = 20): Promise<ClosedPosition[]> 
     opened_at: r.opened_at,
     closed_at: r.closed_at,
     conviction_at_open: r.conviction_at_open,
+    reasoning: reasoningMap.get(r.id) ?? null,
   }));
 }
 

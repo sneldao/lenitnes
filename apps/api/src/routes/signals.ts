@@ -6,6 +6,7 @@ import type { AgentScore, Signal } from '@lenitnes/types';
 import { cacheGet, cacheSet } from '../middleware/cache.js';
 import { createSignalShareToken } from '../services/share-token.js';
 import { fetchAgentScore } from '../services/agent.js';
+import { classifySignalSource, explainSignalSource } from '../services/domain/signal-source.js';
 
 export const signalsRouter = Router();
 
@@ -102,7 +103,7 @@ signalsRouter.get('/:id', async (req: Request, res: Response) => {
 
   const [classifications, outcomes] = await Promise.all([
     query(
-      `SELECT detector_type, score, confidence, label
+      `SELECT detector_type, score, confidence, label, metadata
          FROM signal_classifications
         WHERE signal_id = $1
         ORDER BY score DESC`,
@@ -121,6 +122,24 @@ signalsRouter.get('/:id', async (req: Request, res: Response) => {
   const evidenceHash = pkg.signal.evidence_text
     ? createHash('sha256').update(pkg.signal.evidence_text).digest('hex')
     : null;
+
+  // Signal source attribution — derived from monitor URL + detector types.
+  const classificationTypes = (classifications.rows as Array<{ detector_type: string }>).map(
+    (c) => c.detector_type,
+  );
+  const topClassification = (
+    classifications.rows as Array<{ metadata: Record<string, unknown> | null }>
+  )[0];
+  const sourceCategory = classifySignalSource(pkg.monitor?.url, classificationTypes);
+  const signalSource = {
+    ...sourceCategory,
+    explanation: explainSignalSource(
+      pkg.monitor?.url,
+      classificationTypes,
+      topClassification?.metadata,
+    ),
+  };
+
   const checklist = [
     {
       name: 'Detection timestamp',
@@ -165,5 +184,6 @@ signalsRouter.get('/:id', async (req: Request, res: Response) => {
     classifications: classifications.rows,
     outcomes: outcomes.rows,
     agent_score: pkg.agent_score,
+    signal_source: signalSource,
   });
 });

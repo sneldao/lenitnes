@@ -35,6 +35,7 @@ import {
   formatIsoShort,
 } from '@/lib/format';
 import { useTypewriter } from '@/lib/hooks/useTypewriter';
+import { Tooltip } from '@/components/ui/tooltip';
 import type { AgentScore, DetectorClassification } from '@/lib/api';
 
 interface AgentReasoningCardProps {
@@ -58,7 +59,7 @@ function ConvictionBar({ value, max = 100 }: { value: number; max?: number }) {
     <div className="relative h-1 w-full overflow-hidden rounded-full bg-edge/40">
       <div
         className={cn(
-          'absolute inset-y-0 left-0 rounded-full transition-all duration-700 ease-out',
+          'absolute inset-y-0 left-0 rounded-full transition-all duration-slower ease-smooth-out',
           color,
         )}
         style={{ width: `${width}%` }}
@@ -153,9 +154,17 @@ export function AgentReasoningCard({
 
         {/* Conviction number */}
         <div className="shrink-0 text-right">
-          <div className={cn('font-mono text-4xl font-bold leading-none', convColor)}>
-            {agentScore.conviction}
-          </div>
+          <Tooltip
+            wide
+            label="The agent's scored confidence (0–100) from the rubric. ≥ 70 clears the trade threshold, and position size scales with it."
+            side="bottom"
+          >
+            <span
+              className={cn('font-mono text-4xl font-bold leading-none tabular-nums', convColor)}
+            >
+              {agentScore.conviction}
+            </span>
+          </Tooltip>
           <div className="mt-0.5 font-mono text-xs text-slate-500">/100 conviction</div>
         </div>
       </div>

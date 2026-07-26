@@ -248,7 +248,10 @@ body {
 
 .card {
   @apply rounded-2xl border border-edge/60 bg-panel/80 p-6 shadow-card backdrop-blur-sm;
-  @apply transition-all duration-300 ease-out;
+  transition:
+    border-color var(--duration-fast) var(--ease-smooth-out),
+    box-shadow var(--duration-fast) var(--ease-smooth-out),
+    transform var(--duration-fast) var(--ease-smooth-out);
 }
 .card:hover {
   @apply border-edge-light/60 shadow-card-hover;
@@ -260,27 +263,40 @@ body {
 }
 
 .btn {
-  @apply inline-flex items-center justify-center gap-2 rounded-xl bg-accent px-5 py-2.5 text-sm font-semibold text-ink shadow-glow-sm transition-all duration-150 cursor-pointer select-none;
+  @apply inline-flex items-center justify-center gap-2 rounded-xl bg-accent px-5 py-2.5 text-sm font-semibold text-ink shadow-glow-sm cursor-pointer select-none;
   @apply hover:bg-accent-glow hover:shadow-glow disabled:opacity-40 disabled:shadow-none disabled:cursor-not-allowed;
   @apply active:scale-[0.97] active:shadow-none;
   @apply focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-ink;
+  transition:
+    background-color var(--duration-quick) var(--ease-out),
+    box-shadow var(--duration-quick) var(--ease-out),
+    transform var(--duration-quick) var(--ease-out);
 }
 
 .btn-ghost {
-  @apply inline-flex items-center justify-center gap-2 rounded-xl border border-edge bg-transparent px-5 py-2.5 text-sm font-semibold text-slate-300 transition-all duration-150 cursor-pointer select-none;
+  @apply inline-flex items-center justify-center gap-2 rounded-xl border border-edge bg-transparent px-5 py-2.5 text-sm font-semibold text-slate-300 cursor-pointer select-none;
   @apply hover:border-accent/40 hover:text-accent hover:bg-accent/5;
   @apply active:scale-[0.97] active:bg-accent/10;
   @apply focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-ink;
+  transition:
+    background-color var(--duration-quick) var(--ease-out),
+    border-color var(--duration-quick) var(--ease-out),
+    color var(--duration-quick) var(--ease-out),
+    transform var(--duration-quick) var(--ease-out);
 }
 
 .btn-danger {
-  @apply inline-flex items-center justify-center gap-2 rounded-xl bg-danger/10 border border-danger/20 px-5 py-2.5 text-sm font-semibold text-danger transition-all duration-150 cursor-pointer select-none;
+  @apply inline-flex items-center justify-center gap-2 rounded-xl bg-danger/10 border border-danger/20 px-5 py-2.5 text-sm font-semibold text-danger cursor-pointer select-none;
   @apply hover:bg-danger/20 hover:border-danger/40;
   @apply active:scale-[0.97];
+  transition:
+    background-color var(--duration-quick) var(--ease-out),
+    border-color var(--duration-quick) var(--ease-out),
+    transform var(--duration-quick) var(--ease-out);
 }
 
 .input {
-  @apply w-full rounded-xl border border-edge bg-ink-light/80 px-4 py-3 text-sm text-slate-100 outline-none transition-all duration-200;
+  @apply w-full rounded-xl border border-edge bg-ink-light/80 px-4 py-3 text-sm text-slate-100 outline-none transition-all duration-quick;
   @apply placeholder:text-slate-600;
   @apply focus:border-accent/60 focus:bg-ink focus:shadow-glow-sm;
   @apply focus-visible:ring-2 focus-visible:ring-accent/30 focus-visible:ring-offset-0;
@@ -300,7 +316,7 @@ body {
 
 .stat-card {
   @apply rounded-xl border border-edge/40 bg-ink-light/50 p-4 backdrop-blur-sm;
-  @apply transition-all duration-300 ease-out;
+  @apply transition-all duration-fast ease-smooth-out;
 }
 .stat-card:hover {
   @apply border-edge-light/40 shadow-card;
@@ -517,6 +533,29 @@ body {
   opacity: 1;
 }
 
+/* ─── Stat value pop-in (transitions.dev digit reveal) ───
+     Reads the --digit-* token block so large numbers land with
+     weight: rise + de-blur on an overshoot ease. */
+@keyframes digit-pop {
+  0% {
+    opacity: 0;
+    transform: translate(
+        calc(var(--digit-dir-x, 0) * var(--digit-distance, 8px)),
+        calc(var(--digit-dir-y, 1) * var(--digit-distance, 8px))
+      )
+      scale(0.98);
+    filter: blur(var(--digit-blur, 2px));
+  }
+  100% {
+    opacity: 1;
+    transform: translate(0, 0) scale(1);
+    filter: blur(0);
+  }
+}
+.animate-digit-pop {
+  animation: digit-pop var(--digit-dur, 500ms) var(--digit-ease) both;
+}
+
 /* ─── Tooltip (transitions.dev 17) ───
      Pure CSS delayed fade+scale. Wrap trigger in
      <span class="t-tt-wrap"> and add <span class="t-tt">. */
@@ -554,6 +593,34 @@ body {
   transition:
     opacity var(--tt-out-dur) var(--tt-out-ease),
     transform var(--tt-out-dur) var(--tt-out-ease);
+}
+/* Bottom placement */
+.t-tt--bottom {
+  bottom: auto;
+  top: calc(100% + 6px);
+}
+/* Wrapping variant for longer explanations */
+.t-tt--wide {
+  white-space: normal;
+  width: max-content;
+  max-width: 240px;
+  line-height: 1.45;
+  text-align: left;
+}
+/* Arrow */
+.t-tt::after {
+  content: '';
+  position: absolute;
+  left: 50%;
+  bottom: -4px;
+  width: 8px;
+  height: 8px;
+  background: var(--tt-bg, #1a2332);
+  transform: translateX(-50%) rotate(45deg);
+}
+.t-tt--bottom::after {
+  bottom: auto;
+  top: -4px;
 }
 
 @media print {

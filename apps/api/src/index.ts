@@ -15,6 +15,7 @@ import { proofRouter } from './routes/proof.js';
 import { dlqRouter } from './routes/dlq.js';
 import { backtestRouter } from './routes/backtest.js';
 import { portfolioRouter } from './routes/portfolio.js';
+import { intelligenceRouter } from './routes/intelligence.js';
 // Day 7: leaderboard router is removed (per-user feature dropped
 // in the pivot). The /scorecard route replaces it.
 import { scorecardRouter } from './routes/scorecard.js';
@@ -147,6 +148,7 @@ app.use('/orders', ordersRouter);
 app.use('/dlq', dlqRouter);
 app.use('/backtest', backtestRouter);
 app.use('/portfolio', portfolioRouter);
+app.use('/intelligence', intelligenceRouter);
 app.use('/sosovalue', sosovalueRouter);
 
 // Centralized error handler.

@@ -556,6 +556,7 @@ export async function runNarrativeScan(): Promise<void> {
           confidence_band: agentScore.confidence_band,
           hcs_dispatch: agentScore.hcs_dispatch,
         },
+        detectorTypes: classifications.map((c) => c.detector_type),
         tradeReceipt: {
           chain: tradeReceipt.chain,
           txHash: tradeReceipt.txHash,

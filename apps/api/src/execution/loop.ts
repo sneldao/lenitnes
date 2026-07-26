@@ -766,6 +766,7 @@ export async function executeCheck(monitor: Monitor): Promise<{
       monitorUrl: monitor.url,
       detectedAt: new Date().toISOString(),
       primaryDetector: topDetector ?? null,
+      detectorTypes: detectorResultsFull.map((d) => d.type),
       agentScore: {
         conviction: agentScore.conviction,
         thesis: agentScore.thesis,

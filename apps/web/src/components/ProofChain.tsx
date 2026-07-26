@@ -97,7 +97,7 @@ export default function ProofChain({ steps, title, subtitle, className = '' }: P
               )}
               <button
                 onClick={() => toggle(step.id)}
-                className="card relative z-10 flex w-full cursor-pointer flex-col items-center px-4 py-5 text-center transition-all duration-300 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent"
+                className="card relative z-10 flex w-full cursor-pointer flex-col items-center px-4 py-5 text-center transition-all duration-fast focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent"
                 style={
                   isActive
                     ? ({

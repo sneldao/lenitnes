@@ -55,14 +55,29 @@ const IMPACT_KEYWORDS = [
   'update',
 ];
 
-interface PRScore {
+/** Impact score threshold at which a PR fires a signal. */
+export const PR_SIGNAL_THRESHOLD = 60;
+
+export interface PullRequestReading {
   monitorId: string;
   url: string;
+  repo: string;
   asset: string | null;
-  pr: GitHubPullRequest;
+  prNumber: number;
+  title: string;
+  author: string;
+  prUrl: string;
+  additions: number;
+  deletions: number;
+  changedFiles: number;
+  comments: number;
+  reviewComments: number;
+  labels: string[];
   score: number;
   confidence: number;
   reasons: string[];
+  /** True when score ≥ PR_SIGNAL_THRESHOLD. */
+  triggered: boolean;
 }
 
 function scorePullRequest(pr: GitHubPullRequest): {
@@ -154,7 +169,66 @@ function scorePullRequest(pr: GitHubPullRequest): {
   };
 }
 
-/** Detect high-impact open PRs across all active monitors. */
+/**
+ * Scan every active GitHub monitor's open PRs and score them all
+ * (including sub-threshold / near-miss) so the intelligence
+ * dashboard can surface "watch this" PRs, not just fired ones.
+ */
+export async function scanPullRequests(): Promise<PullRequestReading[]> {
+  const { rows: monitors } = await query<{ id: string; url: string; asset: string | null }>(
+    `SELECT id, url, asset_mapping->>'coingeckoId' AS asset
+       FROM monitors
+      WHERE status = 'active'
+        AND url LIKE 'https://github.com/%'
+        AND url NOT LIKE 'narrative:%'
+        AND url NOT LIKE 'synthesis:%'
+        AND url NOT LIKE 'proactive:%'`,
+  );
+
+  const readings: PullRequestReading[] = [];
+
+  for (const m of monitors) {
+    try {
+      const prs = await fetchOpenPullRequests(m.url, 20);
+      if (!prs || prs.length === 0) continue;
+
+      const parsed = parseRepo(m.url);
+      const repo = parsed ? `${parsed.owner}/${parsed.repo}` : m.url;
+
+      for (const pr of prs) {
+        const { score, confidence, reasons } = scorePullRequest(pr);
+        readings.push({
+          monitorId: m.id,
+          url: m.url,
+          repo,
+          asset: m.asset,
+          prNumber: pr.number,
+          title: pr.title,
+          author: pr.author,
+          prUrl: pr.url,
+          additions: pr.additions,
+          deletions: pr.deletions,
+          changedFiles: pr.changedFiles,
+          comments: pr.comments,
+          reviewComments: pr.reviewComments,
+          labels: pr.labels,
+          score,
+          confidence,
+          reasons,
+          triggered: score >= PR_SIGNAL_THRESHOLD,
+        });
+      }
+    } catch (err) {
+      logger.warn({ err, url: m.url }, 'pr-activity: scan failed for monitor');
+    }
+  }
+
+  // Highest impact first.
+  readings.sort((a, b) => b.score - a.score);
+  return readings;
+}
+
+/** Detect high-impact open PRs (threshold-gated) for signal generation. */
 export async function detectHighImpactPRs(): Promise<
   Array<{
     monitorId: string;
@@ -163,15 +237,7 @@ export async function detectHighImpactPRs(): Promise<
     classification: SignalClassification;
   }>
 > {
-  const { rows: monitors } = await query<{ id: string; url: string; asset: string | null }>(
-    `SELECT id, url, asset_mapping->>'coingeckoId' AS asset
-       FROM monitors
-      WHERE status = 'active'
-        AND url LIKE 'https://github.com/%'
-        AND url NOT LIKE 'narrative:%'
-        AND url NOT LIKE 'synthesis:%'`,
-  );
-
+  const readings = await scanPullRequests();
   const results: Array<{
     monitorId: string;
     url: string;
@@ -179,47 +245,31 @@ export async function detectHighImpactPRs(): Promise<
     classification: SignalClassification;
   }> = [];
 
-  for (const m of monitors) {
-    try {
-      const prs = await fetchOpenPullRequests(m.url, 20);
-      if (!prs || prs.length === 0) continue;
-
-      // Score each PR, keep those above threshold.
-      for (const pr of prs) {
-        const { score, confidence, reasons } = scorePullRequest(pr);
-        if (score < 60) continue; // Threshold.
-
-        const repoSlug = parseRepo(m.url)
-          ? `${parseRepo(m.url)!.owner}/${parseRepo(m.url)!.repo}`
-          : m.url;
-
-        results.push({
-          monitorId: m.id,
-          url: m.url,
-          asset: m.asset,
-          classification: {
-            type: 'pr_activity',
-            score,
-            confidence,
-            label: `${repoSlug}#${pr.number}: ${pr.title.slice(0, 60)}`,
-            metadata: {
-              prNumber: pr.number,
-              prUrl: pr.url,
-              author: pr.author,
-              additions: pr.additions,
-              deletions: pr.deletions,
-              changedFiles: pr.changedFiles,
-              comments: pr.comments,
-              reviewComments: pr.reviewComments,
-              labels: pr.labels,
-              reasons,
-            },
-          },
-        });
-      }
-    } catch (err) {
-      logger.warn({ err, url: m.url }, 'pr-activity: check failed for monitor');
-    }
+  for (const r of readings) {
+    if (!r.triggered) continue;
+    results.push({
+      monitorId: r.monitorId,
+      url: r.url,
+      asset: r.asset,
+      classification: {
+        type: 'pr_activity',
+        score: r.score,
+        confidence: r.confidence,
+        label: `${r.repo}#${r.prNumber}: ${r.title.slice(0, 60)}`,
+        metadata: {
+          prNumber: r.prNumber,
+          prUrl: r.prUrl,
+          author: r.author,
+          additions: r.additions,
+          deletions: r.deletions,
+          changedFiles: r.changedFiles,
+          comments: r.comments,
+          reviewComments: r.reviewComments,
+          labels: r.labels,
+          reasons: r.reasons,
+        },
+      },
+    });
   }
 
   return results;

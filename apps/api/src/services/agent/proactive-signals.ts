@@ -263,6 +263,7 @@ async function processHit(hit: ProactiveHit, monitorId: string, threshold: numbe
         confidence_band: agentScore.confidence_band,
         hcs_dispatch: agentScore.hcs_dispatch,
       },
+      detectorTypes: [hit.classification.type],
       tradeReceipt: {
         chain: tradeReceipt.chain,
         txHash: tradeReceipt.txHash,

@@ -4,6 +4,7 @@
  */
 
 import type { MonitorStatus, RepoTier } from '@lenitnes/types';
+import type { SignalSourceCategory } from './api';
 
 // ── Time ──────────────────────────────────────────────────────────────────
 
@@ -258,4 +259,51 @@ export function tierBadgeClass(tier?: RepoTier): string {
   if (tier === 'C') return 'bg-danger/15 text-danger';
   if (tier === 'B') return 'bg-accent/10 text-accent';
   return 'bg-slate-800 text-slate-500';
+}
+
+// ── Signal source attribution ──────────────────────────────────────────────
+
+/** Tailwind classes for signal-source badges (commit vs synthesis surfaces). */
+export function sourceBadgeClass(category: SignalSourceCategory | null | undefined): string {
+  switch (category) {
+    case 'narrative':
+      return 'bg-accent/15 text-accent';
+    case 'thesis':
+      return 'bg-violet/15 text-violet';
+    case 'proactive':
+      return 'bg-warn/15 text-warn';
+    case 'commit':
+    default:
+      return 'bg-edge/60 text-slate-400';
+  }
+}
+
+/** Short human label for a signal source category. */
+export function sourceLabel(category: SignalSourceCategory | null | undefined): string {
+  switch (category) {
+    case 'narrative':
+      return 'Narrative';
+    case 'thesis':
+      return 'Thesis';
+    case 'proactive':
+      return 'Proactive';
+    case 'commit':
+    default:
+      return 'Commit';
+  }
+}
+
+/** Emoji tag for a signal source category (matches the backend signal-source tags). */
+export function sourceTag(category: SignalSourceCategory | null | undefined): string {
+  switch (category) {
+    case 'narrative':
+      return '🌐';
+    case 'thesis':
+      return '🧩';
+    case 'proactive':
+      return '⚡';
+    case 'commit':
+    default:
+      return '🔍';
+  }
 }

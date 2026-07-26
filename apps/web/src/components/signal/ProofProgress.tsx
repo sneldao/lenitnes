@@ -16,14 +16,14 @@ export function ProofProgress({ signal }: { signal: Signal }) {
       {steps.map((step, i) => (
         <div key={step.label} className="flex items-center gap-0">
           <div
-            className={`h-1.5 w-1.5 rounded-full transition-all duration-300 ${
+            className={`h-1.5 w-1.5 rounded-full transition-all duration-fast ${
               step.done ? step.color : 'bg-edge'
             } ${step.done ? 'shadow-glow-sm' : ''}`}
             title={`${step.label}: ${step.done ? 'Done' : 'Pending'}`}
           />
           {i < steps.length - 1 && (
             <div
-              className={`h-px w-2 transition-all duration-300 ${
+              className={`h-px w-2 transition-all duration-fast ${
                 step.done ? 'bg-edge-light' : 'bg-edge/50'
               }`}
             />

@@ -60,7 +60,7 @@ export default function MethodologyPage() {
               href={`https://github.com/${repo.repo}`}
               target="_blank"
               rel="noreferrer"
-              className="group rounded-xl border border-edge/30 bg-ink-light/40 p-3 transition-all duration-200 hover:border-accent/30 hover:bg-ink-light/60"
+              className="group rounded-xl border border-edge/30 bg-ink-light/40 p-3 transition-all duration-quick hover:border-accent/30 hover:bg-ink-light/60"
             >
               <div className="font-mono text-xs text-slate-300 group-hover:text-accent">
                 {repo.repo}
@@ -93,7 +93,7 @@ export default function MethodologyPage() {
           {DETECTORS.map((d) => (
             <div
               key={d.name}
-              className="rounded-lg border border-edge/30 bg-ink-light/40 p-3 transition-colors duration-200 hover:border-edge/50"
+              className="rounded-lg border border-edge/30 bg-ink-light/40 p-3 transition-colors duration-quick hover:border-edge/50"
             >
               <div className="flex items-center gap-1.5">
                 {d.icon === 'newspaper' ? (

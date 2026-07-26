@@ -76,7 +76,7 @@ function ReasoningRow({ call, isNew }: { call: ScorecardRecentCall; isNew: boole
     <Link
       href={`/signals/${call.signalId}`}
       className={cn(
-        'group flex items-start gap-3 rounded-lg border px-3 py-2.5 transition-all duration-200',
+        'group flex items-start gap-3 rounded-lg border px-3 py-2.5 transition-all duration-quick',
         'hover:border-accent/30 hover:bg-accent/5',
         aboveThreshold ? 'border-signal/20 bg-signal/5' : 'border-edge/30 bg-transparent',
         isNew && 'animate-fade-slide-up',
@@ -179,7 +179,7 @@ export function AgentActivityPanel() {
     <aside
       className={cn(
         'rounded-2xl border border-edge/50 bg-panel/70 backdrop-blur-sm',
-        'transition-all duration-300',
+        'transition-all duration-fast',
       )}
     >
       {/* ── Header row — proper button so keyboard users can toggle ── */}

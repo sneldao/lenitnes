@@ -64,7 +64,102 @@ function stats(arr: number[]): { mean: number; std: number } {
   return { mean, std: Math.sqrt(variance) };
 }
 
-/** Detect velocity anomalies across all active monitors. */
+/** Deviation threshold (in σ) at which a velocity reading fires a signal. */
+export const VELOCITY_SIGNAL_THRESHOLD = 2;
+
+export interface VelocityReading {
+  monitorId: string;
+  url: string;
+  repo: string;
+  asset: string | null;
+  current7d: number;
+  baselineWeekly: number;
+  stdWeekly: number;
+  deviation: number;
+  direction: 'elevated' | 'suppressed' | 'stable';
+  /** True when |deviation| ≥ VELOCITY_SIGNAL_THRESHOLD. */
+  triggered: boolean;
+  score: number;
+}
+
+/**
+ * Scan every active GitHub monitor and compute its current commit
+ * velocity vs the 30-day baseline. Returns ALL readings (including
+ * sub-threshold / near-miss) so the intelligence dashboard can
+ * surface "watch this" signals, not just fired ones.
+ */
+export async function scanVelocity(): Promise<VelocityReading[]> {
+  const { rows: monitors } = await query<{ id: string; url: string; asset: string | null }>(
+    `SELECT id, url, asset_mapping->>'coingeckoId' AS asset
+       FROM monitors
+      WHERE status = 'active'
+        AND url LIKE 'https://github.com/%'
+        AND url NOT LIKE 'narrative:%'
+        AND url NOT LIKE 'synthesis:%'
+        AND url NOT LIKE 'proactive:%'`,
+  );
+
+  const readings: VelocityReading[] = [];
+
+  for (const m of monitors) {
+    try {
+      const counts30d = await dailyCommitCounts(m.url, 30);
+      if (counts30d.length === 0) continue;
+
+      const current7d = counts30d.slice(0, 7).reduce((s, v) => s + v, 0);
+      const baselineDays = counts30d.slice(7);
+      const { mean, std } = stats(baselineDays);
+
+      const baselineWeekly = mean * 7;
+      const stdWeekly = std * Math.sqrt(7);
+
+      // Too stable to measure deviation meaningfully.
+      if (stdWeekly < 0.5) {
+        readings.push({
+          monitorId: m.id,
+          url: m.url,
+          repo: repoSlug(m.url),
+          asset: m.asset,
+          current7d,
+          baselineWeekly: Math.round(baselineWeekly * 10) / 10,
+          stdWeekly: Math.round(stdWeekly * 100) / 100,
+          deviation: 0,
+          direction: 'stable',
+          triggered: false,
+          score: 0,
+        });
+        continue;
+      }
+
+      const deviation = (current7d - baselineWeekly) / stdWeekly;
+      const direction: VelocityReading['direction'] =
+        Math.abs(deviation) < 0.5 ? 'stable' : deviation > 0 ? 'elevated' : 'suppressed';
+      const triggered = Math.abs(deviation) >= VELOCITY_SIGNAL_THRESHOLD;
+
+      readings.push({
+        monitorId: m.id,
+        url: m.url,
+        repo: repoSlug(m.url),
+        asset: m.asset,
+        current7d,
+        baselineWeekly: Math.round(baselineWeekly * 10) / 10,
+        stdWeekly: Math.round(stdWeekly * 100) / 100,
+        deviation: Math.round(deviation * 100) / 100,
+        direction,
+        triggered,
+        score: Math.min(100, Math.round(Math.abs(deviation) * 15)),
+      });
+    } catch (err) {
+      logger.warn({ err, url: m.url }, 'velocity: scan failed for monitor');
+    }
+  }
+
+  // Most anomalous first.
+  readings.sort((a, b) => Math.abs(b.deviation) - Math.abs(a.deviation));
+  return readings;
+}
+
+/** Detect velocity anomalies (threshold-gated) for signal generation. */
 export async function detectVelocityAnomalies(): Promise<
   Array<{
     monitorId: string;
@@ -73,15 +168,7 @@ export async function detectVelocityAnomalies(): Promise<
     classification: SignalClassification;
   }>
 > {
-  const { rows: monitors } = await query<{ id: string; url: string; asset: string | null }>(
-    `SELECT id, url, asset_mapping->>'coingeckoId' AS asset
-       FROM monitors
-      WHERE status = 'active'
-        AND url LIKE 'https://github.com/%'
-        AND url NOT LIKE 'narrative:%'
-        AND url NOT LIKE 'synthesis:%'`,
-  );
-
+  const readings = await scanVelocity();
   const results: Array<{
     monitorId: string;
     url: string;
@@ -89,53 +176,26 @@ export async function detectVelocityAnomalies(): Promise<
     classification: SignalClassification;
   }> = [];
 
-  for (const m of monitors) {
-    try {
-      const counts30d = await dailyCommitCounts(m.url, 30);
-      if (counts30d.length === 0) continue;
-
-      // Current 7-day window (most recent).
-      const current7d = counts30d.slice(0, 7).reduce((s, v) => s + v, 0);
-      // Baseline: days 8-30 (exclude current week to avoid self-contamination).
-      const baselineDays = counts30d.slice(7);
-      const { mean, std } = stats(baselineDays);
-
-      // Normalize to weekly scale.
-      const baselineWeekly = mean * 7;
-      const stdWeekly = std * Math.sqrt(7);
-
-      if (stdWeekly < 0.5) continue; // Too stable to measure deviation.
-
-      const deviation = (current7d - baselineWeekly) / stdWeekly;
-
-      // Threshold: ±2σ.
-      if (Math.abs(deviation) < 2) continue;
-
-      const isSpike = deviation > 0;
-      const direction = isSpike ? 'elevated' : 'suppressed';
-      const score = Math.min(100, Math.round(Math.abs(deviation) * 15));
-      const confidence = Math.min(100, Math.round(50 + Math.abs(deviation) * 10));
-
-      results.push({
-        monitorId: m.id,
-        url: m.url,
-        asset: m.asset,
-        classification: {
-          type: 'velocity_anomaly',
-          score,
-          confidence,
-          label: `${repoSlug(m.url)}: ${direction} commit velocity (${deviation > 0 ? '+' : ''}${deviation.toFixed(1)}σ)`,
-          metadata: {
-            current7d,
-            baselineWeekly: Math.round(baselineWeekly * 10) / 10,
-            deviation: Math.round(deviation * 100) / 100,
-            direction,
-          },
+  for (const r of readings) {
+    if (!r.triggered || r.direction === 'stable') continue;
+    const confidence = Math.min(100, Math.round(50 + Math.abs(r.deviation) * 10));
+    results.push({
+      monitorId: r.monitorId,
+      url: r.url,
+      asset: r.asset,
+      classification: {
+        type: 'velocity_anomaly',
+        score: r.score,
+        confidence,
+        label: `${r.repo}: ${r.direction} commit velocity (${r.deviation > 0 ? '+' : ''}${r.deviation.toFixed(1)}σ)`,
+        metadata: {
+          current7d: r.current7d,
+          baselineWeekly: r.baselineWeekly,
+          deviation: r.deviation,
+          direction: r.direction,
         },
-      });
-    } catch (err) {
-      logger.warn({ err, url: m.url }, 'velocity: anomaly check failed for monitor');
-    }
+      },
+    });
   }
 
   return results;

@@ -16,6 +16,7 @@ export const qk = {
   publicProof: (id: string) => ['public-proof', id] as const,
   monitors: () => ['monitors'] as const,
   portfolio: () => ['portfolio'] as const,
+  intelligence: () => ['intelligence'] as const,
   adminStatus: () => ['admin', 'status'] as const,
 };
 

@@ -30,6 +30,22 @@ const config: Config = {
         mono: ['"JetBrains Mono"', 'ui-monospace', 'SFMono-Regular', 'monospace'],
         display: ['Fraunces', 'ui-serif', 'Georgia', 'serif'],
       },
+      // Semantic motion scale — reads from the transitions.dev token
+      // block in globals.css so every component animates on the same
+      // timing vocabulary instead of ad-hoc durations.
+      transitionDuration: {
+        micro: 'var(--duration-micro)',
+        quick: 'var(--duration-quick)',
+        fast: 'var(--duration-fast)',
+        medium: 'var(--duration-medium)',
+        slow: 'var(--duration-slow)',
+        slower: 'var(--duration-very-slow)',
+      },
+      transitionTimingFunction: {
+        'smooth-out': 'var(--ease-smooth-out)',
+        bounce: 'var(--ease-bounce)',
+        'bounce-strong': 'var(--ease-bounce-strong)',
+      },
       backgroundImage: {
         'grid-pattern':
           'linear-gradient(to right, rgba(26,35,50,0.3) 1px, transparent 1px), linear-gradient(to bottom, rgba(26,35,50,0.3) 1px, transparent 1px)',

@@ -4,8 +4,9 @@ import { use, useEffect, useMemo, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import Link from 'next/link';
 import { usePathname, useSearchParams } from 'next/navigation';
-import { api } from '@/lib/api';
+import { api, type AgentScore, type OutcomeWindow } from '@/lib/api';
 import { qk } from '@/lib/queryKeys';
+import { cn } from '@/lib/utils';
 import {
   Clock,
   ArrowLeft,
@@ -23,10 +24,15 @@ import {
 import ProofChain from '@/components/ProofChain';
 import { getProofChainSteps } from '@/lib/proof-chain';
 import { AgentReasoningCard } from '@/components/AgentReasoningCard';
+import { SignalSourceBadge } from '@/components/SignalSourceBadge';
 import { CheckItem } from '@/components/signal/CheckItem';
 import { SignalRow } from '@/components/signal/SignalRow';
 import { ProofProgress } from '@/components/signal/ProofProgress';
 import { PageLoader } from '@/components/ui/page-states';
+import { Reveal } from '@/components/ui/reveal';
+import { Tooltip } from '@/components/ui/tooltip';
+import { CollapsibleSection } from '@/components/ui/collapsible-section';
+import { convictionColor } from '@/lib/format';
 
 // Public-facing proof explorer for a single signal.
 // Supports both authenticated (private) and public (shareable) modes.
@@ -229,6 +235,14 @@ export default function SignalDetailPage({ params }: { params: Promise<{ id: str
         </div>
       </div>
 
+      {/* ── Verdict hero — lead with the answer, not the receipt ──
+          First thing a visitor sees: what the agent concluded and how
+          sure it was. The detection metadata, evidence, and proof chain
+          all sit below as progressive disclosure supporting the call. */}
+      {signal.agentScore && (
+        <VerdictHero agentScore={signal.agentScore} outcomes={signal.outcomes} />
+      )}
+
       {!isPublic && (
         <div className="card border-accent/20 bg-accent/5">
           <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
@@ -300,33 +314,65 @@ export default function SignalDetailPage({ params }: { params: Promise<{ id: str
         </div>
       )}
 
-      <div className="card space-y-4">
-        <div className="grid gap-4 sm:grid-cols-2">
-          <SignalRow
-            icon={Clock}
-            label="Detected at"
-            value={new Date(signal.detectedAt).toLocaleString()}
-          />
-          <SignalRow icon={Eye} label="Target URL" value={signal.monitor?.url ?? '\u2014'} mono />
+      <Reveal>
+        <div className="card space-y-4">
+          <div className="grid gap-4 sm:grid-cols-2">
+            <SignalRow
+              icon={Clock}
+              label="Detected at"
+              value={new Date(signal.detectedAt).toLocaleString()}
+            />
+            <SignalRow icon={Eye} label="Target URL" value={signal.monitor?.url ?? '\u2014'} mono />
+          </div>
+          <div className="border-t border-edge/40 pt-4">
+            <SignalRow
+              icon={Eye}
+              label="Condition"
+              value={signal.monitor?.conditionText ?? '\u2014'}
+            />
+          </div>
+          <div className="border-t border-edge/40 pt-4">
+            <SignalRow icon={Zap} label="Summary" value={signal.conditionSummary ?? '\u2014'} />
+          </div>
         </div>
-        <div className="border-t border-edge/40 pt-4">
-          <SignalRow
-            icon={Eye}
-            label="Condition"
-            value={signal.monitor?.conditionText ?? '\u2014'}
-          />
-        </div>
-        <div className="border-t border-edge/40 pt-4">
-          <SignalRow icon={Zap} label="Summary" value={signal.conditionSummary ?? '\u2014'} />
-        </div>
-      </div>
+      </Reveal>
+
+      {/* ── Signal source attribution ── */}
+      {signal.signalSource && signal.signalSource.category !== 'commit' && (
+        <Reveal>
+          <div className="card border-edge/50 bg-panel/60">
+            <div className="flex items-start gap-3">
+              <span className="mt-0.5 text-lg" aria-hidden="true">
+                {signal.signalSource.tag}
+              </span>
+              <div className="min-w-0">
+                <div className="flex items-center gap-2">
+                  <SignalSourceBadge
+                    category={signal.signalSource.category}
+                    label={signal.signalSource.label}
+                    showTag={false}
+                  />
+                  <span className="font-mono text-[10px] uppercase tracking-wider text-slate-500">
+                    signal origin
+                  </span>
+                </div>
+                <p className="mt-1.5 text-xs leading-relaxed text-slate-400">
+                  {signal.signalSource.explanation}
+                </p>
+              </div>
+            </div>
+          </div>
+        </Reveal>
+      )}
 
       {/* ── Agent Reasoning — combines classification + verdict in one card ── */}
       {signal.agentScore && (
-        <AgentReasoningCard
-          agentScore={signal.agentScore}
-          classifications={signal.classifications}
-        />
+        <Reveal>
+          <AgentReasoningCard
+            agentScore={signal.agentScore}
+            classifications={signal.classifications}
+          />
+        </Reveal>
       )}
 
       {/* ── The agent's on-chain dispatch ──
@@ -338,130 +384,136 @@ export default function SignalDetailPage({ params }: { params: Promise<{ id: str
           minted a new HCS topic for this signal (rare; only on
           conviction ≥ 90 reference-quality calls). */}
       {signal.agentScore?.hcsDispatch && (
-        <div className="card border-violet/25 bg-violet/[0.04]">
-          <div className="mb-3 flex items-baseline justify-between gap-3">
-            <h2 className="section-title flex items-center gap-2">
-              <FileCheck2 className="h-3.5 w-3.5 text-violet" />
-              On-chain dispatch · the agent&apos;s words on Hedera
-            </h2>
-            {signal.agentScore.proofAction === 'dedicated_topic' && (
-              <span className="badge bg-violet/20 text-violet text-[10px] uppercase tracking-wider">
-                dedicated topic
-              </span>
-            )}
-          </div>
-          <blockquote className="rounded-xl border-l-2 border-violet/40 bg-ink-light/40 px-4 py-3 text-sm italic leading-relaxed text-slate-200">
-            &ldquo;{signal.agentScore.hcsDispatch}&rdquo;
-          </blockquote>
-          <div className="mt-3 grid gap-1.5 text-[11px] font-mono text-slate-500">
-            <div>
-              Written via{' '}
-              <a
-                href="https://github.com/hashgraph/hedera-agent-kit"
-                target="_blank"
-                rel="noreferrer"
-                className="text-accent hover:text-accent-glow"
-              >
-                hedera-agent-kit
-              </a>
-              {' · '}rubric {signal.agentScore.rubricVersion}
+        <Reveal>
+          <div className="card border-violet/25 bg-violet/[0.04]">
+            <div className="mb-3 flex items-baseline justify-between gap-3">
+              <h2 className="section-title flex items-center gap-2">
+                <FileCheck2 className="h-3.5 w-3.5 text-violet" />
+                On-chain dispatch · the agent&apos;s words on Hedera
+              </h2>
+              {signal.agentScore.proofAction === 'dedicated_topic' && (
+                <span className="badge bg-violet/20 text-violet text-[10px] uppercase tracking-wider">
+                  dedicated topic
+                </span>
+              )}
             </div>
-            {signal.hederaTxId && (
-              <a
-                href={`https://hashscan.io/testnet/transaction/${encodeURIComponent(signal.hederaTxId)}`}
-                target="_blank"
-                rel="noreferrer"
-                className="text-accent hover:text-accent-glow"
-              >
-                default topic · {signal.hederaTxId.slice(0, 24)}… ↗
-              </a>
-            )}
-            {signal.hederaDedicatedTopicId && (
-              <a
-                href={`https://hashscan.io/testnet/topic/${encodeURIComponent(signal.hederaDedicatedTopicId)}`}
-                target="_blank"
-                rel="noreferrer"
-                className="text-violet hover:text-violet-glow"
-              >
-                dedicated topic · {signal.hederaDedicatedTopicId} ↗
-              </a>
-            )}
+            <blockquote className="rounded-xl border-l-2 border-violet/40 bg-ink-light/40 px-4 py-3 text-sm italic leading-relaxed text-slate-200">
+              &ldquo;{signal.agentScore.hcsDispatch}&rdquo;
+            </blockquote>
+            <div className="mt-3 grid gap-1.5 text-[11px] font-mono text-slate-500">
+              <div>
+                Written via{' '}
+                <a
+                  href="https://github.com/hashgraph/hedera-agent-kit"
+                  target="_blank"
+                  rel="noreferrer"
+                  className="text-accent hover:text-accent-glow"
+                >
+                  hedera-agent-kit
+                </a>
+                {' · '}rubric {signal.agentScore.rubricVersion}
+              </div>
+              {signal.hederaTxId && (
+                <a
+                  href={`https://hashscan.io/testnet/transaction/${encodeURIComponent(signal.hederaTxId)}`}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="text-accent hover:text-accent-glow"
+                >
+                  default topic · {signal.hederaTxId.slice(0, 24)}… ↗
+                </a>
+              )}
+              {signal.hederaDedicatedTopicId && (
+                <a
+                  href={`https://hashscan.io/testnet/topic/${encodeURIComponent(signal.hederaDedicatedTopicId)}`}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="text-violet hover:text-violet-glow"
+                >
+                  dedicated topic · {signal.hederaDedicatedTopicId} ↗
+                </a>
+              )}
+            </div>
           </div>
-        </div>
+        </Reveal>
       )}
 
       {/* ── Price impact — always shown ── */}
-      <div className="card">
-        <div className="mb-4 flex items-center justify-between">
-          <h2 className="section-title flex items-center gap-2">
-            <TrendingUp className="h-3.5 w-3.5 text-signal" />
-            What happened next
-          </h2>
-          {Array.isArray(signal.outcomes) && signal.outcomes.length > 0 && (
-            <span className="font-mono text-[10px] text-slate-600">
-              {signal.outcomes[0]?.asset}
-            </span>
-          )}
-        </div>
-        {Array.isArray(signal.outcomes) && signal.outcomes.length > 0 ? (
-          <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-            {signal.outcomes.map((o) => {
-              const pct = parseFloat(o.pctChange);
-              const isUp = pct > 0.5;
-              const isDown = pct < -0.5;
-              const windowLabel =
-                o.windowSeconds < 3600
-                  ? `${Math.round(o.windowSeconds / 60)}m`
-                  : o.windowSeconds < 86400
-                    ? `${Math.round(o.windowSeconds / 3600)}h`
-                    : `${Math.round(o.windowSeconds / 86400)}d`;
-              return (
-                <div
-                  key={`${o.asset}-${o.windowSeconds}`}
-                  className={`rounded-xl border p-3 ${
-                    isUp
-                      ? 'border-signal/30 bg-signal/8'
-                      : isDown
-                        ? 'border-danger/30 bg-danger/8'
-                        : 'border-edge/40 bg-ink-light/30'
-                  }`}
-                >
-                  <p className="font-mono text-[10px] uppercase tracking-wider text-slate-600">
-                    {windowLabel} after
-                  </p>
-                  <p
-                    className={`mt-1 text-xl font-bold tabular-nums ${
-                      isUp ? 'text-signal' : isDown ? 'text-danger' : 'text-slate-400'
+      <Reveal>
+        <div className="card">
+          <div className="mb-4 flex items-center justify-between">
+            <h2 className="section-title flex items-center gap-2">
+              <TrendingUp className="h-3.5 w-3.5 text-signal" />
+              What happened next
+            </h2>
+            {Array.isArray(signal.outcomes) && signal.outcomes.length > 0 && (
+              <span className="font-mono text-[10px] text-slate-600">
+                {signal.outcomes[0]?.asset}
+              </span>
+            )}
+          </div>
+          {Array.isArray(signal.outcomes) && signal.outcomes.length > 0 ? (
+            <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+              {signal.outcomes.map((o) => {
+                const pct = parseFloat(o.pctChange);
+                const isUp = pct > 0.5;
+                const isDown = pct < -0.5;
+                const windowLabel =
+                  o.windowSeconds < 3600
+                    ? `${Math.round(o.windowSeconds / 60)}m`
+                    : o.windowSeconds < 86400
+                      ? `${Math.round(o.windowSeconds / 3600)}h`
+                      : `${Math.round(o.windowSeconds / 86400)}d`;
+                return (
+                  <div
+                    key={`${o.asset}-${o.windowSeconds}`}
+                    className={`rounded-xl border p-3 ${
+                      isUp
+                        ? 'border-signal/30 bg-signal/8'
+                        : isDown
+                          ? 'border-danger/30 bg-danger/8'
+                          : 'border-edge/40 bg-ink-light/30'
                     }`}
                   >
-                    {isUp ? '+' : ''}
-                    {pct.toFixed(2)}%
-                  </p>
-                  <p className="mt-1 font-mono text-[10px] text-slate-600">
-                    ${parseFloat(o.priceAtSignal).toFixed(2)} → $
-                    {parseFloat(o.priceAfter).toFixed(2)}
-                  </p>
-                </div>
-              );
-            })}
-          </div>
-        ) : (
-          <p className="font-mono text-sm text-slate-700">
-            price outcome data not yet available — outcomes record once each window matures
-          </p>
-        )}
-      </div>
+                    <p className="font-mono text-[10px] uppercase tracking-wider text-slate-600">
+                      {windowLabel} after
+                    </p>
+                    <p
+                      className={`mt-1 text-xl font-bold tabular-nums ${
+                        isUp ? 'text-signal' : isDown ? 'text-danger' : 'text-slate-400'
+                      }`}
+                    >
+                      {isUp ? '+' : ''}
+                      {pct.toFixed(2)}%
+                    </p>
+                    <p className="mt-1 font-mono text-[10px] text-slate-600">
+                      ${parseFloat(o.priceAtSignal).toFixed(2)} → $
+                      {parseFloat(o.priceAfter).toFixed(2)}
+                    </p>
+                  </div>
+                );
+              })}
+            </div>
+          ) : (
+            <p className="font-mono text-sm text-slate-700">
+              price outcome data not yet available — outcomes record once each window matures
+            </p>
+          )}
+        </div>
+      </Reveal>
 
       {/* ── Verdict — was the agent right? ──
           Renders only when there's an agent score and a recommended
           action to verify against. Defers to the T+1d outcome as the
           canonical check; T+1h is shown when t1d hasn't landed yet. */}
       {signal.agentScore && signal.agentScore.recommendedAction !== 'none' && (
-        <VerdictCard
-          recommendedAction={signal.agentScore.recommendedAction}
-          conviction={signal.agentScore.conviction}
-          outcomes={signal.outcomes}
-        />
+        <Reveal>
+          <VerdictCard
+            recommendedAction={signal.agentScore.recommendedAction}
+            conviction={signal.agentScore.conviction}
+            outcomes={signal.outcomes}
+          />
+        </Reveal>
       )}
 
       {/* ── Proof Chain — single canonical surface.
@@ -470,55 +522,75 @@ export default function SignalDetailPage({ params }: { params: Promise<{ id: str
           carries the same per-artifact links plus the flow narrative,
           and the verification checklist below answers the orthogonal
           question "what passed verification?". */}
-      <div className="card">
-        <div className="mb-3 flex items-center justify-end">
-          <ProofProgress signal={signal} />
+      <Reveal>
+        <div className="card">
+          <div className="mb-3 flex items-center justify-end">
+            <ProofProgress signal={signal} />
+          </div>
+          <ProofChain
+            steps={getProofChainSteps(signal)}
+            title="Proof Chain"
+            subtitle="Five steps. Fully automated."
+          />
         </div>
-        <ProofChain
-          steps={getProofChainSteps(signal)}
-          title="Proof Chain"
-          subtitle="Five steps. Fully automated."
-        />
-      </div>
+      </Reveal>
 
-      <div className="card">
-        <div className="mb-4 flex items-center justify-between">
-          <h2 className="section-title flex items-center gap-2">
-            <Check className="h-3.5 w-3.5 text-signal" />
-            What was independently verified
-          </h2>
-          {signal.verificationChecklist && (
-            <span className="badge bg-signal/15 text-signal text-[10px]">
-              {signal.verificationChecklist.filter((c) => c.ok).length}/
-              {signal.verificationChecklist.length} checks passed
-            </span>
-          )}
+      <Reveal>
+        <div className="card">
+          <div className="mb-4 flex items-center justify-between">
+            <h2 className="section-title flex items-center gap-2">
+              <Check className="h-3.5 w-3.5 text-signal" />
+              What was independently verified
+            </h2>
+            {signal.verificationChecklist && (
+              <span className="badge bg-signal/15 text-signal text-[10px]">
+                {signal.verificationChecklist.filter((c) => c.ok).length}/
+                {signal.verificationChecklist.length} checks passed
+              </span>
+            )}
+          </div>
+          <div className="grid gap-3 sm:grid-cols-2">
+            {(signal.verificationChecklist ?? []).map((item) => (
+              <CheckItem key={item.name} label={item.name} ok={item.ok} detail={item.detail} />
+            ))}
+          </div>
         </div>
-        <div className="grid gap-3 sm:grid-cols-2">
-          {(signal.verificationChecklist ?? []).map((item) => (
-            <CheckItem key={item.name} label={item.name} ok={item.ok} detail={item.detail} />
-          ))}
-        </div>
-      </div>
+      </Reveal>
 
       {signal.evidenceText && (
-        <div className="card">
-          <h2 className="section-title mb-3 flex items-center gap-2">
-            <Eye className="h-3.5 w-3.5 text-accent" />
-            Evidence
-          </h2>
+        <CollapsibleSection
+          title={
+            <>
+              <Eye className="h-3.5 w-3.5 text-accent" />
+              Evidence
+            </>
+          }
+          aside={
+            <span className="font-mono text-[10px] uppercase tracking-wider text-slate-600">
+              raw capture
+            </span>
+          }
+        >
           <pre className="overflow-auto whitespace-pre-wrap rounded-xl bg-ink-light/80 p-4 font-mono text-xs leading-relaxed text-slate-300">
             {signal.evidenceText}
           </pre>
-        </div>
+        </CollapsibleSection>
       )}
 
       {signal.screenshotUrls.length > 0 && (
-        <div className="card">
-          <h2 className="section-title mb-4 flex items-center gap-2">
-            <ImageIcon className="h-3.5 w-3.5 text-accent" />
-            Screenshots
-          </h2>
+        <CollapsibleSection
+          title={
+            <>
+              <ImageIcon className="h-3.5 w-3.5 text-accent" />
+              Screenshots
+            </>
+          }
+          aside={
+            <span className="font-mono text-[10px] uppercase tracking-wider text-slate-600">
+              {signal.screenshotUrls.length}
+            </span>
+          }
+        >
           <div className="grid gap-3 sm:grid-cols-2">
             {signal.screenshotUrls.map((src, i) => (
               <img
@@ -529,7 +601,7 @@ export default function SignalDetailPage({ params }: { params: Promise<{ id: str
               />
             ))}
           </div>
-        </div>
+        </CollapsibleSection>
       )}
 
       {!isPublic && signal.orders.length > 0 && (
@@ -603,6 +675,108 @@ export default function SignalDetailPage({ params }: { params: Promise<{ id: str
           </Link>
         </div>
       )}
+    </div>
+  );
+}
+
+// ── Verdict hero ──
+// The first card on the page. Answers the visitor's only real
+// question — "what's the call and should I believe it?" — before
+// any detection metadata. Large verdict, large conviction, and the
+// key provenance badges, with everything else a click below.
+function VerdictHero({
+  agentScore,
+  outcomes,
+}: {
+  agentScore: AgentScore;
+  outcomes: OutcomeWindow[];
+}) {
+  const t1d = outcomes.find((o) => o.windowSeconds === 86400);
+  const t1h = outcomes.find((o) => o.windowSeconds === 3600);
+  const chosen = t1d ?? t1h;
+
+  let verdictText = 'Verdict pending';
+  let verdictTone = 'text-slate-400';
+  if (agentScore.recommendedAction === 'none') {
+    verdictText = 'No trade taken';
+    verdictTone = 'text-slate-400';
+  } else if (chosen) {
+    const directional =
+      (agentScore.recommendedAction === 'short' ? -1 : 1) * parseFloat(chosen.pctChange);
+    if (directional > 0.5) {
+      verdictText = 'Agent was right';
+      verdictTone = 'text-signal';
+    } else if (directional < -0.5) {
+      verdictText = 'Agent was wrong';
+      verdictTone = 'text-danger';
+    } else {
+      verdictText = 'Inconclusive so far';
+      verdictTone = 'text-slate-400';
+    }
+  }
+
+  const convColor = convictionColor(agentScore.conviction);
+
+  return (
+    <div className="card border-accent/20 bg-panel/80">
+      <div className="flex flex-col gap-5 sm:flex-row sm:items-center sm:justify-between">
+        <div className="min-w-0 space-y-2">
+          <p className="section-title">The call</p>
+          <div className="flex items-baseline gap-3">
+            <span
+              className={`font-display text-3xl font-semibold tracking-tight sm:text-4xl ${
+                agentScore.recommendedAction === 'long'
+                  ? 'text-signal'
+                  : agentScore.recommendedAction === 'short'
+                    ? 'text-danger'
+                    : 'text-slate-300'
+              }`}
+            >
+              {agentScore.recommendedAction === 'none'
+                ? 'NO TRADE'
+                : agentScore.recommendedAction.toUpperCase()}
+            </span>
+            <span className="text-xs text-slate-500">
+              {agentScore.recommendedAction === 'none'
+                ? 'conviction below the trade threshold'
+                : `expected price ${agentScore.recommendedAction === 'long' ? 'up' : 'down'}`}
+            </span>
+          </div>
+          <p className={`text-sm font-semibold ${verdictTone}`}>{verdictText}</p>
+          <div className="flex flex-wrap items-center gap-2 pt-1 font-mono text-[10px] uppercase tracking-wider text-slate-500">
+            <Tooltip
+              label="The scoring rubric version used to produce this conviction. Each version is documented and auditable."
+              side="bottom"
+            >
+              <span>rubric {agentScore.rubricVersion}</span>
+            </Tooltip>
+            <span aria-hidden="true">·</span>
+            <Tooltip
+              label="Confidence band derived from conviction: high ≥ 70, mid 50–69, low < 50. Trades only fire at ≥ 70."
+              side="bottom"
+            >
+              <span>{agentScore.confidenceBand} confidence</span>
+            </Tooltip>
+          </div>
+        </div>
+
+        <div className="shrink-0 text-right">
+          <Tooltip
+            wide
+            label="Conviction is the agent's scored confidence (0–100) in the signal, from the rubric. At ≥ 70 it clears the trade threshold and size scales with it."
+            side="bottom"
+          >
+            <span
+              className={cn('font-mono text-6xl font-bold leading-none tabular-nums', convColor)}
+            >
+              {agentScore.conviction}
+            </span>
+          </Tooltip>
+          <p className="mt-1.5 font-mono text-[11px] uppercase tracking-wider text-slate-500">
+            conviction / 100
+          </p>
+        </div>
+      </div>
     </div>
   );
 }
