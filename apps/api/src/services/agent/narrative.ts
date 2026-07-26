@@ -27,6 +27,7 @@ import { scoreAndPersist, buildAgentEnvFromConfig, buildBookContext } from '../a
 import { executeAgentTrade } from '../treasury.js';
 import { broadcastSignal, buildOutcomeWindows } from '../notify.js';
 import { getProofService } from '../proof.js';
+import { buildDetectorTrackRecordContext } from './detector-track-record.js';
 import { newsSignalDetector } from '../detectors/news-signal.js';
 import type { NewsEvidence } from '../detectors/types.js';
 import type { AssetMapping, AgentScore } from '@lenitnes/types';
@@ -467,9 +468,10 @@ export async function runNarrativeScan(): Promise<void> {
       if (macroCtx) marketContext += '\n\n' + macroCtx;
       if (indexCtx) marketContext += '\n\n' + indexCtx;
     }
-    const [narrativeContext, bookContext] = await Promise.all([
+    const [narrativeContext, bookContext, trackRecordContext] = await Promise.all([
       buildNarrativeContext(cluster.assetMapping),
       buildBookContext(),
+      buildDetectorTrackRecordContext(classifications.map((c) => c.detector_type)),
     ]);
 
     const env = buildAgentEnvFromConfig();
@@ -487,6 +489,7 @@ export async function runNarrativeScan(): Promise<void> {
           market_context: marketContext,
           narrative_context: narrativeContext || undefined,
           book_context: bookContext || undefined,
+          detector_track_record: trackRecordContext || undefined,
         },
         env,
       );

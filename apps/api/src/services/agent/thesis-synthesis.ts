@@ -31,6 +31,7 @@ import { getProofService } from '../proof.js';
 import { fetchCommitsRange, formatCommitEvidence, enrichCommitStats } from '../github.js';
 import type { GitHubCommit } from '../github.js';
 import { buildNarrativeContext } from './narrative.js';
+import { buildDetectorTrackRecordContext } from './detector-track-record.js';
 import type { AssetMapping, AgentScore } from '@lenitnes/types';
 
 const SYNTHESIS_MONITOR_URL = 'synthesis:thesis';
@@ -288,9 +289,10 @@ export async function runThesisSynthesis(): Promise<void> {
       // SoSoValue not available; proceed without macro/index context.
     }
 
-    const [narrativeContext, bookContext] = await Promise.all([
+    const [narrativeContext, bookContext, trackRecordContext] = await Promise.all([
       buildNarrativeContext(pool.assetMapping),
       buildBookContext(),
+      buildDetectorTrackRecordContext(['thesis_synthesis']),
     ]);
 
     const env = buildAgentEnvFromConfig();
@@ -316,6 +318,7 @@ export async function runThesisSynthesis(): Promise<void> {
           market_context: marketContext,
           narrative_context: narrativeContext || undefined,
           book_context: bookContext || undefined,
+          detector_track_record: trackRecordContext || undefined,
         },
         env,
       );

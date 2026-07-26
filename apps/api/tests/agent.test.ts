@@ -52,6 +52,17 @@ describe('agent.compactAgentInput', () => {
     expect(compact).not.toHaveProperty('sequence_context');
     expect(compact.market_context).toBe('btc up');
   });
+
+  it('includes detector_track_record when set, omits when empty', () => {
+    const withRecord = compactAgentInput({
+      ...baseInput,
+      detector_track_record: 'security_critical_patch: 72% hits (9/12)',
+    });
+    expect(withRecord.detector_track_record).toContain('72%');
+
+    const empty = compactAgentInput({ ...baseInput, detector_track_record: '' });
+    expect(empty).not.toHaveProperty('detector_track_record');
+  });
 });
 
 describe('agent.score (MOCK path)', () => {
@@ -64,9 +75,10 @@ describe('agent.score (MOCK path)', () => {
     expect(result.conviction).toBe(85);
     expect(result.recommended_action).toBe('long');
     expect(result.confidence_band).toBe('high');
-    // Rubric bumped 2026-07-07 — v4 added book_context, the commit
-    // citation requirement, and hardened calibration.
-    expect(result.rubric_version).toBe('v4');
+    // Rubric bumped 2026-07-26 — v5 adds the detector_track_record
+    // learning loop, commit-adjacent advisory/release evidence, and
+    // perps funding/OI structure.
+    expect(result.rubric_version).toBe('v5');
     expect(result.thesis).toContain('MOCK');
     expect(result.hcs_dispatch).toContain('MOCK');
     expect(result.proof_action).toBe('standard');

@@ -17,17 +17,17 @@ import { sqlHitPredicate } from './domain/outcome-metrics.js';
 import { logger } from '../logger.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
-const RUBRIC_PATH = path.resolve(__dirname, 'agent/rubric-v4.md');
+const RUBRIC_PATH = path.resolve(__dirname, 'agent/rubric-v5.md');
 
-// v4 (2026-07-07): calibration hardening + book awareness. Adds
-// `book_context` input (current open positions) with book-discipline
-// rules (no pile-on, reversals need named new evidence), a commit-
-// citation requirement (thesis must cite the SHA and its code-level
-// meaning or conviction ≤ 50), and a hard cap of 65 on news-only
-// signals — the operation's edge is commits, not headlines. v3
-// prompts still parse (the new field is optional) so the version
-// bump is non-breaking for replay.
-const RUBRIC_VERSION = 'v4';
+// v5 (2026-07-26): the learning loop. Adds `detector_track_record`
+// input — each fired detector's 90-day win rate, avg directional
+// return, and avg conviction from matured T+1d outcomes — with
+// discipline rules to discount chronically-losing detectors and trust
+// reliable ones. Also documents the new commit-adjacent evidence
+// sources (security advisories, protocol releases) and perps-native
+// funding/OI structure. The `detector_track_record` field is optional,
+// so v4 prompts/transcripts still parse (non-breaking for replay).
+const RUBRIC_VERSION = 'v5';
 const EXPECTED_OUTPUT_TOKENS = 700;
 
 export interface AgentEnv {
@@ -110,6 +110,7 @@ export function compactAgentInput(input: AgentInput): Record<string, unknown> {
   if (input.narrative_context) out.narrative_context = input.narrative_context;
   if (input.sequence_context) out.sequence_context = input.sequence_context;
   if (input.book_context) out.book_context = input.book_context;
+  if (input.detector_track_record) out.detector_track_record = input.detector_track_record;
   return out;
 }
 

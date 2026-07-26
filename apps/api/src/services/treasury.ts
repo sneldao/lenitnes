@@ -17,6 +17,7 @@ import { computeTpSlLevels, applyRiskGate } from './treasury/risk.js';
 import { initVenues, getVenueForChain } from './venues/registry.js';
 import { resolveTradeableToken } from './treasury/asset-registry.js';
 import { openProprPosition, resolveProprAsset, closeProprPosition } from './venues/propr/index.js';
+import { anyDetectorChronicallyLosing } from './agent/detector-track-record.js';
 import { config } from '../config.js';
 
 export type TradeMode = 'paper' | 'live';
@@ -314,6 +315,38 @@ export async function executeAgentTrade(
   const coingeckoId = assetMapping.coingeckoId;
   const side: 'long' | 'short' = agentScore.recommended_action === 'short' ? 'short' : 'long';
 
+  // ── Outcome-feedback hard floor (rubric v5) ─────────────────
+  // The soft `detector_track_record` input nudges the agent to
+  // discount chronically-losing detectors, but we don't trust the
+  // LLM to always comply. This is the enforcement backstop: if any
+  // detector that fired on this signal has enough matured history
+  // AND a win rate below the floor, the trade is forced to paper.
+  // The signal still ships; no live capital is committed to a
+  // detector the market has disproven. Resolves the fired detector
+  // types from this signal's classifications.
+  let forcePaper = false;
+  try {
+    const { rows: clsRows } = await query<{ detector_type: string }>(
+      `SELECT DISTINCT detector_type FROM signal_classifications WHERE signal_id = $1`,
+      [signalId],
+    );
+    const firedTypes = clsRows.map((r) => r.detector_type);
+    const { losing, losingDetectors } = await anyDetectorChronicallyLosing(firedTypes);
+    if (losing) {
+      forcePaper = true;
+      logger.warn(
+        { signalId, losingDetectors, asset: coingeckoId },
+        'treasury: hard floor — chronically-losing detector, forcing paper',
+      );
+    }
+  } catch (err) {
+    // Failing OPEN (not forcing paper) would be dangerous; but the
+    // ledger query failing is an infra issue, not a signal-quality
+    // judgment. Log and proceed normally rather than blanket-blocking
+    // every trade on a transient DB hiccup.
+    logger.warn({ err, signalId }, 'treasury: hard-floor check failed — proceeding normally');
+  }
+
   // ── Book discipline ─────────────────────────────────────────
   // Same asset + same direction already open → skip: the book
   // already expresses this thesis, and re-opening it every scan is
@@ -376,6 +409,7 @@ export async function executeAgentTrade(
     coingeckoId &&
     config.treasury.tradingEnabled &&
     config.propr.enabled &&
+    !forcePaper &&
     resolveProprAsset(coingeckoId)
   ) {
     const spotCanHandle = side === 'long' && resolveTradeableToken(coingeckoId, chain) != null;
@@ -461,7 +495,7 @@ export async function executeAgentTrade(
     chain,
     side,
     signalId,
-    intendedMode: config.treasury.defaultMode,
+    intendedMode: forcePaper ? 'paper' : config.treasury.defaultMode,
     amountIn: config.treasury.defaultTradeAmount,
   });
 

@@ -233,6 +233,144 @@ export interface GitHubPullRequest {
   labels: string[];
 }
 
+export interface GitHubRelease {
+  tagName: string;
+  name: string;
+  body: string;
+  draft: boolean;
+  prerelease: boolean;
+  author: string;
+  createdAt: string;
+  publishedAt: string;
+  url: string;
+}
+
+/**
+ * Fetch recent published releases (tagged versions). Version tags
+ * like v2.1.0 are high-signal protocol events — a security or
+ * breaking release maps directly onto our upgrade detectors.
+ */
+export async function fetchReleases(
+  repoUrl: string,
+  maxResults = 10,
+): Promise<GitHubRelease[] | null> {
+  const parsed = parseRepo(repoUrl);
+  if (!parsed) return null;
+
+  const url = new URL(`/repos/${parsed.owner}/${parsed.repo}/releases`, GITHUB_API_BASE);
+  url.searchParams.set('per_page', String(maxResults));
+
+  try {
+    const res = await fetch(url.toString(), {
+      headers: githubHeaders(),
+      signal: AbortSignal.timeout(TIMEOUT_MS),
+    });
+    if (!res.ok) {
+      logger.warn({ status: res.status, repoUrl }, 'GitHub releases API request failed');
+      return null;
+    }
+    const data = await res.json();
+    if (!Array.isArray(data)) return null;
+    return data.map((r: Record<string, unknown>) => {
+      const author = r.author as Record<string, unknown> | undefined;
+      return {
+        tagName: String(r.tag_name ?? ''),
+        name: String(r.name ?? ''),
+        body: String(r.body ?? ''),
+        draft: Boolean(r.draft),
+        prerelease: Boolean(r.prerelease),
+        author: String(author?.login ?? ''),
+        createdAt: String(r.created_at ?? ''),
+        publishedAt: String(r.published_at ?? ''),
+        url: String(r.html_url ?? ''),
+      };
+    });
+  } catch (err) {
+    logger.error({ err, repoUrl }, 'GitHub releases API error');
+    return null;
+  }
+}
+
+export interface GitHubSecurityAdvisory {
+  ghsaId: string;
+  cveId: string | null;
+  summary: string;
+  severity: string;
+  cvssScore: number | null;
+  publishedAt: string;
+  updatedAt: string;
+  url: string;
+  /** Affected package ecosystems/names, best-effort. */
+  packages: string[];
+}
+
+/**
+ * Fetch repo-level security advisories (published GHSAs). These are
+ * the canonical "soundness fix / vulnerability disclosed" events and
+ * are among the strongest commit-adjacent signals for a short thesis.
+ * Requires the repo to have advisories enabled; degrades to null on
+ * 403/404 (most public repos without advisories configured).
+ */
+export async function fetchSecurityAdvisories(
+  repoUrl: string,
+  maxResults = 10,
+): Promise<GitHubSecurityAdvisory[] | null> {
+  const parsed = parseRepo(repoUrl);
+  if (!parsed) return null;
+
+  const url = new URL(`/repos/${parsed.owner}/${parsed.repo}/security-advisories`, GITHUB_API_BASE);
+  url.searchParams.set('per_page', String(maxResults));
+  url.searchParams.set('state', 'published');
+  url.searchParams.set('sort', 'published');
+  url.searchParams.set('direction', 'desc');
+
+  try {
+    const headers = githubHeaders();
+    // The security-advisories endpoint wants the repository-advisories
+    // media type for full fields; the default is tolerant but explicit
+    // is safer against API evolution.
+    headers.Accept = 'application/vnd.github.repository-advisories+json';
+    const res = await fetch(url.toString(), {
+      headers,
+      signal: AbortSignal.timeout(TIMEOUT_MS),
+    });
+    if (!res.ok) {
+      // 403/404 is the common case (repo doesn't publish advisories) —
+      // not an error worth surfacing loudly.
+      logger.debug({ status: res.status, repoUrl }, 'GitHub advisories API unavailable');
+      return null;
+    }
+    const data = await res.json();
+    if (!Array.isArray(data)) return null;
+    return data.map((a: Record<string, unknown>) => {
+      const cvss = (a.cvss ?? {}) as { score?: number };
+      const vulnerabilities = (a.vulnerabilities as Array<Record<string, unknown>>) ?? [];
+      const cve = (a.identifiers as Array<Record<string, unknown>> | undefined)?.find(
+        (i) => i.type === 'CVE',
+      );
+      return {
+        ghsaId: String(a.ghsa_id ?? ''),
+        cveId: cve ? String(cve.value) : a.cve_id ? String(a.cve_id) : null,
+        summary: String(a.summary ?? ''),
+        severity: String(a.severity ?? 'unknown'),
+        cvssScore: typeof cvss.score === 'number' ? cvss.score : null,
+        publishedAt: String(a.published_at ?? ''),
+        updatedAt: String(a.updated_at ?? ''),
+        url: String(a.html_url ?? ''),
+        packages: vulnerabilities
+          .map((v) => {
+            const pkg = v.package as Record<string, unknown> | undefined;
+            return pkg ? `${String(pkg.ecosystem ?? '')}:${String(pkg.name ?? '')}` : '';
+          })
+          .filter(Boolean),
+      };
+    });
+  } catch (err) {
+    logger.error({ err, repoUrl }, 'GitHub advisories API error');
+    return null;
+  }
+}
+
 export async function fetchOpenPullRequests(
   repoUrl: string,
   maxResults = 20,

@@ -205,6 +205,13 @@ export interface AgentInput {
    * pile-ons, no evidence-free reversals). Empty string = flat. v4.
    */
   book_context?: string;
+  /**
+   * Global per-detector track record — historical win rate, avg
+   * directional return, and avg conviction for each detector type
+   * across ALL matured signals (90d). Lets the agent discount
+   * detectors that chronically lose and trust ones that hit. v5.
+   */
+  detector_track_record?: string;
 }
 
 // ── Treasury (system wallets) ────────────────────────────────
@@ -232,6 +239,9 @@ export type SignalType =
   | 'news_signal'
   | 'velocity_anomaly'
   | 'pr_activity'
+  | 'security_advisory'
+  | 'protocol_release'
+  | 'funding_oi_anomaly'
   | 'generic';
 
 export interface SignalClassification {

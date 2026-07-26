@@ -555,12 +555,15 @@ export async function executeCheck(monitor: Monitor): Promise<{
       // and weigh corroboration instead of scoring in isolation.
       const { buildNarrativeContext } = await import('../services/agent/narrative.js');
       const { buildSequenceContextLive } = await import('../services/domain/sequence-context.js');
-      const [narrativeContext, bookContext, sequenceContext] = await Promise.all([
-        buildNarrativeContext(monitor.asset_mapping),
-        buildBookContext(),
-        buildSequenceContextLive(monitor.url, monitor.asset_mapping),
-      ]);
-
+      const { buildDetectorTrackRecordContext } =
+        await import('../services/agent/detector-track-record.js');
+      const [narrativeContext, bookContext, sequenceContext, trackRecordContext] =
+        await Promise.all([
+          buildNarrativeContext(monitor.asset_mapping),
+          buildBookContext(),
+          buildSequenceContextLive(monitor.url, monitor.asset_mapping),
+          buildDetectorTrackRecordContext(detectorTypes),
+        ]);
       agentScore = await scoreAndPersist(
         {
           signal_id: signalId,
@@ -580,6 +583,7 @@ export async function executeCheck(monitor: Monitor): Promise<{
           narrative_context: narrativeContext || undefined,
           sequence_context: sequenceContext || undefined,
           book_context: bookContext || undefined,
+          detector_track_record: trackRecordContext || undefined,
         },
         env,
       );

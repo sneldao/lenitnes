@@ -17,8 +17,12 @@ import { executeAgentTrade } from '../treasury.js';
 import { broadcastSignal, buildOutcomeWindows } from '../notify.js';
 import { getProofService } from '../proof.js';
 import { buildNarrativeContext } from './narrative.js';
+import { buildDetectorTrackRecordContext } from './detector-track-record.js';
 import { detectVelocityAnomalies } from '../detectors/velocity-anomaly.js';
 import { detectHighImpactPRs } from '../detectors/pr-activity.js';
+import { detectSecurityAdvisories } from '../detectors/security-advisory.js';
+import { detectProtocolReleases } from '../detectors/protocol-release.js';
+import { detectFundingOiAnomalies } from '../detectors/funding-oi.js';
 import type { SignalClassification, AssetMapping, AgentScore } from '@lenitnes/types';
 
 interface ProactiveHit {
@@ -37,20 +41,35 @@ export async function runProactiveScan(): Promise<void> {
   if (proactiveRunning) return;
   proactiveRunning = true;
   try {
-    // Run both detectors in parallel.
-    const [velocityHits, prHits] = await Promise.all([
+    // Run all five proactive detectors in parallel.
+    const [velocityHits, prHits, advisoryHits, releaseHits, fundingHits] = await Promise.all([
       detectVelocityAnomalies(),
       detectHighImpactPRs(),
+      detectSecurityAdvisories(),
+      detectProtocolReleases(),
+      detectFundingOiAnomalies(),
     ]);
 
-    const allHits: ProactiveHit[] = [...velocityHits, ...prHits];
+    const allHits: ProactiveHit[] = [
+      ...velocityHits,
+      ...prHits,
+      ...advisoryHits,
+      ...releaseHits,
+      ...fundingHits,
+    ];
     if (allHits.length === 0) {
-      logger.debug('proactive scan: no velocity anomalies or high-impact PRs');
+      logger.debug('proactive scan: no proactive signals found');
       return;
     }
 
     logger.info(
-      { velocity: velocityHits.length, prs: prHits.length },
+      {
+        velocity: velocityHits.length,
+        prs: prHits.length,
+        advisories: advisoryHits.length,
+        releases: releaseHits.length,
+        fundingOi: fundingHits.length,
+      },
       'proactive scan: hits found, scoring',
     );
 
@@ -93,9 +112,17 @@ export async function runProactiveScan(): Promise<void> {
 }
 
 async function processHit(hit: ProactiveHit, monitorId: string, threshold: number): Promise<void> {
+  // Funding/OI is directional: the contrarian read of the funding
+  // sign sets the asset mapping direction so the agent gets the
+  // prior. All other proactive detectors stay direction-agnostic.
+  const suggested =
+    hit.classification.type === 'funding_oi_anomaly'
+      ? (hit.classification.metadata.suggestedDirection as 'long' | 'short' | undefined)
+      : undefined;
+
   const assetMapping: AssetMapping = {
     coingeckoId: hit.asset ?? undefined,
-    direction: 'both',
+    direction: suggested ?? 'both',
   };
 
   const evidence = buildEvidence(hit);
@@ -163,9 +190,10 @@ async function processHit(hit: ProactiveHit, monitorId: string, threshold: numbe
     // SoSoValue not available.
   }
 
-  const [narrativeContext, bookContext] = await Promise.all([
+  const [narrativeContext, bookContext, trackRecordContext] = await Promise.all([
     buildNarrativeContext(assetMapping),
     buildBookContext(),
+    buildDetectorTrackRecordContext([hit.classification.type]),
   ]);
 
   const env = buildAgentEnvFromConfig();
@@ -190,6 +218,7 @@ async function processHit(hit: ProactiveHit, monitorId: string, threshold: numbe
         market_context: marketContext,
         narrative_context: narrativeContext || undefined,
         book_context: bookContext || undefined,
+        detector_track_record: trackRecordContext || undefined,
       },
       env,
     );
@@ -301,6 +330,39 @@ function buildEvidence(hit: ProactiveHit): string {
     }
     if (meta.reasons && (meta.reasons as string[]).length > 0) {
       lines.push(`Impact factors: ${(meta.reasons as string[]).join('; ')}`);
+    }
+  } else if (hit.classification.type === 'security_advisory') {
+    lines.push(`Security advisory published: ${hit.classification.label}`);
+    lines.push(`GHSA: ${meta.ghsaId}${meta.cveId ? ` · CVE ${meta.cveId}` : ''}`);
+    lines.push(
+      `Severity: ${meta.severity}${meta.cvssScore != null ? ` (CVSS ${meta.cvssScore})` : ''}`,
+    );
+    lines.push(`Published: ${meta.publishedAt}`);
+    if (meta.summary) lines.push(`Summary: ${meta.summary}`);
+    if (meta.reasons && (meta.reasons as string[]).length > 0) {
+      lines.push(`Why it scored: ${(meta.reasons as string[]).join('; ')}`);
+    }
+  } else if (hit.classification.type === 'protocol_release') {
+    lines.push(`Protocol release published: ${hit.classification.label}`);
+    lines.push(
+      `Tag: ${meta.tagName}${meta.prerelease ? ' (pre-release)' : ''} · by ${meta.author}`,
+    );
+    lines.push(`Published: ${meta.publishedAt}`);
+    lines.push(`Release: ${meta.releaseUrl}`);
+    if (meta.reasons && (meta.reasons as string[]).length > 0) {
+      lines.push(`Why it scored: ${(meta.reasons as string[]).join('; ')}`);
+    }
+  } else if (hit.classification.type === 'funding_oi_anomaly') {
+    lines.push(`Perp funding/OI anomaly: ${hit.classification.label}`);
+    lines.push(`Suggested direction: ${meta.suggestedDirection} (contrarian read of funding)`);
+    lines.push(
+      `Funding: ${((meta.fundingRateHourly as number) * 100).toFixed(4)}%/hr (${(meta.fundingAnnualizedPct as number).toFixed(0)}%/yr)`,
+    );
+    lines.push(
+      `Open interest: $${((meta.openInterestUsd as number) / 1_000_000).toFixed(1)}M · 24h vol: $${((meta.volume24hUsd as number) / 1_000_000).toFixed(1)}M`,
+    );
+    if (meta.reasons && (meta.reasons as string[]).length > 0) {
+      lines.push(`Why it scored: ${(meta.reasons as string[]).join('; ')}`);
     }
   }
 

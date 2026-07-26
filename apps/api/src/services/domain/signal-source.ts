@@ -33,7 +33,13 @@ const SYNTHESIS_MONITOR_URLS: Record<string, SignalSourceCategory> = {
   'proactive:signals': 'proactive',
 };
 
-const PROACTIVE_DETECTOR_TYPES = new Set(['velocity_anomaly', 'pr_activity']);
+const PROACTIVE_DETECTOR_TYPES = new Set([
+  'velocity_anomaly',
+  'pr_activity',
+  'security_advisory',
+  'protocol_release',
+  'funding_oi_anomaly',
+]);
 
 const SOURCE_META: Record<
   SignalSourceCategory,
@@ -57,7 +63,8 @@ const SOURCE_META: Record<
   },
   proactive: {
     label: 'Proactive scan',
-    explanation: 'Commit-velocity anomaly or high-impact open pull request.',
+    explanation:
+      'Detected by the proactive scanner: commit-velocity anomaly, high-impact PR, security advisory, protocol release, or perp funding/OI structure.',
     tag: '⚡',
   },
 };
@@ -103,6 +110,24 @@ export function explainSignalSource(
     if (metadata.prNumber != null) {
       const labels = Array.isArray(metadata.labels) ? (metadata.labels as string[]).join(', ') : '';
       return `High-impact open PR #${metadata.prNumber} by ${metadata.author} (+${metadata.additions}/−${metadata.deletions} across ${metadata.changedFiles} files${labels ? `, labels: ${labels}` : ''}).`;
+    }
+    if (metadata.ghsaId != null) {
+      const cve = metadata.cveId ? ` (${metadata.cveId})` : '';
+      return `${metadata.severity} security advisory ${metadata.ghsaId}${cve} published. ${metadata.summary ?? ''}`.trim();
+    }
+    if (metadata.tagName != null) {
+      return `Release ${metadata.tagName} published${metadata.prerelease ? ' (pre-release)' : ''}: ${metadata.name ?? ''}`.trim();
+    }
+    if (metadata.suggestedDirection != null) {
+      const funding =
+        typeof metadata.fundingRateHourly === 'number'
+          ? `${(metadata.fundingRateHourly * 100).toFixed(4)}%/hr`
+          : 'extreme';
+      const oi =
+        typeof metadata.openInterestUsd === 'number'
+          ? `$${(metadata.openInterestUsd / 1_000_000).toFixed(0)}M OI`
+          : '';
+      return `Perp funding at ${funding} → contrarian ${metadata.suggestedDirection} bias${oi ? ` on ${oi}` : ''}.`;
     }
   }
 
