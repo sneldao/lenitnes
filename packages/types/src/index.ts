@@ -230,6 +230,8 @@ export type SignalType =
   | 'protocol_upgrade'
   | 'supply_chain_risk'
   | 'news_signal'
+  | 'velocity_anomaly'
+  | 'pr_activity'
   | 'generic';
 
 export interface SignalClassification {

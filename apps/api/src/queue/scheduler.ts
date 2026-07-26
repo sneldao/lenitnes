@@ -22,6 +22,7 @@ let gasCheckJob: cron.ScheduledTask | null = null;
 let tpSlCheckJob: cron.ScheduledTask | null = null;
 let narrativeJob: cron.ScheduledTask | null = null;
 let thesisSynthesisJob: cron.ScheduledTask | null = null;
+let proactiveScanJob: cron.ScheduledTask | null = null;
 let responsivenessJob: cron.ScheduledTask | null = null;
 let responsivenessHealthJob: cron.ScheduledTask | null = null;
 let responsivenessQueueJob: cron.ScheduledTask | null = null;
@@ -499,6 +500,11 @@ export function startScheduler(): void {
   thesisSynthesisJob = cron.schedule('0 1-23/2 * * *', () =>
     import('../services/agent/thesis-synthesis.js').then((m) => m.runThesisSynthesis()),
   );
+  // Proactive scan: every 2h (offset from narrative + thesis) —
+  // velocity anomalies + high-impact PRs.
+  proactiveScanJob = cron.schedule('0 1/2 * * *', () =>
+    import('../services/agent/proactive-signals.js').then((m) => m.runProactiveScan()),
+  );
   // Warm responsiveness cache for /calibration — mock agent, 6h cadence.
   responsivenessJob = cron.schedule('15 */6 * * *', runResponsivenessSweep);
   responsivenessHealthJob = cron.schedule('30 * * * *', () =>
@@ -550,6 +556,10 @@ export function stopScheduler(): void {
   if (thesisSynthesisJob) {
     thesisSynthesisJob.stop();
     thesisSynthesisJob = null;
+  }
+  if (proactiveScanJob) {
+    proactiveScanJob.stop();
+    proactiveScanJob = null;
   }
   if (responsivenessJob) {
     responsivenessJob.stop();

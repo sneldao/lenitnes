@@ -215,3 +215,73 @@ export async function fetchCommitsSince(
     return null;
   }
 }
+
+export interface GitHubPullRequest {
+  number: number;
+  title: string;
+  state: string;
+  author: string;
+  createdAt: string;
+  updatedAt: string;
+  mergedAt: string | null;
+  url: string;
+  additions: number;
+  deletions: number;
+  changedFiles: number;
+  comments: number;
+  reviewComments: number;
+  labels: string[];
+}
+
+export async function fetchOpenPullRequests(
+  repoUrl: string,
+  maxResults = 20,
+): Promise<GitHubPullRequest[] | null> {
+  const parsed = parseRepo(repoUrl);
+  if (!parsed) return null;
+
+  const url = new URL(`/repos/${parsed.owner}/${parsed.repo}/pulls`, GITHUB_API_BASE);
+  url.searchParams.set('state', 'open');
+  url.searchParams.set('per_page', String(maxResults));
+  url.searchParams.set('sort', 'updated');
+  url.searchParams.set('direction', 'desc');
+
+  try {
+    const res = await fetch(url.toString(), {
+      headers: githubHeaders(),
+      signal: AbortSignal.timeout(TIMEOUT_MS),
+    });
+
+    if (!res.ok) {
+      logger.warn({ status: res.status, repoUrl }, 'GitHub PRs API request failed');
+      return null;
+    }
+
+    const data = await res.json();
+    if (!Array.isArray(data)) return null;
+
+    return data.map((pr: Record<string, unknown>) => {
+      const user = pr.user as Record<string, unknown> | undefined;
+      const labels = (pr.labels as Array<Record<string, unknown>> | undefined) ?? [];
+      return {
+        number: Number(pr.number ?? 0),
+        title: String(pr.title ?? ''),
+        state: String(pr.state ?? 'open'),
+        author: String(user?.login ?? ''),
+        createdAt: String(pr.created_at ?? ''),
+        updatedAt: String(pr.updated_at ?? ''),
+        mergedAt: pr.merged_at ? String(pr.merged_at) : null,
+        url: String(pr.html_url ?? ''),
+        additions: Number(pr.additions ?? 0),
+        deletions: Number(pr.deletions ?? 0),
+        changedFiles: Number(pr.changed_files ?? 0),
+        comments: Number(pr.comments ?? 0),
+        reviewComments: Number(pr.review_comments ?? 0),
+        labels: labels.map((l) => String(l.name ?? '')),
+      };
+    });
+  } catch (err) {
+    logger.error({ err, repoUrl }, 'GitHub PRs API error');
+    return null;
+  }
+}
