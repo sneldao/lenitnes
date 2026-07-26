@@ -220,9 +220,10 @@ describe('propr.openProprPosition live short (the flagship case)', () => {
     expect(r!.positionId).toBe('urn:prp-position:p1');
     expect(r!.slOrderId).toBe('urn:prp-order:sl1');
     expect(r!.tpOrderId).toBe('urn:prp-order:tp1');
-    // $500 notional / $200 = 2.5 ZEC -> 2 decimals -> "2.50"
-    expect(r!.quantity).toBe('2.50');
-    expect(r!.notionalUsd).toBe(500);
+    // Conviction-scaled: $20 + (95-70)/30 * ($500-$20) = $420 notional
+    // $420 / $200 = 2.1 ZEC -> 2 decimals -> "2.10"
+    expect(r!.quantity).toBe('2.10');
+    expect(r!.notionalUsd).toBe(420);
     expect(r!.leverage).toBe(1);
 
     // Three createOrder calls: entry, SL, TP.

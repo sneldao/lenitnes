@@ -109,6 +109,18 @@ function clampNotional(n: number): number {
   return Math.max(min, Math.min(max, n));
 }
 
+/**
+ * Conviction-scaled notional: linear map from min ($20) at conviction 70
+ * to max ($500) at conviction 100. A 70-conviction trade risks $20; a
+ * 95-conviction trade risks $435.
+ */
+function computeConvictionNotional(conviction: number): number {
+  const min = config.propr.minNotionalUsd;
+  const max = config.propr.maxNotionalUsd;
+  const t = Math.max(0, Math.min(1, (conviction - 70) / 30));
+  return Math.round(min + t * (max - min));
+}
+
 function clampLeverage(asset: { maxLeverage: number }, requested: number): number {
   return Math.max(1, Math.min(requested, asset.maxLeverage));
 }
@@ -146,8 +158,8 @@ export async function openProprPosition(
     return null;
   }
 
-  // Gate 3: notional bounds.
-  const notionalUsd = clampNotional(params.notionalUsd ?? config.propr.maxNotionalUsd);
+  // Gate 3: notional bounds (conviction-scaled unless explicitly overridden).
+  const notionalUsd = clampNotional(params.notionalUsd ?? computeConvictionNotional(conviction));
 
   // Gate 4: mark price for sizing (CoinGecko, already used elsewhere in
   // the treasury). Refuse rather than place an unbounded order.

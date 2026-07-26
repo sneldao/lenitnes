@@ -311,7 +311,9 @@ export async function applyRiskGate(input: RiskGateInput): Promise<RiskGateDecis
 /**
  * Compute TP/SL prices given an entry price + the agent's
  * conviction. Higher conviction → wider take-profit (more room
- * for the thesis to play out); fixed stop-loss.
+ * for the thesis to play out) AND wider stop-loss (high-conviction
+ * theses need room to breathe). Lower conviction → tighter SL
+ * (cut fast when uncertain).
  */
 export function computeTpSlLevels(
   entryPriceUsd: number,
@@ -322,10 +324,14 @@ export function computeTpSlLevels(
   // edges. Conviction 70 → +15%, conviction 100 → +25%, conviction
   // 50 → +5%. Floor at +3% to keep TP meaningful.
   const baseTpBps = config.treasury.takeProfitBps;
-  const baseSlBps = config.treasury.stopLossBps;
   const tilt = Math.max(-1200, Math.min(1000, (conviction - 70) * 33));
   const tpBps = Math.max(300, baseTpBps + tilt);
-  const slBps = baseSlBps;
+
+  // Conviction-scaled SL: tighter for low conviction (cut losses
+  // fast when uncertain), wider for high conviction (let the
+  // thesis work). Range: 5% at conviction 70 → 9% at conviction 100.
+  const slTilt = Math.max(-200, Math.min(200, (conviction - 70) * 6.67));
+  const slBps = Math.max(400, config.treasury.stopLossBps + slTilt);
 
   if (side === 'long') {
     return {
