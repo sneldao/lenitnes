@@ -65,8 +65,8 @@ on the same log line include `bnbBalance`, `bnbChainId`, `bnbWallet`.
    - Per-asset `minDailyVolumeUsd` ($1M; requires `CMC_API_KEY`)
 
 5. **TP/SL defaults.** Conviction-scaled:
-   - `POSITION_TAKE_PROFIT_BPS=1500` (+15%, tilted by conviction)
-   - `POSITION_STOP_LOSS_BPS=700` (−7%, fixed)
+   - `POSITION_TAKE_PROFIT_BPS=1500` (+15% base, tilted +10pp at conviction 100)
+   - `POSITION_STOP_LOSS_BPS=700` (adaptive: 5% at conviction 70 → 9% at 100)
 
    Auto-close fires via the 5-min `checkTakeProfitStopLoss` job.
 
@@ -112,9 +112,13 @@ PROPR_NOTARIZE=true         # notarize every fill to Hedera HCS
 
 - **Shorts execute live** (sell/short entry, buy close) — not paper.
 - **Leverage** clamped to `min(PROPR_LEVERAGE, venue cap)`; default 1x.
-- **Notional** clamped to `[PROPR_MIN_NOTIONAL_USD, PROPR_MAX_NOTIONAL_USD]`.
-- **SL + TP** attached to every fill (conviction-scaled via the shared
-  `computeTpSlLevels`). A naked position (attachment failed) logs at WARN.
+- **Notional** conviction-scaled: linear from `PROPR_MIN_NOTIONAL_USD`
+  ($20) at conviction 70 to `PROPR_MAX_NOTIONAL_USD` ($500) at
+  conviction 100. Higher conviction → bigger position.
+- **SL + TP** attached to every fill. TP is conviction-scaled (15%
+  at 70, up to 25% at 100). SL is adaptive: tighter for low
+  conviction (5% at 70), wider for high conviction (9% at 100) —
+  uncertain theses cut fast, strong theses get room to breathe.
 - **Every fill notarized** to Hedera HCS — the live track record stays
   un-gameable.
 - **Closes always `reduceOnly:true`** (selling without it opens a separate
@@ -374,3 +378,77 @@ Stale backfill verdicts are **not** broadcast (6h freshness gate).
 | `PROPR_ENABLED=false`          | yes     | Live perp trades (shorts + L1 assets). Falls back to paper.          |
 | Propr asset not listed         | n/a     | Live perp for that asset; falls back to spot/paper.                  |
 | `PROPR_MAX_NOTIONAL_USD` clamp | 500     | Per-trade notional cap on perps. Floor via `PROPR_MIN_NOTIONAL_USD`. |
+
+---
+
+## Signal generation sources (2026-07-26)
+
+Beyond the core per-monitor commit detector pipeline, three
+periodic synthesis jobs generate signals from aggregated evidence.
+All run on the worker's scheduler and trade through the same
+treasury path (Propr perps for shorts, spot/paper fallback).
+
+### Thesis synthesis (`synthesis:thesis`)
+
+**Schedule**: every 2h (odd hours, `:00`).
+
+Fetches recent settled commits from ALL active GitHub monitors,
+excludes those that already produced a signal (via the monitor's
+`last_seen_commit_hash` boundary), and when the un-triggered pool
+is large enough (≥4 commits across ≥2 repos, or ≥6 in a single
+repo), asks the LLM agent whether the collective pattern forms a
+tradeable thesis. Full commit SHAs are in the evidence text so the
+rubric's commit-citation requirement is satisfiable.
+
+**Use case**: 15 mundane commits over 3 days that collectively
+telegraph a consensus-breaking change, but no single commit trips
+a detector.
+
+### Velocity anomaly detection
+
+**Schedule**: part of the proactive scan (odd hours, `:00`).
+
+Tracks commit rate per repo over a 30-day rolling baseline and
+flags ±2σ deviations in a 7-day window:
+
+- **Spike** (+2σ): sudden burst of activity → emergency response,
+  protocol upgrade, coordinated fix.
+- **Drop** (−2σ): sudden quiet → maintainer departure, project
+  pause, abandonment.
+
+Score = `min(100, |deviation| × 15)`. Confidence scales with
+deviation magnitude.
+
+### PR activity monitoring
+
+**Schedule**: part of the proactive scan (odd hours, `:00`).
+
+Monitors open pull requests on all active repos and scores them by:
+
+- Title keywords (breaking/consensus/security: +40, governance: +20)
+- Comment count (+1 per 5, max +20)
+- Review comments (+1 per 3, max +15)
+- Size (>500 lines: +15, >200 lines: +8)
+- Age with discussion (>7 days: +10)
+- Labels (security/breaking/critical: +25)
+
+**Threshold**: score ≥ 60 triggers a signal.
+
+**Use case**: a PR titled "BREAKING: change consensus rules" with
+50 comments is more significant than the merge commit alone. Catches
+impact _before_ the code lands.
+
+### How synthesis signals flow
+
+All three follow the same pipeline:
+
+1. Create a signal row under a synthetic monitor
+   (`synthesis:thesis` or `proactive:signals`)
+2. Anchor to Hedera HCS (best-effort)
+3. Score via `scoreAndPersist` (same rubric v4, same agent)
+4. If conviction ≥ 70 → `executeAgentTrade` → Propr perps / paper
+5. Broadcast to Telegram
+
+The agent's rubric v4 hard caps apply: no pile-ons on existing
+positions, reversals require new evidence, news-only signals cap
+at 65 conviction.

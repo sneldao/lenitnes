@@ -28,7 +28,7 @@ It runs a fully autonomous loop, no human in the loop:
    on the SoSoValue feed).
 3. **Score with cross-signal narrative.** A frontier-model agent
    (GLM-4.6) evaluates each signal against a versioned conviction
-   rubric (v3) — but crucially, it doesn't score in isolation. A
+   rubric (v4) — but crucially, it doesn't score in isolation. A
    cross-signal narrative context shows the agent what every OTHER
    monitored repo and the SoSoValue news feed did in the same 24h
    window, so it can string commits across repos and weigh
@@ -37,9 +37,12 @@ It runs a fully autonomous loop, no human in the loop:
    individual monitor crossed threshold.
 4. **Gate.** Conviction ≥ 70 to trade. Sub-threshold signals
    persist as a public reasoning archive but produce no trade.
-5. **Commit + prove.** Trade from the treasury wallet (BSC testnet
-   via PancakeSwap; SoDEX orderbook venue implemented for
-   ValueChain), notarize the signal on Hedera HCS (tamper-evident
+5. **Commit + prove.** Open a tracked position in the recommended
+   direction (explicitly labeled paper; live swaps exist behind a
+   `TRADING_ENABLED` kill switch that is off until calibration
+   clears — production venue is PancakeSwap V2 on BSC testnet, with
+   a SoDEX/ValueChain orderbook venue implemented and pending API
+   access). Notarize the signal on Hedera HCS (tamper-evident
    timestamping), broadcast the thesis to a public Telegram
    channel. All publicly auditable.
 6. **Track.** At T+1h, T+1d, T+7d the mainnet price is snapshotted
@@ -85,7 +88,7 @@ the track record yourself.
 news + macro feeds are the corroboration layer that makes the
 cross-signal narrative work. Without news, the agent only sees
 code. With SoSoValue, it sees the news cycle corroborating (or
-contradicting) the code signal — and the v3 rubric explicitly
+contradicting) the code signal — and the v4 rubric explicitly
 instructs it to escalate conviction on corroboration and discount
 on isolation. The first live narrative scan (June 30) produced an
 82/100 SHORT ZEC call driven primarily by a 20-item SoSoValue news
@@ -102,12 +105,12 @@ isolation, rarely produced enough conviction to trade. The first
 rubric (v1/v2) had the agent score one monitor's commits + that
 asset's market data — it never saw the pattern, only the dots. I
 solved this in Wave 3 by adding the cross-signal narrative context
-(rubric v3): a `buildNarrativeContext()` function that fetches
-recent signals across ALL monitors + cross-asset activity +
-SoSoValue news for the asset, injected into every agent score. The
-2-hour narrative scan goes further — it fires a synthesis signal
-when the cluster is meaningful even if no individual monitor
-crossed threshold.
+(rubric v3, refined in v4): a `buildNarrativeContext()` function
+that fetches recent signals across ALL monitors + cross-asset
+activity + SoSoValue news for the asset, injected into every agent
+score. The 2-hour narrative scan goes further — it fires a
+synthesis signal when the cluster is meaningful even if no
+individual monitor crossed threshold.
 
 **2. The "quiet hour" brand problem.** The hourly Telegram
 heartbeat said "0 signals scanned, quiet hour" when nothing fired
@@ -136,7 +139,7 @@ news detector directly on the SoSoValue feed, so a news-driven
 cluster can now fire without any commit activity at all.
 
 **5. Docker image didn't ship the new rubric.** During deploy I
-discovered the Dockerfiles hardcoded `rubric-v1.md` — so the v3
+discovered the Dockerfiles hardcoded `rubric-v1.md` — so a rubric
 bump left the production images without the active prompt file,
 which would have crashed `readRubric()` at runtime. Fixed by
 copying every `*.md` from the agent directory generically, so
@@ -160,7 +163,7 @@ future rubric bumps don't require a Dockerfile edit.
 **AI / LLM:**
 
 - GLM-4.6 (ZhipuAI) as the conviction-scoring agent, prompted with
-  a versioned rubric (v3) that includes a narrative-synthesis
+  a versioned rubric (v4) that includes a narrative-synthesis
   section.
 - Nine typed detectors (regex + keyword classification) that run
   as a fast pre-LLM pass — the agent sees detector output, not raw
@@ -208,7 +211,7 @@ narrative context. It outputs a JSON verdict: conviction (0-100),
 a 280-character thesis (Telegram-ready), recommended action
 (long/short/none), confidence band, an HCS dispatch message (the
 agent's on-chain voice), and a proof_action (standard vs.
-dedicated_topic). The rubric is versioned (v3) and stored as a
+dedicated_topic). The rubric is versioned (v4) and stored as a
 markdown file loaded at runtime — every version bump is
 non-breaking (new fields fall back to defaults).
 
@@ -224,9 +227,13 @@ synthesis signal under a dedicated `narrative:portfolio` monitor.
 **Execution layer** (`services/treasury.ts`): a single DRY entry
 point (`executeAgentTrade`) shared by both the per-monitor loop
 and the narrative scan. Resolves the tradeable token from the
-registry, applies a risk gate (kill switch, position limits,
-concentration checks — may downgrade live to paper), derives the
-trade action, signs, and records. Trade failures are logged but
+registry, applies a risk gate (`TRADING_ENABLED` kill switch,
+position limits, concentration checks — may downgrade live to
+paper), derives the trade action, signs, and records. The kill
+switch is currently off, so all positions are explicitly-labeled
+paper with on-chain receipts; the venue abstraction supports
+PancakeSwap V2 (BSC testnet, live) and SoDEX/ValueChain
+(implemented, pending API access). Trade failures are logged but
 the signal still ships — the signal is the product, the trade is
 secondary.
 
@@ -254,11 +261,11 @@ above-threshold trade broadcasts).
 **1. Isolation is the enemy of conviction.** The single biggest
 lesson: scoring each signal in isolation produces a timid agent.
 Individual commits "rarely produce enough impetus" — but the
-cluster does. Adding the cross-signal narrative context (v3) was
-the difference between an agent that watches and an agent that
-trades. The first live narrative scan immediately produced an
-82/100 call driven by a 20-item SoSoValue news cluster —
-validation that the synthesis layer works.
+cluster does. Adding the cross-signal narrative context (v3,
+refined in v4) was the difference between an agent that watches
+and an agent that trades. The first live narrative scan
+immediately produced an 82/100 call driven by a 20-item SoSoValue
+news cluster — validation that the synthesis layer works.
 
 **2. SoSoValue news is corroboration, not a primary signal.** News
 headlines alone, without a code signal, are weak — the rubric
@@ -289,42 +296,45 @@ for this now; the constraint is integration quality, not team size.
 
 ## What's next for
 
+Two SoSoValue-native next steps lead the roadmap; the rest are
+secondary.
+
 **1. SoDEX production activation.** The SoDEX venue is implemented
 and tested locally but not configured on the production deploy
 (pending API access approval). Once the buildathon whitelist is
 approved, flipping it on is a config change — the venue abstraction
 is already wired. This moves execution from BSC testnet
 (PancakeSwap) to ValueChain (SoDEX orderbook), which is the
-intended production path.
+intended production path, and flips `TRADING_ENABLED` from paper
+to live.
 
-**2. Expanding the watchlist + SoSoValue asset coverage.** The
-current watchlist is six repos + their assets. The narrative
-synthesis layer gets stronger with more monitored assets — more
-cross-repo clusters, more corroboration opportunities. Next:
-add Avalanche, Cardano, Polkadot monitors + their SoSoValue news
-feeds.
+**2. SoSoValue SSI index for outcome benchmarking.** SoSoValue's
+SSI Protocol (spot index) is a natural fit for the outcome-tracking
+layer — instead of snapshotting spot prices from CoinGecko, use
+SoSoValue's structured index data for more reliable,
+manipulation-resistant benchmarking. This tightens the closed loop
+between signal and verdict, and keeps the scorecard's benchmark
+inside the SoSoValue ecosystem the agent already reads from.
 
-**3. SoSoValue index integration.** SoSoValue's SSI Protocol (spot
-index) is a natural fit for the outcome-tracking layer — instead
-of snapshotting spot prices from CoinGecko, use SoSoValue's
-structured index data for more reliable, manipulation-resistant
-benchmarking.
+**Secondary:**
 
-**4. Conviction calibration at scale.** The current sample is
-small (17 signals, 5 trades). As N grows, the calibration page
-will show whether the conviction bands are actually predictive —
-and the rubric can be tuned based on real outcome data. The goal
-is a closed loop: outcomes feed back into rubric adjustments.
-
-**5. Copy-trading / signal subscription.** The public Telegram
-channel + on-chain proof layer make every signal verifiable. The
-next product surface is a copy-trading mode: users can subscribe
-to the agent's signals and auto-execute the same trades on their
-own wallet — turning LENITNES from a single-agent fund into a
-signal infrastructure that others can build on.
-
-**6. Multi-agent narrative.** The current narrative scan uses one
-agent. The next iteration could spawn specialized sub-agents (a
-macro agent, a news agent, a code agent) that each contribute to
-the narrative context — a more structured synthesis than a single
-prompt.
+- **Conviction calibration at scale.** The current sample is small
+  (17 signals, 5 trades). As N grows, the calibration page will
+  show whether the conviction bands are actually predictive — and
+  the rubric can be tuned based on real outcome data. The goal is a
+  closed loop: outcomes feed back into rubric adjustments.
+- **Watchlist expansion.** The current watchlist is six repos +
+  their assets. The narrative synthesis layer gets stronger with
+  more monitored assets — more cross-repo clusters, more
+  corroboration opportunities. Next: Avalanche, Cardano, Polkadot
+  monitors + their SoSoValue news feeds.
+- **Copy-trading / signal subscription.** The public Telegram
+  channel + on-chain proof layer make every signal verifiable. A
+  copy-trading mode would let users subscribe to the agent's
+  signals and auto-execute the same trades on their own wallet —
+  turning LENITNES from a single-agent fund into signal
+  infrastructure others can build on.
+- **Multi-agent narrative.** The current narrative scan uses one
+  agent. A next iteration could spawn specialized sub-agents (macro,
+  news, code) that each contribute to the narrative context — a
+  more structured synthesis than a single prompt.

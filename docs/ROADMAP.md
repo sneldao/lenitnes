@@ -3,6 +3,7 @@
 > What's built, what's a demo, and what would need to happen for
 > the enterprise direction to become a real product. Written
 > 2026-07-07 after the "one engine, two audiences" pass.
+> Updated 2026-07-26 with tournament signal expansion.
 
 ## Where things stand
 
@@ -13,6 +14,24 @@ run as a leak-scan over a company's own commit history — has a
 **capability demo**, not a product. `/scan` and the sample report
 in `docs/samples/` prove the engine can do the job; nothing yet
 exists that would let a company actually buy it.
+
+## What exists (trading direction)
+
+- **Core pipeline**: 10 commit detectors → agent scoring (rubric v4)
+  → conviction threshold → treasury execution (Propr Hyperliquid
+  perps for shorts + L1s, BSC spot for BTC/ETH longs)
+- **Signal synthesis layer** (2026-07-26): three periodic jobs that
+  generate signals from aggregated evidence, not just single commits:
+  - Narrative scan: cross-repo cluster of existing signals
+  - Thesis synthesis: un-triggered commit aggregation
+  - Proactive scan: velocity anomalies + high-impact PRs
+- **Risk management**: conviction-scaled position sizing ($20-$500),
+  adaptive stop loss (5%-9% by conviction), conviction-scaled TP
+  (15%-25%), 8-layer risk gate, HCS notarization
+- **Propr perp venue**: live shorts + L1 assets (ZEC/SOL/SUI/ARB),
+  3-tier account discovery, reduceOnly closes, SL+TP attachment
+- **Operator tooling**: dead-man's switch, gas alerts, TP/SL
+  auto-close, daily watch report, outcome verdict broadcasts
 
 ## What exists (enterprise direction)
 

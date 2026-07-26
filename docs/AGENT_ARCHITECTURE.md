@@ -22,13 +22,41 @@ TinyFish → Gate 1 → detectors → IF any fired:
 → CMC market context fetch (Fear & Greed, global metrics, asset quotes)
 → agent.ts (LLM #2, enriched with market_context)
 → Gate 2: conviction threshold
-→ treasury: BSC → TWAK swap | Arbitrum/Robinhood → ethers Wallet
+→ treasury: BSC spot (BTC/ETH) | Propr Hyperliquid perps (shorts + L1s)
 → notarize + broadcast
 
 Most monitor checks never fire a detector. Those never invoke the
 agent. That's the cost discipline. The agent is not in the hot path
 of "check the page"; it is in the cold path of "interpret the page
 when it looks interesting."
+
+### Expanded signal sources (2026-07-26)
+
+The per-monitor commit pipeline is no longer the only signal source.
+Three periodic synthesis jobs generate signals from aggregated
+evidence, addressing the gap where individually-mundane commits
+collectively telegraph a tradeable thesis:
+
+1. **Narrative scan** (`narrative:portfolio`, every 2h even hours):
+   aggregates EXISTING signals across repos into a cross-repo cluster.
+   Fires when ≥2 signals across ≥2 distinct assets in 24h.
+
+2. **Thesis synthesis** (`synthesis:thesis`, every 2h odd hours):
+   aggregates UN-TRIGGERED commits (settled but never signaled) from
+   all monitors. Fires when pool ≥4 across ≥2 repos or ≥6 in one repo.
+   Full commit SHAs in evidence satisfy the rubric's citation requirement.
+
+3. **Proactive scan** (`proactive:signals`, every 2h odd hours):
+   - Velocity anomaly: ±2σ commit-rate deviation from 30d baseline
+   - PR activity: open PRs scored ≥60 (keywords, comments, size, labels)
+
+All three follow the same downstream path: create signal row →
+score via `scoreAndPersist` (rubric v4) → if conviction ≥ 70 →
+`executeAgentTrade` → Propr perps / spot / paper → broadcast.
+
+The agent is now both a **scorer** (per-commit signals) and a
+**synthesizer** (cross-commit thesis evaluation). The rubric's
+book-discipline and commit-citation rules apply uniformly.
 
 ### Q2: What does the agent add beyond detectors?
 
