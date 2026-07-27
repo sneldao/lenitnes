@@ -81,11 +81,14 @@ on the same log line include `bnbBalance`, `bnbChainId`, `bnbWallet`.
 
 ## Propr perp venue (live shorts + L1 assets)
 
-Propr is the perp venue that takes **shorts** and **L1 assets**
-(ZEC/SOL/SUI/ARB) live on Hyperliquid perpetuals — the cases the
-spot PancakeSwap path can't handle (spot has no short primitive;
-those assets have no deep BSC liquidity). This is what lets the
-flagship SHORT ZEC thesis go live instead of paper.
+Propr is the perp venue that takes **every supported asset** live
+on Hyperliquid perpetuals while the venue is enabled — including
+BTC/ETH longs, L1 assets, and shorts. This keeps all competition
+execution on one account and prevents spot-capable longs from
+leaking to BSC. When Propr is disabled, the spot PancakeSwap path
+handles BTC/ETH longs; shorts and L1 assets fall back to paper
+because the spot path has no short primitive and those assets
+have no deep BSC liquidity.
 
 ### Enabling Propr
 
@@ -123,8 +126,11 @@ PROPR_NOTARIZE=true         # notarize every fill to Hedera HCS
   un-gameable.
 - **Closes always `reduceOnly:true`** (selling without it opens a separate
   short — the #1 Propr pitfall).
-- The `0xpropr:` tx-hash prefix marks a Propr open; `closePositionById`
-  routes the close back through Propr, not the spot venue.
+- The `venue` column marks a Propr open (`venue = 'propr'`);
+  `closePositionById` routes the close back through Propr, not the
+  spot venue. The legacy `0xpropr:` tx-hash prefix is still written
+  to `entry_tx_hash` for human-readable identification, but the code
+  no longer parses prefixes to decide how to close.
 
 ### Account discovery
 

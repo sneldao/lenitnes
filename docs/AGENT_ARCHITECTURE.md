@@ -315,8 +315,7 @@ path, called by both the TP/SL scheduler and the
 
 1. Looks up the position, asset, chain, entry data
 2. Decides paper vs live: paper if the open was paper
-   (`0xpap` tx hash prefix), live if `TRADING_ENABLED` + registry
-   match
+   (`venue = 'paper'`), live if `TRADING_ENABLED` + registry match
 3. For live closes, calls `closeSwap()` — real on-chain reverse
    swap with bounded `amountOutMin`
 4. Always updates `positions` row with `exit_price_usd`,

@@ -43,7 +43,7 @@ export function isProprConfigured(): boolean {
   return !!config.propr.apiKey;
 }
 
-/** Lazily create + setup the singleton client (3-tier account discovery). */
+/** Lazily create and validate the active competition client. */
 export async function initPropr(): Promise<ProprClient> {
   if (_client) return _client;
   if (_initFailed) throw new Error('propr: init previously failed — fix config and restart');
@@ -55,16 +55,68 @@ export async function initPropr(): Promise<ProprClient> {
     timeout: 30_000,
   });
 
-  // setup() runs the 3-tier discovery (funded → competition → challenge).
-  // An explicit PROPR_ACCOUNT_ID overrides discovery (operator pin).
-  const accountId = await client.setup(config.propr.accountId || undefined);
+  const participations = await client.getCompetitionParticipations();
+  const active = participations.filter((participation) => participation.status === 'active');
+  const selected = config.propr.accountId
+    ? active.find((participation) => participation.accountId === config.propr.accountId)
+    : active[0];
+  if (!selected) {
+    throw new Error(
+      config.propr.accountId
+        ? 'propr: PROPR_ACCOUNT_ID is not an active competition account'
+        : 'propr: no active competition account found',
+    );
+  }
+  const accountId = selected.accountId;
+  client.accountId = accountId;
   _client = client;
-  logger.info({ accountId, apiUrl: config.propr.apiUrl }, 'propr: client initialized');
+  logger.info(
+    { accountId, competitionId: selected.competitionId, apiUrl: config.propr.apiUrl },
+    'propr: competition client initialized',
+  );
   return _client;
 }
 
 export function getProprAccountId(): string | null {
   return _client?.accountId ?? null;
+}
+
+/**
+ * Read-only startup check. Verifies credentials, account discovery,
+ * active competition participation, and that the account can read
+ * its own orders/positions. This never creates, changes, or cancels
+ * an order.
+ */
+export async function preflightPropr(): Promise<{
+  accountId: string;
+  competitionActive: boolean;
+  competitionId: string | null;
+  canReadPositions: boolean;
+}> {
+  const client = await initPropr();
+  const accountId = client.accountId ?? '';
+  const participations = await client.getCompetitionParticipations();
+  const competition = participations.find(
+    (participation) => participation.accountId === accountId && participation.status === 'active',
+  );
+
+  // Prove the selected account can actually read its book. A stale or
+  // mis-scoped API key can pass participation discovery but still fail
+  // on every authenticated trading endpoint.
+  let canReadPositions = false;
+  try {
+    await client.getOpenPositions();
+    canReadPositions = true;
+  } catch (err) {
+    logger.warn({ err, accountId }, 'propr: preflight unable to read open positions');
+  }
+
+  return {
+    accountId,
+    competitionActive: competition != null,
+    competitionId: competition?.competitionId ?? null,
+    canReadPositions,
+  };
 }
 
 export { resolveProprAsset };

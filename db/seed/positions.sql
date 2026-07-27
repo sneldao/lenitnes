@@ -12,6 +12,7 @@ CREATE TABLE IF NOT EXISTS positions (
   chain TEXT NOT NULL,
   direction TEXT NOT NULL DEFAULT 'long',
   status TEXT NOT NULL DEFAULT 'open',
+  venue TEXT NOT NULL DEFAULT 'spot',
   entry_amount NUMERIC NOT NULL,
   entry_price_usd NUMERIC,
   entry_tx_hash TEXT,
@@ -30,3 +31,4 @@ CREATE TABLE IF NOT EXISTS positions (
 
 CREATE INDEX IF NOT EXISTS idx_positions_status ON positions (status);
 CREATE INDEX IF NOT EXISTS idx_positions_asset ON positions (asset);
+CREATE INDEX IF NOT EXISTS idx_positions_venue_asset_status ON positions (venue, asset, status);

@@ -20,6 +20,7 @@ export interface OpenPosition {
   asset: string;
   chain: string;
   direction: string;
+  venue: string;
   entry_amount: number;
   entry_price_usd: number | null;
   entry_tx_hash: string | null;
@@ -39,6 +40,7 @@ export interface ClosedPosition {
   asset: string;
   chain: string;
   direction: string;
+  venue: string;
   entry_amount: number;
   entry_price_usd: number | null;
   exit_amount: number;
@@ -184,6 +186,7 @@ export async function getOpenPositions(): Promise<OpenPosition[]> {
     asset: string;
     chain: string;
     direction: string;
+    venue: string;
     entry_amount: string;
     entry_price_usd: string | null;
     entry_tx_hash: string | null;
@@ -192,7 +195,7 @@ export async function getOpenPositions(): Promise<OpenPosition[]> {
     stop_loss_price: string | null;
     conviction_at_open: number | null;
   }>(
-    `SELECT id, asset, chain, direction, entry_amount::text,
+    `SELECT id, asset, chain, direction, venue, entry_amount::text,
             entry_price_usd::text, entry_tx_hash,
             opened_at::text, take_profit_price::text,
             stop_loss_price::text, conviction_at_open
@@ -237,6 +240,7 @@ export async function getOpenPositions(): Promise<OpenPosition[]> {
       asset: r.asset,
       chain: r.chain,
       direction: r.direction,
+      venue: r.venue,
       entry_amount: entryAmount,
       entry_price_usd: entryPrice,
       entry_tx_hash: r.entry_tx_hash,
@@ -258,6 +262,7 @@ export async function getClosedPositions(limit = 20): Promise<ClosedPosition[]> 
     asset: string;
     chain: string;
     direction: string;
+    venue: string;
     entry_amount: string;
     entry_price_usd: string | null;
     exit_amount: string;
@@ -268,7 +273,7 @@ export async function getClosedPositions(limit = 20): Promise<ClosedPosition[]> 
     closed_at: string;
     conviction_at_open: number | null;
   }>(
-    `SELECT id, asset, chain, direction,
+    `SELECT id, asset, chain, direction, venue,
             entry_amount::text, entry_price_usd::text,
             exit_amount::text, exit_price_usd::text,
             pnl_usd::text, pnl_pct::text,
@@ -288,6 +293,7 @@ export async function getClosedPositions(limit = 20): Promise<ClosedPosition[]> 
     asset: r.asset,
     chain: r.chain,
     direction: r.direction,
+    venue: r.venue,
     entry_amount: parseFloat(r.entry_amount),
     entry_price_usd: r.entry_price_usd ? parseFloat(r.entry_price_usd) : null,
     exit_amount: parseFloat(r.exit_amount),

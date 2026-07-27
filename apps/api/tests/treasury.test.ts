@@ -1,10 +1,12 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import {
   deriveActionFromAgent,
+  executeAgentTrade,
   getActiveWallet,
   recordTrade,
   signAndSend,
 } from '../src/services/treasury.js';
+import { config } from '../src/config.js';
 import type { AgentScore } from '@lenitnes/types';
 
 const baseAgentScore: Pick<AgentScore, 'recommended_action' | 'signal_id' | 'thesis'> = {
@@ -24,7 +26,11 @@ const baseTradeConfig = {
   tokenOut: '0xUNDERLYING',
 };
 
-const { mockQuery } = vi.hoisted(() => ({ mockQuery: vi.fn() }));
+const { mockQuery, mockOpenProprPosition, mockResolveProprAsset } = vi.hoisted(() => ({
+  mockQuery: vi.fn(),
+  mockOpenProprPosition: vi.fn(),
+  mockResolveProprAsset: vi.fn(),
+}));
 
 vi.mock('../src/db/pool.js', () => ({
   query: (...args: unknown[]) => mockQuery(...args),
@@ -41,6 +47,16 @@ vi.mock('../src/services/data-providers/registry.js', () => ({
     getPriceAtWindow: vi.fn().mockResolvedValue(null),
   },
   marketData: {},
+}));
+
+vi.mock('../src/services/agent/detector-track-record.js', () => ({
+  anyDetectorChronicallyLosing: vi.fn().mockResolvedValue({ losing: false, losingDetectors: [] }),
+}));
+
+vi.mock('../src/services/venues/propr/index.js', () => ({
+  openProprPosition: mockOpenProprPosition,
+  resolveProprAsset: mockResolveProprAsset,
+  closeProprPosition: vi.fn(),
 }));
 
 describe('treasury.deriveActionFromAgent', () => {
@@ -227,5 +243,105 @@ describe('treasury.recordTrade', () => {
       expect.stringContaining('INSERT INTO orders'),
       expect.arrayContaining(['sig-1', expect.any(String), 'filled', 'arbitrum', '0xpapabc...']),
     );
+  });
+});
+
+describe('treasury.executeAgentTrade Propr competition routing', () => {
+  const mutableConfig = config as unknown as {
+    treasury: { tradingEnabled: boolean };
+    propr: { enabled: boolean };
+  };
+
+  beforeEach(() => {
+    mockQuery.mockReset();
+    mockOpenProprPosition.mockReset();
+    mockResolveProprAsset.mockReset();
+    mutableConfig.treasury.tradingEnabled = true;
+    mutableConfig.propr.enabled = true;
+    mockResolveProprAsset.mockReturnValue({ symbol: 'BTC', szDecimals: 5, maxLeverage: 5 });
+  });
+
+  it('routes a BTC long to Propr and ignores legacy paper positions', async () => {
+    mockQuery.mockImplementation((sql: string) => {
+      if (sql.includes('SELECT id, direction, conviction_at_open FROM positions')) {
+        // The production ledger contains a paper BTC long. The SQL must
+        // filter it out when the target venue is Propr.
+        return Promise.resolve({ rows: [], rowCount: 0 });
+      }
+      if (sql.includes('INSERT INTO orders')) {
+        return Promise.resolve({ rows: [{ id: 'order-propr-1' }], rowCount: 1 });
+      }
+      return Promise.resolve({ rows: [], rowCount: 0 });
+    });
+    mockOpenProprPosition.mockResolvedValue({
+      accountId: 'urn:prp-account:competition',
+      orderId: 'urn:prp-order:entry',
+      positionId: 'urn:prp-position:entry',
+      base: 'BTC',
+      side: 'long',
+      positionSide: 'long',
+      orderType: 'market',
+      quantity: '0.001',
+      entryPrice: '100000',
+      averageFillPrice: '100000',
+      status: 'filled',
+      slOrderId: null,
+      tpOrderId: null,
+      hederaTxId: null,
+      notionalUsd: 100,
+      leverage: 1,
+      mode: 'live',
+      timestamp: '2026-07-27T00:00:00.000Z',
+    });
+
+    const result = await executeAgentTrade(
+      'signal-btc-long',
+      {
+        signal_id: 'signal-btc-long',
+        recommended_action: 'long',
+        thesis: 'Competition route regression test',
+        conviction: 85,
+      },
+      { coingeckoId: 'bitcoin', direction: 'both' },
+    );
+
+    expect(mockOpenProprPosition).toHaveBeenCalledWith({
+      signalId: 'signal-btc-long',
+      coingeckoId: 'bitcoin',
+      side: 'long',
+      conviction: 85,
+    });
+    expect(result.tradeReceipt?.txHash).toBe('0xpropr:urn:prp-order:entry');
+    const bookQuery = mockQuery.mock.calls.find(([sql]) =>
+      String(sql).includes('SELECT id, direction, conviction_at_open FROM positions'),
+    );
+    expect(bookQuery?.[0]).toContain("venue = 'propr'");
+    expect(bookQuery?.[1]).toEqual(['bitcoin', true]);
+  });
+
+  it('still suppresses a duplicate position already open on Propr', async () => {
+    mockQuery.mockImplementation((sql: string) => {
+      if (sql.includes('SELECT id, direction, conviction_at_open FROM positions')) {
+        return Promise.resolve({
+          rows: [{ id: 'existing-propr', direction: 'long', conviction_at_open: 82 }],
+          rowCount: 1,
+        });
+      }
+      return Promise.resolve({ rows: [], rowCount: 0 });
+    });
+
+    const result = await executeAgentTrade(
+      'signal-btc-duplicate',
+      {
+        signal_id: 'signal-btc-duplicate',
+        recommended_action: 'long',
+        thesis: 'Duplicate route regression test',
+        conviction: 90,
+      },
+      { coingeckoId: 'bitcoin', direction: 'both' },
+    );
+
+    expect(result).toEqual({ tradeReceipt: null, orderId: null });
+    expect(mockOpenProprPosition).not.toHaveBeenCalled();
   });
 });

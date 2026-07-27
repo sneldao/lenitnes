@@ -33,6 +33,7 @@ const { mockConfig, mockProprClient, mockPriceData, mockProof, mockTpSl } = vi.h
     setLeverage: vi.fn(),
     closePosition: vi.fn(),
     getLeverageLimits: vi.fn(),
+    getCompetitionParticipations: vi.fn(),
   };
   const mockPriceData = { getPriceAt: vi.fn() };
   const mockProof = { writeHcsMessage: vi.fn() };
@@ -70,6 +71,13 @@ beforeEach(async () => {
   mockProprClient.setLeverage.mockResolvedValue({});
   mockProprClient.getOpenPositions.mockResolvedValue([]);
   mockProprClient.closePosition.mockResolvedValue([]);
+  mockProprClient.getCompetitionParticipations.mockResolvedValue([
+    {
+      accountId: 'urn:prp-account:test',
+      competitionId: 'urn:prp-competition:test',
+      status: 'active',
+    },
+  ]);
 
   // Proof (HCS notarize) default — returns a plausible tx id so a test
   // that flips propr.notarize=true doesn't crash on `await`.
@@ -134,6 +142,28 @@ describe('propr.isProprEnabled', () => {
     mockConfig.treasury.tradingEnabled = true;
     mockConfig.propr.enabled = true;
     expect(propr.isProprEnabled()).toBe(true);
+  });
+});
+
+describe('propr.preflightPropr', () => {
+  it('confirms that the selected account is an active competition entry and can read positions', async () => {
+    mockConfig.propr.apiKey = 'pk_test';
+    mockProprClient.getCompetitionParticipations.mockResolvedValue([
+      {
+        accountId: 'urn:prp-account:test',
+        competitionId: 'urn:prp-competition:active',
+        status: 'active',
+      },
+    ]);
+
+    await expect(propr.preflightPropr()).resolves.toEqual({
+      accountId: 'urn:prp-account:test',
+      competitionActive: true,
+      competitionId: 'urn:prp-competition:active',
+      canReadPositions: true,
+    });
+    expect(mockProprClient.getOpenPositions).toHaveBeenCalled();
+    expect(mockProprClient.createOrder).not.toHaveBeenCalled();
   });
 });
 

@@ -6,11 +6,27 @@ import { closeQueue } from './queue/producer.js';
 import { closeDlq } from './queue/dlq.js';
 import { getRedisConnectionOpts } from './queue/connection.js';
 import { initVenues } from './services/venues/registry.js';
+import { isProprEnabled, preflightPropr } from './services/venues/propr/index.js';
 import http from 'node:http';
 
 logger.info('worker started — BullMQ queue + scheduler');
 
 await initVenues();
+if (isProprEnabled()) {
+  try {
+    const propr = await preflightPropr();
+    if (propr.competitionActive) {
+      logger.info(propr, 'propr: startup preflight passed — active competition account selected');
+    } else {
+      logger.warn(
+        propr,
+        'propr: startup preflight passed but selected account is not an active competition entry',
+      );
+    }
+  } catch (err) {
+    logger.error({ err }, 'propr: startup preflight failed — live competition trades will decline');
+  }
+}
 startWorker();
 startScheduler();
 
