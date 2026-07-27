@@ -14,7 +14,7 @@ import {
   Target,
   Shield,
 } from 'lucide-react';
-import { api, type PortfolioResponse, type OpenPosition } from '@/lib/api';
+import { api, type PortfolioResponse, type OpenPosition, type PositionVenue } from '@/lib/api';
 import { qk, REFETCH } from '@/lib/queryKeys';
 import { formatPct, formatUsd, timeAgo, explorerUrl, txHashVenue } from '@/lib/format';
 import { StatCard } from '@/components/ui/stat-card';
@@ -22,6 +22,33 @@ import { SkeletonStatCard, SkeletonList } from '@/components/ui/skeleton';
 import { Breadcrumbs } from '@/components/ui/breadcrumbs';
 import { Tooltip } from '@/components/ui/tooltip';
 import { SignalSourceBadge } from '@/components/SignalSourceBadge';
+
+type VenueBadge = PositionVenue | 'onchain';
+
+function venueBadge(venue: VenueBadge | null): React.ReactNode {
+  if (!venue) return null;
+  const styles: Record<VenueBadge, string> = {
+    paper: 'bg-slate-700/40 text-slate-400 border-slate-700/60',
+    spot: 'bg-signal/10 text-signal border-signal/30',
+    propr: 'bg-accent/15 text-accent border-accent/30',
+    onchain: 'bg-signal/10 text-signal border-signal/30',
+  };
+  const labels: Record<VenueBadge, string> = {
+    paper: 'Paper',
+    spot: 'Spot',
+    propr: 'Propr',
+    onchain: 'Spot',
+  };
+  const style = styles[venue];
+  const label = labels[venue];
+  return (
+    <span
+      className={`inline-flex items-center rounded border px-1.5 py-0.5 text-[10px] font-medium uppercase tracking-wider ${style}`}
+    >
+      {label}
+    </span>
+  );
+}
 
 function priceUsd(n: number | null): string {
   if (n == null) return '—';
@@ -186,11 +213,12 @@ export default function PortfolioPage() {
                 </div>
                 <div>
                   <p className="text-sm font-medium text-slate-200">{p.asset}</p>
-                  <p className="text-xs text-slate-500">
+                  <p className="flex items-center gap-2 text-xs text-slate-500">
                     {priceUsd(p.entryPriceUsd)} → {priceUsd(p.exitPriceUsd)}
                     {' · '}
                     {timeAgo(p.closedAt)}
                     {p.convictionAtOpen ? ` · conviction ${p.convictionAtOpen}` : ''}
+                    {venueBadge(p.venue)}
                   </p>
                 </div>
               </div>
@@ -227,7 +255,7 @@ function OpenPositionCard({ position: p, index }: { position: OpenPosition; inde
       ? 'border-danger/30 bg-danger/[0.03]'
       : 'border-edge/60';
   const pnlColor = isUp ? 'text-signal' : isDown ? 'text-danger' : 'text-slate-400';
-  const venue = txHashVenue(p.entryTxHash);
+  const venue = txHashVenue(p.entryTxHash, p.venue);
 
   return (
     <div
@@ -251,9 +279,10 @@ function OpenPositionCard({ position: p, index }: { position: OpenPosition; inde
             <p className="text-sm font-semibold text-slate-200">
               {p.asset} · {p.direction.toUpperCase()}
             </p>
-            <p className="text-xs text-slate-500">
+            <p className="flex items-center gap-2 text-xs text-slate-500">
               {timeAgo(p.openedAt)}
               {p.convictionAtOpen ? ` · conviction ${p.convictionAtOpen}` : ''}
+              {venueBadge(venue)}
             </p>
           </div>
         </div>

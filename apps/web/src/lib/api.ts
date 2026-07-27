@@ -286,11 +286,14 @@ export interface PortfolioSummary {
   avgHoldTimeHours: number | null;
 }
 
+export type PositionVenue = 'paper' | 'spot' | 'propr';
+
 export interface OpenPosition {
   id: string;
   asset: string;
   chain: string;
   direction: string;
+  venue: PositionVenue;
   entryAmount: number;
   entryPriceUsd: number | null;
   entryTxHash: string | null;
@@ -309,6 +312,7 @@ export interface ClosedPosition {
   asset: string;
   chain: string;
   direction: string;
+  venue: PositionVenue;
   entryAmount: number;
   entryPriceUsd: number | null;
   exitAmount: number;

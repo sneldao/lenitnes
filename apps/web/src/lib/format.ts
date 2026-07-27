@@ -241,16 +241,22 @@ export function explorerUrl(chain: string, txHash: string): string {
 }
 
 /**
- * Classify a tx hash by venue for display.
+ * Classify a position by venue for display.
  * - 'onchain': a real chain tx hash → render an explorer link.
  * - 'paper':   a 0xpap… synthetic paper-trade hash → render a "paper" badge.
  * - 'propr':   a 0xpropr:… Propr perp order URN → render a "Propr perp" badge.
+ *
+ * Prefers the explicit `venue` value from the API; falls back to
+ * parsing the tx-hash prefix for legacy rows.
  */
-export function txHashVenue(txHash: string | null): 'onchain' | 'paper' | 'propr' | null {
-  if (!txHash) return null;
-  if (txHash.startsWith('0xpap')) return 'paper';
-  if (txHash.startsWith('0xpropr:')) return 'propr';
-  return 'onchain';
+export function txHashVenue(
+  txHash: string | null,
+  venue?: string | null,
+): 'onchain' | 'paper' | 'propr' | null {
+  if (venue === 'paper' || txHash?.startsWith('0xpap')) return 'paper';
+  if (venue === 'propr' || txHash?.startsWith('0xpropr:')) return 'propr';
+  if (venue === 'spot' || txHash) return 'onchain';
+  return null;
 }
 
 /** Tailwind classes for A/B/C repo tier badges (calibration, scan, scorecard). */
