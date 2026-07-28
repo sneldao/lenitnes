@@ -47,20 +47,35 @@ describe('formatSignalBroadcastMessage', () => {
     expect(msg).toContain('Critical soundness fix merged');
   });
 
-  it('shows trade mode + chain inline on a single line', () => {
+  it('shows trade mode + venue inline on a single line', () => {
     const msg = formatSignalBroadcastMessage(baseInput);
-    // Paper tx hash has no explorer URL, so it appears verbatim.
-    expect(msg).toContain('📈 PAPER (tracked call, no on-chain swap) · arbitrum');
+    // Paper tx hash (0xpap…) renders as a tracked paper call, no chain noise.
+    expect(msg).toContain('📈 PAPER · tracked paper call');
     // Don't link a paper tx to an explorer (that would 404).
     expect(msg).not.toContain('https://sepolia.arbiscan.io/tx/0xpap');
   });
 
-  it('links the explorer for live trades', () => {
+  it('names the Propr venue for perp fills', () => {
+    const msg = formatSignalBroadcastMessage({
+      ...baseInput,
+      tradeReceipt: {
+        chain: 'bnb',
+        txHash: '0xpropr:ord-123',
+        pair: 'ZECUSD',
+        mode: 'live',
+      },
+    });
+    expect(msg).toContain('📈 LIVE · Propr perp (Hyperliquid)');
+  });
+
+  it('links the explorer for on-chain live trades', () => {
     const msg = formatSignalBroadcastMessage({
       ...baseInput,
       tradeReceipt: { ...baseInput.tradeReceipt!, txHash: '0xREAL_TX_HASH', mode: 'live' },
     });
-    expect(msg).toContain('📈 LIVE · arbitrum · https://sepolia.arbiscan.io/tx/0xREAL_TX_HASH');
+    expect(msg).toContain(
+      '📈 LIVE · arbitrum on-chain · https://sepolia.arbiscan.io/tx/0xREAL_TX_HASH',
+    );
   });
 
   it('includes Hedera HCS explorer link when hederaTxId is set', () => {
@@ -86,11 +101,12 @@ describe('formatSignalBroadcastMessage', () => {
     expect(msg).toContain('📦 Grove: https://grove.lens.xyz/ipfs/bafkreihello');
   });
 
-  it('surfaces verdict schedule and signal deep link', () => {
+  it('surfaces verdict schedule, signal deep link, and destination links', () => {
     const msg = formatSignalBroadcastMessage(baseInput);
     expect(msg).toContain('Verdict at T+1d · T+7d');
     expect(msg).toContain('/signals/sig-1');
-    expect(msg).toContain('/calibration');
+    expect(msg).toContain('/scorecard ·');
+    expect(msg).not.toContain('/calibration');
   });
 
   it('omits the trade line when no receipt', () => {

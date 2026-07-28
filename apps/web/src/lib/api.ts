@@ -331,6 +331,36 @@ export interface PortfolioResponse {
   closed: ClosedPosition[];
 }
 
+// ── Prices + reasoning feed ───────────────────────────────────
+
+/** Live snapshot of the spot price hub (CMC, refreshed ~10 min server-side). */
+export interface PricesSnapshot {
+  prices: Record<string, number>;
+  updatedAt: string | null;
+}
+
+export interface ReasoningItem {
+  signalId: string;
+  detectedAt: string;
+  createdAt: string;
+  asset: string | null;
+  monitorUrl: string;
+  conditionSummary: string | null;
+  detectorTypes: string[];
+  conviction: number | null;
+  thesis: string | null;
+  recommendedAction: 'long' | 'short' | 'none' | null;
+  confidenceBand: 'low' | 'mid' | 'high' | null;
+  rubricVersion: string;
+  traded: boolean;
+}
+
+export interface ReasoningFeedResponse {
+  items: ReasoningItem[];
+  count: number;
+  generatedAt: string;
+}
+
 // ── Backtest ──────────────────────────────────────────────────
 
 export interface ReplayResponsivenessProfile {
@@ -583,6 +613,10 @@ export const api = {
 
   getIntelligence: (refresh = false) =>
     reqCamel<IntelligenceSnapshot>(`/intelligence${refresh ? '?refresh=true' : ''}`),
+
+  getPrices: () => reqCamel<PricesSnapshot>(`/prices`),
+
+  listReasoning: (limit = 40) => reqCamel<ReasoningFeedResponse>(`/reasoning?limit=${limit}`),
 };
 
 // Backwards-compatible re-exports for old callers that imported

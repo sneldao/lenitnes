@@ -10,6 +10,7 @@ const NAV_LINKS = [
   { href: '/scorecard', label: 'Scorecard' },
   { href: '/calibration', label: 'Calibration' },
   { href: '/portfolio', label: 'Portfolio' },
+  { href: '/reasoning', label: 'Reasoning' },
   { href: '/intelligence', label: 'Intelligence' },
   { href: '/monitors', label: 'Watchlist' },
   { href: '/scan', label: 'Scan' },
@@ -24,7 +25,7 @@ export function Nav() {
 
   function isActive(href: string): boolean {
     if (href === '/') return pathname === '/';
-    return pathname.startsWith(href);
+    return pathname?.startsWith(href) ?? false;
   }
 
   // Close on route change so a tap on a drawer link doesn't leave

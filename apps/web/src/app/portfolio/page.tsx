@@ -1,5 +1,6 @@
 'use client';
 
+import { useMemo } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import Link from 'next/link';
 import {
@@ -14,8 +15,15 @@ import {
   Target,
   Shield,
 } from 'lucide-react';
-import { api, type PortfolioResponse, type OpenPosition, type PositionVenue } from '@/lib/api';
+import {
+  api,
+  type PortfolioResponse,
+  type OpenPosition,
+  type PositionVenue,
+  type PricesSnapshot,
+} from '@/lib/api';
 import { qk, REFETCH } from '@/lib/queryKeys';
+import { cn } from '@/lib/utils';
 import { formatPct, formatUsd, timeAgo, explorerUrl, txHashVenue } from '@/lib/format';
 import { StatCard } from '@/components/ui/stat-card';
 import { SkeletonStatCard, SkeletonList } from '@/components/ui/skeleton';
@@ -63,6 +71,35 @@ export default function PortfolioPage() {
     queryFn: () => api.listPortfolio(),
     refetchInterval: REFETCH.medium,
   });
+
+  // Live tick between full refetches — the portfolio API's 60s cycle
+  // reads from the same hub, but this page is the product's one spot
+  // where 'it moves while you watch' IS the message.
+  const { data: prices } = useQuery<PricesSnapshot>({
+    queryKey: ['prices'],
+    queryFn: () => api.getPrices(),
+    refetchInterval: REFETCH.fast,
+  });
+
+  // Merge hub ticks into position rows: live current price + recomputed
+  // unrealized P&L per position; sort by drama (|pnl %| desc, priced
+  // positions first).
+  const liveOpen = useMemo(() => {
+    const merged = (data?.open ?? []).map((p) => {
+      const tick = prices?.prices[p.asset];
+      if (!tick || p.entryPriceUsd == null || p.entryAmount <= 0) return p;
+      const sign = p.direction === 'short' ? -1 : 1;
+      return {
+        ...p,
+        currentPriceUsd: tick,
+        unrealizedPnlUsd: sign * (tick - p.entryPriceUsd) * p.entryAmount,
+        unrealizedPnlPct: sign * ((tick - p.entryPriceUsd) / p.entryPriceUsd) * 100,
+      };
+    });
+    return merged.sort(
+      (a, b) => Math.abs(b.unrealizedPnlPct ?? -1) - Math.abs(a.unrealizedPnlPct ?? -1),
+    );
+  }, [data, prices]);
 
   if (isLoading) {
     return (
@@ -163,8 +200,8 @@ export default function PortfolioPage() {
           </Link>
         </div>
       ) : (
-        <div className="mb-8 space-y-3">
-          {openPositions.map((p, i) => (
+        <div className="mb-8 grid gap-3 lg:grid-cols-2">
+          {liveOpen.map((p, i) => (
             <OpenPositionCard key={p.id} position={p} index={i} />
           ))}
         </div>
@@ -172,10 +209,9 @@ export default function PortfolioPage() {
 
       {/* Closed positions */}
       <h2 className="section-title">Trade History</h2>
-      <p className="mb-3 text-[11px] leading-relaxed text-slate-500">
-        Positions opened before 7 Jul 2026 predate rubric v4 (commit-citation requirement, book
-        discipline, hardened calibration) and were closed manually at market on that date. The
-        record the agent stands on starts there.
+      <p className="mb-3 text-[11px] text-slate-500">
+        Positions predating rubric v4 were closed manually on 7 Jul 2026 — the scored record starts
+        there.
       </p>
       {closedPositions.length === 0 ? (
         <div className="rounded-xl border border-dashed border-edge/60 p-6 text-center">
@@ -296,7 +332,7 @@ function OpenPositionCard({ position: p, index }: { position: OpenPosition; inde
         </div>
       </div>
 
-      {/* Price + TP/SL row */}
+      {/* Price + TP/SL row — one glance tells you where the bet sits */}
       <div className="mt-3 grid gap-2 text-xs sm:grid-cols-3">
         <div className="text-slate-500">
           <span className="font-mono uppercase tracking-wider text-[10px]">entry</span>
@@ -305,8 +341,14 @@ function OpenPositionCard({ position: p, index }: { position: OpenPosition; inde
           </p>
         </div>
         <div className="text-slate-500">
-          <span className="font-mono uppercase tracking-wider text-[10px]">now</span>
-          <p className="mt-0.5 font-mono tabular-nums text-slate-300">
+          <span className="font-mono uppercase tracking-wider text-[10px]">now · live</span>
+          <p
+            className={cn(
+              'mt-0.5 font-mono tabular-nums text-slate-300 transition-colors duration-500',
+              isUp && 'text-signal',
+              isDown && 'text-danger',
+            )}
+          >
             {priceUsd(p.currentPriceUsd)}
           </p>
         </div>
@@ -333,6 +375,11 @@ function OpenPositionCard({ position: p, index }: { position: OpenPosition; inde
           </p>
         </div>
       </div>
+
+      {/* TP/SL progress rail: where is the price inside the bracket? */}
+      {p.takeProfitPrice != null && p.stopLossPrice != null && p.currentPriceUsd != null && (
+        <PositionRail position={p} />
+      )}
 
       {p.reasoning && (p.reasoning.thesis || p.reasoning.sourceCategory !== 'commit') && (
         <div className="mt-3 rounded-lg border border-edge/40 bg-ink-light/40 p-3">
@@ -394,6 +441,101 @@ function OpenPositionCard({ position: p, index }: { position: OpenPosition; inde
           )}
         </div>
       )}
+    </div>
+  );
+}
+
+// ── Position bracket rail ──
+// One line: SL on the danger end, TP on the signal end, a live marker
+// at the current price, and a tick at entry. For shorts the geometry
+// flips (TP below entry). Fill color follows the position's current
+// P&L; when the marker escapes the bracket the rail glows at the
+// breached end.
+function PositionRail({ position: p }: { position: OpenPosition }) {
+  const tp = p.takeProfitPrice!;
+  const sl = p.stopLossPrice!;
+  const entry = p.entryPriceUsd;
+  const current = p.currentPriceUsd!;
+
+  const lo = Math.min(tp, sl);
+  const hi = Math.max(tp, sl);
+  const domainHi = Math.max(hi, current);
+  const domainLo = Math.min(lo, current);
+  const span = domainHi - domainLo || 1;
+  const pct = (v: number) => ((v - domainLo) / span) * 100;
+
+  const tpLeft = pct(tp);
+  const slLeft = pct(sl);
+  const curLeft = Math.min(Math.max(pct(current), 0), 100);
+  const entryLeft = entry != null ? pct(entry) : null;
+
+  const isUp = (p.unrealizedPnlPct ?? 0) > 0;
+
+  return (
+    <div className="mt-4">
+      <div className="relative h-2 overflow-visible rounded-full bg-edge/50">
+        {/* SL→TP span shading */}
+        <div
+          className={cn(
+            'absolute inset-y-0 rounded-full opacity-40',
+            isUp
+              ? 'bg-gradient-to-r from-edge/60 to-signal/50'
+              : 'bg-gradient-to-r from-danger/50 to-edge/60',
+          )}
+          style={{ left: `${Math.min(slLeft, tpLeft)}%`, width: `${Math.abs(tpLeft - slLeft)}%` }}
+        />
+        {/* entry tick */}
+        {entryLeft != null && (
+          <div
+            className="absolute top-1/2 h-3 w-px -translate-y-1/2 bg-slate-400"
+            style={{ left: `${entryLeft}%` }}
+            aria-hidden="true"
+          />
+        )}
+        {/* current marker — live */}
+        <div
+          className={cn(
+            'absolute top-1/2 h-3 w-3 -translate-x-1/2 -translate-y-1/2 rounded-full border-2 border-panel shadow transition-[left] duration-500',
+            isUp ? 'bg-signal' : 'bg-danger',
+          )}
+          style={{ left: `${curLeft}%` }}
+        />
+        {/* TP + SL endcaps */}
+        <div
+          className="absolute top-1/2 h-2 w-0.5 -translate-y-1/2 bg-signal"
+          style={{ left: `${tpLeft}%` }}
+        />
+        <div
+          className="absolute top-1/2 h-2 w-0.5 -translate-y-1/2 bg-danger"
+          style={{ left: `${slLeft}%` }}
+        />
+      </div>
+      {/* End labels follow the bracket geometry — for shorts the TP is
+          on the LEFT of the entry and the SL on the right. */}
+      <div className="mt-1.5 flex justify-between font-mono text-[9px] text-slate-600">
+        <span>
+          {sl < tp ? (
+            <>
+              <Shield className="inline h-2 w-2 text-danger/70" /> sl
+            </>
+          ) : (
+            <>
+              <Target className="inline h-2 w-2 text-signal/70" /> tp
+            </>
+          )}
+        </span>
+        <span>
+          {sl < tp ? (
+            <>
+              <Target className="inline h-2 w-2 text-signal/70" /> tp
+            </>
+          ) : (
+            <>
+              <Shield className="inline h-2 w-2 text-danger/70" /> sl
+            </>
+          )}
+        </span>
+      </div>
     </div>
   );
 }

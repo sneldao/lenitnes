@@ -265,17 +265,24 @@ export function formatSignalBroadcastMessage(input: BroadcastSignalInput): strin
   lines.push(`💭 ${input.agentScore.thesis}`);
   lines.push('');
 
-  // Trade — one line. Mode is explicit: PAPER calls are tracked
-  // positions with real timestamped price snapshots, not on-chain
-  // swaps. Never let a reader mistake one for the other.
+  // Trade — one VENUE-named line. "· bnb" told readers nothing about
+  // where execution actually happened; the tx-hash prefix knows:
+  //   0xpropr: → Hyperliquid perp via Propr
+  //   0xpap    → tracked paper call (real timestamps, no swap)
+  //   else     → on-chain swap, explorer-linked
   if (input.tradeReceipt) {
     const t = input.tradeReceipt;
-    const modeLabel = t.mode === 'paper' ? 'PAPER (tracked call, no on-chain swap)' : 'LIVE';
+    const venue = t.txHash.startsWith('0xpropr:')
+      ? 'Propr perp (Hyperliquid)'
+      : t.txHash.startsWith('0xpap')
+        ? 'tracked paper call'
+        : `${t.chain} on-chain`;
+    const modeLabel = t.mode === 'paper' ? 'PAPER' : 'LIVE';
     const url = explorerUrlFor(t.chain, t.txHash);
-    if (url) {
-      lines.push(`📈 ${modeLabel} · ${t.chain} · ${url}`);
+    if (!t.txHash.startsWith('0xpap') && !t.txHash.startsWith('0xpropr:') && url) {
+      lines.push(`📈 ${modeLabel} · ${venue} · ${url}`);
     } else {
-      lines.push(`📈 ${modeLabel} · ${t.chain}`);
+      lines.push(`📈 ${modeLabel} · ${venue}`);
     }
     lines.push('');
   }
@@ -314,10 +321,11 @@ export function formatSignalBroadcastMessage(input: BroadcastSignalInput): strin
   lines.push(...proofLines);
   lines.push('');
 
-  // Outcome schedule + deep links.
+  // Outcome schedule + deep links. One action, one record — drop
+  // the calibration link (repeat readers don't tap it).
   lines.push(`⏱ Verdict at T+1d · T+7d (auto-posted)`);
   lines.push(`🔗 ${config.webOrigin}/signals/${input.signalId}`);
-  lines.push(`📊 ${config.webOrigin}/calibration`);
+  lines.push(`📊 ${config.webOrigin}/scorecard · ${config.webOrigin}/portfolio`);
 
   return lines.join('\n');
 }
