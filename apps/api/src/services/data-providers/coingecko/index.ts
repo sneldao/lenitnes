@@ -150,10 +150,13 @@ async function fetchRangeWithRetry(
     baseDelayMs: 10_000,
     maxDelayMs: 120_000,
     retryIf: (err) => {
+      // A 429 without a Retry-After hint = the account quota is spent.
+      // Retrying just burns the shared cooldown while pages hang —
+      // fail fast and let the next cycle try after the brake expires.
       const retryMs = (err as Error & { retryAfterMs?: number }).retryAfterMs;
       if (retryMs != null) return true;
       const msg = (err as Error).message ?? '';
-      return msg.includes('429') || msg.includes('502') || msg.includes('503');
+      return msg.includes('502') || msg.includes('503');
     },
     delayForAttempt: (attempt, err) => {
       const retryMs = (err as Error & { retryAfterMs?: number }).retryAfterMs;
