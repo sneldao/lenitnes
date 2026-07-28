@@ -188,8 +188,12 @@ export default function SignalDetailPage({ params }: { params: Promise<{ id: str
           <div className="min-w-0">
             <p className="font-mono text-[10px] uppercase tracking-wider text-accent">{proofId}</p>
             <p className="truncate text-xs text-slate-500">
-              {new Date(signal.detectedAt).toLocaleString()} ·{' '}
-              {shortUrl(signal.monitor?.url ?? '—')}
+              {new Date(signal.detectedAt).toLocaleString()}
+              {signal.monitor?.url?.startsWith('http')
+                ? ` · ${shortUrl(signal.monitor.url)}`
+                : signal.monitor?.url
+                  ? ` · ${signal.monitor.url.split(':')[0]} scanner`
+                  : ''}
             </p>
           </div>
         </div>
