@@ -1,5 +1,6 @@
 'use client';
 
+import { useMemo } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import Link from 'next/link';
 import {
@@ -13,7 +14,7 @@ import {
   ArrowUpRight,
   Shield,
 } from 'lucide-react';
-import { api, type ScorecardResponse, type RepoTiersResponse } from '@/lib/api';
+import { api, type ScorecardResponse, type PortfolioResponse } from '@/lib/api';
 import { qk, REFETCH } from '@/lib/queryKeys';
 import {
   formatRatio,
@@ -22,11 +23,12 @@ import {
   formatDate,
   shortUrl,
   formatDetectorType,
-  tierBadgeClass,
 } from '@/lib/format';
 import { StatCard } from '@/components/ui/stat-card';
 import { OutcomePill } from '@/components/ui/outcome-pill';
 import { PageLoader, PageError } from '@/components/ui/page-states';
+import { JudgmentCountdown } from '@/components/JudgmentCountdown';
+import { PnlSparkline } from '@/components/ui/pnl-sparkline';
 
 function fmtPct(n: number | null): string {
   if (n == null) return '—';
@@ -48,12 +50,36 @@ export default function ScorecardPage() {
     refetchInterval: REFETCH.medium,
   });
 
-  const { data: repoTiers } = useQuery<RepoTiersResponse>({
-    queryKey: qk.repoTiers(),
-    queryFn: () => api.getRepoTiers(),
-    staleTime: REFETCH.backtest,
-    refetchInterval: REFETCH.backtest,
+  // Venue data drives the paper/live chip: the moment the first
+  // Propr fill lands, the public badge flips from "paper" to "live
+  // venue" automatically — no hardcoded banner to go stale.
+  const { data: portfolio } = useQuery<PortfolioResponse>({
+    queryKey: qk.portfolio(),
+    queryFn: () => api.listPortfolio(),
+    refetchInterval: REFETCH.medium,
   });
+
+  const hasLiveFill = useMemo(
+    () =>
+      [...(portfolio?.open ?? []), ...(portfolio?.closed ?? [])].some(
+        // The venue column is the canonical record; the 0xpropr tx
+        // prefix check covers legacy rows on OpenPosition only
+        // (ClosedPosition doesn't carry entryTxHash in the API type).
+        (p) =>
+          p.venue === 'propr' ||
+          ('entryTxHash' in p && (p.entryTxHash ?? '')?.startsWith('0xpropr')),
+      ),
+    [portfolio],
+  );
+
+  // Cumulative realized P&L curve for the hero sparkline.
+  const pnlCurve = useMemo(() => {
+    const closed = [...(portfolio?.closed ?? [])].sort(
+      (a, b) => new Date(a.closedAt).getTime() - new Date(b.closedAt).getTime(),
+    );
+    let acc = 0;
+    return closed.map((p) => (acc += p.pnlUsd));
+  }, [portfolio]);
 
   if (isLoading) return <PageLoader label="Loading scorecard…" />;
   if (isError || !data)
@@ -62,76 +88,133 @@ export default function ScorecardPage() {
     );
 
   const isEmpty = data.totalSignals === 0;
+  const latestCall = data.recentCalls[0];
 
   return (
     <div className="space-y-8">
-      {/* ── Header ── */}
-      <header>
-        <p className="mb-2 font-mono text-[10px] uppercase tracking-widest text-accent">
-          public track record
-        </p>
-        <h1 className="font-display text-3xl font-semibold text-slate-100 sm:text-4xl">
-          LENITNES agent scorecard
-        </h1>
-        <p className="mt-2 max-w-2xl text-sm leading-relaxed text-slate-400">
-          Every signal the agent has committed to a trade on, with the price outcome recorded at
-          T+1d. Conviction is the agent&apos;s 0–100 score against a versioned rubric; hit means the
-          price moved in the predicted direction.
-        </p>
-        <p className="mt-1 font-mono text-[10px] text-slate-600">
-          generated {formatDate(data.generatedAt)} · refreshed every 60s
-        </p>
+      {/* ── Header — one line, then let the numbers talk ── */}
+      <header className="flex flex-wrap items-end justify-between gap-4">
+        <div>
+          <p className="mb-2 font-mono text-[10px] uppercase tracking-widest text-accent">
+            public track record · updated live
+          </p>
+          <h1 className="font-display text-3xl font-semibold text-slate-100 sm:text-4xl">
+            Was the agent right?
+          </h1>
+        </div>
+        <div className="flex items-center gap-3">
+          {/* Venue chip — data-driven, flips with the first live fill */}
+          <span
+            className={`inline-flex items-center gap-2 rounded-full border px-3 py-1.5 font-mono text-[11px] ${
+              hasLiveFill
+                ? 'border-signal/40 bg-signal/[0.08] text-signal'
+                : 'border-accent/30 bg-accent/[0.06] text-accent'
+            }`}
+          >
+            <Sparkles className="h-3.5 w-3.5" />
+            {hasLiveFill
+              ? 'Live venue trading · Propr perps'
+              : 'Paper trading — track record phase'}
+          </span>
+          <Link
+            href="/methodology"
+            className="font-mono text-[10px] uppercase tracking-wider text-slate-500 transition-colors hover:text-accent"
+          >
+            how it works →
+          </Link>
+        </div>
       </header>
 
-      {/* ── Learning-phase badge ── */}
-      <div className="flex items-center gap-3">
-        <span className="inline-flex items-center gap-2 rounded-full border border-accent/30 bg-accent/[0.06] px-3 py-1.5 font-mono text-[11px] text-accent">
-          <Sparkles className="h-3.5 w-3.5" />
-          Paper trading — building track record before going live
-        </span>
-        <Link
-          href="/methodology"
-          className="font-mono text-[10px] uppercase tracking-wider text-slate-500 transition-colors hover:text-accent"
-        >
-          how it works →
-        </Link>
-      </div>
-
-      {repoTiers?.tiers && repoTiers.tiers.length > 0 && (
-        <section className="card border-edge/30 reveal in-view">
-          <div className="flex flex-wrap items-start justify-between gap-3">
-            <div>
-              <h2 className="section-title mb-1 flex items-center gap-2">
-                <Layers className="h-3.5 w-3.5 text-accent" />
-                Repo tradability (90d replay)
-              </h2>
-              <p className="max-w-prose text-xs leading-relaxed text-slate-500">
-                Which watchlist repos&apos; commit signals historically co-moved with price — mock
-                agent, background sweep. A-tier = expand spend; C-tier = deprioritize.
-              </p>
-            </div>
-            <Link
-              href="/calibration"
-              className="font-mono text-[10px] uppercase tracking-wider text-accent hover:underline"
-            >
-              full table →
-            </Link>
-          </div>
-          <div className="mt-4 flex flex-wrap gap-2">
-            {repoTiers.tiers.map((t) => (
-              <span
-                key={t.repo}
-                title={t.tierReason}
-                className="inline-flex items-center gap-1.5 rounded-lg border border-edge/30 bg-ink-light/40 px-2.5 py-1.5 font-mono text-[11px] text-slate-400"
-              >
-                <span
-                  className={`rounded px-1 py-0.5 text-[9px] uppercase ${tierBadgeClass(t.tier)}`}
+      {/* ── Hero: the answer, big ── */}
+      {!isEmpty && (
+        <section className="card reveal in-view border-accent/20 bg-panel/80">
+          <div className="grid gap-8 sm:grid-cols-[auto_1fr] sm:items-center">
+            <div className="flex items-end gap-8">
+              <div>
+                <p className="font-mono text-[10px] uppercase tracking-wider text-slate-500">
+                  Hit ratio · T+1d
+                </p>
+                <p
+                  className={`mt-1 font-display text-6xl font-semibold leading-none tracking-tight ${
+                    data.outcomesSummary.closed === 0
+                      ? 'text-slate-500'
+                      : data.hitRatio >= 0.5
+                        ? 'text-signal'
+                        : 'text-danger'
+                  }`}
                 >
-                  {t.tier}
-                </span>
-                {t.repo.split('/')[1] ?? t.repo}
-              </span>
-            ))}
+                  {data.outcomesSummary.closed > 0 ? formatRatio(data.hitRatio) : '—'}
+                </p>
+                <p className="mt-2 font-mono text-[10px] text-slate-500">
+                  {data.outcomesSummary.closed} judged · {data.outcomesSummary.pending} pending
+                </p>
+              </div>
+              <div>
+                <p className="font-mono text-[10px] uppercase tracking-wider text-slate-500">
+                  Cumulative P&L
+                </p>
+                <p
+                  className={`mt-1 font-display text-4xl font-semibold leading-none tracking-tight ${
+                    data.cumulativePnlUsd >= 0 ? 'text-signal' : 'text-danger'
+                  }`}
+                >
+                  {data.outcomesSummary.closed > 0
+                    ? formatUsd(data.cumulativePnlUsd, { showPositiveSign: true })
+                    : '—'}
+                </p>
+                {pnlCurve.length > 1 && (
+                  <PnlSparkline points={pnlCurve} className="mt-3" width={140} height={36} />
+                )}
+              </div>
+            </div>
+
+            {/* ── Latest call — the suspense beat ── */}
+            {latestCall && (
+              <Link
+                href={`/signals/${latestCall.signalId}`}
+                className="group block rounded-2xl border border-edge/40 bg-ink-light/40 p-4 transition-colors hover:border-accent/40"
+              >
+                <div className="flex items-center justify-between gap-3">
+                  <p className="font-mono text-[10px] uppercase tracking-wider text-accent">
+                    latest call · {formatDate(latestCall.detectedAt)}
+                  </p>
+                  {latestCall.outcomes.t1d == null && (
+                    <JudgmentCountdown detectedAt={latestCall.detectedAt} />
+                  )}
+                </div>
+                <p className="mt-2 line-clamp-2 text-sm leading-relaxed text-slate-200 transition-colors group-hover:text-accent">
+                  {latestCall.thesis ?? 'No thesis recorded'}
+                </p>
+                <div className="mt-3 flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    {latestCall.recommendedAction && (
+                      <span
+                        className={`badge text-[10px] uppercase ${
+                          latestCall.recommendedAction === 'long'
+                            ? 'bg-signal/15 text-signal'
+                            : latestCall.recommendedAction === 'short'
+                              ? 'bg-danger/15 text-danger'
+                              : 'bg-slate-500/15 text-slate-400'
+                        }`}
+                      >
+                        {latestCall.recommendedAction}
+                      </span>
+                    )}
+                    {latestCall.conviction != null && (
+                      <span className="font-mono text-xs font-bold text-accent">
+                        {latestCall.conviction}
+                        <span className="text-slate-500">/100</span>
+                      </span>
+                    )}
+                  </div>
+                  <div className="grid grid-cols-3 gap-2">
+                    <OutcomePill label="1h" value={latestCall.outcomes.t1h} />
+                    <OutcomePill label="1d" value={latestCall.outcomes.t1d} />
+                    <OutcomePill label="7d" value={latestCall.outcomes.t7d} />
+                  </div>
+                </div>
+              </Link>
+            )}
           </div>
         </section>
       )}
@@ -164,7 +247,7 @@ export default function ScorecardPage() {
       ) : (
         <>
           {/* ── Top stats grid ── */}
-          <section className="reveal in-view grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6">
+          <section className="reveal in-view grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
             <StatCard
               icon={<Activity className="h-3 w-3" />}
               label="Total signals"
@@ -176,19 +259,6 @@ export default function ScorecardPage() {
               value={data.totalTrades.toString()}
             />
             <StatCard
-              icon={<Target className="h-3 w-3" />}
-              label="Hit ratio (T+1d)"
-              value={data.outcomesSummary.closed > 0 ? formatRatio(data.hitRatio) : '—'}
-              tone={
-                data.outcomesSummary.closed === 0
-                  ? 'neutral'
-                  : data.hitRatio >= 0.5
-                    ? 'positive'
-                    : 'negative'
-              }
-              caveat={`n=${data.outcomesSummary.closed} closed · ${data.outcomesSummary.pending} pending`}
-            />
-            <StatCard
               icon={
                 data.cumulativePnlUsd >= 0 ? (
                   <TrendingUp className="h-3 w-3" />
@@ -196,25 +266,14 @@ export default function ScorecardPage() {
                   <TrendingDown className="h-3 w-3" />
                 )
               }
-              label="Cumulative P&L"
-              value={data.outcomesSummary.closed > 0 ? formatUsd(data.cumulativePnlUsd) : '—'}
-              tone={
-                data.outcomesSummary.closed === 0
-                  ? 'neutral'
-                  : data.cumulativePnlUsd >= 0
-                    ? 'positive'
-                    : 'negative'
-              }
-              caveat={
-                data.outcomesSummary.closed === 0
-                  ? `${data.outcomesSummary.pending} trades pending T+1d`
-                  : undefined
-              }
+              label="Sharpe / max DD"
+              value={`${formatSharpe(data.sharpe)} / ${formatUsd(data.maxDrawdownUsd)}`}
             />
             <StatCard
               icon={<Layers className="h-3 w-3" />}
-              label="Sharpe / max DD"
-              value={`${formatSharpe(data.sharpe)} / ${formatUsd(data.maxDrawdownUsd)}`}
+              label="Conviction bands"
+              value={`${data.byConvictionBand.filter((b) => b.traded > 0).length} traded`}
+              caveat="does higher conviction win? →"
             />
             <StatCard
               icon={<Shield className="h-3 w-3" />}
