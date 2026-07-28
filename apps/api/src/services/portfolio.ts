@@ -150,7 +150,7 @@ async function fetchPositionReasoning(
             ag.recommended_action,
             ag.conviction,
             ARRAY_AGG(sc.detector_type) FILTER (WHERE sc.detector_type IS NOT NULL) AS detector_types,
-            (ARRAY_AGG(sc.metadata) FILTER (WHERE sc.metadata IS NOT NULL) ORDER BY sc.score DESC)[1] AS detector_metadata,
+            (ARRAY_AGG(sc.metadata ORDER BY sc.score DESC) FILTER (WHERE sc.metadata IS NOT NULL))[1] AS detector_metadata,
             m.url AS monitor_url
        FROM positions p
        LEFT JOIN agent_scores ag ON ag.signal_id = p.signal_id
