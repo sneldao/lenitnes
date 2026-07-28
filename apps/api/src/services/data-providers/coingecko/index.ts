@@ -7,6 +7,7 @@ import type { PricePoint, PriceDataProvider } from '../types.js';
 import { getCachedPriceSeries, setCachedPriceSeries } from './redis-cache.js';
 import { getLatestUsdPrice } from '../spot-prices.js';
 import { tryConsume, SpendGuardError } from '../../spend-guard.js';
+import { fetchSeriesThroughChain } from '../fallback/index.js';
 
 const COINGECKO_BASE = 'https://api.coingecko.com/api/v3';
 /** Free tier ≈ 10–30 req/min; pro key allows faster pacing. */
@@ -68,25 +69,16 @@ function enterCooldown(retryAfterMs: number | null): void {
   cooldownUntilMs = Math.max(cooldownUntilMs, Date.now() + (retryAfterMs ?? 60_000));
 }
 
+/**
+ * Raw CoinGecko range fetch — NO caching. Caching lives one level up
+ * (fetchSeriesCachedThroughChain) so alternative oracles populate the
+ * same caches.
+ */
 async function fetchCoinGeckoRange(
   coingeckoId: string,
   fromUnix: number,
   toUnix: number,
 ): Promise<PricePoint[]> {
-  const cacheKey = `price:cg:${coingeckoId}:${bucketUnix(fromUnix)}:${bucketUnix(toUnix)}`;
-  const cached = cacheGet<PricePoint[]>(cacheKey);
-  if (cached) return cached;
-
-  const redisCached = await getCachedPriceSeries(
-    coingeckoId,
-    bucketUnix(fromUnix),
-    bucketUnix(toUnix),
-  );
-  if (redisCached) {
-    cacheSet(cacheKey, redisCached, PRICE_CACHE_TTL_MS);
-    return redisCached;
-  }
-
   if (cooldownActive()) {
     throw new SpendGuardError('coingecko', 'coingecko: cooling down after 429 (shared brake)');
   }
@@ -116,14 +108,49 @@ async function fetchCoinGeckoRange(
   }
 
   const json = (await res.json()) as { prices?: Array<[number, number]> };
-  const points = (json.prices ?? []).map(([ts, price]) => ({
+  return (json.prices ?? []).map(([ts, price]) => ({
     timestamp: Math.floor(ts / 1000),
     price,
   }));
+}
 
-  cacheSet(cacheKey, points, PRICE_CACHE_TTL_MS);
-  void setCachedPriceSeries(coingeckoId, fromUnix, toUnix, points);
-  return points;
+/**
+ * Series fetch through the fallback chain, with the two cache layers
+ * in front. Whichever oracle answers (hyperliquid, kraken, defillama,
+ * binance, or coingecko itself) the result is cached under the same
+ * key — so repeat lookups are always free regardless of provider.
+ */
+async function fetchSeriesCachedThroughChain(
+  coingeckoId: string,
+  fromUnix: number,
+  toUnix: number,
+): Promise<PricePoint[]> {
+  const bFrom = bucketUnix(fromUnix);
+  const bTo = bucketUnix(toUnix);
+  const cacheKey = `price:cg:${coingeckoId}:${bFrom}:${bTo}`;
+
+  const cached = cacheGet<PricePoint[]>(cacheKey);
+  if (cached) return cached;
+
+  const redisCached = await getCachedPriceSeries(coingeckoId, bFrom, bTo);
+  if (redisCached) {
+    cacheSet(cacheKey, redisCached, PRICE_CACHE_TTL_MS);
+    return redisCached;
+  }
+
+  const cgSource = {
+    name: 'coingecko',
+    fetch: (id: string, f: number, t: number) =>
+      coinGeckoLimit(() => fetchRangeWithRetry(id, f, t)),
+  };
+
+  const series = config.pricing.fallbacksEnabled
+    ? await fetchSeriesThroughChain(coingeckoId, bFrom, bTo, cgSource)
+    : { points: await cgSource.fetch(coingeckoId, bFrom, bTo), source: 'coingecko' };
+
+  cacheSet(cacheKey, series.points, PRICE_CACHE_TTL_MS);
+  void setCachedPriceSeries(coingeckoId, bFrom, bTo, series.points);
+  return series.points;
 }
 
 function nearestPrice(points: PricePoint[], targetUnix: number): number | null {
@@ -174,7 +201,7 @@ export async function prefetchPriceSeries(
 ): Promise<PricePoint[]> {
   const fromUnix = Math.floor(from.getTime() / 1000);
   const toUnix = Math.floor(to.getTime() / 1000);
-  return coinGeckoLimit(() => fetchRangeWithRetry(coingeckoId, fromUnix, toUnix));
+  return fetchSeriesCachedThroughChain(coingeckoId, fromUnix, toUnix);
 }
 
 /** Prefetch price series for multiple assets (watchlist sweep). */
@@ -220,13 +247,13 @@ async function fetchPriceAt(coingeckoId: string, timestamp: Date): Promise<numbe
   const to = ts + 3600;
 
   try {
-    const points = await coinGeckoLimit(() => fetchRangeWithRetry(coingeckoId, from, to));
+    const points = await fetchSeriesCachedThroughChain(coingeckoId, from, to);
     return nearestPrice(points, ts);
   } catch (err) {
     if (!(err instanceof SpendGuardError)) {
       logger.warn(
         { err, coingeckoId, ts: timestamp.toISOString() },
-        'coingecko: price fetch failed',
+        'coingecko: price fetch failed (all sources)',
       );
     }
     return null;

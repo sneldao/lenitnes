@@ -210,6 +210,7 @@ export const config = {
   pricing: {
     spotRefreshSeconds: env.SPOT_PRICE_REFRESH_SECONDS,
     freshSlopSeconds: env.PRICE_FRESH_SLOP_SECONDS,
+    fallbacksEnabled: env.PRICE_FALLBACKS_ENABLED ?? true,
   },
 
   // Build REDIS_URL from REDIS_HOST/PORT if not set. Same pattern

@@ -36,3 +36,24 @@ export function toCmcSymbol(idOrSymbol: string): string {
   const mapped = COINGECKO_TO_CMC_SYMBOL[idOrSymbol.toLowerCase()];
   return mapped ?? idOrSymbol.toUpperCase();
 }
+
+// ── Exchange-specific IDs for the price fallback chain ──────────
+
+/** Hyperliquid perp coin name (the venue our live fills execute on). */
+export function coingeckoToHyperliquidCoin(coingeckoId: string): string | null {
+  return COINGECKO_TO_CMC_SYMBOL[coingeckoId.toLowerCase()] ?? null;
+}
+
+/** Kraken spot pair (BTC is XBT there; everything else is SYMBOL+USD). */
+export function coingeckoToKrakenPair(coingeckoId: string): string | null {
+  const sym = COINGECKO_TO_CMC_SYMBOL[coingeckoId.toLowerCase()];
+  if (!sym) return null;
+  return sym === 'BTC' ? 'XBTUSD' : `${sym}USD`;
+}
+
+/** Binance USDT-perp symbol. NOTE: api.binance.com geo-blocks (451)
+ *  from restricted locations — the chain circuit-breaks it there. */
+export function coingeckoToBinanceSymbol(coingeckoId: string): string | null {
+  const sym = COINGECKO_TO_CMC_SYMBOL[coingeckoId.toLowerCase()];
+  return sym ? `${sym}USDT` : null;
+}

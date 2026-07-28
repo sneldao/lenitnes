@@ -166,6 +166,13 @@ export const envSchema = z
     // A getPriceAt(asset, ts) within this many seconds of "now" is
     // served by the spot hub instead of a fresh CoinGecko range call.
     PRICE_FRESH_SLOP_SECONDS: intFromString(60, 7200).default(720),
+    // Fallback chain for historical price series (intraday:
+    // hyperliquid→kraken→defillama; long spans: defillama→kraken;
+    // then coingecko). Off = strict coingecko (debug only).
+    PRICE_FALLBACKS_ENABLED: z
+      .string()
+      .optional()
+      .transform((v) => v === undefined || v === 'true'),
 
     // ── ML detector (AutoScientist Part 2) ──
     ML_ENABLED: z
