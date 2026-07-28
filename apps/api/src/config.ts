@@ -278,5 +278,6 @@ export const config = {
     leverage: env.PROPR_LEVERAGE,
     slTpEnabled: env.PROPR_SL_TP_ENABLED,
     notarize: env.PROPR_NOTARIZE,
+    openUntil: env.PROPR_OPEN_UNTIL ? new Date(env.PROPR_OPEN_UNTIL) : null,
   },
 } as const;

@@ -194,7 +194,17 @@ export async function openProprPosition(
     return null;
   }
 
-  // Gate 2: asset listed on Propr.
+  // Gate 2: no-new-opens cutoff (competition end-times: nothing
+  // should open into a freeze when the contest stops scoring).
+  if (config.propr.openUntil && Date.now() >= config.propr.openUntil.getTime()) {
+    logger.info(
+      { signalId, coingeckoId, openUntil: config.propr.openUntil.toISOString() },
+      'propr: open cutoff reached — declining (existing positions still close)',
+    );
+    return null;
+  }
+
+  // Gate 3: asset listed on Propr.
   const asset = resolveProprAsset(coingeckoId);
   if (!asset) {
     logger.debug({ signalId, coingeckoId }, 'propr: asset not listed — declining');

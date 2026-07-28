@@ -259,6 +259,9 @@ export const envSchema = z
     // funded → competition → challenge (3-tier findTradeableAccountId).
     PROPR_ACCOUNT_ID: z.string().optional().default(''),
     PROPR_MIN_NOTIONAL_USD: floatFromString().default(20),
+    // ISO timestamp after which no NEW Propr positions open (use for
+    // competition end-times so nothing opens into a freeze). Empty = always open.
+    PROPR_OPEN_UNTIL: z.string().optional().default(''),
     PROPR_MAX_NOTIONAL_USD: floatFromString().default(500),
     // Leverage to use (clamped to the per-asset venue cap). Default 1x.
     PROPR_LEVERAGE: intFromString(1, 100).default(1),
