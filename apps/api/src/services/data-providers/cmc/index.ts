@@ -84,13 +84,28 @@ async function getGlobalMetricsApiKey(): Promise<GlobalMarketMetrics | null> {
   const cached = await redisGetJson<GlobalMarketMetrics>('cmc:global-metrics');
   if (cached) return cached;
   try {
+    // One call, correct shape: market-cap/volume figures nest under
+    // quote.USD; dominance + DeFi metrics sit top-level. (The previous
+    // code read flat fields and rendered "Market Cap: $0" in every
+    // agent context; two extra probe calls per fetch burned credits
+    // chasing fields this endpoint doesn't have.)
     const latest = await get<{
-      total_market_cap: number;
-      total_volume_24h: number;
       btc_dominance: number;
       eth_dominance: number;
       defi_market_cap: number;
+      quote?: {
+        USD?: {
+          total_market_cap: number;
+          total_volume_24h: number;
+          derivatives_volume_24h?: number;
+        };
+      };
     }>('/v1/global-metrics/quotes/latest');
+    const usd: {
+      total_market_cap?: number;
+      total_volume_24h?: number;
+      derivatives_volume_24h?: number;
+    } = latest.quote?.USD ?? {};
 
     let fearGreed: { value: number; value_classification: string } | null = null;
     try {
@@ -102,48 +117,16 @@ async function getGlobalMetricsApiKey(): Promise<GlobalMarketMetrics | null> {
       // non-critical
     }
 
-    let derivatives: {
-      total_volume_24h: number;
-      total_futures_open_interest: number;
-      average_funding_rate: number;
-      total_open_interest: number;
-    } | null = null;
-    try {
-      const d = await get<{
-        total_volume_24h: number;
-        total_futures_open_interest: number;
-        average_funding_rate: number;
-        total_open_interest: number;
-      }>('/v1/global-metrics/quotes/latest', { convert: 'USD' });
-      derivatives = d;
-    } catch {
-      // optional
-    }
-
-    let altcoinSeason: number | null = null;
-    try {
-      const raw = await get<{
-        altcoin_season_index?: number;
-        data?: { altcoin_season_index?: number };
-      }>('/v1/global-metrics/quotes/latest');
-      altcoinSeason =
-        (raw as { altcoin_season_index?: number }).altcoin_season_index ??
-        (raw as { data?: { altcoin_season_index?: number } }).data?.altcoin_season_index ??
-        null;
-    } catch {
-      // optional
-    }
-
     const metrics: GlobalMarketMetrics = {
-      totalMarketCap: latest.total_market_cap,
-      totalVolume24h: latest.total_volume_24h,
+      totalMarketCap: usd.total_market_cap ?? 0,
+      totalVolume24h: usd.total_volume_24h ?? 0,
       btcDominance: latest.btc_dominance,
       ethDominance: latest.eth_dominance,
       defiMarketCap: latest.defi_market_cap,
-      derivativesVolume24h: derivatives?.total_volume_24h ?? 0,
-      totalFuturesOpenInterest: derivatives?.total_futures_open_interest ?? 0,
-      averageFundingRate: derivatives?.average_funding_rate ?? 0,
-      altcoinSeasonIndex: altcoinSeason,
+      derivativesVolume24h: usd.derivatives_volume_24h ?? 0,
+      totalFuturesOpenInterest: 0,
+      averageFundingRate: 0,
+      altcoinSeasonIndex: null,
       fearGreedValue: fearGreed?.value ?? null,
       fearGreedClassification: fearGreed?.value_classification ?? null,
     };
