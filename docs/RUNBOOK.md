@@ -22,6 +22,7 @@ before any HTTP request fires, and consumers degrade to defer/decline
 | `TINYFISH_ENABLED`             | `false` | re-enables the paid Fetch/Agent tiers   |
 | `SPOT_PRICE_REFRESH_SECONDS`   | `600`   | hub batch-refresh cadence               |
 | `PRICE_FRESH_SLOP_SECONDS`     | `720`   | "near-now" window served from hub       |
+| `PRICE_FALLBACKS_ENABLED`      | `true`  | keyless oracle chain for historical     |
 
 **Spot price hub** (`services/data-providers/spot-prices.ts`): one
 batched CMC `quotes/latest` call per cycle refreshes _every_ watchlist
@@ -31,6 +32,22 @@ read the hub — they no longer mint per-asset CoinGecko range calls.
 CoinGecko is now _only_ the historical oracle (replay sweeps, T+N
 snapshots on old timestamps), with 15-minute cache-key bucketing +
 a shared post-429 cooldown to keep the demo key out of the rate limiter.
+
+**Historical price fallback chain** (`services/data-providers/fallback/`):
+"price at <past timestamp>" lookups (outcome windows, entry backfills,
+90d tier sweeps, replay) walk keyless oracles before touching the
+budgeted demo key:
+
+| span | order                                                            |
+| ---- | ---------------------------------------------------------------- |
+| ≤ 3d | Hyperliquid candles → Kraken → DefiLlama → Binance\* → CoinGecko |
+| > 3d | DefiLlama chart → Kraken → Binance\* → CoinGecko                 |
+
+\*Binance 451 geo-blocks restricted locations (confirmed in prod) — its
+circuit breaker parks it for 6h. Every source circuit-breaks
+(3 fails/60s → 5min cool) and all results land in the same memory +
+Redis caches CoinGecko always used. Toggle off with
+`PRICE_FALLBACKS_ENABLED=false` (strict-CG debug mode).
 
 Check today's usage from inside the worker container:
 
