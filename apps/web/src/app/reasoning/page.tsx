@@ -137,7 +137,9 @@ function ReasoningRow({ item, index }: { item: ReasoningItem; index: number }) {
               <span className="font-mono text-xs font-semibold text-slate-200">{item.asset}</span>
             )}
             <span className="font-mono text-[10px] text-slate-500">
-              {shortUrl(item.monitorUrl)}
+              {item.monitorUrl.startsWith('http')
+                ? shortUrl(item.monitorUrl)
+                : `${item.monitorUrl.split(':')[0]} scanner`}
             </span>
             {item.detectorTypes.length > 0 && (
               <span className="truncate font-mono text-[10px] text-slate-600">
