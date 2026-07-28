@@ -71,35 +71,44 @@ export async function buildWatchReport(): Promise<string> {
        m.asset_mapping,
        m.frequency_seconds,
        m.last_check_at,
-       (SELECT COUNT(*) FROM signals s WHERE s.monitor_id = m.id AND s.detected_at > now() - interval '7 days') AS signals_7d,
-       (SELECT MAX(s.detected_at) FROM signals s WHERE s.monitor_id = m.id) AS last_signal_at
+       -- heartbeats excluded: a check that found nothing is not "activity"
+       (SELECT COUNT(*) FROM signals s WHERE s.monitor_id = m.id AND s.detected_at > now() - interval '7 days' AND s.is_heartbeat = false) AS signals_7d,
+       (SELECT MAX(s.detected_at) FROM signals s WHERE s.monitor_id = m.id AND s.is_heartbeat = false) AS last_signal_at
      FROM monitors m
      WHERE m.status = 'active'
      ORDER BY m.url, m.frequency_seconds`,
   );
 
+  // "Top", not "latest": rank by conviction, recency tie-break.
+  // Heartbeats and convicted-zero syntheses are not top-of-day material.
   const { rows: recentSignals } = await query<SignalRow>(
     `SELECT
        s.id::text,
        LEFT(COALESCE(s.condition_summary, s.evidence_text, ''), 120) AS condition_summary,
        COALESCE(m.asset_mapping->>'coingeckoId', 'unknown') AS asset,
        s.detected_at::text AS detected_at,
-       COALESCE(a.conviction, 0)::int AS conviction,
+       a.conviction::int AS conviction,
        COALESCE(LEFT(a.thesis, 200), '') AS thesis
      FROM signals s
      LEFT JOIN monitors m ON m.id = s.monitor_id
-     LEFT JOIN agent_scores a ON a.signal_id = s.id
+     JOIN agent_scores a ON a.signal_id = s.id
      WHERE s.detected_at > now() - interval '24 hours'
-     ORDER BY s.detected_at DESC
+       AND s.is_heartbeat = false
+       AND a.conviction IS NOT NULL
+       AND a.conviction > 0
+     ORDER BY a.conviction DESC, s.detected_at DESC
      LIMIT 5`,
   );
 
   const groups = groupMonitors(monitorRows);
 
-  const totalSignals = await query<{ c: string }>('SELECT COUNT(*)::text AS c FROM signals').then(
-    (r) => parseInt(r.rows[0]?.c ?? '0'),
-  );
+  const totalSignals = await query<{ c: string }>(
+    'SELECT COUNT(*)::text AS c FROM signals WHERE is_heartbeat = false',
+  ).then((r) => parseInt(r.rows[0]?.c ?? '0'));
   const last24hSignals = await query<{ c: string }>(
+    "SELECT COUNT(*)::text AS c FROM signals WHERE detected_at > now() - interval '24 hours' AND is_heartbeat = false",
+  ).then((r) => parseInt(r.rows[0]?.c ?? '0'));
+  const checks24h = await query<{ c: string }>(
     "SELECT COUNT(*)::text AS c FROM signals WHERE detected_at > now() - interval '24 hours'",
   ).then((r) => parseInt(r.rows[0]?.c ?? '0'));
   const aboveThreshold7d = await query<{ c: string }>(
@@ -161,10 +170,19 @@ export async function buildWatchReport(): Promise<string> {
     .sort((a, b) => b.total - a.total);
 
   if (noisy.length > 0) {
-    lines.push(`📊 Watchlist activity (7d)`);
+    lines.push(`📊 Watchlist activity (7d, real signals — heartbeats excluded)`);
+    // Two repos can map to the same asset (geth + reth → Ethereum):
+    // disambiguate with the repo name on repeats so the list never
+    // shows the same label twice with no way to tell them apart.
+    const seenLabels = new Map<string, number>();
     for (const { group, total } of noisy) {
       const meta = assetMeta(group.asset);
-      lines.push(`   ${meta.emoji} ${meta.label} · ${total} signal(s)`);
+      const dupes = (seenLabels.get(meta.label) ?? 0) + 1;
+      seenLabels.set(meta.label, dupes);
+      const repoShort = group.repoName.split('/')[1] ?? group.repoName;
+      lines.push(
+        `   ${meta.emoji} ${meta.label}${dupes > 1 ? ` (${repoShort})` : ''} · ${total} signal(s)`,
+      );
     }
     const quietCount = groupsTotal - noisy.length;
     if (quietCount > 0) lines.push(`   … ${quietCount} other repo(s) quiet`);
@@ -176,7 +194,12 @@ export async function buildWatchReport(): Promise<string> {
     lines.push(`💼 Trades (7d)`);
     for (const o of recentOrders) {
       const tx = o.chain_tx_hash ? o.chain_tx_hash.slice(0, 10) + '…' : 'pending';
-      lines.push(`   ${o.chain} · ${o.status} · ${tx} (${o.placed_at.slice(0, 10)})`);
+      const venue = o.chain_tx_hash?.startsWith('0xpropr:')
+        ? ' · propr perp'
+        : o.chain_tx_hash?.startsWith('0xpap')
+          ? ' · paper'
+          : '';
+      lines.push(`   ${o.chain} · ${o.status}${venue} · ${tx} (${o.placed_at.slice(0, 10)})`);
     }
     lines.push('');
   }
@@ -205,7 +228,7 @@ export async function buildWatchReport(): Promise<string> {
 
   // ── One-line stat strip + footer ──
   lines.push(
-    `📈 ${totalSignals} total · ${last24hSignals} (24h) · ${activeCount} monitors · ${groupsTotal} repos`,
+    `📈 ${totalSignals} scored signals · ${last24hSignals} new (24h) · ${checks24h} checks (24h) · ${activeCount} monitors · ${groupsTotal} repos`,
   );
   lines.push('');
   lines.push(`🔗 ${config.webOrigin}/scorecard · ${config.webOrigin}/portfolio`);

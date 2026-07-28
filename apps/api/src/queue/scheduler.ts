@@ -269,12 +269,23 @@ async function checkPipelinePulse(): Promise<void> {
 }
 
 // ── Gas watcher ───────────────────────────────────────────────────
-// Checks the treasury BNB balance every 6 hours and sends a Telegram
-// alert if it drops below the warning threshold.
+// Checks the treasury BNB balance every 6 hours and alerts when it
+// drops below the warning threshold. Two guards on operator noise:
+//   1. The alert only matters when the BSC SPOT venue could actually
+//      trade — i.e. a mainnet-configured wallet (chainId 56). The
+//      current deployment routes live execution to Propr perps, which
+//      consumes no BNB gas; alerting every 6h on a testnet-floor
+//      balance is the classic boy-who-cried-wolf bug.
+//   2. Even on mainnet, page at most once per 48h for the same
+//      condition (the deadman's switch uses the same pattern).
 const GAS_WARNING_THRESHOLD = config.treasury.gasWarningThreshold;
+const GAS_ALERT_COOLDOWN_MS = 48 * 3_600_000;
 const BSC_TREASURY_WALLET = '0x4dA649DeB07159E791C423bb139e6213e745D138';
+let lastGasAlertAt = 0;
 
 async function checkGasBalance(): Promise<void> {
+  if (config.chains.bnb.chainId !== 56) return;
+  if (Date.now() - lastGasAlertAt < GAS_ALERT_COOLDOWN_MS) return;
   try {
     const provider = getProvider('bnb');
     const balanceWei = await provider.getBalance(BSC_TREASURY_WALLET);
@@ -286,11 +297,13 @@ async function checkGasBalance(): Promise<void> {
       // hygiene, not signal content; airing them publicly reads as
       // "the operation is underfunded" to subscribers.
       const msg = [
-        `⚠️ LENITNES operator alert · gas low · ${balanceBnb.toFixed(4)} BNB (floor ${thresholdBnb.toFixed(4)})`,
+        `⚠️ LENITNES operator alert · BSC spot gas low · ${balanceBnb.toFixed(4)} BNB (floor ${thresholdBnb.toFixed(4)})`,
         ``,
-        `Live trading would pause once the wallet can't cover swap gas.`,
-        `🔗 https://testnet.bscscan.com/address/${BSC_TREASURY_WALLET}`,
+        `PancakeSwap spot trades (BTC/ETH) would pause once the wallet can't cover swap gas. Propr perp execution is unaffected.`,
+        `Re-alerts at most once per 48h while the balance stays low.`,
+        `🔗 https://bscscan.com/address/${BSC_TREASURY_WALLET}`,
       ].join('\n');
+      lastGasAlertAt = Date.now();
       if (config.telegram.operatorChatId) {
         await sendTelegram(config.telegram.operatorChatId, msg);
       }
