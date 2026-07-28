@@ -1,5 +1,8 @@
 import { logger } from '../../../logger.js';
 import type { GlobalMarketMetrics, AssetQuote, MarketDataProvider } from '../types.js';
+import { getSharedRedis } from '../../redis-client.js';
+import { tryConsume } from '../../spend-guard.js';
+import { toCmcSymbol } from '../asset-map.js';
 
 const CMC_PRO_BASE = 'https://pro-api.coinmarketcap.com';
 
@@ -11,11 +14,54 @@ function apiKey(): string {
   return key;
 }
 
+function hasApiKey(): boolean {
+  return !!(process.env.CMC_API_KEY ?? '');
+}
+
+// Prefer the (flat-rate, already-paid) CMC API key over x402
+// pay-per-request. x402 remains the fallback for boxes without a key.
 function preferX402(): boolean {
-  return process.env.X402_ENABLED === 'true' && !!process.env.X402_PRIVATE_KEY;
+  return !hasApiKey() && process.env.X402_ENABLED === 'true' && !!process.env.X402_PRIVATE_KEY;
+}
+
+// Redis-shared response cache. Global metrics + per-symbol quotes are
+// called from 4 pipelines (signal loop, narrative, thesis, proactive),
+// often several times within the same minute. Cache in Redis so the
+// api + worker containers share one budget.
+type RedisClient = NonNullable<Awaited<ReturnType<typeof getSharedRedis>>>;
+
+async function getRedis(): Promise<RedisClient | null> {
+  return getSharedRedis('cmc');
+}
+
+const METRICS_TTL_SEC = 15 * 60;
+const QUOTES_TTL_SEC = 10 * 60;
+
+async function redisGetJson<T>(key: string): Promise<T | null> {
+  const redis = await getRedis().catch(() => null);
+  if (!redis) return null;
+  try {
+    const raw = await redis.get(key);
+    return raw ? (JSON.parse(raw) as T) : null;
+  } catch {
+    return null;
+  }
+}
+
+async function redisSetJson(key: string, value: unknown, ttlSec: number): Promise<void> {
+  const redis = await getRedis().catch(() => null);
+  if (!redis) return;
+  try {
+    await redis.set(key, JSON.stringify(value), { EX: ttlSec });
+  } catch {
+    /* cache write is best-effort */
+  }
 }
 
 async function get<T>(path: string, params?: Record<string, string>): Promise<T> {
+  // Spend guard BEFORE any HTTP leaves the box — throws SpendGuardError
+  // once the daily CMC budget is gone (caller treats as a fetch miss).
+  await tryConsume('cmc');
   const url = new URL(path, CMC_PRO_BASE);
   if (params) {
     for (const [k, v] of Object.entries(params)) url.searchParams.set(k, v);
@@ -35,6 +81,8 @@ async function get<T>(path: string, params?: Record<string, string>): Promise<T>
 }
 
 async function getGlobalMetricsApiKey(): Promise<GlobalMarketMetrics | null> {
+  const cached = await redisGetJson<GlobalMarketMetrics>('cmc:global-metrics');
+  if (cached) return cached;
   try {
     const latest = await get<{
       total_market_cap: number;
@@ -86,7 +134,7 @@ async function getGlobalMetricsApiKey(): Promise<GlobalMarketMetrics | null> {
       // optional
     }
 
-    return {
+    const metrics: GlobalMarketMetrics = {
       totalMarketCap: latest.total_market_cap,
       totalVolume24h: latest.total_volume_24h,
       btcDominance: latest.btc_dominance,
@@ -99,6 +147,8 @@ async function getGlobalMetricsApiKey(): Promise<GlobalMarketMetrics | null> {
       fearGreedValue: fearGreed?.value ?? null,
       fearGreedClassification: fearGreed?.value_classification ?? null,
     };
+    void redisSetJson('cmc:global-metrics', metrics, METRICS_TTL_SEC);
+    return metrics;
   } catch (err) {
     logger.error({ err }, 'cmc: failed to fetch global metrics');
     return null;
@@ -123,16 +173,29 @@ async function getGlobalMetricsX402(): Promise<GlobalMarketMetrics | null> {
   };
 }
 
+// Callers sometimes hand us coingecko slugs ("zcash") where CMC wants
+// tickers ("ZEC"). Normalize once at the boundary so every consumer
+// (risk gates, agent market context, spot hub) behaves identically.
+function normalizeSymbols(symbols: string[]): string[] {
+  return Array.from(new Set(symbols.map(toCmcSymbol)));
+}
+
 async function getQuotesApiKey(symbols: string[]): Promise<AssetQuote[]> {
-  if (symbols.length === 0) return [];
+  const normalized = normalizeSymbols(symbols);
+  if (normalized.length === 0) return [];
+  const cacheKey = `cmc:quotes:${[...normalized].sort().join(',')}`;
+  const cached = await redisGetJson<AssetQuote[]>(cacheKey);
+  if (cached) return cached;
   try {
     const map = await get<Record<string, unknown>>('/v1/cryptocurrency/quotes/latest', {
-      symbol: symbols.join(','),
+      symbol: normalized.join(','),
       convert: 'USD',
     });
-    return Object.values(map) as AssetQuote[];
+    const quotes = Object.values(map) as AssetQuote[];
+    void redisSetJson(cacheKey, quotes, QUOTES_TTL_SEC);
+    return quotes;
   } catch (err) {
-    logger.error({ err, symbols }, 'cmc: failed to fetch quotes');
+    logger.error({ err, symbols: normalized }, 'cmc: failed to fetch quotes');
     return [];
   }
 }
@@ -174,14 +237,19 @@ export const cmcProvider: MarketDataProvider = {
 
   async getQuotes(symbols: string[]): Promise<AssetQuote[]> {
     if (symbols.length === 0) return [];
+    // x402 path wants raw CMC symbols too.
+    const normalized = normalizeSymbols(symbols);
     if (preferX402()) {
       try {
-        return await getQuotesX402(symbols);
+        return await getQuotesX402(normalized);
       } catch (err) {
-        logger.error({ err, symbols }, 'cmc: x402 quotes failed, falling back to API key');
+        logger.error(
+          { err, symbols: normalized },
+          'cmc: x402 quotes failed, falling back to API key',
+        );
       }
     }
-    return getQuotesApiKey(symbols);
+    return getQuotesApiKey(normalized);
   },
 
   formatMarketContext(metrics: GlobalMarketMetrics | null, quotes: AssetQuote[]): string {

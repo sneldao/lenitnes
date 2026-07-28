@@ -5,6 +5,8 @@ import { logger } from '../../../logger.js';
 import { config } from '../../../config.js';
 import type { PricePoint, PriceDataProvider } from '../types.js';
 import { getCachedPriceSeries, setCachedPriceSeries } from './redis-cache.js';
+import { getLatestUsdPrice } from '../spot-prices.js';
+import { tryConsume, SpendGuardError } from '../../spend-guard.js';
 
 const COINGECKO_BASE = 'https://api.coingecko.com/api/v3';
 /** Free tier ≈ 10–30 req/min; pro key allows faster pacing. */
@@ -42,20 +44,55 @@ function retryAfterMs(res: Response): number | null {
   return null;
 }
 
+// Timestamp grid for cache keys: two lookups for "price at 13:47:12"
+// and "price at 13:52:58" map to the same 15-minute bucket, so repeated
+// outcome snapshots / TP/SL backfills / sweep prefetch for the same
+// signal actually HIT the cache instead of each minting a new range call.
+const BUCKET_SEC = 15 * 60;
+
+function bucketUnix(ts: number): number {
+  return Math.floor(ts / BUCKET_SEC) * BUCKET_SEC;
+}
+
+// Shared-cooldown bookkeeping: when CoinGecko answers 429 we park ALL
+// further calls for retry-after (or 60s). Without this, the retry loop
+// in fetchRangeWithRetry keeps the lane busy hammering a rate limit
+// that is clearly account-wide, and every consumer pays the latency.
+let cooldownUntilMs = 0;
+
+function cooldownActive(): boolean {
+  return Date.now() < cooldownUntilMs;
+}
+
+function enterCooldown(retryAfterMs: number | null): void {
+  cooldownUntilMs = Math.max(cooldownUntilMs, Date.now() + (retryAfterMs ?? 60_000));
+}
+
 async function fetchCoinGeckoRange(
   coingeckoId: string,
   fromUnix: number,
   toUnix: number,
 ): Promise<PricePoint[]> {
-  const cacheKey = `price:cg:${coingeckoId}:${fromUnix}:${toUnix}`;
+  const cacheKey = `price:cg:${coingeckoId}:${bucketUnix(fromUnix)}:${bucketUnix(toUnix)}`;
   const cached = cacheGet<PricePoint[]>(cacheKey);
   if (cached) return cached;
 
-  const redisCached = await getCachedPriceSeries(coingeckoId, fromUnix, toUnix);
+  const redisCached = await getCachedPriceSeries(
+    coingeckoId,
+    bucketUnix(fromUnix),
+    bucketUnix(toUnix),
+  );
   if (redisCached) {
     cacheSet(cacheKey, redisCached, PRICE_CACHE_TTL_MS);
     return redisCached;
   }
+
+  if (cooldownActive()) {
+    throw new SpendGuardError('coingecko', 'coingecko: cooling down after 429 (shared brake)');
+  }
+  // Daily hard stop — the spend guard's error is NOT retried, so call
+  // sites see it as an ordinary miss (null price → defer/decline).
+  await tryConsume('coingecko');
 
   const url =
     `${COINGECKO_BASE}/coins/${encodeURIComponent(coingeckoId)}/market_chart/range` +
@@ -70,6 +107,7 @@ async function fetchCoinGeckoRange(
 
   if (!res.ok) {
     const retryMs = res.status === 429 ? retryAfterMs(res) : null;
+    if (res.status === 429) enterCooldown(retryMs);
     const err = new Error(`CoinGecko ${res.status}: ${res.statusText}`) as Error & {
       retryAfterMs?: number;
     };
@@ -163,6 +201,18 @@ export function priceAtFromSeries(points: PricePoint[], timestamp: Date): number
 
 async function fetchPriceAt(coingeckoId: string, timestamp: Date): Promise<number | null> {
   const ts = Math.floor(timestamp.getTime() / 1000);
+
+  // Near-now fast path: "price right now" (TP/SL ticks, Propr sizing,
+  // entry prices, just-matured outcome windows) is served by the spot
+  // hub — one batched CMC call for ALL assets every refresh cycle,
+  // cached in Redis. This is what stops the CoinGecko 429 death spiral.
+  const nowS = Math.floor(Date.now() / 1000);
+  if (Math.abs(nowS - ts) <= config.pricing.freshSlopSeconds) {
+    const hubPrice = await getLatestUsdPrice(coingeckoId).catch(() => null);
+    if (hubPrice != null && hubPrice > 0) return hubPrice;
+    // Hub miss (CMC down/budgeted/new asset) — fall through to CoinGecko.
+  }
+
   const from = ts - 3600;
   const to = ts + 3600;
 
@@ -170,7 +220,12 @@ async function fetchPriceAt(coingeckoId: string, timestamp: Date): Promise<numbe
     const points = await coinGeckoLimit(() => fetchRangeWithRetry(coingeckoId, from, to));
     return nearestPrice(points, ts);
   } catch (err) {
-    logger.warn({ err, coingeckoId, ts: timestamp.toISOString() }, 'coingecko: price fetch failed');
+    if (!(err instanceof SpendGuardError)) {
+      logger.warn(
+        { err, coingeckoId, ts: timestamp.toISOString() },
+        'coingecko: price fetch failed',
+      );
+    }
     return null;
   }
 }

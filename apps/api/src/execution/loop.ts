@@ -53,10 +53,24 @@ import {
  * stranded every monitor that ever fired — 6 of 12 repo monitors sat
  * in 'triggered' for weeks, which is why the commit pipeline went
  * silent after the first signal burst. */
+/** Virtual monitor URLs are handled by dedicated scheduler crons
+ * (proactive scan / thesis synthesis / narrative) — the generic URL
+ * scrape pipeline must never touch them (a pseudo-scheme like
+ * `synthesis:thesis` was reaching the HTTP scraper and crashing it
+ * with "fetch failed: unknown scheme" on every retry). */
+export function isVirtualMonitorUrl(url: string): boolean {
+  return (
+    url.startsWith('narrative:') || url.startsWith('synthesis:') || url.startsWith('proactive:')
+  );
+}
+
 async function dueMonitors(): Promise<Monitor[]> {
   const { rows } = await query<Monitor>(
     `SELECT * FROM monitors
      WHERE status IN ('active', 'triggered')
+       AND url NOT LIKE 'narrative:%'
+       AND url NOT LIKE 'synthesis:%'
+       AND url NOT LIKE 'proactive:%'
        AND (
          last_check_at IS NULL
          OR last_check_at + (frequency_seconds || ' seconds')::interval <= now()
@@ -82,7 +96,7 @@ export async function runDueChecks(): Promise<void> {
 }
 
 export interface CheckMetadata {
-  checkMethod: 'tinyfish' | 'tinyfish-fetch' | 'scraper-fallback' | 'github-direct';
+  checkMethod: 'tinyfish' | 'tinyfish-fetch' | 'scraper-fallback' | 'github-direct' | 'virtual';
   circuitOpen: boolean;
   githubCommitsFetched: number;
   confidence: number;
@@ -118,47 +132,92 @@ export async function executeCheck(monitor: Monitor): Promise<{
   const proof = getProofService();
   const circuitOpts = { name: 'tinyfish', threshold: 5, windowMs: 60_000, cooldownMs: 300_000 };
 
-  // ── 2) Three-tier scraping: Fetch (free) → Agent (credits) → scraper ─────
+  // ── 0) Virtual monitors are cron-served; never scrape pseudo-URLs ──
+  if (isVirtualMonitorUrl(monitor.url)) {
+    await query(`UPDATE monitors SET last_check_at = now() WHERE id = $1`, [monitor.id]);
+    return {
+      signalId: null,
+      conditionMet: false,
+      isHeartbeat: true,
+      summary: `${monitor.url}: served by dedicated scheduler (skipped generic scrape)`,
+      metadata: {
+        checkMethod: 'virtual',
+        circuitOpen: false,
+        githubCommitsFetched: 0,
+        confidence: 0,
+        confidenceThreshold: monitor.confidence_threshold,
+        thresholdBlocked: false,
+      },
+    };
+  }
+
+  // ── 2) Scrape tiers. TinyFish (paid) is OFF by default: the
+  // github-direct enrichment below already carries the real signal gate
+  // for repo monitors, free of charge. Re-enable via TINYFISH_ENABLED=true
+  // (and a positive API_BUDGET_TINYFISH_PER_DAY).
   let result: TinyFishResult;
   const agentCircuitOpen = isCircuitOpen(circuitOpts);
-  let checkMethod: 'tinyfish' | 'tinyfish-fetch' | 'scraper-fallback' | 'github-direct' =
-    'tinyfish-fetch';
+  let checkMethod: CheckMetadata['checkMethod'] = 'tinyfish-fetch';
 
-  // Tier 1: Fetch API (free, Chromium-rendered page content)
-  try {
-    const fetchedPage = await tinyfish.fetchPage(monitor.url);
-    result = scraper.analyzeContent(fetchedPage.content, monitor.condition_text, 'tinyfish-fetch');
-    recordSuccess(circuitOpts);
-    logger.debug({ monitorId: monitor.id, confidence: result.confidence }, 'Fetch API succeeded');
-  } catch (err) {
-    logger.warn({ err, monitorId: monitor.id }, 'Fetch API failed, trying Agent fallback');
-
-    // Tier 2: Agent API (credits, full NL evaluation)
-    if (agentCircuitOpen) {
-      logger.warn({ monitorId: monitor.id }, 'Agent circuit open — using scraper fallback');
-      result = await scraper.runScraperFallback(monitor.url, monitor.condition_text);
-      checkMethod = 'scraper-fallback';
-      incCounter('tinyfish_errors_total', { fallback: 'scraper' });
+  if (!config.tinyfish.enabled) {
+    if (monitor.url.includes('github.com') && config.github.token) {
+      // Neutral seed — github-direct enrichment (below) is the actual
+      // gate and overwrites conditionMet via the typed detectors.
+      result = {
+        runId: 'github-direct',
+        conditionMet: false,
+        confidence: 0,
+        evidence: '',
+        summary: 'github-direct: commit poll (tinyfish disabled)',
+        screenshots: [],
+      };
+      checkMethod = 'github-direct';
     } else {
-      try {
-        result = await tinyfish.runMonitorCheck({
-          url: monitor.url,
-          condition: monitor.condition_text,
-          lastSeenCommitHash: monitor.last_seen_commit_hash,
-          screenshots: monitor.screenshots_enabled,
-        });
-        checkMethod = 'tinyfish';
-        recordSuccess(circuitOpts);
-        logger.debug({ monitorId: monitor.id }, 'Agent API succeeded after Fetch failure');
-      } catch (agentErr) {
-        recordFailure(circuitOpts);
-        incCounter('tinyfish_errors_total', { fallback: 'scraper' });
-        logger.warn({ err: agentErr, monitorId: monitor.id }, 'Agent failed — scraper fallback');
+      // Non-GitHub URL — the plain HTTP scraper (free) still covers it.
+      checkMethod = 'scraper-fallback';
+      result = await scraper.runScraperFallback(monitor.url, monitor.condition_text);
+    }
+  } else {
+    // Tier 1: Fetch API (free, Chromium-rendered page content)
+    try {
+      const fetchedPage = await tinyfish.fetchPage(monitor.url);
+      result = scraper.analyzeContent(
+        fetchedPage.content,
+        monitor.condition_text,
+        'tinyfish-fetch',
+      );
+      recordSuccess(circuitOpts);
+      logger.debug({ monitorId: monitor.id, confidence: result.confidence }, 'Fetch API succeeded');
+    } catch (err) {
+      logger.warn({ err, monitorId: monitor.id }, 'Fetch API failed, trying Agent fallback');
+
+      // Tier 2: Agent API (credits, full NL evaluation)
+      if (agentCircuitOpen) {
+        logger.warn({ monitorId: monitor.id }, 'Agent circuit open — using scraper fallback');
         result = await scraper.runScraperFallback(monitor.url, monitor.condition_text);
         checkMethod = 'scraper-fallback';
+        incCounter('tinyfish_errors_total', { fallback: 'scraper' });
+      } else {
+        try {
+          result = await tinyfish.runMonitorCheck({
+            url: monitor.url,
+            condition: monitor.condition_text,
+            lastSeenCommitHash: monitor.last_seen_commit_hash,
+            screenshots: monitor.screenshots_enabled,
+          });
+          checkMethod = 'tinyfish';
+          recordSuccess(circuitOpts);
+          logger.debug({ monitorId: monitor.id }, 'Agent API succeeded after Fetch failure');
+        } catch (agentErr) {
+          recordFailure(circuitOpts);
+          incCounter('tinyfish_errors_total', { fallback: 'scraper' });
+          logger.warn({ err: agentErr, monitorId: monitor.id }, 'Agent failed — scraper fallback');
+          result = await scraper.runScraperFallback(monitor.url, monitor.condition_text);
+          checkMethod = 'scraper-fallback';
+        }
       }
     }
-  }
+  } // end TINYFISH_ENABLED tiers
 
   // ── 2b) GitHub-direct enrichment (PRIMARY path for github.com URLs) ──
   // The 3-tier scrape above only does keyword matching against page

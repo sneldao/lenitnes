@@ -1,4 +1,5 @@
 import cron from 'node-cron';
+import type { ScheduledTask } from 'node-cron';
 import { ethers } from 'ethers';
 import { query } from '../db/pool.js';
 import { config } from '../config.js';
@@ -11,25 +12,45 @@ import { sendTelegram } from '../services/notify.js';
 import { closePositionById } from '../services/treasury.js';
 import { computeTpSlLevels } from '../services/treasury/risk.js';
 import { priceData } from '../services/data-providers/registry.js';
+import { refreshSpotPricesFromDb } from '../services/data-providers/spot-prices.js';
 import { logger } from '../logger.js';
 
-let monitorJob: cron.ScheduledTask | null = null;
-let backtestJob: cron.ScheduledTask | null = null;
-let proofRetryJob: cron.ScheduledTask | null = null;
-let watchReportJob: cron.ScheduledTask | null = null;
-let deadmanJob: cron.ScheduledTask | null = null;
-let gasCheckJob: cron.ScheduledTask | null = null;
-let tpSlCheckJob: cron.ScheduledTask | null = null;
-let narrativeJob: cron.ScheduledTask | null = null;
-let thesisSynthesisJob: cron.ScheduledTask | null = null;
-let proactiveScanJob: cron.ScheduledTask | null = null;
-let responsivenessJob: cron.ScheduledTask | null = null;
-let responsivenessHealthJob: cron.ScheduledTask | null = null;
-let responsivenessQueueJob: cron.ScheduledTask | null = null;
-let liveATierJob: cron.ScheduledTask | null = null;
+let monitorJob: ScheduledTask | null = null;
+let backtestJob: ScheduledTask | null = null;
+let proofRetryJob: ScheduledTask | null = null;
+let watchReportJob: ScheduledTask | null = null;
+let deadmanJob: ScheduledTask | null = null;
+let gasCheckJob: ScheduledTask | null = null;
+let tpSlCheckJob: ScheduledTask | null = null;
+let narrativeJob: ScheduledTask | null = null;
+let thesisSynthesisJob: ScheduledTask | null = null;
+let proactiveScanJob: ScheduledTask | null = null;
+let responsivenessJob: ScheduledTask | null = null;
+let responsivenessHealthJob: ScheduledTask | null = null;
+let responsivenessQueueJob: ScheduledTask | null = null;
+let liveATierJob: ScheduledTask | null = null;
 let monitorRunning = false;
 let backtestRunning = false;
 let proofRetryRunning = false;
+let spotPriceRunning = false;
+let spotPriceJob: ScheduledTask | null = null;
+
+// ── Spot price hub warmer ─────────────────────────────────────────
+// One batched CMC quotes call refreshes "latest USD price" for every
+// watchlist asset. Every consumer (TP/SL tick, Propr sizing, entry
+// prices, just-matured outcome windows) then reads from the Redis cache
+// instead of hitting CoinGecko's rate-limited range API per asset.
+async function warmSpotPrices(): Promise<void> {
+  if (spotPriceRunning) return;
+  spotPriceRunning = true;
+  try {
+    await refreshSpotPricesFromDb();
+  } catch (err) {
+    logger.error({ err }, 'spot price hub warm failed');
+  } finally {
+    spotPriceRunning = false;
+  }
+}
 
 const PROOF_RETRY_MAX_ATTEMPTS = 10;
 
@@ -40,9 +61,15 @@ async function scanAndEnqueue(): Promise<void> {
     // 'triggered' is included: a fired monitor only resets to
     // 'active' when its next check runs, so excluding it here
     // strands the monitor forever after its first signal.
+    // Virtual monitors (narrative:/synthesis:/proactive:) are served by
+    // their dedicated crons below — the generic queue must never scrape
+    // those pseudo-URLs (it used to crash the scraper in a retry loop).
     const { rows } = await query<{ id: string }>(
       `SELECT id FROM monitors
        WHERE status IN ('active', 'triggered')
+         AND url NOT LIKE 'narrative:%'
+         AND url NOT LIKE 'synthesis:%'
+         AND url NOT LIKE 'proactive:%'
          AND (
            last_check_at IS NULL
            OR last_check_at + (frequency_seconds || ' seconds')::interval <= now()
@@ -489,6 +516,14 @@ export function startScheduler(): void {
   deadmanJob = cron.schedule('30 * * * *', checkPipelinePulse);
   gasCheckJob = cron.schedule('0 */6 * * *', checkGasBalance);
   tpSlCheckJob = cron.schedule('*/5 * * * *', checkTakeProfitStopLoss);
+  // Spot price hub warmer — cadence tied to SPOT_PRICE_REFRESH_SECONDS
+  // via cron minute math (default 600s → every 10 minutes). Runs once
+  // at boot too so the hub is never cold.
+  const spotMinutes = Math.max(1, Math.round(config.pricing.spotRefreshSeconds / 60));
+  // `*/60` is not a valid cron minute field — collapse to hourly.
+  const spotCron = spotMinutes >= 60 ? '0 * * * *' : `*/${spotMinutes} * * * *`;
+  spotPriceJob = cron.schedule(spotCron, warmSpotPrices);
+  void warmSpotPrices();
   // Cross-signal narrative synthesis (v3) — strings commits across
   // repos + SoSoValue news into a single tradeable thesis. No-ops
   // when the cluster is quiet, so it costs nothing on dead hours.
@@ -548,6 +583,10 @@ export function stopScheduler(): void {
   if (tpSlCheckJob) {
     tpSlCheckJob.stop();
     tpSlCheckJob = null;
+  }
+  if (spotPriceJob) {
+    spotPriceJob.stop();
+    spotPriceJob = null;
   }
   if (narrativeJob) {
     narrativeJob.stop();

@@ -5,6 +5,47 @@ Short reference for operating the live trading path. Reading order:
 
 ---
 
+## Upstream API spend & price data
+
+The system has three paid/rate-limited upstream deps. All three route
+through **one spend guard** (`apps/api/src/services/spend-guard.ts`):
+per-UTC-day budgets, counters in Redis (shared across api + worker),
+**fail-closed** — once a budget is spent, the provider call throws
+before any HTTP request fires, and consumers degrade to defer/decline
+(their existing safe path). A budget of `0` means _provider disabled_.
+
+| Env                            | Default | Notes                                   |
+| ------------------------------ | ------- | --------------------------------------- |
+| `API_BUDGET_COINGECKO_PER_DAY` | `300`   | historical price series only            |
+| `API_BUDGET_CMC_PER_DAY`       | `400`   | spot hub + agent context + volume gates |
+| `API_BUDGET_TINYFISH_PER_DAY`  | `0`     | TinyFish hard-disabled                  |
+| `TINYFISH_ENABLED`             | `false` | re-enables the paid Fetch/Agent tiers   |
+| `SPOT_PRICE_REFRESH_SECONDS`   | `600`   | hub batch-refresh cadence               |
+| `PRICE_FRESH_SLOP_SECONDS`     | `720`   | "near-now" window served from hub       |
+
+**Spot price hub** (`services/data-providers/spot-prices.ts`): one
+batched CMC `quotes/latest` call per cycle refreshes _every_ watchlist
+asset (1 credit) and lands in Redis (`spot:usd:<coingeckoId>`). TP/SL
+ticks, Propr sizing, entry prices and just-matured outcome windows all
+read the hub — they no longer mint per-asset CoinGecko range calls.
+CoinGecko is now _only_ the historical oracle (replay sweeps, T+N
+snapshots on old timestamps), with 15-minute cache-key bucketing +
+a shared post-429 cooldown to keep the demo key out of the rate limiter.
+
+Check today's usage from inside the worker container:
+
+```bash
+docker exec lenitnes-redis redis-cli KEYS 'spend:*'
+docker exec lenitnes-redis redis-cli GET spot:usd:__meta__   # last hub refresh
+```
+
+**Never** raise `API_BUDGET_TINYFISH_PER_DAY` above 0 without setting
+`TINYFISH_ENABLED=true` — both are required for TinyFish traffic.
+Virtual monitors (`narrative:` / `synthesis:` / `proactive:`) never
+enter the URL scrape pipeline; they are served by dedicated crons.
+
+---
+
 ## Preflight checklist (before enabling live trading)
 
 The agent ships with `TRADING_ENABLED=false` by default. Every gate

@@ -16,9 +16,23 @@ export interface ScraperResult {
 }
 
 export async function runScraperFallback(url: string, condition: string): Promise<ScraperResult> {
+  // Defensive normalization: a monitor row with a missing scheme (or a
+  // virtual-monitor pseudo-URL like `synthesis:thesis` leaking through)
+  // used to crash undici with "fetch failed: unknown scheme" and burn
+  // all three queue retries. Fail fast, cheap and readable instead.
+  let normalized = url.trim();
+  const SCHEME_RE = /^[a-z][a-z0-9+.-]*:/i;
+  const HTTP_RE = /^https?:\/\//i;
+  if (SCHEME_RE.test(normalized) && !HTTP_RE.test(normalized)) {
+    throw new Error(`scraper: refusing non-http(s) URL "${normalized}"`);
+  }
+  if (!HTTP_RE.test(normalized)) {
+    normalized = `https://${normalized}`;
+  }
+
   const res = await withRetry(
     () =>
-      fetch(url, {
+      fetch(normalized, {
         headers: { 'User-Agent': 'LENITNES-scraper/1.0' },
         signal: AbortSignal.timeout(15_000),
       }),

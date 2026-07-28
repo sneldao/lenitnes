@@ -143,7 +143,29 @@ export const envSchema = z
 
     // ── Detection integrations ──
     TINYFISH_API_KEY: z.string().optional().default(''),
+    // Master switch for the paid TinyFish APIs (Fetch + Agent). Default
+    // OFF: credit spend there ran away (both rate-limit loops and a
+    // zero-credit dead fallback), and the github-direct path replaced it
+    // for every repo monitor. Re-enable only together with a sane
+    // API_BUDGET_TINYFISH_PER_DAY > 0.
+    TINYFISH_ENABLED: z
+      .string()
+      .optional()
+      .transform((v) => v === 'true'),
     GITHUB_TOKEN: z.string().optional().default(''),
+
+    // ── Upstream API spend guard (Redis-shared, per UTC day) ──
+    // Fail-closed: once a budget is spent, provider calls throw
+    // SpendGuardError before any HTTP request fires. 0 = disabled.
+    API_BUDGET_COINGECKO_PER_DAY: intFromString(0, 1_000_000).default(300),
+    API_BUDGET_CMC_PER_DAY: intFromString(0, 1_000_000).default(400),
+    API_BUDGET_TINYFISH_PER_DAY: intFromString(0, 100_000).default(0),
+    // Spot price hub: one batched CMC quotes call per cycle replaces
+    // per-asset CoinGecko range calls for "price right now" lookups.
+    SPOT_PRICE_REFRESH_SECONDS: intFromString(60, 3600).default(600),
+    // A getPriceAt(asset, ts) within this many seconds of "now" is
+    // served by the spot hub instead of a fresh CoinGecko range call.
+    PRICE_FRESH_SLOP_SECONDS: intFromString(60, 7200).default(720),
 
     // ── ML detector (AutoScientist Part 2) ──
     ML_ENABLED: z

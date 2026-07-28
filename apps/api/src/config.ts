@@ -60,6 +60,7 @@ export const config = {
 
   tinyfish: {
     apiKey: env.TINYFISH_API_KEY,
+    enabled: env.TINYFISH_ENABLED ?? false,
   },
 
   grove: {
@@ -196,6 +197,19 @@ export const config = {
 
   coingecko: {
     apiKey: env.COINGECKO_API_KEY,
+  },
+
+  // Per-day upstream API budgets (see services/spend-guard.ts).
+  // 0 means the provider is hard-disabled.
+  apiBudget: {
+    coingeckoPerDay: env.API_BUDGET_COINGECKO_PER_DAY,
+    cmcPerDay: env.API_BUDGET_CMC_PER_DAY,
+    tinyfishPerDay: env.API_BUDGET_TINYFISH_PER_DAY,
+  },
+
+  pricing: {
+    spotRefreshSeconds: env.SPOT_PRICE_REFRESH_SECONDS,
+    freshSlopSeconds: env.PRICE_FRESH_SLOP_SECONDS,
   },
 
   // Build REDIS_URL from REDIS_HOST/PORT if not set. Same pattern

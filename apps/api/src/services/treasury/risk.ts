@@ -24,6 +24,7 @@ import { query } from '../../db/pool.js';
 import { config } from '../../config.js';
 import { logger } from '../../logger.js';
 import { isTradeable, resolveTradeableToken } from './asset-registry.js';
+import { COINGECKO_TO_CMC_SYMBOL } from '../data-providers/asset-map.js';
 import { marketData } from '../data-providers/registry.js';
 import { pancakeswapVenue } from '../venues/pancakeswap/index.js';
 import { getProvider, getWallet } from '../evm/client.js';
@@ -41,18 +42,6 @@ const BSC_MAINNET_CHAIN_ID = 56;
 // V2 swaps typically use ~150k gas; at 3 gwei that's ~0.00045 BNB.
 // 0.005 gives ~10x headroom for fee spikes.
 const BSC_GAS_BUFFER_BNB = '0.005';
-
-// Map our coingecko_id to the CMC symbol used by getQuotes. CMC's
-// /quotes/latest endpoint takes symbols (BTC/ETH/etc.), not their
-// coingecko slugs.
-const COINGECKO_TO_CMC_SYMBOL: Record<string, string> = {
-  bitcoin: 'BTC',
-  ethereum: 'ETH',
-  zcash: 'ZEC',
-  solana: 'SOL',
-  sui: 'SUI',
-  arbitrum: 'ARB',
-};
 
 /**
  * Check CMC's 24h trading volume for the asset against the
