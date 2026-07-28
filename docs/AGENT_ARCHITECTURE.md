@@ -12,18 +12,27 @@ that fires a detector. Never per-commit, never per-detector.
 
 Current pipeline (apps/api/src/execution/loop.ts):
 
-TinyFish (LLM #1, page eval) → Gate 1: confidence threshold
-→ detector pipeline (8 rule-based classifiers, loop.ts:281-317)
+GitHub commit API (free, GITHUB_TOKEN) → typed detectors
 → post-commit (IPFS + HCS + Arbitrum) → rule execution
 
-Pipeline after BNB pivot:
+Pipeline after BNB pivot (TinyFish retired 2026-07-28 — see
+"Upstream API spend" in docs/RUNBOOK.md):
 
-TinyFish → Gate 1 → detectors → IF any fired:
-→ CMC market context fetch (Fear & Greed, global metrics, asset quotes)
+github-direct (commits) / free scraper (non-GitHub URLs)
+→ detector gate → IF any fired:
+→ CMC market context fetch (Fear & Greed, global metrics, asset quotes;
+Redis-cached, budget-capped)
 → agent.ts (LLM #2, enriched with market_context)
-→ Gate 2: conviction threshold
-→ treasury: BSC spot (BTC/ETH) | Propr Hyperliquid perps (shorts + L1s)
+→ Gate 2: conviction threshold (70 A-tier / 80 unknown+B-tier)
+→ treasury: Propr Hyperliquid perps (longs + shorts + L1s)
+| BSC spot (BTC/ETH, when Propr declines)
 → notarize + broadcast
+
+The historical note: TinyFish used to sit in front as a paid page-eval
+LLM (Fetch → Agent → scraper tiers). It both leaked credits
+(zero-credit crash loops into the DLQ) and was load-bearing for
+nothing — github-direct enrichment is the real gate for repo
+monitors.
 
 Most monitor checks never fire a detector. Those never invoke the
 agent. That's the cost discipline. The agent is not in the hot path
@@ -51,7 +60,8 @@ collectively telegraph a tradeable thesis:
    - PR activity: open PRs scored ≥60 (keywords, comments, size, labels)
 
 All three follow the same downstream path: create signal row →
-score via `scoreAndPersist` (rubric v4) → if conviction ≥ 70 →
+score via `scoreAndPersist` (rubric v5) → if conviction ≥
+tier floor (70 A / 80 unknown+B) →
 `executeAgentTrade` → Propr perps / spot / paper → broadcast.
 
 The agent is now both a **scorer** (per-commit signals) and a
@@ -76,9 +86,10 @@ narrative that goes to Telegram and the public scorecard.
 Two gates, in order. Both persist; both surface in the scorecard.
 
 **Gate 1: confidence_threshold (per-monitor, default 50)**
-TinyFish confidence must clear this. Below = heartbeat row.
-Already implemented at loop.ts:416. KEEP as-is.
-Lives in `monitors.confidence_threshold`.
+Scrape-tier confidence must clear this (scraper for non-GitHub URLs;
+historically TinyFish — now retired). Below = heartbeat row.
+For github.com URLs the typed detectors ARE the gate (page-scrape
+confidence is ignored). Lives in `monitors.confidence_threshold`.
 
 **Gate 2: conviction_threshold (global, default 70, env CONVICTION_THRESHOLD)**
 After detectors fire, the agent returns conviction.
@@ -246,8 +257,10 @@ What did NOT change:
 The architectural narrative now matches the code: there is no
 Kraken anywhere in the runtime path. Trades are chain-native
 (Arbitrum / Robinhood / BSC), self-custody (TWAK on BSC) or
-operator-key (ethers on Arbitrum / RH), and the price oracle is
-CoinGecko only.
+operator-key (ethers on Arbitrum / RH). The perp venue is Propr
+(Hyperliquid) for shorts + L1 assets; spot is PancakeSwap on BSC
+(BTC/ETH). Price oracles: the CMC-backed spot hub for "now", CoinGecko
+for historical series — both budget-capped via the spend guard.
 
 ---
 
@@ -303,7 +316,7 @@ Every trade goes through it; bypass requires editing the call site.
 
 `recordTrade` now writes the full position row at open:
 
-- `entry_price_usd` from CoinGecko historical at swap time
+- `entry_price_usd` from the spot hub / CoinGecko at swap time
 - `take_profit_price` + `stop_loss_price` from
   `computeTpSlLevels(entryPrice, conviction, side)` — TP is
   conviction-scaled (+15% base, +33bps per conviction-point
@@ -326,9 +339,10 @@ update — better to record the intent + alert the operator than
 leave a position in limbo.
 
 The scheduler's `checkTakeProfitStopLoss()` runs every 5
-minutes. It uses CoinGecko per-asset prices (was a broken
-WBNB→USDC router query before) and now actually closes
-positions on hit instead of just alerting. A
+minutes. It reads per-asset prices from the CMC-backed spot hub
+(was per-asset CoinGecko range calls, which routinely 429'd and
+left hits unclosed), and now actually closes positions on hit
+instead of just alerting. A
 `backfillMissingTpSl()` pass at the top of every tick is the
 self-healing path for positions that opened before the at-open
 TP/SL writes landed.
@@ -423,10 +437,11 @@ direction='short' position; the old "short = close-oldest-long"
 semantics are gone). Live swaps remain behind TRADING_ENABLED,
 gated on calibration (n ≥ 30 closed positions).
 
-**2. Detectors are the signal gate.** For GitHub monitors, the 9
-typed detectors decide signal vs heartbeat — not keyword matches of
-commit messages against condition_text. TinyFish page-scrape output
-is ignored for GitHub URLs.
+**2. Detectors are the signal gate.** For GitHub monitors, the typed
+commit detectors (10, plus 5 proactive sweeps) decide signal vs
+heartbeat — not keyword matches of commit messages against
+condition_text. Page-scrape confidence is ignored for GitHub URLs
+(TinyFish page-scrape retired 2026-07-28).
 
 **3. Rubric v4.** Adds book_context (open positions injected into
 the prompt; no pile-ons, reversals require conviction exceeding the

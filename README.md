@@ -31,30 +31,30 @@ Public surfaces — no signup, no auth:
 
 ## How it works
 
-1. **Watch** — curated consensus-critical repos: Zcash (`zcash/halo2`, `ZcashFoundation/zebra`), Bitcoin, Ethereum (geth, reth), Solana (`anza-xyz/agave`), Arbitrum, Sui. News is corroboration only, never the primary signal.
-2. **Detect** — 9 typed detectors ARE the signal gate: they decide whether a batch of new commits constitutes a signal (`emergency_patch`, `security_critical_patch`, `consensus_relevant`, …).
+1. **Watch** — curated consensus-critical repos: Zcash (`zcash/halo2`, `ZcashFoundation/zebra`), Bitcoin, Ethereum (geth, reth), Solana (`anza-xyz/agave`), Arbitrum, Sui. Polling is free: the GitHub API feeds commit diffs directly (the paid TinyFish scraping tiers are retired; see `docs/RUNBOOK.md` → "Upstream API spend"). News is corroboration only, never the primary signal.
+2. **Detect** — 10 typed commit detectors ARE the signal gate (`emergency_patch`, `security_critical_patch`, `silent_merge`, …), plus 5 proactive sweeps (`velocity_anomaly`, `pr_activity`, `protocol_release`, `security_advisory`, `funding_oi`).
 3. **Score** — an LLM agent evaluates the signal against a versioned rubric (v4), with commit evidence (SHAs, messages), the cross-signal narrative, and the current open book. Rubric v4 requires commit-driven theses to cite the SHA and its code-level meaning, hard-caps news-only signals at conviction 65, and enforces book discipline (no pile-ons, no evidence-free reversals). Outputs conviction (0–100), thesis, action, confidence band.
-4. **Gate** — conviction ≥ 70 to trade. Sub-threshold scores persist as the public reasoning archive but produce no trade and no broadcast.
+4. **Gate** — conviction ≥ 70 (A-tier repos) to trade; unknown/B-tier repos trade at a stricter ≥ 80 until the responsiveness sweep confirms them. Sub-threshold scores persist as the public reasoning archive but produce no trade and no broadcast.
 5. **Commit** — open a tracked position in the recommended direction, long or short. **With Propr enabled, every supported asset routes to the Propr Hyperliquid perp venue**, including BTC/ETH longs, L1 assets, and shorts; when Propr is disabled, longs on BTC/ETH swap on-chain via PancakeSwap and shorts/L1 assets fall back to paper. All gated behind a double kill switch (`TRADING_ENABLED` + `PROPR_ENABLED`, both default off); paper mode is the safe fallback. Every fill is notarized on Hedera HCS, broadcast to Telegram.
-6. **Track** — once each window genuinely matures (T+1h/4h/1d/7d), the price is snapshotted from CoinGecko and attributed back to the signal. T+1d and T+7d resolutions post a public "call CORRECT / WRONG" verdict to Telegram. Drives the scorecard.
+6. **Track** — once each window genuinely matures (T+1h/4h/1d/7d), the price is snapshotted and attributed back to the signal. Spot prices come from the CMC-backed price hub (one batched call per refresh for every asset, Redis-cached); historical series fall back to CoinGecko under a shared daily budget. T+1d and T+7d resolutions post a public "call CORRECT / WRONG" verdict to Telegram. Drives the scorecard.
 7. **Replay** — the same engine runs over any repo's history (`/backtest/replay`) for case studies and leak-scans. `GET /backtest/responsiveness` sweeps the commit-level watchlist and ranks repos by historical commit→price responsiveness.
 
 No human input in the steady state. See [`docs/AGENT_ARCHITECTURE.md`](./docs/AGENT_ARCHITECTURE.md) for the full design decisions, [`docs/RUNBOOK.md`](./docs/RUNBOOK.md) for the operator runbook, and [`docs/CALIBRATION.md`](./docs/CALIBRATION.md) for the per-knob empirical rationale.
 
 ## Stack
 
-| Layer          | Choice                                                     |
-| -------------- | ---------------------------------------------------------- |
-| API            | Express 5 + TypeScript (Node 20, ESM)                      |
-| DB             | PostgreSQL 14                                              |
-| Agent          | LLM via NVIDIA API (`AGENT_MODEL`) · versioned rubric (v4) |
-| Market data    | CoinMarketCap Pro API (+ x402 fallback)                    |
-| News + macro   | SoSoValue On-Chain Finance API                             |
-| Notarize       | Hedera HCS + Arbitrum SignalRegistry                       |
-| Trading (AMM)  | PancakeSwap V2 on BSC                                      |
-| Trading (CLOB) | SoDEX orderbook on ValueChain                              |
-| Broadcast      | Telegram public channel                                    |
-| Frontend       | Next.js 16 + Tailwind                                      |
+| Layer          | Choice                                                                        |
+| -------------- | ----------------------------------------------------------------------------- |
+| API            | Express 5 + TypeScript (Node 20, ESM)                                         |
+| DB             | PostgreSQL 14                                                                 |
+| Agent          | LLM via NVIDIA API (`AGENT_MODEL`) · versioned rubric (v4)                    |
+| Market data    | CoinMarketCap Pro via spot price hub · CoinGecko historical (+ x402 fallback) |
+| News + macro   | SoSoValue On-Chain Finance API                                                |
+| Notarize       | Hedera HCS + Arbitrum SignalRegistry                                          |
+| Trading (AMM)  | PancakeSwap V2 on BSC                                                         |
+| Trading (CLOB) | SoDEX orderbook on ValueChain                                                 |
+| Broadcast      | Telegram public channel                                                       |
+| Frontend       | Next.js 16 + Tailwind                                                         |
 
 ## Getting started (local)
 
