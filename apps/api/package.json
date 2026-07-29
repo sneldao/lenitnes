@@ -14,6 +14,8 @@
     "migrate:followup": "tsx src/db/migrate-followup.ts",
     "seed:demo": "tsx src/seed/demo.ts",
     "smoke:hcs": "tsx scripts/smoke-hcs.ts",
+    "x402:setup": "tsx scripts/x402-setup-payer.ts",
+    "x402:agent": "tsx scripts/x402-agent-payer.ts",
     "typecheck": "tsc --noEmit",
     "test": "vitest run"
   },

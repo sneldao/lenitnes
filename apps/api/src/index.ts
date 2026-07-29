@@ -23,6 +23,8 @@ import { intelligenceRouter } from './routes/intelligence.js';
 import { scorecardRouter } from './routes/scorecard.js';
 import { adminRouter } from './routes/admin.js';
 import { sosovalueRouter } from './routes/sosovalue.js';
+import { paidRouter } from './routes/paid.js';
+import { paymentsRouter } from './routes/payments.js';
 import { auditMiddleware } from './middleware/audit.js';
 import { renderMetrics, metricsMiddleware } from './middleware/metrics.js';
 import { cacheInvalidate } from './middleware/cache.js';
@@ -154,6 +156,8 @@ app.use('/intelligence', intelligenceRouter);
 app.use('/sosovalue', sosovalueRouter);
 app.use('/prices', pricesRouter);
 app.use('/reasoning', reasoningRouter);
+app.use('/paid', paidRouter);
+app.use('/payments', paymentsRouter);
 
 // Centralized error handler.
 app.use(

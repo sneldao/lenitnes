@@ -211,12 +211,35 @@ export const envSchema = z
       z.enum(['mainnet', 'testnet']).optional().default('testnet'),
     ),
 
-    // ── x402 pay-per-request ──
+    // ── x402 pay-per-request (CMC consumer — EVM/Base) ──
     X402_ENABLED: z
       .string()
       .optional()
       .transform((v) => v === 'true'),
     X402_PRIVATE_KEY: z.string().optional().default(''),
+
+    // ── x402-over-Hedera merchant (exact-hedera scheme) ──
+    // Master switch for the pay-per-signal merchant + self-facilitator.
+    // When true, /paid/* routes require an HBAR payment that settles on
+    // Hedera testnet. Uses the HEDERA_OPERATOR_* account as the payee.
+    X402_MERCHANT_ENABLED: z
+      .string()
+      .optional()
+      .transform((v) => v === 'true'),
+    // CAIP-2 network for the exact-hedera scheme (hedera:testnet / hedera:mainnet).
+    X402_HEDERA_NETWORK: z.string().optional().default('hedera:testnet'),
+    // Default price per paid query, in HBAR (decimal).
+    X402_PRICE_HBAR: floatFromString().default(0.5),
+    // Max seconds a signed HBAR payment may stay valid.
+    X402_PAYMENT_TIMEOUT_SECONDS: intFromString(1, 3600).default(120),
+    // Merchant payee account id (defaults to HEDERA_OPERATOR_ID at runtime).
+    X402_MERCHANT_PAYEE: z.string().optional().default(''),
+    // HCS topic for payment-receipt notarization (defaults to HEDERA_HCS_TOPIC_ID).
+    X402_HCS_TOPIC_ID: z.string().optional().default(''),
+    // Optional external facilitator URL (kept for future use; self-facilitation is default).
+    X402_FACILITATOR_URL: z.string().optional().default(''),
+    // HBAR to fund a freshly-generated payer account (setup script).
+    X402_PAYER_FUND_HBAR: floatFromString().default(20),
 
     // ── EVM / per-chain ──
     ARBITRUM_CHAIN_ID: intFromString().default(421614),
@@ -307,6 +330,15 @@ export const envSchema = z
         code: z.ZodIssueCode.custom,
         path: ['X402_PRIVATE_KEY'],
         message: 'X402_ENABLED=true requires X402_PRIVATE_KEY to be set',
+      });
+    }
+
+    // x402 merchant enabled ⇒ Hedera operator credentials required
+    if (data.X402_MERCHANT_ENABLED && (!data.HEDERA_OPERATOR_ID || !data.HEDERA_OPERATOR_KEY)) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ['HEDERA_OPERATOR_ID'],
+        message: 'X402_MERCHANT_ENABLED=true requires HEDERA_OPERATOR_ID and HEDERA_OPERATOR_KEY',
       });
     }
 

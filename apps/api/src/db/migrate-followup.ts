@@ -104,6 +104,35 @@ const MIGRATIONS: string[] = [
   ALTER TABLE signals
     ADD COLUMN IF NOT EXISTS hedera_dedicated_topic_id TEXT;
   `,
+
+  // ── 0007: x402_payments ledger ──
+  // Every settled x402 micropayment (HBAR on Hedera). The
+  // payment_reference (UUID in the HBAR transfer memo) is UNIQUE →
+  // replay protection. Full SQL mirrors db/migrations/007_x402_payments.sql.
+  `
+  CREATE TABLE IF NOT EXISTS x402_payments (
+    id                   TEXT PRIMARY KEY,
+    payment_reference    TEXT NOT NULL UNIQUE,
+    resource             TEXT NOT NULL,
+    scheme               TEXT NOT NULL DEFAULT 'exact-hedera',
+    network              TEXT NOT NULL DEFAULT 'hedera:testnet',
+    asset                TEXT NOT NULL DEFAULT 'HBAR',
+    amount_tinybar       BIGINT NOT NULL,
+    payer                TEXT NOT NULL,
+    payee                TEXT NOT NULL,
+    hedera_tx_id         TEXT NOT NULL,
+    hcs_tx_id            TEXT,
+    hashscan_url         TEXT NOT NULL,
+    hcs_hashscan_url     TEXT,
+    settlement_status    TEXT NOT NULL DEFAULT 'settled',
+    error_reason         TEXT,
+    created_at           TIMESTAMPTZ NOT NULL DEFAULT now()
+  );
+  CREATE INDEX IF NOT EXISTS idx_x402_payments_created_at
+    ON x402_payments (created_at DESC);
+  CREATE INDEX IF NOT EXISTS idx_x402_payments_payer
+    ON x402_payments (payer);
+  `,
 ];
 
 async function migrate() {

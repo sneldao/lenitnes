@@ -58,6 +58,21 @@ export const config = {
     hcsTopicId: env.HEDERA_HCS_TOPIC_ID,
   },
 
+  // x402-over-Hedera merchant (exact-hedera scheme). The LENITNES
+  // API acts as a paid resource server: autonomous agents pay per
+  // query in HBAR, settling on Hedera testnet via a self-facilitator.
+  // Payee defaults to the Hedera operator; HCS topic defaults to the
+  // signal proof topic.
+  x402Merchant: {
+    enabled: env.X402_MERCHANT_ENABLED,
+    network: env.X402_HEDERA_NETWORK,
+    priceHbar: env.X402_PRICE_HBAR,
+    timeoutSeconds: env.X402_PAYMENT_TIMEOUT_SECONDS,
+    payee: env.X402_MERCHANT_PAYEE || env.HEDERA_OPERATOR_ID,
+    hcsTopicId: env.X402_HCS_TOPIC_ID || env.HEDERA_HCS_TOPIC_ID,
+    facilitatorUrl: env.X402_FACILITATOR_URL,
+  },
+
   tinyfish: {
     apiKey: env.TINYFISH_API_KEY,
     enabled: env.TINYFISH_ENABLED ?? false,

@@ -40,6 +40,10 @@ cache/
 *.key
 secrets/
 
+# x402 payer wallet (generated locally by scripts/x402-setup-payer.ts)
+.x402-payer.json
+apps/api/.x402-payer.json
+
 # ──────────────────────────────────────────────────────────────────
 # Logs
 # ──────────────────────────────────────────────────────────────────

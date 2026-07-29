@@ -55,6 +55,18 @@ No human input in the steady state. See [`docs/AGENT_ARCHITECTURE.md`](./docs/AG
 | Trading (CLOB) | SoDEX orderbook on ValueChain                                                 |
 | Broadcast      | Telegram public channel                                                       |
 | Frontend       | Next.js 16 + Tailwind                                                         |
+| **Payments**   | **x402-over-Hedera (`exact-hedera` scheme) — pay-per-signal in HBAR**         |
+
+## x402-over-Hedera — pay-per-signal autonomous commerce
+
+LENITNES signals are notarized on Hedera HCS — and now they're also **sold per-query through x402**. An autonomous agent pays 0.25–0.50 HBAR per call to read the signal feed or scorecard; each payment settles on Hedera testnet as a real HBAR transfer and is notarized to HCS (two on-chain artifacts per purchase).
+
+- **Merchant**: `GET /paid/feed` (0.25 HBAR), `GET /paid/scorecard` (0.50 HBAR), `GET /paid/signals/:id` (0.50 HBAR)
+- **Self-facilitator**: verify (decode signed TransferTransaction, validate payer/payee/amount/memo/asset) + settle (submit on testnet, confirm SUCCESS, notarize receipt to HCS)
+- **x402 V2 conformance**: `PAYMENT-REQUIRED` / `PAYMENT-SIGNATURE` / `PAYMENT-RESPONSE` headers via `@x402/core/http`; custom `exact-hedera` scheme under CAIP-2 `hedera:testnet`
+- **Public audit**: `GET /payments` shows every settled micropayment with both HashScan links
+
+See [`docs/X402_HEDERA_SUBMISSION.md`](./docs/X402_HEDERA_SUBMISSION.md) for the full architecture, HashScan links, and run steps.
 
 ## Getting started (local)
 
