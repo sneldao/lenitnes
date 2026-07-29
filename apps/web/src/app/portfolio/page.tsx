@@ -75,10 +75,17 @@ export default function PortfolioPage() {
   // Live tick between full refetches — the portfolio API's 60s cycle
   // reads from the same hub, but this page is the product's one spot
   // where 'it moves while you watch' IS the message.
-  const { data: prices } = useQuery<PricesSnapshot>({
+  const { data: prices, dataUpdatedAt: tickAt } = useQuery<PricesSnapshot>({
     queryKey: ['prices'],
     queryFn: () => api.getPrices(),
     refetchInterval: REFETCH.fast,
+  });
+
+  // Repo count powers the empty-state copy ("watching N repos").
+  const { data: monitors } = useQuery({
+    queryKey: qk.monitors(),
+    queryFn: () => api.listMonitors(),
+    staleTime: 60_000,
   });
 
   // Merge hub ticks into position rows: live current price + recomputed
@@ -149,13 +156,27 @@ export default function PortfolioPage() {
       <Breadcrumbs crumbs={[{ label: 'Portfolio' }]} />
       <div className="reveal in-view">
         <h1 className="font-display text-2xl font-semibold text-slate-100">Portfolio</h1>
-        <p className="mt-1 text-sm text-slate-400">
-          {summary.totalOpenPositions} open · {summary.totalClosedPositions} closed
-          {summary.currentValueUsd > 0 && (
-            <>
-              {' · '}
-              <span className="text-slate-300">{formatUsd(summary.currentValueUsd)} exposure</span>
-            </>
+        <p className="mt-1 flex flex-wrap items-center gap-x-2 text-sm text-slate-400">
+          <span>
+            {summary.totalOpenPositions} open · {summary.totalClosedPositions} closed
+            {summary.currentValueUsd > 0 && (
+              <>
+                {' · '}
+                <span className="text-slate-300">
+                  {formatUsd(summary.currentValueUsd)} exposure
+                </span>
+              </>
+            )}
+          </span>
+          {/* Live tick pulse — this page moves while you watch */}
+          {prices && (
+            <span className="inline-flex items-center gap-1.5 font-mono text-[10px] text-slate-600">
+              <span className="relative flex h-1.5 w-1.5">
+                <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-signal opacity-60" />
+                <span className="relative inline-flex h-1.5 w-1.5 rounded-full bg-signal" />
+              </span>
+              tick {new Date(tickAt).toLocaleTimeString()}
+            </span>
           )}
         </p>
       </div>
@@ -191,12 +212,16 @@ export default function PortfolioPage() {
       <h2 className="section-title">Open Positions</h2>
       {openPositions.length === 0 ? (
         <div className="mb-8 rounded-xl border border-dashed border-edge/60 p-6 text-center">
-          <p className="text-sm text-slate-500">No open positions.</p>
+          <p className="text-sm text-slate-400">
+            Flat book — the agent is watching{' '}
+            <span className="font-mono text-accent">{monitors?.length ?? '…'}</span> repos right
+            now. The next signal above conviction 70 opens here.
+          </p>
           <Link
             href="/scorecard"
-            className="mt-1 inline-flex items-center gap-1.5 text-xs text-accent hover:underline"
+            className="mt-1.5 inline-flex items-center gap-1.5 text-xs text-accent hover:underline"
           >
-            View the scorecard →
+            What has it scored so far? →
           </Link>
         </div>
       ) : (
@@ -215,12 +240,15 @@ export default function PortfolioPage() {
       </p>
       {closedPositions.length === 0 ? (
         <div className="rounded-xl border border-dashed border-edge/60 p-6 text-center">
-          <p className="text-sm text-slate-500">No closed trades yet.</p>
+          <p className="text-sm text-slate-400">
+            Nothing has hit TP/SL yet — open positions settle on a 5-minute scheduler, and every
+            close is notarized before it appears here.
+          </p>
           <Link
             href="/case-study/halo2"
-            className="mt-1 inline-flex items-center gap-1.5 text-xs text-accent hover:underline"
+            className="mt-1.5 inline-flex items-center gap-1.5 text-xs text-accent hover:underline"
           >
-            See a full example →
+            See the full lifecycle on the halo2 replay →
           </Link>
         </div>
       ) : (

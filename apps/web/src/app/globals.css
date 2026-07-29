@@ -414,6 +414,53 @@ body {
   }
 }
 
+/* ── ProofFlow animations ──
+   Marching dashes + drifting particle along the pipeline
+   connectors. Color is inherited via currentColor / inline
+   style so the same keyframes serve both idle and energized
+   states. Disabled by the global reduced-motion kill-switch. */
+@keyframes pf-dash-scroll {
+  from {
+    background-position-x: 0;
+  }
+  to {
+    background-position-x: 8px;
+  }
+}
+
+@keyframes pf-particle-flow {
+  0% {
+    left: 0%;
+    opacity: 0;
+  }
+  12% {
+    opacity: 1;
+  }
+  88% {
+    opacity: 1;
+  }
+  100% {
+    left: calc(100% - 4px);
+    opacity: 0;
+  }
+}
+
+.pf-dashes {
+  background-image: repeating-linear-gradient(
+    90deg,
+    currentColor 0,
+    currentColor 4px,
+    transparent 4px,
+    transparent 8px
+  );
+  animation: pf-dash-scroll 0.9s linear infinite;
+  transition: color var(--duration-fast) var(--ease-smooth-out);
+}
+
+.pf-particle {
+  animation: pf-particle-flow 2.4s linear infinite;
+}
+
 @keyframes chain-node-glow {
   0%,
   100% {

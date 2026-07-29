@@ -19,6 +19,8 @@ import {
   FileText,
   type LucideIcon,
 } from 'lucide-react';
+import { ProofFlow } from '@/components/ProofFlow';
+import { AgentActivityPanel } from '@/components/AgentActivityPanel';
 
 export const metadata = {
   title: 'How it works — LENITNES',
@@ -36,19 +38,9 @@ export default function MethodologyPage() {
         </h1>
       </header>
 
-      {/* ── Pipeline overview ── */}
-      <section className="reveal reveal-delay-1 in-view">
-        <div className="flex flex-wrap items-center gap-2 rounded-2xl border border-edge/40 bg-panel/60 p-4">
-          {PIPELINE.map((step, i) => (
-            <div key={step.label} className="flex items-center gap-2">
-              <div className="flex items-center gap-2 rounded-lg bg-ink-light/60 px-3 py-2">
-                <step.icon className="h-4 w-4 text-accent" />
-                <span className="text-sm font-medium text-slate-200">{step.label}</span>
-              </div>
-              {i < PIPELINE.length - 1 && <ArrowRight className="h-4 w-4 text-slate-600" />}
-            </div>
-          ))}
-        </div>
+      {/* ── The loop, live ── */}
+      <section className="reveal reveal-delay-1 in-view rounded-2xl border border-edge/40 bg-panel/60 p-4 sm:p-6">
+        <ProofFlow />
       </section>
 
       {/* ── The watchlist ── */}
@@ -69,8 +61,8 @@ export default function MethodologyPage() {
             </a>
           ))}
         </div>
-        <p className="text-sm text-slate-500">
-          Admin-curated. The agent can&apos;t expand its own watchlist.{' '}
+        <p className="text-xs text-slate-500">
+          Admin-curated — the agent can&apos;t expand its own watchlist.{' '}
           <Link href="/monitors" className="link-underline text-accent">
             Full list →
           </Link>
@@ -80,14 +72,8 @@ export default function MethodologyPage() {
       {/* ── The detectors ── */}
       <Section id="detectors" icon={GitCommit} title="9 typed detectors">
         <p className="text-sm text-slate-400">
-          Fast classification pass before the LLM. Each returns a score (0-100) + confidence. The
-          agent sees detector output, commit evidence (SHAs, messages, diff stats), a{' '}
-          <strong className="font-normal text-slate-300">sector-chain sequence</strong> (upstream→
-          downstream repos in the last 7d — e.g. halo2 → zebra → zcash), plus a cross-signal
-          narrative of what every other monitored repo did in the same 24h window. News is
-          corroboration only — it never trades on its own. These same detectors also power the
-          enterprise leak-scan: pointed at any repo&apos;s history, they show what its commits
-          signaled before anyone announced it.
+          Fast classification pass before the LLM — each returns a score (0–100) + confidence. News
+          is corroboration only; it never trades on its own.
         </p>
         <div className="grid gap-2 sm:grid-cols-2">
           {DETECTORS.map((d) => (
@@ -110,21 +96,17 @@ export default function MethodologyPage() {
           ))}
         </div>
         <p className="text-xs text-slate-500">
-          Not binary — a commit can trip multiple detectors. The agent reads all scores + commit
-          message + 7-day price context + past outcomes, then forms its own verdict.
+          Not binary — a commit can trip several. The agent reads all scores + commit evidence +
+          7-day price context + past outcomes, then forms its own verdict.
         </p>
       </Section>
 
-      {/* ── Sector chains (sequence context) ── */}
+      {/* ── Sector chains ── */}
       <Section id="sequence" icon={GitCommit} title="Sector chains">
         <p className="text-sm text-slate-400">
-          Commits in related repos often form a causal chain — circuit fix in halo2, emergency fork
-          in zebra, protocol release in zcash. The agent receives a compact{' '}
-          <code className="rounded bg-ink-light px-1 py-0.5 font-mono text-[11px]">
-            sequence_context
-          </code>{' '}
-          string listing upstream events in the same sector within the prior 7 days before scoring
-          each batch.
+          Related repos form causal chains — a circuit fix in halo2, an emergency fork in zebra, a
+          protocol release in zcash. The agent sees upstream events in the same sector (7d window)
+          before scoring each batch.
         </p>
         <div className="space-y-3">
           {SECTOR_GRAPHS.map((sector) => (
@@ -148,9 +130,8 @@ export default function MethodologyPage() {
       {/* ── Repo responsiveness ── */}
       <Section id="responsiveness" icon={TrendingUp} title="Repo responsiveness">
         <p className="text-sm text-slate-400">
-          Before expanding the watchlist or burning agent tokens on noisy repos, we run a 90-day
-          replay sweep: same detectors + mock agent, matured T+1d/T+7d price outcomes. Repos get an
-          A/B/C tier — A means historical commit signals co-moved with price; C means deprioritize.
+          A 90-day replay sweep tiers every repo A/B/C before it earns live agent spend — A means
+          commit signals historically co-moved with price.
         </p>
         <Link
           href="/calibration"
@@ -159,10 +140,6 @@ export default function MethodologyPage() {
           See live tier table
           <ArrowRight className="h-4 w-4" />
         </Link>
-        <p className="text-xs text-slate-500">
-          Sweeps run in the background (worker cron + cache). Public scans use mock scoring; live
-          agent reasoning requires an admin engagement.
-        </p>
       </Section>
 
       {/* ── The agent ── */}
@@ -171,7 +148,7 @@ export default function MethodologyPage() {
           <Brain className="h-5 w-5 text-accent" />
           <div>
             <div className="text-sm font-medium text-slate-200">LLM via NVIDIA API</div>
-            <div className="text-xs text-slate-500">Versioned rubric (v4) · conviction 0-100</div>
+            <div className="text-xs text-slate-500">Versioned rubric (v4) · conviction 0–100</div>
           </div>
         </div>
         <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
@@ -185,7 +162,7 @@ export default function MethodologyPage() {
           ))}
         </div>
         <p className="text-xs text-slate-500">
-          Every score (including sub-threshold) stored in{' '}
+          Every score — including sub-threshold — lands in{' '}
           <code className="rounded bg-ink-light px-1 py-0.5 font-mono text-[11px]">
             agent_scores
           </code>{' '}
@@ -193,7 +170,7 @@ export default function MethodologyPage() {
           <Link href="/scorecard" className="link-underline text-accent">
             scorecard
           </Link>{' '}
-          reads from that table — every public claim traces to a verifiable row.
+          reads that table, so every public claim traces to a verifiable row.
         </p>
         <CalloutAside>
           <p className="font-mono text-[10px] uppercase tracking-wider text-slate-500">
@@ -201,9 +178,8 @@ export default function MethodologyPage() {
           </p>
           <p className="mt-1 text-sm text-slate-300">
             When the prompt or model changes, the version bumps and the scorecard slices performance
-            by version. v4 (Jul 2026) hardened calibration: commit-driven theses must cite the SHA
-            and its code-level meaning, news-only signals are hard-capped at conviction 65, and the
-            agent sees the open book — no pile-ons, no evidence-free reversals.
+            by version. v4 hardened calibration: theses must cite the SHA and its code-level
+            meaning, and news-only signals are hard-capped below the trade threshold.
           </p>
         </CalloutAside>
       </Section>
@@ -259,20 +235,19 @@ export default function MethodologyPage() {
         <div className="flex items-center gap-3 rounded-xl border border-warn/20 bg-warn/[0.04] p-4">
           <AlertTriangle className="h-5 w-5 shrink-0 text-warn" />
           <p className="text-sm text-slate-300">
-            Every trade today is paper. That&apos;s the strategy, not a placeholder. Live trading
-            flips on only after the{' '}
+            Every trade today is paper. That&apos;s the strategy, not a placeholder — live trading
+            flips on only once the{' '}
             <Link href="/calibration" className="link-underline text-accent">
               calibration loop
             </Link>{' '}
-            shows higher conviction = better outcomes (target: n ≥ 30 closed positions) and A-tier
-            repos justify live agent spend.
+            shows higher conviction = better outcomes (target: n ≥ 30 closed positions).
           </p>
         </div>
       </Section>
 
       {/* ── Calibration loop ── */}
       <Section id="calibration" icon={TrendingUp} title="Calibration loop">
-        <div className="flex items-center gap-2 rounded-xl border border-edge/30 bg-ink-light/40 p-4">
+        <div className="flex flex-wrap items-center gap-2 rounded-xl border border-edge/30 bg-ink-light/40 p-4">
           {['Change', 'Measure', 'Compare', 'Keep/Rollback'].map((label, i) => (
             <div key={label} className="flex items-center gap-2">
               <span className="rounded-lg bg-ink px-2.5 py-1.5 text-xs font-medium text-slate-300">
@@ -308,13 +283,21 @@ export default function MethodologyPage() {
         </div>
         <p className="text-xs text-slate-500">
           Three independent authorities — impossible to misremember a call. Visible on every signal
-          detail page, linked from the{' '}
+          page, linked from the{' '}
           <Link href="/scorecard" className="link-underline text-accent">
             scorecard
           </Link>
           .
         </p>
       </Section>
+
+      {/* ── Live right now — the methodology isn't theoretical ── */}
+      <section className="space-y-3 reveal in-view">
+        <h2 className="font-display text-xl font-semibold text-slate-100">
+          While you read this — <span className="italic text-accent">the agent is running.</span>
+        </h2>
+        <AgentActivityPanel />
+      </section>
 
       <footer className="border-t border-edge/30 pt-6 text-sm text-slate-500">
         <Link href="/case-study/halo2" className="link-underline text-accent">
@@ -370,15 +353,6 @@ function CalloutAside({ children }: { children: React.ReactNode }) {
 
 // ── Content data ───────────────────────────────────────────────
 
-const PIPELINE = [
-  { label: 'Watch', icon: Eye },
-  { label: 'Detect', icon: GitCommit },
-  { label: 'Score', icon: Brain },
-  { label: 'Gate', icon: Shield },
-  { label: 'Trade', icon: Target },
-  { label: 'Prove', icon: Zap },
-];
-
 const DETECTORS = [
   {
     name: 'emergency_patch',
@@ -423,12 +397,12 @@ const DETECTORS = [
   {
     name: 'news_signal',
     icon: 'newspaper',
-    what: 'News sentiment as corroboration for commit signals. Never trades alone — news-only conviction is hard-capped below the trade threshold.',
+    what: 'News sentiment as corroboration. Never trades alone — hard-capped below threshold.',
   },
 ];
 
 const AGENT_OUTPUTS = [
-  { label: 'conviction', value: '0-100' },
+  { label: 'conviction', value: '0–100' },
   { label: 'thesis', value: '280 chars' },
   { label: 'action', value: 'long/short/none' },
   { label: 'confidence', value: 'low/mid/high' },
@@ -437,7 +411,7 @@ const AGENT_OUTPUTS = [
 const SAFETY_GATES = [
   {
     title: 'Kill switch',
-    body: 'TRADING_ENABLED defaults false. No swap fires until operator opts in.',
+    body: 'TRADING_ENABLED defaults false. No swap fires until an operator opts in.',
   },
   {
     title: 'Asset registry',
@@ -445,7 +419,7 @@ const SAFETY_GATES = [
   },
   {
     title: 'Perp venue (Propr)',
-    body: 'Shorts + L1 assets (ZEC/SOL/SUI/ARB) route to Hyperliquid perps. Second kill switch (PROPR_ENABLED), leverage clamped, mandatory SL/TP, every fill notarized to HCS.',
+    body: 'Shorts + L1 assets route to perps with a second kill switch, clamped leverage, mandatory SL/TP, every fill notarized to HCS.',
   },
   {
     title: 'Chain-ID guard',
@@ -453,15 +427,15 @@ const SAFETY_GATES = [
   },
   {
     title: 'Balance preflight',
-    body: 'Wallet must hold amountIn + gas buffer. Catches underfunded wallets pre-swap.',
+    body: 'Wallet must hold amountIn + gas buffer before any swap.',
   },
   {
     title: 'Liquidity floor',
-    body: 'Pool TVL must exceed registry floor ($5M default). Catches dried-up liquidity.',
+    body: 'Pool TVL must exceed the registry floor ($5M default).',
   },
   {
     title: 'Position caps',
-    body: 'Max open positions + per-asset concentration limits. Prevents overexposure.',
+    body: 'Max open positions + per-asset concentration limits.',
   },
 ];
 
@@ -470,26 +444,25 @@ const LIFECYCLE = [
     label: 'Open',
     icon: Target,
     detail:
-      'A tracked position opens in the recommended direction — long or short. Longs on BTC/ETH swap on-chain via PancakeSwap; shorts and L1 assets (ZEC/SOL/SUI/ARB) trade live perps on Hyperliquid via Propr. Entry price snapshotted at open. All gated behind kill switches; paper is the safe default.',
+      'Position opens in the recommended direction — longs swap on-chain, shorts + L1 assets trade perps via Propr. Entry price snapshotted; paper is the safe default.',
   },
   {
     label: 'Settle',
     icon: TrendingUp,
     detail:
-      'TP/SL written at open, conviction-scaled and direction-aware. 5-min scheduler checks live price.',
+      'TP/SL written at open — conviction-scaled, direction-aware. 5-min scheduler checks price.',
   },
   {
     label: 'Close',
     icon: CheckCircle2,
-    detail:
-      'TP/SL hit, signal reversal, or manual exit closes at market price. Realized P&L recorded, direction-aware.',
+    detail: 'TP/SL hit, signal reversal, or manual exit. Realized P&L recorded, direction-aware.',
   },
 ];
 
 const OPEN_QUESTIONS = [
-  'Does conviction 80+ actually outperform 70-79? (Data pending — threshold recently adjusted.)',
+  'Does conviction 80+ actually outperform 70–79? Data pending — threshold recently adjusted.',
   'Does the 30-minute settling delay filter already-priced-in noise?',
-  'Which repos are A-tier in the 90d replay — and does live agent scoring agree with mock?',
+  'Which repos are A-tier in the 90d replay — and does live scoring agree with mock?',
   'Which detectors carry predictive weight vs decoration? The by-detector table answers this as outcomes accumulate.',
 ];
 
@@ -499,6 +472,10 @@ const PROOF_LAYERS = [
     icon: Zap,
     detail: 'Consensus timestamp, microsecond precision, tamper-evident.',
   },
-  { name: 'Arbitrum', icon: Lock, detail: 'SignalRegistry contract stores signal hash on-chain.' },
+  {
+    name: 'Arbitrum',
+    icon: Lock,
+    detail: 'SignalRegistry contract stores the signal hash on-chain.',
+  },
   { name: 'IPFS', icon: FileText, detail: 'Evidence, screenshots, metadata — immutable package.' },
 ];
