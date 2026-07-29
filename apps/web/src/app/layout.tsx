@@ -6,7 +6,6 @@ import { ErrorBoundary } from '@/components/ErrorBoundary';
 import { ToastProvider } from '@/components/ui/toast';
 
 import { Nav } from '@/components/Nav';
-import { AgentActivityPanel } from '@/components/AgentActivityPanel';
 
 export const metadata: Metadata = {
   title: 'LENITNES — proof-chained signal monitoring',
@@ -28,71 +27,52 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
           Skip to main content
         </a>
         <Providers>
-          {/* ── Outer shell: constrain width, provide sticky header ── */}
-          <div className="mx-auto flex min-h-screen max-w-7xl flex-col px-4 sm:px-6">
+          {/* ── Centered shell: narrow, no sidebar ── */}
+          <div className="mx-auto flex min-h-screen max-w-5xl flex-col px-4 sm:px-6">
             {/* Sticky header */}
             <header className="glass sticky top-0 z-40 -mx-4 flex items-center justify-between rounded-b-2xl px-4 py-3 sm:-mx-6 sm:px-6">
               <Link href="/" className="group flex items-center gap-2.5">
                 <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-gradient-to-br from-accent to-signal text-sm font-black text-ink shadow-glow-sm transition-shadow group-hover:shadow-glow">
                   L
                 </div>
-                <div className="flex flex-col">
-                  <span className="font-display text-sm font-bold tracking-tight text-slate-100">
-                    LENITNES
-                  </span>
-                  <span className="hidden text-[10px] font-medium text-slate-500 sm:block">
-                    autonomous signal intelligence
-                  </span>
-                </div>
+                <span className="font-display text-sm font-bold tracking-tight text-slate-100">
+                  LENITNES
+                </span>
               </Link>
               <Nav />
             </header>
 
-            {/* ── Two-column layout: main content + agent activity sidebar ── */}
-            <div className="flex flex-1 gap-6 py-6 sm:py-10">
-              {/* Main content */}
+            {/* ── Single column: no sidebar ── */}
+            <div className="flex flex-1 flex-col py-4 sm:py-6">
               <main id="main-content" className="min-w-0 flex-1 animate-fade-in" tabIndex={-1}>
                 <ToastProvider>
                   <ErrorBoundary>{children}</ErrorBoundary>
                 </ToastProvider>
               </main>
-
-              {/* Agent activity sidebar — visible from md breakpoint up */}
-              <aside className="hidden w-80 shrink-0 xl:block">
-                <div className="sticky top-24">
-                  <AgentActivityPanel />
-                </div>
-              </aside>
             </div>
 
-            {/* Footer */}
-            <footer className="border-t border-edge/40 py-6">
-              <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-                <div className="flex items-center gap-2">
-                  <div className="flex h-5 w-5 items-center justify-center rounded-md bg-gradient-to-br from-accent/20 to-signal/20 text-[9px] font-bold text-accent">
-                    L
-                  </div>
-                  <span className="text-xs text-slate-500">
-                    Every signal carries a cryptographic proof chain ·{' '}
-                    <a
-                      href="https://persidian.com"
-                      className="text-slate-400 underline decoration-edge-light underline-offset-2 hover:text-accent"
-                    >
-                      a Persidian sentinel
-                    </a>
-                  </span>
-                </div>
+            {/* Footer — compact */}
+            <footer className="border-t border-edge/40 py-4">
+              <div className="flex items-center justify-between">
+                <span className="text-xs text-slate-500">
+                  Proof-chained on Hedera ·{' '}
+                  <a
+                    href="https://persidian.com"
+                    className="text-slate-400 underline decoration-edge-light underline-offset-2 hover:text-accent"
+                  >
+                    Persidian
+                  </a>
+                </span>
                 <div className="flex items-center gap-3 text-[10px] font-medium uppercase tracking-wider text-slate-600">
                   <span>GitHub</span>
                   <span className="h-1 w-1 rounded-full bg-edge-light" />
                   <span>Hedera</span>
-                  <span className="h-1 w-1 rounded-full bg-edge-light" />
-                  <span>CMC</span>
-                  <span className="h-1 w-1 rounded-full bg-edge-light" />
-                  <span>CoinGecko</span>
                 </div>
               </div>
             </footer>
+
+            {/* Bottom spacer so mobile tab bar doesn't overlap content */}
+            <div className="h-16 sm:hidden" aria-hidden />
           </div>
         </Providers>
       </body>

@@ -3,7 +3,6 @@
 import { useQuery } from '@tanstack/react-query';
 import Link from 'next/link';
 import {
-  ArrowUpRight,
   ArrowRight,
   Eye,
   GitCommit,
@@ -13,246 +12,96 @@ import {
   TrendingUp,
   type LucideIcon,
 } from 'lucide-react';
-import { api, type ScorecardResponse } from '@/lib/api';
+import { api, type ScorecardResponse, type ScorecardRecentCall } from '@/lib/api';
 import { qk, REFETCH } from '@/lib/queryKeys';
-
-// ─────────────────────────────────────────────────────────────
-// LENITNES landing — the public surface.
-//
-// Cyberpunk dashboard aesthetic. Cyan accent, Fraunces display.
-// Dark canvas with noise texture. Orchestrated motion.
-// ─────────────────────────────────────────────────────────────
+import { timeAgo, convictionColor } from '@/lib/format';
+import { cn } from '@/lib/utils';
 
 export default function LandingPage() {
   return (
-    <main className="min-h-screen">
-      <div className="mx-auto max-w-7xl px-6 py-12 sm:py-20">
-        {/* ── Hero — the founding myth as the lede ── */}
-        <header className="mb-24 sm:mb-32">
-          <p className="mb-4 font-mono text-[10px] uppercase tracking-[0.25em] text-accent">
-            An autonomous AI intelligence operation · 2026
-          </p>
-          <h1 className="font-display text-5xl font-semibold leading-[1.05] tracking-tight text-slate-100 sm:text-7xl lg:text-8xl">
-            The agent
-            <br />
-            <em className="not-italic text-accent">would have shorted</em>
-            <br />
-            <span className="text-slate-100">halo2.</span>
-          </h1>
-          <p className="mt-8 max-w-2xl text-sm leading-relaxed text-slate-400">
-            The June 2026 halo2 soundness bug was visible in public commits two days before
-            disclosure took ZEC down ~50%. Reading that leak — and committing every thesis on-chain
-            before the market moves — is the whole operation.
-          </p>
-          <div className="mt-10 flex flex-wrap items-center gap-3">
-            <Link
-              href="/case-study/halo2"
-              className="btn group inline-flex items-center gap-2 px-6 py-3 text-xs uppercase tracking-wider"
-            >
-              Read the replay
-              <ArrowUpRight className="h-3.5 w-3.5 transition-transform group-hover:translate-x-0.5" />
-            </Link>
-            <Link
-              href="/scorecard"
-              className="btn-ghost inline-flex items-center gap-2 px-6 py-3 text-xs uppercase tracking-wider"
-            >
-              Live scorecard
-            </Link>
-          </div>
-        </header>
-
-        {/* ── Track record — live numbers from the scorecard ── */}
-        <section
-          id="demo"
-          className="reveal reveal-delay-1 in-view mb-24 scroll-mt-24 sm:mb-32 sm:scroll-mt-28"
-        >
-          <SectionLabel number="01" label="The track record" />
-          <h2 className="mb-10 max-w-2xl font-display text-3xl font-semibold leading-tight text-slate-100 sm:text-4xl">
-            The public scorecard says
-            <span className="italic"> everything</span>.
-          </h2>
-          <TrackRecordStrip />
-          <p className="mt-6 max-w-prose text-xs leading-relaxed text-slate-500">
-            Recomputed live from the same tables the calls are written to — the system cannot
-            misremember its own performance. Before expanding the watchlist, see which repos&apos;
-            commits historically co-moved with price on the{' '}
-            <Link href="/calibration" className="link-underline text-accent">
-              calibration page
-            </Link>
-            .
-          </p>
-        </section>
-
-        {/* ── How it works — the 6-step loop as a visual flow ── */}
-        <section
-          id="how-it-works"
-          className="reveal reveal-delay-2 in-view mb-24 scroll-mt-24 sm:mb-32 sm:scroll-mt-28"
-        >
-          <SectionLabel number="02" label="How it works" />
-          <h2 className="mb-10 max-w-2xl font-display text-3xl font-semibold leading-tight text-slate-100 sm:text-4xl">
-            One loop.
-            <br />
-            <span className="italic text-accent">No human input.</span>
-          </h2>
-          <div className="flex flex-wrap items-center gap-2 rounded-2xl border border-edge/40 bg-panel/60 p-4">
-            {LOOP_STEPS.map((step, i) => (
-              <div key={step.title} className="flex items-center gap-2">
-                <div className="flex items-center gap-2 rounded-lg bg-ink-light/60 px-3 py-2">
-                  <step.icon className="h-4 w-4 text-accent" />
-                  <span className="text-sm font-medium text-slate-200">{step.title}</span>
-                </div>
-                {i < LOOP_STEPS.length - 1 && <ArrowRight className="h-4 w-4 text-slate-600" />}
-              </div>
-            ))}
-          </div>
-          <ol className="mt-8 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-            {LOOP_STEPS.map((step, i) => (
-              <li key={step.title} className="rounded-lg border border-edge/30 bg-ink-light/40 p-3">
-                <div className="flex items-center gap-2">
-                  <step.icon className="h-4 w-4 text-accent" />
-                  <span className="font-mono text-[10px] uppercase tracking-wider text-slate-500">
-                    {String(i + 1).padStart(2, '0')}
-                  </span>
-                </div>
-                <div className="mt-2 text-sm font-semibold text-slate-200">{step.title}</div>
-                <p className="mt-1 text-xs leading-relaxed text-slate-400">{step.body}</p>
-              </li>
-            ))}
-          </ol>
-        </section>
-
-        {/* ── The case study — the founding myth ── */}
-        <section
-          id="zec-story"
-          className="reveal reveal-delay-3 in-view mb-24 scroll-mt-24 sm:mb-32 sm:scroll-mt-28"
-        >
-          <SectionLabel number="03" label="The case study" />
-          <div className="grid gap-10 lg:grid-cols-[1.4fr_1fr]">
-            <div>
-              <h2 className="mb-6 font-display text-3xl font-semibold leading-tight text-slate-100 sm:text-4xl">
-                The 2026-06-02 emergency release
-                <br />
-                <span className="italic text-accent">the model scored at 95.</span>
-              </h2>
-              <p className="mb-6 text-sm leading-relaxed text-slate-400">
-                Shielded Labs shipped{' '}
-                <code className="rounded bg-edge/30 px-1.5 py-0.5 font-mono text-xs text-slate-300">
-                  Zebra 4.5.3: emergency soft fork disabling Orchard actions
-                </code>{' '}
-                — a surprise release with no preceding bug report. Four detectors fired, conviction
-                95/100, recommended action SHORT ZEC. Entry ~$600 (2-Jun), trough $309 on the 5-Jun
-                disclosure — <span className="text-accent">+48.5% directional return</span> at T+3d.
-              </p>
-              <Link
-                href="/case-study/halo2"
-                className="inline-flex items-center gap-2 font-mono text-sm text-accent hover:underline"
-              >
-                Read the full replay
-                <ArrowUpRight className="h-4 w-4" />
-              </Link>
-            </div>
-            <div className="card">
-              <p className="mb-3 font-mono text-[10px] uppercase tracking-[0.2em] text-slate-500">
-                Agent verdict
-              </p>
-              <div className="mb-4 flex items-baseline gap-3">
-                <div className="font-display text-6xl font-medium text-accent">95</div>
-                <div className="font-mono text-sm text-slate-500">/100</div>
-              </div>
-              <div className="space-y-1 font-mono text-xs">
-                <div className="flex justify-between">
-                  <span className="text-slate-500">Action</span>
-                  <span className="font-medium text-slate-200">SHORT ZEC</span>
-                </div>
-                <div className="flex justify-between">
-                  <span className="text-slate-500">Confidence</span>
-                  <span className="font-medium text-slate-200">HIGH</span>
-                </div>
-                <div className="flex justify-between">
-                  <span className="text-slate-500">Detectors fired</span>
-                  <span className="font-medium text-slate-200">4 of 9</span>
-                </div>
-                <div className="flex justify-between">
-                  <span className="text-slate-500">T+3d outcome</span>
-                  <span className="font-medium text-accent">+48.5% ↓</span>
-                </div>
-                <div className="flex justify-between">
-                  <span className="text-slate-500">Hit?</span>
-                  <span className="font-medium text-accent">YES</span>
-                </div>
-              </div>
-            </div>
-          </div>
-        </section>
-
-        {/* ── Recent signals — live from the API ── */}
-        <section className="reveal reveal-delay-4 in-view mb-24 sm:mb-32">
-          <SectionLabel number="04" label="Recent calls" />
-          <h2 className="mb-10 max-w-2xl font-display text-3xl font-semibold leading-tight text-slate-100 sm:text-4xl">
-            Every signal,
-            <br />
-            <span className="italic">with the receipts.</span>
-          </h2>
-          <RecentCalls />
-        </section>
-
-        {/* ── One engine, two audiences — the enterprise direction ── */}
-        <section className="reveal reveal-delay-4 in-view mb-24 sm:mb-32">
-          <SectionLabel number="05" label="One engine, two audiences" />
-          <h2 className="mb-6 max-w-2xl font-display text-3xl font-semibold leading-tight text-slate-100 sm:text-4xl">
-            Your commits are
-            <br />
-            <span className="italic">telling the market something.</span>
-          </h2>
-          <p className="max-w-2xl text-sm leading-relaxed text-slate-400">
-            The same nine detectors and versioned rubric that trade in public can scan any
-            repository&apos;s history and show what it signaled — before a market, or a competitor,
-            noticed. The public track record on this site is the proof the engine works; the
-            leak-scan is what it does for you.
-          </p>
-          <Link
-            href="/scan"
-            className="mt-6 inline-flex items-center gap-2 font-mono text-sm text-accent hover:underline"
-          >
-            Run it on any repo
-            <ArrowUpRight className="h-4 w-4" />
-          </Link>
-          <p className="mt-4 text-xs text-slate-500">
-            Part of the{' '}
-            <a href="https://persidian.com" className="link-underline text-accent">
-              Persidian
-            </a>{' '}
-            portfolio — sentinels for every business rhythm: money in, messages out, theses tested,
-            data trusted.
-          </p>
-        </section>
-      </div>
-    </main>
-  );
-}
-
-// ── Sub-components ─────────────────────────────────────────
-
-function SectionLabel({ number, label }: { number: string; label: string }) {
-  return (
-    <div className="mb-6 flex items-baseline gap-3 font-mono text-[10px] uppercase tracking-[0.25em] text-slate-500">
-      <span className="text-accent">{number}</span>
-      <span className="h-px w-8 bg-edge" />
-      <span>{label}</span>
+    <div className="space-y-8 sm:space-y-12">
+      <Hero />
+      <TrackRecordStrip />
+      <HowItWorksStrip />
+      <RecentCalls />
     </div>
   );
 }
 
-function StatCell({ label, value, color }: { label: string; value: string; color?: string }) {
+// ── Hero: the live agent as the visual lede ──────────────────
+
+function Hero() {
+  const { data: recent } = useQuery<ScorecardRecentCall[]>({
+    queryKey: qk.scorecardRecent(5),
+    queryFn: () => api.getScorecardRecent(5),
+    ...REFETCH,
+    refetchInterval: REFETCH.fast,
+  });
+
+  const latest = recent?.[0];
+  const scoredCount = recent?.length ?? 0;
+
   return (
-    <div className="bg-panel p-6">
-      <div className="font-mono text-[10px] uppercase tracking-wider text-slate-500">{label}</div>
-      <div className={`mt-2 font-display text-3xl font-light ${color ?? 'text-slate-100'}`}>
-        {value}
+    <header className="pt-4 text-center sm:pt-8">
+      {/* Pulse — the autonomy signal */}
+      <div className="mb-4 flex items-center justify-center gap-2">
+        <span className="relative flex h-2.5 w-2.5">
+          <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-signal opacity-60" />
+          <span className="relative inline-flex h-2.5 w-2.5 rounded-full bg-signal" />
+        </span>
+        <span className="font-mono text-[11px] uppercase tracking-wider text-slate-400">
+          {latest ? `last scored ${timeAgo(latest.detectedAt)}` : 'monitoring live'}
+        </span>
       </div>
-    </div>
+
+      <h1 className="font-display text-4xl font-semibold leading-[1.1] tracking-tight text-slate-100 sm:text-5xl">
+        The agent that <em className="not-italic text-accent">would have shorted</em> halo2.
+      </h1>
+
+      <p className="mx-auto mt-4 max-w-xl text-sm leading-relaxed text-slate-400">
+        An autonomous AI agent reads public commits to consensus-critical crypto code,
+        scores every signal on-chain, and publishes its calls before the market moves.
+        No human in the loop.
+      </p>
+
+      <div className="mt-6 flex flex-wrap items-center justify-center gap-3">
+        <Link href="/scorecard" className="btn group inline-flex items-center gap-2 px-5 py-2.5 text-xs uppercase tracking-wider">
+          Live scorecard
+          <ArrowRight className="h-3.5 w-3.5 transition-transform group-hover:translate-x-0.5" />
+        </Link>
+        <Link href="/case-study/halo2" className="btn-ghost inline-flex items-center gap-2 px-5 py-2.5 text-xs uppercase tracking-wider">
+          The halo2 replay
+        </Link>
+      </div>
+
+      {/* Live activity preview — 3 most recent scores */}
+      {scoredCount > 0 && (
+        <div className="mx-auto mt-8 max-w-md space-y-1.5">
+          {recent!.slice(0, 3).map((call) => (
+            <Link
+              key={call.signalId}
+              href={`/signals/${call.signalId}`}
+              className="group flex items-center gap-3 rounded-lg border border-edge/30 bg-panel/50 px-3 py-2 transition-all hover:border-accent/30 hover:bg-accent/5"
+            >
+              <span className={cn('font-mono text-sm font-bold', convictionColor(call.conviction))}>
+                {call.conviction ?? '—'}
+              </span>
+              <span className="min-w-0 flex-1 truncate text-xs text-slate-400">
+                {call.thesis ?? 'No thesis recorded'}
+              </span>
+              <span className="shrink-0 font-mono text-[10px] text-slate-600">
+                {timeAgo(call.detectedAt)}
+              </span>
+            </Link>
+          ))}
+        </div>
+      )}
+    </header>
   );
 }
+
+
+// ── Track record: 4 compact stats in one row ─────────────────
 
 function TrackRecordStrip() {
   const { data, isLoading } = useQuery<ScorecardResponse>({
@@ -261,42 +110,67 @@ function TrackRecordStrip() {
     refetchInterval: REFETCH.medium,
   });
 
-  const grid =
-    'grid gap-px overflow-hidden rounded-lg border border-edge/40 bg-edge/30 sm:grid-cols-5';
-
-  if (isLoading || !data) {
-    return (
-      <div className={grid}>
-        {['Signals', 'Trades', 'Hit ratio', 'Sharpe', 'P&L'].map((label) => (
-          <StatCell key={label} label={label} value="—" color="text-slate-600" />
-        ))}
-      </div>
-    );
-  }
-
-  const pnlPositive = data.cumulativePnlUsd >= 0;
   const stats = [
-    { label: 'Signals', value: data.totalSignals.toString() },
-    { label: 'Trades', value: data.totalTrades.toString() },
-    { label: 'Hit ratio', value: `${(data.hitRatio * 100).toFixed(0)}%` },
-    { label: 'Sharpe', value: data.sharpe.toFixed(2) },
-    {
-      label: 'P&L (paper)',
-      value: pnlPositive
-        ? `+$${data.cumulativePnlUsd.toFixed(2)}`
-        : `-$${Math.abs(data.cumulativePnlUsd).toFixed(2)}`,
-      color: pnlPositive ? 'text-signal' : 'text-danger',
-    },
+    { label: 'Signals', value: data?.totalSignals?.toString() ?? '—' },
+    { label: 'Trades', value: data?.totalTrades?.toString() ?? '—' },
+    { label: 'Hit ratio', value: data ? `${(data.hitRatio * 100).toFixed(0)}%` : '—' },
+    { label: 'Sharpe', value: data?.sharpe?.toFixed(2) ?? '—' },
   ];
 
   return (
-    <div className={grid}>
-      {stats.map((s) => (
-        <StatCell key={s.label} label={s.label} value={s.value} color={s.color} />
-      ))}
-    </div>
+    <section className="text-center">
+      <div className="grid grid-cols-4 gap-2 rounded-xl border border-edge/40 bg-panel/40 p-3 sm:gap-4 sm:p-4">
+        {stats.map((s) => (
+          <div key={s.label}>
+            <div className="font-display text-2xl font-light text-slate-100 sm:text-3xl">{s.value}</div>
+            <div className="mt-1 font-mono text-[9px] uppercase tracking-wider text-slate-500 sm:text-[10px]">{s.label}</div>
+          </div>
+        ))}
+      </div>
+      <p className="mt-2 text-[11px] text-slate-600">Recomputed live — the system cannot misremember its own performance.</p>
+    </section>
   );
 }
+
+// ── How it works: 6 icons in a horizontal strip ───────────────
+
+const LOOP_STEPS: { title: string; icon: LucideIcon }[] = [
+  { title: 'Watch', icon: Eye },
+  { title: 'Detect', icon: GitCommit },
+  { title: 'Score', icon: Brain },
+  { title: 'Gate', icon: Shield },
+  { title: 'Commit', icon: Zap },
+  { title: 'Track', icon: TrendingUp },
+];
+
+function HowItWorksStrip() {
+  return (
+    <section className="text-center">
+      <h2 className="mb-4 font-display text-xl font-semibold text-slate-100 sm:text-2xl">
+        One loop. <span className="italic text-accent">No human input.</span>
+      </h2>
+      <div className="flex flex-wrap items-center justify-center gap-1.5 sm:gap-2">
+        {LOOP_STEPS.map((step, i) => {
+          const Icon = step.icon;
+          return (
+            <div key={step.title} className="flex items-center gap-1.5 sm:gap-2">
+              <div className="flex items-center gap-1.5 rounded-lg border border-edge/40 bg-ink-light/60 px-2.5 py-1.5 sm:px-3 sm:py-2">
+                <Icon className="h-3.5 w-3.5 text-accent sm:h-4 sm:w-4" />
+                <span className="text-xs font-medium text-slate-200 sm:text-sm">{step.title}</span>
+              </div>
+              {i < LOOP_STEPS.length - 1 && <ArrowRight className="h-3 w-3 text-slate-600 sm:h-4 sm:w-4" />}
+            </div>
+          );
+        })}
+      </div>
+      <p className="mt-3 text-[11px] text-slate-600">
+        Every step timestamped on <span className="text-accent">Hedera HCS</span> before the market moves.
+      </p>
+    </section>
+  );
+}
+
+// ── Recent calls: 5 tight rows ────────────────────────────────
 
 function RecentCalls() {
   const { data, isLoading } = useQuery({
@@ -305,102 +179,55 @@ function RecentCalls() {
     refetchInterval: REFETCH.medium,
   });
 
-  if (isLoading) {
-    return <div className="font-mono text-sm text-slate-500">Loading recent calls…</div>;
-  }
+  if (isLoading) return <div className="font-mono text-sm text-slate-500">Loading…</div>;
   if (!data || data.length === 0) {
-    return (
-      <div className="font-mono text-sm text-slate-500">
-        No signals yet — the agent is monitoring the watchlist.
-      </div>
-    );
+    return <div className="text-center font-mono text-sm text-slate-500">No signals yet — the agent is monitoring.</div>;
   }
 
   return (
-    <ol className="space-y-0">
-      {data.map((call, i) => {
-        const isHit = call.outcomes.t1d != null && call.outcomes.t1d > 0;
-        return (
-          <li
-            key={call.signalId}
-            className="animate-signal-enter grid grid-cols-[auto_1fr_auto] items-center gap-4 border-t border-edge/30 py-4 first:border-t-0"
-            style={{ animationDelay: `${i * 80}ms` }}
-          >
-            <div className="font-mono text-xs text-slate-600">{String(i + 1).padStart(2, '0')}</div>
-            <div className="min-w-0">
-              <div className="mb-1 flex flex-wrap items-center gap-2 font-mono text-[10px] uppercase tracking-wider text-slate-500">
-                <span>{new Date(call.detectedAt).toISOString().slice(0, 10)}</span>
-                <span>·</span>
-                <span className="truncate">{call.detectorTypes.join(', ') || 'no detector'}</span>
-                {call.tradeTxHash && (
-                  <>
-                    <span>·</span>
-                    <span className="text-accent">traded</span>
-                  </>
+    <section>
+      <h2 className="mb-4 text-center font-display text-xl font-semibold text-slate-100 sm:text-2xl">
+        Recent calls, <span className="italic">with the receipts.</span>
+      </h2>
+      <ol className="space-y-0">
+        {data.map((call, i) => {
+          const isHit = call.outcomes.t1d != null && call.outcomes.t1d > 0;
+          return (
+            <li
+              key={call.signalId}
+              className="animate-signal-enter grid grid-cols-[auto_1fr_auto] items-center gap-3 border-t border-edge/30 py-3 first:border-t-0 sm:gap-4"
+              style={{ animationDelay: `${i * 80}ms` }}
+            >
+              <div className="font-mono text-xs text-slate-600">{String(i + 1).padStart(2, '0')}</div>
+              <div className="min-w-0">
+                <Link
+                  href={`/signals/${call.signalId}`}
+                  className="block truncate text-sm text-slate-100 transition-colors hover:text-accent"
+                >
+                  {call.thesis ?? 'No thesis recorded'}
+                </Link>
+                <div className="mt-0.5 flex items-center gap-2 font-mono text-[10px] text-slate-600">
+                  <span>{new Date(call.detectedAt).toISOString().slice(0, 10)}</span>
+                  {call.detectorTypes.length > 0 && <span className="truncate">{call.detectorTypes.join(', ')}</span>}
+                  {call.tradeTxHash && <span className="text-accent">traded</span>}
+                </div>
+              </div>
+              <div className="shrink-0 text-right">
+                {call.conviction != null && (
+                  <div className={cn('font-display text-lg font-light', convictionColor(call.conviction))}>
+                    {call.conviction}
+                  </div>
+                )}
+                {call.outcomes.t1d != null && (
+                  <div className={cn('font-mono text-[10px]', isHit ? 'text-signal' : 'text-danger')}>
+                    T+1d {isHit ? '+' : ''}{call.outcomes.t1d.toFixed(2)}%
+                  </div>
                 )}
               </div>
-              <Link
-                href={`/signals/${call.signalId}`}
-                className="block truncate font-display text-base text-slate-100 transition-colors hover:text-accent"
-              >
-                {call.thesis ?? 'No thesis recorded'}
-              </Link>
-            </div>
-            <div className="shrink-0 text-right">
-              {call.conviction != null && (
-                <div className="font-display text-xl font-light text-slate-100">
-                  {call.conviction}
-                </div>
-              )}
-              {call.outcomes.t1d != null && (
-                <div
-                  className={`font-mono text-[10px] uppercase tracking-wider ${
-                    isHit ? 'text-signal' : 'text-danger'
-                  }`}
-                >
-                  T+1d {isHit ? '+' : ''}
-                  {call.outcomes.t1d.toFixed(2)}%
-                </div>
-              )}
-            </div>
-          </li>
-        );
-      })}
-    </ol>
+            </li>
+          );
+        })}
+      </ol>
+    </section>
   );
 }
-
-// ── Copy ────────────────────────────────────────────────────
-
-const LOOP_STEPS: { title: string; icon: LucideIcon; body: string }[] = [
-  {
-    title: 'Watchlist',
-    icon: Eye,
-    body: 'Curated consensus- and security-critical repos — Zcash stack (halo2, Zebra), Bitcoin, Ethereum (geth, reth), Solana (Agave), Sui. Ranked by 90-day replay responsiveness before expanding spend.',
-  },
-  {
-    title: 'Detect',
-    icon: GitCommit,
-    body: 'Nine typed detectors decide what counts as a signal — emergency patches, security-critical changes, consensus edits — with a score and confidence per batch.',
-  },
-  {
-    title: 'Score',
-    icon: Brain,
-    body: 'Frontier-model agent + versioned rubric (v4). Sees sector-chain sequence, cross-repo narrative, market context, and open book — conviction 0–100, thesis, action.',
-  },
-  {
-    title: 'Gate',
-    icon: Shield,
-    body: 'Conviction ≥ 70 trades; sub-threshold scores persist as reasoning archive only.',
-  },
-  {
-    title: 'Commit + Proof',
-    icon: Zap,
-    body: 'Open a tracked position — long or short — notarize the thesis on Hedera HCS, broadcast to Telegram. Shorts and L1 assets (ZEC/SOL/SUI/ARB) execute live perps on Hyperliquid via Propr; longs on BTC/ETH swap on-chain. All gated behind a double kill switch.',
-  },
-  {
-    title: 'Track outcome',
-    icon: TrendingUp,
-    body: 'Mainnet price snapshotted at T+1h, T+1d, T+7d and attributed back to the originating signal.',
-  },
-];
