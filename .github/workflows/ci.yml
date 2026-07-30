@@ -20,6 +20,9 @@ jobs:
       - name: Verify lockfile (npm ci)
         run: npm ci
 
+      - name: Build shared types
+        run: npm run build --workspace=@lenitnes/types
+
       - name: Typecheck
         run: npm run typecheck
 
