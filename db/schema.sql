@@ -75,10 +75,6 @@ CREATE TABLE IF NOT EXISTS signals (
 
 CREATE INDEX IF NOT EXISTS idx_signals_monitor_id  ON signals(monitor_id);
 CREATE INDEX IF NOT EXISTS idx_signals_detected_at ON signals(detected_at DESC);
--- Partial index for the dashboard's "unread signal" lookup.
-CREATE INDEX IF NOT EXISTS idx_signals_unviewed
-  ON signals(monitor_id, detected_at DESC)
-  WHERE is_heartbeat = false AND viewed_at IS NULL;
 
 -- Rules -------------------------------------------------------
 -- action_type: trade | webhook | email | telegram
@@ -127,7 +123,6 @@ CREATE TABLE IF NOT EXISTS audit_logs (
   created_at   TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 
-CREATE INDEX IF NOT EXISTS idx_audit_logs_user_id ON audit_logs(user_id);
 CREATE INDEX IF NOT EXISTS idx_audit_logs_created_at ON audit_logs(created_at DESC);
 
 -- Waitlist ----------------------------------------------------
