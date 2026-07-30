@@ -26,6 +26,7 @@ import {
 import { ProofFlow } from '@/components/ProofFlow';
 import { AgentActivityPanel } from '@/components/AgentActivityPanel';
 import { CollapsibleSection } from '@/components/ui/collapsible-section';
+import { DomainTooltip } from '@/components/ui/DomainTooltip';
 import { cn } from '@/lib/utils';
 
 type PillarTab = 'all' | 'detection' | 'scoring' | 'safety' | 'verification';
@@ -41,9 +42,11 @@ export function MethodologyClient() {
           <span className="font-mono text-[10px] uppercase tracking-widest text-accent">
             methodology
           </span>
-          <span className="rounded bg-accent/10 px-2 py-0.5 font-mono text-[10px] text-accent">
-            Rubric v4
-          </span>
+          <DomainTooltip term="rubric-v4">
+            <span className="rounded bg-accent/10 px-2 py-0.5 font-mono text-[10px] text-accent">
+              Rubric v4
+            </span>
+          </DomainTooltip>
         </div>
         <h1 className="font-display text-3xl font-semibold text-slate-100 sm:text-4xl">
           How LENITNES turns commits into trades

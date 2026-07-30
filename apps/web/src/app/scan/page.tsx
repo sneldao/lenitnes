@@ -20,12 +20,17 @@ import {
   CheckCircle2,
   Scale,
   ShieldCheck,
+  Download,
+  FileSpreadsheet,
 } from 'lucide-react';
 import { CONSENSUS_WATCHLIST, findWatchlistEntry, type RepoTier } from '@lenitnes/types';
 import { api, type RepoTiersResponse } from '@/lib/api';
 import { qk, REFETCH } from '@/lib/queryKeys';
 import { tierBadgeClass } from '@/lib/format';
 import { ProofInspectorModal, type ProofPayload } from '@/components/ProofInspectorModal';
+import { GitDiffInspector } from '@/components/GitDiffInspector';
+import { exportScanDataAsJson, exportScanDataAsCsv } from '@/lib/exportBacktestData';
+import { DomainTooltip } from '@/components/ui/DomainTooltip';
 
 const API = process.env.NEXT_PUBLIC_API_URL || '/api';
 
@@ -471,14 +476,30 @@ export default function ScanPage() {
                 {data.from.slice(0, 10)} → {data.to.slice(0, 10)}
               </span>
             </div>
-            <a
-              href={`https://github.com/${data.repo}`}
-              target="_blank"
-              rel="noreferrer"
-              className="inline-flex items-center gap-1 font-mono text-xs text-accent hover:underline"
-            >
-              GitHub <ExternalLink className="h-3 w-3" />
-            </a>
+            <div className="flex items-center gap-2">
+              <button
+                onClick={() => exportScanDataAsJson(data.repo, data.verdicts)}
+                className="flex items-center gap-1 font-mono text-xs text-slate-300 hover:text-accent border border-edge/40 bg-ink-light px-2.5 py-1 rounded-lg transition-colors cursor-pointer"
+                title="Export backtest replay dataset as JSON"
+              >
+                <Download className="h-3 w-3" /> JSON
+              </button>
+              <button
+                onClick={() => exportScanDataAsCsv(data.repo, data.verdicts)}
+                className="flex items-center gap-1 font-mono text-xs text-slate-300 hover:text-accent border border-edge/40 bg-ink-light px-2.5 py-1 rounded-lg transition-colors cursor-pointer"
+                title="Export backtest replay dataset as CSV"
+              >
+                <FileSpreadsheet className="h-3 w-3" /> CSV
+              </button>
+              <a
+                href={`https://github.com/${data.repo}`}
+                target="_blank"
+                rel="noreferrer"
+                className="inline-flex items-center gap-1 font-mono text-xs text-accent hover:underline ml-1"
+              >
+                GitHub <ExternalLink className="h-3 w-3" />
+              </a>
+            </div>
           </div>
 
           {data.verdicts.length === 0 ? (
@@ -724,6 +745,14 @@ function VerdictCard({
                 </div>
               ))}
             </div>
+          </div>
+
+          <div className="pt-2">
+            <GitDiffInspector
+              repo={repo}
+              commitHash={v.hash}
+              detectorType={v.detectorClassifications[0]?.detector_type}
+            />
           </div>
         </div>
       )}
