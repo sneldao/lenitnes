@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { ChevronDown, BarChart3, BookOpen, ScanLine, MoreHorizontal } from 'lucide-react';
+import { CommandPalette } from '@/components/CommandPalette';
 
 // ── 3 primary tabs + a "More" dropdown for the rest ──
 const PRIMARY_LINKS = [
@@ -84,7 +85,9 @@ export function Nav() {
           >
             <MoreHorizontal className="h-3.5 w-3.5" />
             More
-            <ChevronDown className={`h-3 w-3 transition-transform ${moreOpen ? 'rotate-180' : ''}`} />
+            <ChevronDown
+              className={`h-3 w-3 transition-transform ${moreOpen ? 'rotate-180' : ''}`}
+            />
           </button>
           {moreOpen && (
             <div className="absolute right-0 top-full z-50 mt-1 w-44 overflow-hidden rounded-xl border border-edge/60 bg-panel/98 shadow-card backdrop-blur-xl">
@@ -105,6 +108,9 @@ export function Nav() {
             </div>
           )}
         </div>
+
+        {/* Site-wide Command-K Search Trigger */}
+        <CommandPalette />
       </nav>
 
       {/* ── Mobile bottom tab bar ── */}
