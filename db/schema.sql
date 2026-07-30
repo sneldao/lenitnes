@@ -28,7 +28,6 @@ CREATE TABLE IF NOT EXISTS users (
 -- status: active | paused | triggered | insufficient_balance
 CREATE TABLE IF NOT EXISTS monitors (
   id                     UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  user_id                UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
   url                    TEXT NOT NULL,
   condition_text         TEXT NOT NULL,
   frequency_seconds      INTEGER NOT NULL DEFAULT 86400,
@@ -44,7 +43,6 @@ CREATE TABLE IF NOT EXISTS monitors (
   created_at             TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 
-CREATE INDEX IF NOT EXISTS idx_monitors_user_id ON monitors(user_id);
 CREATE INDEX IF NOT EXISTS idx_monitors_status  ON monitors(status);
 -- Partial index for the worker's due-check query (only active monitors).
 CREATE INDEX IF NOT EXISTS idx_monitors_due ON monitors(last_check_at) WHERE status = 'active';
