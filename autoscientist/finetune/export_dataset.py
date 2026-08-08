@@ -1,14 +1,70 @@
+#!/usr/bin/env python3
+"""Export lenitnes production signals to a prompt/completion JSONL seed dataset.
+
+Connects to the production Postgres (via the SSH tunnel to the VPS docker
+network) and emits one training example per (signal, outcome-window) pair.
+
+Seed-expansion strategy (see docs/AUTOSCIENTIST.md):
+
+1. All monitors, not just github — the three synthesized monitors
+   (narrative:portfolio, proactive:signals, synthesis:thesis) carry
+   richly-labeled cross-signal evidence and are on-category for
+   "Market-Analysis & News".
+2. Multi-window labels — outcomes exist for 1h / 4h / 24h / 1w. Predicting
+   the direction over different horizons is a genuinely different task, so
+   one signal legitimately yields up to len(WINDOWS) examples. The horizon
+   is stated explicitly in the prompt and echoed as a generic
+   ``price_direction`` key in the completion (no 24h hard-coding).
+3. Every example records ``metadata.signal_id`` so any downstream split can
+   keep variants of one signal together (leakage discipline).
+
+Usage:
+
+    DATABASE_URL=<from .env or VPS ssh tunnel> \
+    GITHUB_TOKEN=<pat> \
+    python export_dataset.py --output data/all.jsonl
+"""
+
 import argparse
 import json
 import os
 import re
 import urllib.request
-from collections import defaultdict
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from typing import Any
 
 import psycopg2
 from psycopg2.extras import RealDictCursor
+
+# Outcome windows we turn into labeled examples, in seconds.
+WINDOWS = {
+    3600: "1h",
+    14400: "4h",
+    86400: "24h",
+    604800: "1w",
+}
+
+GITHUB_MONITORS = "github monitors"
+SYNTH_MAILBOX_PREFIXES = ("narrative:", "proactive:", "synthesis:")
+
+SYSTEM_PROMPT = (
+    "You are a crypto market-analysis model. Given GitHub commit/release "
+    "evidence for one or more monitored repositories, classify the signal "
+    "types present, recommend a directional action, estimate confidence, and "
+    "predict the asset's price direction over the stated horizon. Return only "
+    "a compact JSON object with keys: detector_labels, recommended_action, "
+    "confidence, price_direction."
+)
+
+TASK_SENTENCE = (
+    "Classify the signal types present, recommend a directional action, "
+    "estimate confidence, and predict the "
+)
+
+RETURN_CONTRACT = (
+    " Return a compact JSON object with keys: detector_labels, "
+    "recommended_action, confidence, price_direction."
+)
 
 
 def parse_repo(url: str) -> tuple[str, str] | None:
@@ -60,37 +116,43 @@ def parse_evidence_lines(evidence: str) -> list[dict[str, str]]:
     return commits
 
 
-def build_prompt(signal: dict[str, Any], diffs: dict[str, str]) -> str:
-    owner, repo = signal["repo"]
+def build_prompt(signal: dict[str, Any], diffs: dict[str, str], window_label: str) -> str:
+    if signal["repo"]:
+        owner, repo = signal["repo"]
+        header = f"Repository: {owner}/{repo}"
+    else:
+        header = f"Monitor: {signal['monitor_url']}"
     lines = [
-        f"Repository: {owner}/{repo}",
+        SYSTEM_PROMPT,
+        "",
+        header,
         f"Monitored condition: {signal['condition_text']}",
         f"Detected at: {signal['detected_at']}",
         f"Asset: {signal['asset']}",
         "",
-        "Commits:",
+        "Evidence:",
     ]
-    for c in signal["commits"]:
-        sha = c["sha"]
-        diff = diffs.get(sha)
-        if diff:
-            diff = diff[:1500] + ("\n..." if len(diff) > 1500 else "")
-            lines.append(f"- {sha}: {c['message']}\n{diff}")
-        else:
-            lines.append(
-                f"- {sha}: {c['message']} (+{c['additions']}/-{c['deletions']})"
-            )
+    if signal["repo"] and signal["commits"]:
+        for c in signal["commits"]:
+            sha = c["sha"]
+            diff = diffs.get(sha)
+            if diff:
+                diff = diff[:800] + ("\n..." if len(diff) > 800 else "")
+                lines.append(f"- {sha}: {c['message']}\n{diff}")
+            else:
+                lines.append(f"- {sha}: {c['message']} (+{c['additions']}/-{c['deletions']})")
+    else:
+        # Synthesized monitors already embed cross-repo evidence as text.
+        lines.append(signal["evidence_text"].strip())
     lines.append("")
     lines.append(
-        "Classify the signal type, recommend an action, and predict the 24h price direction. "
-        "Return a compact JSON object with keys: detector_labels, recommended_action, confidence, price_direction_24h."
+        f"{TASK_SENTENCE}{window_label} price direction.{RETURN_CONTRACT}"
     )
     return "\n".join(lines)
 
 
-def build_completion(signal: dict[str, Any]) -> str:
+def build_completion(signal: dict[str, Any], direction: str) -> str:
     labels = list({c["detector_type"] for c in signal["classifications"]})
-    direction = signal["outcome_direction"] or "flat"
     action = {"up": "long", "down": "short"}.get(direction, "none")
     confidences = [c["confidence"] for c in signal["classifications"]]
     confidence = round(sum(confidences) / len(confidences)) if confidences else 0
@@ -99,13 +161,15 @@ def build_completion(signal: dict[str, Any]) -> str:
             "detector_labels": labels,
             "recommended_action": action,
             "confidence": confidence,
-            "price_direction_24h": direction,
+            "price_direction": direction,
         },
         separators=(",", ":"),
     )
 
 
 def fetch_signal_diffs(signal: dict[str, Any], token: str | None) -> dict[str, str]:
+    if not signal["repo"]:
+        return {}
     owner, repo = signal["repo"]
     diffs: dict[str, str] = {}
     with ThreadPoolExecutor(max_workers=4) as pool:
@@ -121,7 +185,7 @@ def fetch_signal_diffs(signal: dict[str, Any], token: str | None) -> dict[str, s
     return diffs
 
 
-def load_signals(conn: Any, window: int) -> list[dict[str, Any]]:
+def load_signals(conn: Any) -> list[dict[str, Any]]:
     sql = """
     SELECT s.id,
            s.detected_at,
@@ -131,33 +195,31 @@ def load_signals(conn: Any, window: int) -> list[dict[str, Any]]:
            m.condition_text,
            m.asset_mapping,
            sc.detector_type,
-           sc.score,
            sc.confidence,
-           sc.label,
+           so.window_seconds,
            so.asset,
-           so.pct_change,
-           so.direction
+           so.direction,
+           so.pct_change
     FROM signals s
     JOIN monitors m ON m.id = s.monitor_id
     JOIN signal_classifications sc ON sc.signal_id = s.id
-    LEFT JOIN signal_outcomes so ON so.signal_id = s.id AND so.window_seconds = %s
+    JOIN signal_outcomes so ON so.signal_id = s.id AND so.window_seconds = ANY(%s)
     WHERE s.is_heartbeat = false
       AND s.evidence_text IS NOT NULL
       AND s.evidence_text <> ''
-      AND m.url LIKE '%%github.com%%'
-    ORDER BY s.id
+    ORDER BY s.id, so.window_seconds
     """
     with conn.cursor(cursor_factory=RealDictCursor) as cur:
-        cur.execute(sql, (window,))
+        cur.execute(sql, (list(WINDOWS),))
         rows = cur.fetchall()
 
     by_id: dict[str, dict[str, Any]] = {}
     for r in rows:
         sid = str(r["id"])
         if sid not in by_id:
-            repo = parse_repo(r["url"])
-            if not repo:
-                continue
+            url = r["url"] or ""
+            is_synth = any(url.startswith(p) for p in SYNTH_MAILBOX_PREFIXES)
+            repo = None if is_synth else parse_repo(url)
             asset = r["asset"] or (r["asset_mapping"] or {}).get("coingeckoId") or "unknown"
             by_id[sid] = {
                 "id": sid,
@@ -166,72 +228,88 @@ def load_signals(conn: Any, window: int) -> list[dict[str, Any]]:
                 "condition_text": r["condition_text"],
                 "condition_summary": r["condition_summary"],
                 "repo": repo,
+                "monitor_url": url,
+                "is_synth": is_synth,
                 "asset": asset,
-                "commits": parse_evidence_lines(r["evidence_text"]),
+                "commits": parse_evidence_lines(r["evidence_text"]) if not is_synth else [],
                 "classifications": [],
-                "outcome_direction": r["direction"],
-                "pct_change": str(r["pct_change"]) if r["pct_change"] is not None else None,
+                "outcomes": {},
             }
         by_id[sid]["classifications"].append(
-            {
-                "detector_type": r["detector_type"],
-                "score": r["score"],
-                "confidence": r["confidence"],
-                "label": r["label"],
-            }
+            {"detector_type": r["detector_type"], "confidence": r["confidence"]}
         )
+        w = int(r["window_seconds"])
+        direction = r["direction"]
+        if direction and w not in by_id[sid]["outcomes"]:
+            by_id[sid]["outcomes"][w] = {
+                "direction": direction,
+                "pct_change": str(r["pct_change"]) if r["pct_change"] is not None else None,
+            }
 
-    return [s for s in by_id.values() if s["outcome_direction"] is not None]
+    # Signals need at least one outcome window and at least one classification.
+    return [s for s in by_id.values() if s["outcomes"] and s["classifications"]]
 
 
 def main() -> None:
     parser = argparse.ArgumentParser()
     parser.add_argument("--output", default="data/all.jsonl")
-    parser.add_argument("--window", type=int, default=86400)
     parser.add_argument("--github-token", default=os.environ.get("GITHUB_TOKEN"))
     parser.add_argument("--database-url", default=os.environ.get("DATABASE_URL"))
-    parser.add_argument("--no-diff", action="store_true", help="Use commit summaries instead of fetching full diff patches")
+    parser.add_argument("--no-diff", action="store_true",
+                        help="Use commit summaries instead of fetching full diff patches")
+    parser.add_argument("--max-diff-bodies", type=int, default=600,
+                        help="Cap on GitHub diff fetches (rate-limit safety)")
     args = parser.parse_args()
 
     if not args.database_url:
         raise SystemExit("DATABASE_URL is required")
 
     conn = psycopg2.connect(args.database_url)
-    signals = load_signals(conn, args.window)
+    signals = load_signals(conn)
     conn.close()
 
     os.makedirs(os.path.dirname(args.output) or ".", exist_ok=True)
+
+    diff_budget = 0
     written = 0
+    per_window = {w: 0 for w in WINDOWS}
+    per_monitor: dict[str, int] = {}
     with open(args.output, "w") as f:
         for signal in signals:
-            diffs = {} if args.no_diff else fetch_signal_diffs(signal, args.github_token)
-            prompt = build_prompt(signal, diffs)
-            completion = build_completion(signal)
-            record = {
-                "messages": [
-                    {
-                        "role": "system",
-                        "content": (
-                            "You are a crypto code analyst. Given a GitHub repository's recent commits, "
-                            "classify the signal type, recommend a directional action, and predict the 24h price direction. "
-                            "Return a compact JSON object with keys: detector_labels, recommended_action, confidence, price_direction_24h."
-                        ),
+            # Only fetch diffs for github-repo monitors; synthesis evidence is
+            # already self-contained text.
+            diffs: dict[str, str] = {}
+            if signal["repo"] and not args.no_diff and diff_budget < args.max_diff_bodies:
+                diffs = fetch_signal_diffs(signal, args.github_token)
+                diff_budget += len(diffs)
+
+            for window, outcome in sorted(signal["outcomes"].items()):
+                label = WINDOWS[window]
+                prompt = build_prompt(signal, diffs, label)
+                completion = build_completion(signal, outcome["direction"])
+                record = {
+                    "prompt": prompt,
+                    "completion": completion,
+                    "metadata": {
+                        "signal_id": signal["id"],
+                        "monitor": signal["monitor_url"],
+                        "monitor_kind": "synthesis" if signal["is_synth"] else "github",
+                        "asset": signal["asset"],
+                        "detected_at": signal["detected_at"],
+                        "window": label,
+                        "pct_change": outcome["pct_change"],
                     },
-                    {"role": "user", "content": prompt},
-                    {"role": "assistant", "content": completion},
-                ],
-                "metadata": {
-                    "signal_id": signal["id"],
-                    "detected_at": signal["detected_at"],
-                    "asset": signal["asset"],
-                    "repo": "/".join(signal["repo"]),
-                    "pct_change": signal["pct_change"],
-                },
-            }
-            f.write(json.dumps(record, ensure_ascii=False) + "\n")
-            written += 1
+                }
+                f.write(json.dumps(record, ensure_ascii=False) + "\n")
+                written += 1
+                per_window[window] += 1
+                kind = "synthesis" if signal["is_synth"] else "github"
+                per_monitor[kind] = per_monitor.get(kind, 0) + 1
 
     print(f"Wrote {written} examples to {args.output}")
+    print(f"  per window: {dict((WINDOWS[w], n) for w, n in per_window.items())}")
+    print(f"  per monitor kind: {per_monitor}")
+    print(f"  signals used: {len(signals)}")
 
 
 if __name__ == "__main__":

@@ -86,3 +86,12 @@ Thumbs.db
 .commandcode/
 .claude/
 videos/
+
+# ──────────────────────────────────────────────────────────────────
+# AutoScientist pipeline artifacts
+# ──────────────────────────────────────────────────────────────────
+autoscientist/.venv/
+autoscientist/**/__pycache__/
+autoscientist/finetune/outputs/
+autoscientist/finetune/data/adapted.jsonl
+autoscientist/finetune/data/smoke_probe.jsonl
