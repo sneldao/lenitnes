@@ -11,7 +11,13 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import OpenAI from 'openai';
-import type { AgentAction, AgentInput, AgentScore, MonitorDomain } from '@lenitnes/types';
+import type {
+  AgentAction,
+  AgentInput,
+  AgentScore,
+  LiteratureRef,
+  MonitorDomain,
+} from '@lenitnes/types';
 import { query } from '../db/pool.js';
 import { sqlHitPredicate } from './domain/outcome-metrics.js';
 import { logger } from '../logger.js';
@@ -442,8 +448,8 @@ export async function saveAgentScore(signalId: string, score: AgentScore): Promi
     `INSERT INTO agent_scores
        (signal_id, rubric_version, conviction, thesis,
         recommended_action, confidence_band, hcs_dispatch,
-        proof_action, raw_response)
-     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)`,
+        proof_action, raw_response, literature)
+     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)`,
     [
       signalId,
       score.rubric_version,
@@ -454,6 +460,7 @@ export async function saveAgentScore(signalId: string, score: AgentScore): Promi
       score.hcs_dispatch,
       score.proof_action,
       JSON.stringify(score.raw_response),
+      score.literature ? JSON.stringify(score.literature) : null,
     ],
   );
 }
@@ -674,17 +681,18 @@ export async function fetchAgentScore(signalId: string): Promise<AgentScore | nu
     rubric_version: string;
     conviction: number;
     thesis: string;
-    recommended_action: 'long' | 'short' | 'none';
+    recommended_action: AgentAction;
     confidence_band: 'low' | 'mid' | 'high';
     hcs_dispatch: string | null;
     proof_action: string | null;
     raw_response: Record<string, unknown>;
+    literature: LiteratureRef[] | null;
     created_at: string;
   }>(
     `SELECT id, signal_id, rubric_version, conviction, thesis,
             recommended_action, confidence_band,
             hcs_dispatch, proof_action,
-            raw_response, created_at
+            raw_response, literature, created_at
        FROM agent_scores
       WHERE signal_id = $1
       ORDER BY created_at DESC
@@ -706,6 +714,7 @@ export async function fetchAgentScore(signalId: string): Promise<AgentScore | nu
     hcs_dispatch: row.hcs_dispatch ?? `[legacy v1] ${row.thesis}`,
     proof_action: row.proof_action === 'dedicated_topic' ? 'dedicated_topic' : 'standard',
     raw_response: row.raw_response,
+    literature: row.literature ?? undefined,
     created_at: row.created_at,
   };
 }

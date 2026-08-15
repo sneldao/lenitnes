@@ -23,6 +23,9 @@ import {
   TrendingDown,
   Minus,
   Brain,
+  BookOpen,
+  AlertTriangle,
+  Search,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Badge } from '@/components/ui/badge';
@@ -36,7 +39,7 @@ import {
 } from '@/lib/format';
 import { useTypewriter } from '@/lib/hooks/useTypewriter';
 import { Tooltip } from '@/components/ui/tooltip';
-import type { AgentScore, DetectorClassification } from '@/lib/api';
+import type { AgentScore, DetectorClassification, LiteratureRef } from '@/lib/api';
 
 interface AgentReasoningCardProps {
   agentScore: AgentScore;
@@ -70,7 +73,7 @@ function ConvictionBar({ value, max = 100 }: { value: number; max?: number }) {
 
 // ── Action badge ────────────────────────────────────────────
 
-function ActionBadge({ action }: { action: 'long' | 'short' | 'none' }) {
+function ActionBadge({ action }: { action: AgentScore['recommendedAction'] }) {
   if (action === 'long')
     return (
       <Badge variant="signal" className="gap-1 text-[10px]">
@@ -83,6 +86,20 @@ function ActionBadge({ action }: { action: 'long' | 'short' | 'none' }) {
       <Badge variant="destructive" className="gap-1 text-[10px]">
         <TrendingDown className="h-2.5 w-2.5" />
         SHORT
+      </Badge>
+    );
+  if (action === 'alert')
+    return (
+      <Badge variant="destructive" className="gap-1 text-[10px]">
+        <AlertTriangle className="h-2.5 w-2.5" />
+        ALERT
+      </Badge>
+    );
+  if (action === 'investigate')
+    return (
+      <Badge variant="warn" className="gap-1 text-[10px]">
+        <Search className="h-2.5 w-2.5" />
+        INVESTIGATE
       </Badge>
     );
   return (
@@ -209,6 +226,27 @@ export function AgentReasoningCard({
           &rdquo;
         </blockquote>
       </div>
+
+      {/* Literature — corroborating sources cited by the agent (bio) */}
+      {agentScore.literature && agentScore.literature.length > 0 && (
+        <div className="mx-5 mt-3 rounded-xl border border-edge/30 bg-ink-light/20 px-4 py-3">
+          <p className="mb-2 flex items-center gap-1.5 font-mono text-[10px] uppercase tracking-widest text-slate-500">
+            <BookOpen className="h-3 w-3" />
+            Corroborating literature
+          </p>
+          <ul className="space-y-1.5">
+            {agentScore.literature.map((ref, i) => (
+              <li key={ref.doi ?? ref.primary_id ?? i} className="text-xs text-slate-300">
+                <span className="text-slate-200">{ref.title}</span>
+                {ref.year && <span className="text-slate-500"> ({ref.year})</span>}
+                {ref.doi && (
+                  <span className="ml-1 font-mono text-[10px] text-slate-500">doi:{ref.doi}</span>
+                )}
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
 
       {/* Detector breakdown — collapsible */}
       {classifications.length > 0 && (

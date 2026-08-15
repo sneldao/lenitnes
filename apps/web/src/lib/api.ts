@@ -92,10 +92,18 @@ export interface VerificationCheck {
   detail: string;
 }
 
+export interface LiteratureRef {
+  title: string;
+  doi?: string | null;
+  primary_id?: string | null;
+  year?: string | null;
+  source?: string | null;
+}
+
 export interface AgentScore {
   conviction: number;
   thesis: string;
-  recommendedAction: 'long' | 'short' | 'none';
+  recommendedAction: 'long' | 'short' | 'none' | 'alert' | 'investigate';
   confidenceBand: 'low' | 'mid' | 'high';
   rubricVersion: string;
   createdAt: string;
@@ -110,6 +118,8 @@ export interface AgentScore {
    * signal. Only granted at conviction ≥ 90.
    */
   proofAction: 'standard' | 'dedicated_topic';
+  /** [bio] — corroborating literature rows cited by the rubric v6 agent. */
+  literature?: LiteratureRef[];
 }
 
 export interface AssetMapping {

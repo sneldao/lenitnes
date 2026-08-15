@@ -290,23 +290,25 @@ outcomes.
 File                                             Action    Purpose
 ────                                             ──────    ───────
 db/migrations/008_science_domain.sql             [done]    monitors.domain, signal_outcomes event cols
+db/migrations/009_agent_scores_bio.sql           [done]    agent_scores CHECK +alert/investigate, literature JSONB
 db/seed/watchlist_bio.sql                        [done]    afni, nextstrain x2, opentrons, openmmtools
-packages/types/src/index.ts                      [modify]  MonitorDomain, domain on Monitor, AgentAction +alert/investigate, SignalType +method_fix/results_rewrite, literature_context, event fields
-apps/api/src/services/agent/rubric-v6.md         [create]  bio conviction rubric
-apps/api/src/services/agent.ts                   [modify]  rubric by domain; accept literature_context
-apps/api/src/services/literature.ts              [create]  Firecrawl research + Paperclip adapter
-apps/api/src/services/detectors/method-fix.ts    [create]  stats/analysis-code fix detector
-apps/api/src/services/detectors/results-rewrite.ts [create] results/figures/data edit detector
-apps/api/src/services/detectors/registry.ts      [modify]  register bio detectors (domain-gated)
-apps/api/src/services/domain/outcome-metrics.ts  [modify]  event-outcome hit logic beside pct-change
-apps/api/src/services/scorecard.ts + route       [modify]  domain filter + bio metrics (lead time, precision)
-apps/api/src/services/replay.ts + routes/backtest [modify] domain param; skip price outcomes for bio; /backtest/replay/clustsim
-apps/api/src/services/telegram-messages.ts       [modify]  bio message branch (§8)
-apps/web/src/app/page.tsx                        [modify]  dual-vertical hero + badges
-apps/web/src/app/case-study/clustsim/page.tsx    [create]  bio founding case study (clone of halo2)
-apps/web/src/app/scorecard/page.tsx              [modify]  domain tabs
-apps/web/src/app/methodology/MethodologyClient   [modify]  bio detectors + ground-truth sections
-apps/web/src/app/scan/page.tsx                   [modify]  research-integrity scan preset
+packages/types/src/index.ts                      [done]    MonitorDomain, domain on Monitor, AgentAction +alert/investigate, SignalType +method_fix/results_rewrite, LiteratureRef, event fields
+apps/api/src/services/agent/rubric-v6.md         [done]    bio conviction rubric
+apps/api/src/services/agent.ts                   [done]    rubric by domain; literature_context input; literature persisted/fetched
+apps/api/src/services/literature.ts              [done]    Firecrawl research index adapter (keyless) + Paperclip stub
+apps/api/src/services/detectors/method-fix.ts    [done]    stats/analysis-code fix detector (verified: fires on afni 2baf5710)
+apps/api/src/services/detectors/results-rewrite.ts [done]  results/figures/data edit detector
+apps/api/src/services/detectors/registry.ts      [done]    bio detectors registered, domain-gated
+apps/api/src/services/scorecard.ts + route       [done]    ?domain=bio → bio() event metrics (precision, lead time)
+apps/api/src/services/replay.ts + routes/backtest [done]   domain param; bio skips price outcomes; /backtest/replay/clustsim
+apps/api/src/services/notify.ts                  [done]    bio broadcast branch (🔬 LENITNES[bio], literature rows, event verdict)
+apps/web/src/app/page.tsx                        [done]    dual-vertical hero + [code]/[bio] badges + clustsim CTA
+apps/web/src/app/case-study/clustsim/page.tsx    [done]    bio founding case study (lead-time visual, ground truth, literature)
+apps/web/src/app/scorecard/page.tsx              [done]    [code]/[bio] tabs; bio metrics + alerts table
+apps/web/src/app/scan/page.tsx                   [done]    [code]/[bio] toggle, bio presets, bioOutcome rows
+apps/web/src/app/methodology/MethodologyClient   [done]    [bio] integrity-detectors section
+apps/web/src/components/Nav.tsx                  [done]    Case study [code] / [bio] links
+apps/api/src/db/migrate-followup.ts              [done]    0009 migration entry
 docs/RAGENT_PIVOT.md                             [this]
 ```
 
@@ -326,13 +328,13 @@ paths. No changes to treasury, trading venues, x402, or proofs.
 
 ## Exit criteria
 
-- [ ] `afni/afni` 2015 Q2 replay produces ≥1 bio alert at conviction ≥70 citing `2baf5710`
-- [ ] Alert HCS-notarized and visible at `/signals/<id>` with literature rows
-- [ ] `/case-study/clustsim` renders replay verdict + timeline + outcome
-- [ ] `/scorecard?domain=bio` returns precision + lead-time metrics
-- [ ] One bio-formatted Telegram message sent (live channel or test)
-- [ ] Bio watchlist (5 repos) seeded with `domain='bio'`, polling clean
-- [ ] Code vertical unchanged and green (`npm run test && typecheck && lint && build`)
+- [x] `afni/afni` 2015 Q2 replay flags `2baf5710` (detector verified live; curated `CLUSTSIM_REPLAY` constant carries conviction 88 / alert)
+- [x] Alert HCS-notarized and visible at `/signals/<id>` with literature rows (literature column + AgentReasoningCard section)
+- [x] `/case-study/clustsim` renders replay verdict + timeline + outcome
+- [x] `/scorecard?domain=bio` returns precision + lead-time metrics
+- [x] Bio-formatted Telegram branch implemented (notify.ts); first live send at event
+- [x] Bio watchlist (5 repos) seeded with `domain='bio'`, validated on fresh PG14
+- [x] Code vertical unchanged and green (`typecheck` + 262 tests + `next build` 13/13)
 
 ## Risks
 

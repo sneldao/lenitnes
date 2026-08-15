@@ -133,6 +133,33 @@ const MIGRATIONS: string[] = [
   CREATE INDEX IF NOT EXISTS idx_x402_payments_payer
     ON x402_payments (payer);
   `,
+
+  // ── 0009: bio vertical — widen agent action space + literature ──
+  // LENITNES[bio] adds two agent actions on top of the crypto trading
+  // triplet: 'alert' (flag a validity-threatening change) and
+  // 'investigate' (corroborate against literature, then decide). Widen
+  // the CHECK so saveAgentScore can persist bio verdicts. Also add a
+  // `literature` JSONB column for the corroborating refs the rubric v6
+  // agent returns (title/doi/year/source). Older rows keep
+  // literature=NULL. The CHECK must be dropped + re-added; guarded by
+  // a DO block so re-runs are no-ops.
+  `
+  DO $$
+  BEGIN
+    IF EXISTS (
+      SELECT 1 FROM pg_constraint
+      WHERE conname = 'agent_scores_recommended_action_check'
+    ) THEN
+      ALTER TABLE agent_scores
+        DROP CONSTRAINT agent_scores_recommended_action_check;
+    END IF;
+    ALTER TABLE agent_scores
+      ADD CONSTRAINT agent_scores_recommended_action_check
+      CHECK (recommended_action IN ('long', 'short', 'none', 'alert', 'investigate'));
+  END
+  $$;
+  ALTER TABLE agent_scores ADD COLUMN IF NOT EXISTS literature JSONB;
+  `,
 ];
 
 async function migrate() {

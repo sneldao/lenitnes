@@ -21,6 +21,8 @@ import {
   Activity,
   ChevronRight,
   Sparkles,
+  FlaskConical,
+  BookOpen,
   type LucideIcon,
 } from 'lucide-react';
 import { ProofFlow } from '@/components/ProofFlow';
@@ -263,6 +265,60 @@ export function MethodologyClient() {
               <p className="text-xs text-slate-500">
                 Not binary — a commit can trip several detectors. The agent aggregates detector
                 scores, diff evidence, 7-day price context, and past outcomes to form a verdict.
+              </p>
+            </div>
+          </CollapsibleSection>
+
+          {/* [bio] Integrity Detectors */}
+          <CollapsibleSection
+            title={
+              <span className="flex items-center gap-2 font-display text-base font-semibold text-slate-200">
+                <FlaskConical className="h-4 w-4 text-signal" />
+                <span className="font-mono text-signal">[bio]</span> Integrity Detectors
+              </span>
+            }
+            aside={<span className="font-mono text-xs text-slate-400">scientific software</span>}
+            defaultOpen={false}
+          >
+            <div className="space-y-3">
+              <p className="text-xs text-slate-400">
+                Same pipeline, different oracle. For scientific-software repos the agent emits{' '}
+                <span className="font-mono text-[10px] uppercase text-slate-300">alert</span> /{' '}
+                <span className="font-mono text-[10px] uppercase text-slate-300">investigate</span>{' '}
+                instead of a trade side, and grades each call against the dated scientific record
+                (retraction / correction / disclosure), not a price.
+              </p>
+              <div className="grid gap-2.5 sm:grid-cols-2">
+                <div className="rounded-lg border border-edge/30 bg-ink-light/40 p-3 transition-colors duration-quick hover:border-edge/50">
+                  <div className="flex items-center gap-1.5">
+                    <GitCommit className="h-3.5 w-3.5 text-signal" />
+                    <span className="font-mono text-[11px] uppercase tracking-wider text-signal">
+                      method_fix
+                    </span>
+                  </div>
+                  <p className="mt-1 text-xs leading-relaxed text-slate-400">
+                    Corrections to statistical methods, analysis pipelines, or numerical procedures
+                    — the quiet patches that historically precede retractions.
+                  </p>
+                </div>
+                <div className="rounded-lg border border-edge/30 bg-ink-light/40 p-3 transition-colors duration-quick hover:border-edge/50">
+                  <div className="flex items-center gap-1.5">
+                    <GitCommit className="h-3.5 w-3.5 text-signal" />
+                    <span className="font-mono text-[11px] uppercase tracking-wider text-signal">
+                      results_rewrite
+                    </span>
+                  </div>
+                  <p className="mt-1 text-xs leading-relaxed text-slate-400">
+                    Silent rewrites of results-bearing artifacts (figures, tables, data) with no
+                    discussion trail.
+                  </p>
+                </div>
+              </div>
+              <p className="flex items-start gap-1.5 text-xs text-slate-500">
+                <BookOpen className="mt-0.5 h-3 w-3 shrink-0 text-signal" />
+                The agent corroborates against the literature (Firecrawl research index, Paperclip
+                when available) and cites DOIs in its dispatch. Each alert is scored by lead-time to
+                a ground-truth event.
               </p>
             </div>
           </CollapsibleSection>
