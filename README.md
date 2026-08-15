@@ -1,6 +1,11 @@
 # LENITNES
 
-**An autonomous AI agent that reads public commits to consensus-critical cryptocurrency code and infers trading directions before the market prices them in. Every signal is timestamped on Hedera HCS, every call is tracked as an explicitly-labeled paper position with price snapshots at T+1h/1d/7d, and the public scorecard recomputes from the same tables the calls are written to — the system cannot misremember its own performance.**
+**An autonomous AI agent that reads public commits and infers what they mean before the outcome is priced in — then commits every call on-chain and grades itself against ground truth.** Every signal is timestamped on Hedera HCS; the public scorecard recomputes from the same tables the calls are written to, so the system cannot misremember its own performance.
+
+One engine, two verticals — the tag names the _field being watched_, never the output type:
+
+- **`LENITNES[code]`** — consensus-critical crypto repos → price outcomes (live today; founding case: the halo2/ZEC short).
+- **`LENITNES[bio]`** — scientific software repos → scientific-record outcomes (retractions, corrections, dated disclosures). Founding case: the AFNI 3dClustSim fix flagged 413 days before the "Cluster failure" paper. See [`docs/RAGENT_PIVOT.md`](./docs/RAGENT_PIVOT.md).
 
 No users, no per-monitor staking, no SaaS dashboard. The agent runs continuously; its calls become a public track record.
 
@@ -23,20 +28,21 @@ Public surfaces — no signup, no auth:
 
 - **[`/scorecard`](https://lenitnes.persidian.com/scorecard)** — live track record. Hit ratio, Sharpe, drawdown, per-detector outcomes, recent calls.
 - **[`/calibration`](https://lenitnes.persidian.com/calibration)** — is higher conviction actually predictive? Includes a 90-day replay sweep showing which watchlist repos' commit signals historically co-moved with price.
-- **[`/methodology`](https://lenitnes.persidian.com/methodology)** — all 9 detectors with examples, how the agent scores, every safety gate.
+- **[`/methodology`](https://lenitnes.persidian.com/methodology)** — all detectors with examples (both verticals), how the agent scores, every safety gate.
 - **[`/portfolio`](https://lenitnes.persidian.com/portfolio)** — open + closed positions with entry price, unrealized P&L, TP/SL levels.
-- **[`/case-study/halo2`](https://lenitnes.persidian.com/case-study/halo2)** — the founding case study.
+- **[`/case-study/halo2`](https://lenitnes.persidian.com/case-study/halo2)** — the `[code]` founding case study.
+- **[`/case-study/clustsim`](https://lenitnes.persidian.com/case-study/clustsim)** — the `[bio]` founding case study.
 - **[`/signals/:id`](https://lenitnes.persidian.com/signals/)** — every committed signal with the full proof chain and a "was the agent right?" verdict card.
-- **[`/scan`](https://lenitnes.persidian.com/scan)** — the enterprise pitch as a working demo: point the production engine at any public repo and see what its commit history signaled, day by day.
+- **[`/scan`](https://lenitnes.persidian.com/scan)** — point the production engine at any public repo (crypto _or_ scientific) and see what its commit history signaled, day by day.
 
 ## How it works
 
-1. **Watch** — curated consensus-critical repos: Zcash (`zcash/halo2`, `ZcashFoundation/zebra`), Bitcoin, Ethereum (geth, reth), Solana (`anza-xyz/agave`), Arbitrum, Sui. Polling is free: the GitHub API feeds commit diffs directly (the paid TinyFish scraping tiers are retired; see `docs/RUNBOOK.md` → "Upstream API spend"). News is corroboration only, never the primary signal.
-2. **Detect** — 10 typed commit detectors ARE the signal gate (`emergency_patch`, `security_critical_patch`, `silent_merge`, …), plus 5 proactive sweeps (`velocity_anomaly`, `pr_activity`, `protocol_release`, `security_advisory`, `funding_oi`).
-3. **Score** — an LLM agent evaluates the signal against a versioned rubric (v4), with commit evidence (SHAs, messages), the cross-signal narrative, and the current open book. Rubric v4 requires commit-driven theses to cite the SHA and its code-level meaning, hard-caps news-only signals at conviction 65, and enforces book discipline (no pile-ons, no evidence-free reversals). Outputs conviction (0–100), thesis, action, confidence band.
+1. **Watch** — curated repos. `[code]`: consensus-critical crypto (Zcash, Bitcoin, Ethereum, Solana, Arbitrum, Sui). `[bio]`: scientific software (AFNI, Nextstrain, Opentrons, OpenMMTools). Polling is free: the GitHub API feeds commit diffs directly; news is corroboration only, never the primary signal.
+2. **Detect** — typed commit detectors are the signal gate, domain-scoped: `[code]` runs the consensus/security set (`emergency_patch`, `security_critical_patch`, `silent_merge`, …); `[bio]` runs `method_fix` and `results_rewrite`.
+3. **Score** — an LLM agent evaluates the signal against a versioned rubric (v4 for `[code]`, v6 for `[bio]`). Bio scoring corroborates against the literature (Firecrawl research index, Paperclip when available) and emits `alert`/`investigate`/`none` plus a list of affected claims. Outputs conviction (0–100), thesis, action, confidence band.
 4. **Gate** — conviction ≥ 70 (A-tier repos) to trade; unknown/B-tier repos trade at a stricter ≥ 80 until the responsiveness sweep confirms them. Sub-threshold scores persist as the public reasoning archive but produce no trade and no broadcast.
-5. **Commit** — open a tracked position in the recommended direction, long or short. **With Propr enabled, every supported asset routes to the Propr Hyperliquid perp venue**, including BTC/ETH longs, L1 assets, and shorts; when Propr is disabled, longs on BTC/ETH swap on-chain via PancakeSwap and shorts/L1 assets fall back to paper. All gated behind a double kill switch (`TRADING_ENABLED` + `PROPR_ENABLED`, both default off); paper mode is the safe fallback. Every fill is notarized on Hedera HCS, broadcast to Telegram.
-6. **Track** — once each window genuinely matures (T+1h/4h/1d/7d), the price is snapshotted and attributed back to the signal. Spot prices come from the CMC-backed price hub (one batched call per refresh for every asset, Redis-cached); historical series fall back to CoinGecko under a shared daily budget. T+1d and T+7d resolutions post a public "call CORRECT / WRONG" verdict to Telegram. Drives the scorecard.
+5. **Commit** — `[code]`: open a tracked position in the recommended direction (gated behind a double kill switch, paper fallback). `[bio]`: no trade — the commitment is the HCS-anchored alert itself. Every fill/alert is notarized on Hedera HCS and broadcast to Telegram.
+6. **Track** — `[code]`: price snapshots at T+1h/1d/7d drive "call CORRECT/WRONG" verdicts. `[bio]`: each alert is graded against a dated event in the scientific record (retraction/correction/disclosure) with a lead-time in days. Drives the scorecard (`?domain=bio` for the integrity card).
 7. **Replay** — the same engine runs over any repo's history (`/backtest/replay`) for case studies and leak-scans. `GET /backtest/responsiveness` sweeps the commit-level watchlist and ranks repos by historical commit→price responsiveness.
 
 No human input in the steady state. See [`docs/AGENT_ARCHITECTURE.md`](./docs/AGENT_ARCHITECTURE.md) for the full design decisions, [`docs/RUNBOOK.md`](./docs/RUNBOOK.md) for the operator runbook, and [`docs/CALIBRATION.md`](./docs/CALIBRATION.md) for the per-knob empirical rationale.
@@ -85,7 +91,10 @@ createdb lenitnes
 psql -d lenitnes -f db/schema.sql
 psql -d lenitnes -f db/migrations/003_pivot.sql
 psql -d lenitnes -f db/migrations/004_signal_asset.sql
+psql -d lenitnes -f db/migrations/008_science_domain.sql
+psql -d lenitnes -f db/migrations/009_agent_scores_bio.sql
 psql -d lenitnes -f db/seed/watchlist.sql
+psql -d lenitnes -f db/seed/watchlist_bio.sql
 psql -d lenitnes -f db/seed/treasury_wallets.sql
 
 # 4. Run
