@@ -16,6 +16,16 @@
 
 export type MonitorStatus = 'active' | 'paused' | 'triggered';
 
+/**
+ * Vertical tag (re:AGENT pivot — see docs/RAGENT_PIVOT.md).
+ * 'code' = crypto consensus sentinel (price outcomes), the original.
+ * 'bio'  = scientific-software integrity sentinel (retraction/correction
+ *          event outcomes). Drives rubric choice, detectors, outcome
+ *          oracle, scorecard metrics, Telegram format, UI badge.
+ * Single source of truth: `monitors.domain` (migration 008).
+ */
+export type MonitorDomain = 'code' | 'bio';
+
 export interface Monitor {
   id: string;
   url: string;
@@ -28,6 +38,7 @@ export interface Monitor {
   last_check_at: string | null;
   last_seen_commit_hash: string | null;
   asset_mapping: AssetMapping;
+  domain?: MonitorDomain; // migration 008; absent on pre-pivot API responses
   created_at: string;
   /**
    * @deprecated Removed after pivot (Day 2). Kept as optional so the
@@ -136,7 +147,8 @@ export interface Order {
 
 // ── Agent (the operator) ─────────────────────────────────────
 
-export type AgentAction = 'long' | 'short' | 'none';
+export type AgentAction = 'long' | 'short' | 'none' | 'alert' | 'investigate';
+export type TradeAction = 'long' | 'short' | 'none'; // code-vertical subset
 export type ConfidenceBand = 'low' | 'mid' | 'high';
 
 export interface AgentScore {
@@ -166,12 +178,29 @@ export interface AgentScore {
    *   warranted.
    */
   proof_action: 'standard' | 'dedicated_topic';
+  /**
+   * Bio vertical (v6): literature the agent cited when scoring —
+   * Firecrawl/Paperclip hits. Rendered as "affected literature" rows
+   * on the signal page. Absent for code-vertical scores.
+   */
+  literature?: LiteratureRef[];
   raw_response: Record<string, unknown>;
   created_at: string;
 }
 
+export interface LiteratureRef {
+  title: string;
+  doi?: string | null;
+  primary_id?: string | null; // arxiv:… / pmid:… / pmcid:…
+  year?: string | number | null;
+  source?: string; // firecrawl | paperclip
+  abstract?: string | null;
+}
+
 export interface AgentInput {
   signal_id: string;
+  /** Which vertical's rubric/semantics apply. Defaults to 'code'. */
+  domain?: MonitorDomain;
   detector_classifications: Array<{
     detector_type: string;
     score: number;
@@ -212,6 +241,12 @@ export interface AgentInput {
    * detectors that chronically lose and trust ones that hit. v5.
    */
   detector_track_record?: string;
+  /**
+   * Bio vertical (v6): literature hits for the repo/commits under
+   * review — titles, DOIs, abstracts. The agent cites affected
+   * claims from here. Built by services/literature.ts.
+   */
+  literature_context?: string;
 }
 
 // ── Treasury (system wallets) ────────────────────────────────
@@ -242,6 +277,8 @@ export type SignalType =
   | 'security_advisory'
   | 'protocol_release'
   | 'funding_oi_anomaly'
+  | 'method_fix'
+  | 'results_rewrite'
   | 'generic';
 
 export interface SignalClassification {
@@ -270,6 +307,11 @@ export interface SignalOutcome {
   price_after: string;
   pct_change: string;
   direction: 'up' | 'down' | 'flat';
+  /** Bio vertical (migration 008): discrete dated ground-truth event. */
+  event_kind?: 'retraction' | 'correction' | 'disclosure' | 'release' | null;
+  event_at?: string | null;
+  event_source?: string | null;
+  lead_days?: number | null;
 }
 
 // ── Detector Backtest Stats ──────────────────────────────────

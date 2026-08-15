@@ -4,7 +4,7 @@ import {
   getSignalOutcomes,
   processSignalOutcomes,
 } from '../services/domain/backtest.service.js';
-import { describeReplay, replay, HALO2_REPLAY } from '../services/replay.js';
+import { CLUSTSIM_REPLAY, describeReplay, replay, HALO2_REPLAY } from '../services/replay.js';
 import {
   ensureResponsivenessSweep,
   getResponsivenessSweepState,
@@ -15,7 +15,7 @@ import { computeTierDrift } from '../services/domain/repo-tier-policy.js';
 import { getForwardPaperLog } from '../services/domain/forward-paper.service.js';
 import { cacheGet, cacheSet } from '../middleware/cache.js';
 import { config } from '../config.js';
-import type { RepoTier } from '@lenitnes/types';
+import type { MonitorDomain, RepoTier } from '@lenitnes/types';
 
 export const backtestRouter = Router();
 
@@ -39,17 +39,18 @@ backtestRouter.post('/process', async (_req: Request, res: Response) => {
   res.json({ ok: true, ...result });
 });
 
-// GET /backtest/replay?repo=zcash/halo2&from=...&to=...&asset=zcash
+// GET /backtest/replay?repo=zcash/halo2&from=...&to=...&asset=zcash&domain=code|bio
 backtestRouter.get('/replay', async (req: Request, res: Response) => {
   const repo = String(req.query.repo ?? 'zcash/halo2');
   const from = req.query.from ? String(req.query.from) : undefined;
   const to = req.query.to ? String(req.query.to) : undefined;
   const asset = req.query.asset ? String(req.query.asset) : undefined;
+  const domain: MonitorDomain = req.query.domain === 'bio' ? 'bio' : 'code';
 
   const adminKey = req.header('x-admin-key') ?? '';
   const live = config.admin.apiKey !== '' && adminKey === config.admin.apiKey;
 
-  const cacheKey = `replay:${repo}:${from ?? ''}:${to ?? ''}:${asset ?? ''}:${live ? 'live' : 'mock'}`;
+  const cacheKey = `replay:${repo}:${from ?? ''}:${to ?? ''}:${asset ?? ''}:${domain}:${live ? 'live' : 'mock'}`;
   const cached = cacheGet<object>(cacheKey);
   if (cached) {
     res.json(cached);
@@ -57,13 +58,14 @@ backtestRouter.get('/replay', async (req: Request, res: Response) => {
   }
 
   try {
-    const input = describeReplay({ repo, from, to, asset });
+    const input = describeReplay({ repo, from, to, asset, domain });
     const { verdicts, flaggedBatches } = await replay({ ...input, mock: !live });
     const payload = {
       repo,
       from: input.from,
       to: input.to,
       asset: input.asset,
+      domain,
       mode: live ? 'live' : 'mock',
       flaggedBatches,
       verdicts,
@@ -202,4 +204,11 @@ backtestRouter.get('/tiers', async (req: Request, res: Response) => {
 // GET /backtest/replay/halo2 — the canonical example. Public.
 backtestRouter.get('/replay/halo2', async (_req: Request, res: Response) => {
   res.json({ repo: 'zcash/halo2', verdicts: [HALO2_REPLAY] });
+});
+
+// GET /backtest/replay/clustsim — the canonical LENITNES[bio] example.
+// Real commit (afni/afni 2baf5710, 2015-05-12) scored against the
+// confirmed ground-truth event (Eklund et al. PNAS 2016, +413d lead).
+backtestRouter.get('/replay/clustsim', async (_req: Request, res: Response) => {
+  res.json({ repo: 'afni/afni', domain: 'bio', verdicts: [CLUSTSIM_REPLAY] });
 });

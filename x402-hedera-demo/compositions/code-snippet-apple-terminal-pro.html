@@ -1,0 +1,123 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=1920, height=1080">
+    <title>Apple Terminal Pro</title>
+    <style>
+      * { margin: 0; padding: 0; box-sizing: border-box; }
+      html, body { margin: 0; padding: 0; width: 1920px; height: 1080px; overflow: hidden; background: #000000; font-family: "SF Mono", Menlo, Monaco, Consolas, "Courier New", monospace; }
+      #scene { width: 1920px; height: 1080px; position: relative; display: flex; align-items: center; justify-content: center; background: radial-gradient(ellipse at center, #141414 0%, #000000 70%); }
+      .terminal-window { width: 1600px; height: 800px; border-radius: 10px; overflow: hidden; box-shadow: 0 30px 80px rgba(136, 255, 103, 0.08), 0 10px 30px rgba(0, 0, 0, 0.9); display: flex; flex-direction: column; }
+      .titlebar { height: 38px; background: #1c1c1c; display: flex; align-items: center; padding: 0 14px; flex-shrink: 0; border-bottom: 1px solid #333; position: relative; }
+      .traffic-lights { display: flex; gap: 8px; align-items: center; }
+      .traffic-lights span { width: 13px; height: 13px; border-radius: 50%; display: inline-block; }
+      .traffic-lights .close { background: #ff5f57; border: 1px solid #e0443e; }
+      .traffic-lights .minimize { background: #ffbd2e; border: 1px solid #dfa123; }
+      .traffic-lights .fullscreen { background: #28c840; border: 1px solid #1aab29; }
+      .window-title { position: absolute; left: 50%; transform: translateX(-50%); font-size: 13px; color: #bbb; font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", sans-serif; font-weight: 500; }
+      .terminal-canvas { flex: 1; background: #000; padding: 18px 20px; overflow: hidden; font-size: 15px; line-height: 1.6; color: #bbb; }
+      .output-lines { margin-bottom: 4px; }
+      .output-line { display: block; white-space: pre; opacity: 0; color: #bbb; }
+      .output-line.bold { font-weight: bold; color: #fff; }
+      .output-line.accent { color: #88ff67; font-weight: bold; }
+      .output-line.dim { color: #666; }
+      .output-line.hashscan { color: #7c5cfc; font-weight: bold; }
+      .output-line.error { color: #ff5f57; }
+      .input-line { display: flex; align-items: center; white-space: pre; }
+      .prompt { color: #88ff67; font-weight: bold; user-select: none; }
+      .typed-command { color: #bbb; }
+      .cursor-block { display: inline-block; width: 9px; height: 16px; background: #88ff67; vertical-align: text-bottom; margin-left: 1px; }
+    </style>
+  </head>
+  <body>
+    <div data-hf-id="hf-a2y8" id="scene" data-composition-id="code-snippet-apple-terminal-pro" data-start="0" data-duration="54.3" data-width="1920" data-height="1080">
+      <div data-hf-id="hf-qawl" class="terminal-window">
+        <div data-hf-id="hf-t179" class="titlebar">
+          <div data-hf-id="hf-q5cz" class="traffic-lights">
+            <span data-hf-id="hf-odbr" class="close"></span>
+            <span data-hf-id="hf-se9h" class="minimize"></span>
+            <span data-hf-id="hf-u9oy" class="fullscreen"></span>
+          </div>
+          <span data-hf-id="hf-h1fp" class="window-title">x402-agent-payer — 80×24</span>
+        </div>
+        <div data-hf-id="hf-iqrd" class="terminal-canvas">
+          <div data-hf-id="hf-7bax" class="output-lines">
+            <span data-hf-id="hf-t8o2" class="output-line dim">$ npx tsx scripts/x402-agent-payer.ts /paid/feed</span>
+            <span data-hf-id="hf-7zjp" class="output-line">════════════════════════════════════════════════════════════</span>
+            <span data-hf-id="hf-i1j7" class="output-line accent"> x402 consumer agent — paying per query on Hedera</span>
+            <span data-hf-id="hf-gm3t" class="output-line">════════════════════════════════════════════════════════════</span>
+            <span data-hf-id="hf-0snn" class="output-line">  resource   = http://localhost:4000/paid/feed</span>
+            <span data-hf-id="hf-7088" class="output-line">  payer      = 0.0.9832906</span>
+            <span data-hf-id="hf-3k98" class="output-line">  network    = hedera:testnet</span>
+            <span data-hf-id="hf-rg91" class="output-line"> </span>
+            <span data-hf-id="hf-y2ta" class="output-line accent bold">▶ Step 1: requesting resource (no payment)...</span>
+            <span data-hf-id="hf-mzv9" class="output-line">✓ 402 Payment Required — scheme: exact-hedera, network: hedera:testnet</span>
+            <span data-hf-id="hf-r5jz" class="output-line">  asset: HBAR, amount: 0.25000000 HBAR (25000000 tinybar)</span>
+            <span data-hf-id="hf-ssm4" class="output-line">  payTo: 0.0.9137770, paymentReference: ba7b3...</span>
+            <span data-hf-id="hf-an2x" class="output-line"> </span>
+            <span data-hf-id="hf-emd7" class="output-line accent bold">▶ Step 2: signing HBAR TransferTransaction...</span>
+            <span data-hf-id="hf-l5x7" class="output-line">✓ signed: 512 bytes, txId: 0.0.9832906@1785356627</span>
+            <span data-hf-id="hf-bu00" class="output-line"> </span>
+            <span data-hf-id="hf-t4jd" class="output-line accent bold">▶ Step 3: retrying with PAYMENT-SIGNATURE header...</span>
+            <span data-hf-id="hf-ht0w" class="output-line">════════════════════════════════════════════════════════════</span>
+            <span data-hf-id="hf-ylvo" class="output-line accent bold"> ✓ PAYMENT SETTLED — 200 OK</span>
+            <span data-hf-id="hf-hepv" class="output-line">════════════════════════════════════════════════════════════</span>
+            <span data-hf-id="hf-lazk" class="output-line">  payer      = 0.0.9832906</span>
+            <span data-hf-id="hf-wrnk" class="output-line">  amount     = 25000000 tinybar</span>
+            <span data-hf-id="hf-bfoz" class="output-line"> </span>
+            <span data-hf-id="hf-z1oi" class="output-line hashscan">🔗 HashScan — HBAR transfer (payment):</span>
+            <span data-hf-id="hf-74jg" class="output-line hashscan">  hashscan.io/testnet/tx/0.0.9832906@1785356627</span>
+            <span data-hf-id="hf-rvob" class="output-line hashscan">🔗 HashScan — HCS receipt notarization:</span>
+            <span data-hf-id="hf-dnlg" class="output-line hashscan">  hashscan.io/testnet/tx/0.0.9137770@1785356628</span>
+          </div>
+          <div data-hf-id="hf-86u3" class="input-line">
+            <span data-hf-id="hf-29e3" class="prompt">agent@lenitnes % </span><span data-hf-id="hf-zqmf" class="typed-command"></span><span data-hf-id="hf-7o7f" class="cursor-block"></span>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/gsap@3.14.2/dist/gsap.min.js"></script>
+    <script>
+      window.__timelines = window.__timelines || {};
+      var tl = gsap.timeline({ paused: true });
+      var outputLines = document.querySelectorAll(".output-line");
+      var command = "npx tsx scripts/x402-agent-payer.ts /paid/feed";
+      var typedEl = document.querySelector(".typed-command");
+      var cursorEl = document.querySelector(".cursor-block");
+
+      typedEl.textContent = command;
+      var cmdW = Math.ceil(typedEl.offsetWidth);
+      typedEl.textContent = "";
+      gsap.set(typedEl, { display: "inline-block", overflow: "hidden", whiteSpace: "pre", width: 0 });
+
+      tl.to(typedEl, { width: cmdW, duration: 1.5, ease: "none" }, 0.8);
+      tl.set(typedEl, { width: "auto" }, 2.3);
+
+      var groupStarts = { 9: 3.8, 13: 6.4, 16: 9.0, 18: 10.3, 20: 11.6, 23: 15.0, 25: 18.0 };
+      outputLines.forEach(function (line, i) {
+        tl.set(line, { opacity: 1 }, groupStarts[i] !== undefined ? groupStarts[i] : 2.6);
+      });
+
+      tl.fromTo(".terminal-window",
+        { boxShadow: "0 30px 80px rgba(136, 255, 103, 0.08), 0 10px 30px rgba(0, 0, 0, 0.9)" },
+        { boxShadow: "0 30px 90px rgba(136, 255, 103, 0.35), 0 10px 30px rgba(0, 0, 0, 0.9)", duration: 0.3, yoyo: true, repeat: 1 },
+        10.35);
+
+      var blinkOff = [4.6, 5.2, 6.0, 7.2, 8.0, 9.8, 12.6, 13.6, 14.6, 20.0, 21.6];
+      var blinkOn = [4.9, 5.5, 6.3, 7.5, 8.3, 10.1, 12.9, 13.9, 14.9, 20.8, 22.4];
+      blinkOff.forEach(function (t) { tl.set(cursorEl, { opacity: 0 }, t); });
+      blinkOn.forEach(function (t) { tl.set(cursorEl, { opacity: 1 }, t); });
+
+      tl.fromTo(".terminal-window", { scale: 1 }, { scale: 1.045, duration: 34, ease: "sine.inOut" }, 19);
+
+      tl.to([".output-line", ".input-line"], { opacity: 0, duration: 0.6, ease: "power2.in" }, 52.5);
+      tl.set([".output-line", ".input-line"], { visibility: "hidden" }, 53.4);
+      tl.to(".terminal-window", { opacity: 0, scale: 0.985, duration: 0.7, ease: "power2.in" }, 53.3);
+      tl.set(".terminal-window", { visibility: "hidden" }, 54.2);
+
+      window.__timelines["code-snippet-apple-terminal-pro"] = tl;
+    </script>
+  </body>
+</html>

@@ -11,13 +11,21 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import OpenAI from 'openai';
-import type { AgentInput, AgentScore } from '@lenitnes/types';
+import type { AgentAction, AgentInput, AgentScore, MonitorDomain } from '@lenitnes/types';
 import { query } from '../db/pool.js';
 import { sqlHitPredicate } from './domain/outcome-metrics.js';
 import { logger } from '../logger.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
-const RUBRIC_PATH = path.resolve(__dirname, 'agent/rubric-v5.md');
+const RUBRIC_PATHS: Record<MonitorDomain, string> = {
+  code: path.resolve(__dirname, 'agent/rubric-v5.md'),
+  bio: path.resolve(__dirname, 'agent/rubric-v6.md'),
+};
+
+// v6 (2026-08-15, bio vertical): scientific-integrity rubric. Conviction
+// now measures threat-to-published-results rather than trade direction;
+// action space is alert|investigate|none and affected claims must cite
+// DOIs from the literature context. v5 remains the code-vertical rubric.
 
 // v5 (2026-07-26): the learning loop. Adds `detector_track_record`
 // input — each fired detector's 90-day win rate, avg directional
@@ -27,7 +35,7 @@ const RUBRIC_PATH = path.resolve(__dirname, 'agent/rubric-v5.md');
 // sources (security advisories, protocol releases) and perps-native
 // funding/OI structure. The `detector_track_record` field is optional,
 // so v4 prompts/transcripts still parse (non-breaking for replay).
-const RUBRIC_VERSION = 'v5';
+const RUBRIC_VERSIONS: Record<MonitorDomain, string> = { code: 'v5', bio: 'v6' };
 const EXPECTED_OUTPUT_TOKENS = 700;
 
 export interface AgentEnv {
@@ -91,14 +99,15 @@ function recordCost(env: AgentEnv, promptTokens: number, completionTokens: numbe
   return usd;
 }
 
-function readRubric(): string {
-  return fs.readFileSync(RUBRIC_PATH, 'utf8');
+function readRubric(domain: MonitorDomain): string {
+  return fs.readFileSync(RUBRIC_PATHS[domain], 'utf8');
 }
 
 /** Omit empty optional context fields before serializing agent input. */
 export function compactAgentInput(input: AgentInput): Record<string, unknown> {
   const out: Record<string, unknown> = {
     signal_id: input.signal_id,
+    domain: input.domain ?? 'code',
     detector_classifications: input.detector_classifications,
     asset_mapping: input.asset_mapping,
     evidence_text: input.evidence_text,
@@ -111,6 +120,7 @@ export function compactAgentInput(input: AgentInput): Record<string, unknown> {
   if (input.sequence_context) out.sequence_context = input.sequence_context;
   if (input.book_context) out.book_context = input.book_context;
   if (input.detector_track_record) out.detector_track_record = input.detector_track_record;
+  if (input.literature_context) out.literature_context = input.literature_context;
   return out;
 }
 
@@ -169,7 +179,7 @@ function extractJsonObject(raw: string): unknown {
 function parseAgentResponse(raw: string): {
   conviction: number;
   thesis: string;
-  recommended_action: 'long' | 'short' | 'none';
+  recommended_action: AgentAction;
   confidence_band: 'low' | 'mid' | 'high';
   hcs_dispatch: string;
   proof_action: 'standard' | 'dedicated_topic';
@@ -196,7 +206,9 @@ function parseAgentResponse(raw: string): {
   if (
     obj.recommended_action !== 'long' &&
     obj.recommended_action !== 'short' &&
-    obj.recommended_action !== 'none'
+    obj.recommended_action !== 'none' &&
+    obj.recommended_action !== 'alert' &&
+    obj.recommended_action !== 'investigate'
   ) {
     throw new AgentScoreError(`Invalid recommended_action: ${obj.recommended_action}`);
   }
@@ -265,25 +277,35 @@ function mockScore(input: AgentInput): AgentScore {
     (max, c) => (c.score > max ? c.score : max),
     0,
   );
-  const direction = input.asset_mapping.direction;
-  const recommended_action: 'long' | 'short' | 'none' =
-    direction === 'short'
-      ? 'short'
-      : direction === 'long' || direction === 'both'
-        ? 'long'
-        : 'none';
+  const domain: MonitorDomain = input.domain ?? 'code';
+  let recommended_action: AgentAction;
+  let subject: string;
+  if (domain === 'bio') {
+    // Bio vertical has no asset to trade: alert above the gate,
+    // investigate on moderate evidence, none on noise.
+    recommended_action = topScore >= 70 ? 'alert' : topScore >= 40 ? 'investigate' : 'none';
+    subject = input.condition_summary ?? 'scientific-software signal';
+  } else {
+    const direction = input.asset_mapping.direction;
+    recommended_action =
+      direction === 'short'
+        ? 'short'
+        : direction === 'long' || direction === 'both'
+          ? 'long'
+          : 'none';
+    subject = input.asset_mapping.coingeckoId ?? 'unknown';
+  }
   const confidence_band: 'low' | 'mid' | 'high' =
     topScore < 40 ? 'low' : topScore < 70 ? 'mid' : 'high';
-  const asset = input.asset_mapping.coingeckoId ?? 'unknown';
   return {
     id: '',
     signal_id: input.signal_id,
-    rubric_version: RUBRIC_VERSION,
+    rubric_version: RUBRIC_VERSIONS[domain],
     conviction: topScore,
-    thesis: `MOCK: top detector ${topScore} on ${asset}.`,
+    thesis: `MOCK: top detector ${topScore} on ${subject}.`,
     recommended_action,
     confidence_band,
-    hcs_dispatch: `[MOCK] I observed detector activity on ${asset} (top score ${topScore}). Recommending ${recommended_action}. This is a deterministic mock for test/replay; no real agent reasoning was performed.`,
+    hcs_dispatch: `[MOCK] I observed detector activity on ${subject} (top score ${topScore}). Recommending ${recommended_action}. This is a deterministic mock for test/replay; no real agent reasoning was performed.`,
     proof_action: 'standard',
     raw_response: { mock: true, input },
     created_at: new Date().toISOString(),
@@ -291,7 +313,9 @@ function mockScore(input: AgentInput): AgentScore {
 }
 
 export async function score(input: AgentInput, env: AgentEnv): Promise<AgentScore> {
-  const rubric = readRubric();
+  const domain: MonitorDomain = input.domain ?? 'code';
+  const rubricVersion = RUBRIC_VERSIONS[domain];
+  const rubric = readRubric(domain);
   const compactInput = compactAgentInput(input);
   const userContent = JSON.stringify(compactInput);
 
@@ -378,7 +402,7 @@ export async function score(input: AgentInput, env: AgentEnv): Promise<AgentScor
   return {
     id: '',
     signal_id: input.signal_id,
-    rubric_version: RUBRIC_VERSION,
+    rubric_version: rubricVersion,
     conviction: parsed.conviction,
     thesis: parsed.thesis,
     recommended_action: parsed.recommended_action,

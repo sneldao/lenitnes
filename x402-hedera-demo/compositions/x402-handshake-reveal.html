@@ -1,0 +1,115 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=1920, height=1080">
+    <title>x402 Handshake Reveal</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin="">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&family=JetBrains+Mono:wght@400;700&display=block" rel="stylesheet">
+    <script src="https://cdn.jsdelivr.net/npm/gsap@3.14.2/dist/gsap.min.js"></script>
+    <style>
+      * { margin: 0; padding: 0; box-sizing: border-box; }
+      html, body { margin: 0; width: 1920px; height: 1080px; overflow: hidden; background: transparent; }
+      #hs-root { position: relative; width: 1920px; height: 1080px; overflow: hidden; font-family: "Inter", sans-serif; }
+      #hs-root .scrim { position: absolute; inset: 0; background: radial-gradient(ellipse at center, rgba(6,7,14,0.55) 0%, rgba(6,7,14,0.82) 100%); pointer-events: none; opacity: 0; }
+      #hs-root .stage { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; perspective: 2600px; perspective-origin: 50% 46%; }
+      #hs-root .card-glow { position: absolute; width: 1500px; height: 900px; left: 50%; top: 50%; transform: translate(-50%, -50%); background: radial-gradient(ellipse at center, rgba(124,92,252,0.18) 0%, transparent 65%); filter: blur(40px); pointer-events: none; opacity: 0; }
+      #hs-root .card { width: 1240px; padding: 72px 84px 64px; background: rgba(13,14,26,0.92); border: 1px solid rgba(164,162,245,0.28); border-radius: 14px; box-shadow: 0 60px 140px rgba(0,0,0,0.7), inset 0 1px 0 rgba(255,255,255,0.06); background-image: radial-gradient(rgba(164,162,245,0.06) 1px, transparent 1px); background-size: 26px 26px; position: relative; overflow: hidden; will-change: transform, opacity; }
+      #hs-root .scanline { position: absolute; left: 0; right: 0; top: 0; height: 3px; background: linear-gradient(90deg, transparent, rgba(164,162,245,0.9) 30%, rgba(124,92,252,0.95) 55%, transparent); box-shadow: 0 0 24px rgba(164,162,245,0.8); opacity: 0; pointer-events: none; }
+      #hs-root .kicker { display: inline-block; font-family: "JetBrains Mono", monospace; font-size: 20px; font-weight: 700; letter-spacing: 0.28em; color: #A4A2F5; background: rgba(164,162,245,0.10); border: 1px solid rgba(164,162,245,0.35); padding: 8px 18px 8px 22px; border-radius: 6px; margin-bottom: 30px; }
+      #hs-root .headline { font-size: 84px; font-weight: 900; line-height: 1.0; letter-spacing: -0.03em; color: #fff; margin-bottom: 52px; text-align: left; }
+      #hs-root .headline .accent { color: #A4A2F5; }
+      #hs-root .rows { display: flex; flex-direction: column; gap: 18px; }
+      #hs-root .row { display: flex; align-items: center; justify-content: space-between; gap: 32px; background: rgba(10,11,22,0.85); border: 1px solid rgba(255,255,255,0.08); border-left-width: 4px; border-radius: 10px; padding: 22px 28px; opacity: 0; will-change: transform, opacity; }
+      #hs-root .row.challenge { border-left-color: #f39c12; }
+      #hs-root .row.settle { border-left-color: #A4A2F5; }
+      #hs-root .row.proof { border-left-color: #2ecc71; }
+      #hs-root .row-code { font-family: "JetBrains Mono", monospace; font-size: 30px; font-weight: 700; color: #fff; letter-spacing: -0.01em; white-space: nowrap; }
+      #hs-root .row .arrow { color: rgba(255,255,255,0.35); font-weight: 400; margin: 0 14px; }
+      #hs-root .row.challenge .row-code .hl { color: #f39c12; }
+      #hs-root .row.settle .row-code .hl { color: #A4A2F5; }
+      #hs-root .row.proof .row-code .hl { color: #2ecc71; }
+      #hs-root .row-sub { font-family: "JetBrains Mono", monospace; font-size: 15px; color: rgba(255,255,255,0.5); margin-top: 8px; letter-spacing: 0.01em; }
+      #hs-root .row-tag { font-family: "JetBrains Mono", monospace; font-size: 13px; font-weight: 700; letter-spacing: 0.3em; padding: 6px 14px; border-radius: 5px; flex-shrink: 0; }
+      #hs-root .row.challenge .row-tag { color: #f39c12; background: rgba(243,156,18,0.10); border: 1px solid rgba(243,156,18,0.35); }
+      #hs-root .row.settle .row-tag { color: #A4A2F5; background: rgba(164,162,245,0.10); border: 1px solid rgba(164,162,245,0.35); }
+      #hs-root .row.proof .row-tag { color: #2ecc71; background: rgba(46,204,113,0.10); border: 1px solid rgba(46,204,113,0.35); }
+    </style>
+  </head>
+  <body>
+    <div data-hf-id="hf-q6te" id="hs-root" data-composition-id="x402-handshake-reveal" data-start="0" data-duration="12" data-width="1920" data-height="1080">
+      <div data-hf-id="hf-jpxh" id="hs-clip" class="clip" data-start="0" data-duration="12" data-track-index="0">
+        <div data-hf-id="hf-thev" id="hsScrim" class="scrim"></div>
+        <div data-hf-id="hf-83fi" id="hsGlow" class="card-glow"></div>
+        <div data-hf-id="hf-tan6" class="stage">
+          <div data-hf-id="hf-0fa1" id="hsCard" class="card">
+            <div data-hf-id="hf-fc43" id="hsScan" class="scanline"></div>
+            <div data-hf-id="hf-wsfj" class="kicker" id="hsKicker">X402 × HEDERA</div>
+            <div data-hf-id="hf-q33e" class="headline" id="hsHead">One handshake.<br data-hf-id="hf-x5px"><span data-hf-id="hf-lesv" class="accent">No account.</span></div>
+            <div data-hf-id="hf-hnc7" class="rows">
+              <div data-hf-id="hf-pazf" class="row challenge" id="hsRow1">
+                <div data-hf-id="hf-yeow">
+                  <div data-hf-id="hf-m28u" class="row-code">GET /paid/feed <span data-hf-id="hf-v68i" class="arrow">→</span> <span data-hf-id="hf-dwfv" class="hl">402 PAYMENT-REQUIRED</span></div>
+                  <div data-hf-id="hf-xlei" class="row-sub">agent asks for data · server answers with a price</div>
+                </div>
+                <div data-hf-id="hf-t62s" class="row-tag">CHALLENGE</div>
+              </div>
+              <div data-hf-id="hf-u9dq" class="row settle" id="hsRow2">
+                <div data-hf-id="hf-y7yw">
+                  <div data-hf-id="hf-7oet" class="row-code"><span data-hf-id="hf-4w5a" class="hl">X-PAYMENT:</span> exact-hedera</div>
+                  <div data-hf-id="hf-5slh" class="row-sub">0.25 HBAR · signed · memo ba7b3c9e</div>
+                </div>
+                <div data-hf-id="hf-cx2k" class="row-tag">SETTLE</div>
+              </div>
+              <div data-hf-id="hf-g8wo" class="row proof" id="hsRow3">
+                <div data-hf-id="hf-x11t">
+                  <div data-hf-id="hf-69wz" class="row-code"><span data-hf-id="hf-0ldx" class="hl">200 OK</span> + PAYMENT-RESPONSE</div>
+                  <div data-hf-id="hf-2327" class="row-sub">receipt → HCS topic 0.0.9159618</div>
+                </div>
+                <div data-hf-id="hf-qlpv" class="row-tag">PROOF</div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <script>
+      window.__timelines = window.__timelines || {};
+      (function () {
+        var tl = gsap.timeline({ paused: true });
+
+        gsap.set("#hsCard", { rotationY: -38, x: -120, opacity: 0, transformOrigin: "50% 50%" });
+        gsap.set("#hsKicker", { y: -24, opacity: 0 });
+        gsap.set("#hsHead", { y: 36, opacity: 0 });
+        gsap.set(["#hsRow1", "#hsRow2", "#hsRow3"], { y: 46, opacity: 0 });
+        gsap.set("#hsScan", { top: "0%", opacity: 0 });
+
+        tl.to("#hsScrim", { opacity: 1, duration: 0.5, ease: "power2.out" }, 0);
+        tl.to("#hsGlow", { opacity: 1, duration: 0.6, ease: "power2.out" }, 0.15);
+        tl.to("#hsCard", { rotationY: 0, x: 0, opacity: 1, duration: 0.8, ease: "power3.out" }, 0.1);
+        tl.to("#hsKicker", { y: 0, opacity: 1, duration: 0.45, ease: "back.out(2)" }, 0.55);
+        tl.to("#hsHead", { y: 0, opacity: 1, duration: 0.5, ease: "power3.out" }, 0.75);
+        tl.to("#hsRow1", { y: 0, opacity: 1, duration: 0.45, ease: "power2.out" }, 1.15);
+        tl.to("#hsRow2", { y: 0, opacity: 1, duration: 0.45, ease: "power2.out" }, 1.4);
+        tl.to("#hsRow3", { y: 0, opacity: 1, duration: 0.45, ease: "power2.out" }, 1.65);
+
+        tl.to("#hsScan", { opacity: 1, duration: 0.12 }, 3.2);
+        tl.fromTo("#hsScan", { y: 0 }, { y: document.getElementById("hsCard").offsetHeight, duration: 1.0, ease: "power1.inOut" }, 3.2);
+        tl.to("#hsScan", { opacity: 0, duration: 0.12 }, 4.15);
+        tl.to("#hsRow1", { boxShadow: "0 0 34px rgba(243,156,18,0.35)", duration: 0.2, yoyo: true, repeat: 1 }, 3.35);
+        tl.to("#hsRow2", { boxShadow: "0 0 34px rgba(164,162,245,0.35)", duration: 0.2, yoyo: true, repeat: 1 }, 3.65);
+        tl.to("#hsRow3", { boxShadow: "0 0 34px rgba(46,204,113,0.35)", duration: 0.2, yoyo: true, repeat: 1 }, 3.95);
+
+        tl.to("#hsGlow", { opacity: 0.55, scale: 1.12, duration: 2.2, ease: "sine.inOut", yoyo: true, repeat: 1 }, 4.6);
+
+        tl.to("#hsCard", { rotationY: 26, x: 140, opacity: 0, duration: 1.6, ease: "power2.in" }, 9.6);
+        tl.to("#hsGlow", { opacity: 0, duration: 1.4, ease: "power2.in" }, 9.8);
+        tl.to("#hsScrim", { opacity: 0, duration: 1.5, ease: "power2.in" }, 10.3);
+
+        window.__timelines["x402-handshake-reveal"] = tl;
+      })();
+    </script>
+  </body>
+</html>

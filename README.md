@@ -104,6 +104,9 @@ Visit `http://localhost:3000/scorecard` to see the track record.
 - [`DEPLOYMENT.md`](./DEPLOYMENT.md) — testnet deploy guide (Arbitrum + BSC)
 - [`openapi.yaml`](./openapi.yaml) — full REST API spec (30 paths)
 - [`docs/HACKATHON_CUT.md`](./docs/HACKATHON_CUT.md) — BNB Hack + Lepton Agents Hackathon notes
+- [`docs/RAGENT_PIVOT.md`](./docs/RAGENT_PIVOT.md) — re:AGENT Hackathon: LENITNES[bio] vertical (Track A)
+- [`docs/RAGENT_PIVOT.md`](./docs/RAGENT_PIVOT.md) — re:AGENT hackathon: LENITNES[bio] vertical (Track A)
+- [`docs/RAGENT_PIVOT.md`](./docs/RAGENT_PIVOT.md) — re:AGENT (Aug 15–16) Track A pivot: science-domain sentinel plan
 
 ## License
 

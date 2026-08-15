@@ -1,0 +1,88 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=1920, height=1080">
+    <script src="https://cdn.jsdelivr.net/npm/gsap@3.14.2/dist/gsap.min.js"></script>
+    <style>
+      * { margin: 0; padding: 0; box-sizing: border-box; }
+      html, body { margin: 0; width: 1920px; height: 1080px; overflow: hidden; background: #0a0a0f; font-family: 'Inter', sans-serif; }
+      #root { position: absolute; inset: 0; width: 1920px; height: 1080px; }
+      .scene-bg { position: absolute; inset: 0; width: 100%; height: 100%; }
+      .s1-bg { background: linear-gradient(135deg, #0a0a0f 0%, #1a0a2e 50%, #0a0a0f 100%); }
+      .s2-bg { background: linear-gradient(135deg, #0f0518 0%, #1a1040 50%, #0f0518 100%); }
+      .s3-bg { background: #000000; }
+      .s4-bg { background: linear-gradient(135deg, #0a0a1a 0%, #1a1040 50%, #0a0a1a 100%); }
+      .s5-bg { background: linear-gradient(135deg, #0a0a0f 0%, #1a1040 50%, #0a0a0f 100%); }
+      #grain-overlay .grain-texture { position: absolute; top: -50%; left: -50%; width: 200%; height: 200%; background: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.65' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)'/%3E%3C/svg%3E"); opacity: 0.04; }
+    </style>
+  </head>
+  <body>
+    <div data-hf-id="hf-zijw" id="root" data-composition-id="main" data-start="0" data-duration="132" data-width="1920" data-height="1080">
+      <!-- SCENE BACKGROUNDS -->
+      <div data-hf-id="hf-qyhi" id="bg-s1" class="scene-bg s1-bg clip" data-start="0" data-duration="16.7" data-track-index="0"></div>
+      <div data-hf-id="hf-86y6" id="bg-s2" class="scene-bg s2-bg clip" data-start="16.7" data-duration="23" data-track-index="0"></div>
+      <div data-hf-id="hf-i2jf" id="bg-s3" class="scene-bg s3-bg clip" data-start="39.7" data-duration="56.3" data-track-index="0"></div>
+      <div data-hf-id="hf-8xts" id="bg-s4" class="scene-bg s4-bg clip" data-start="96" data-duration="20.4" data-track-index="0"></div>
+      <div data-hf-id="hf-ryqy" id="bg-s5" class="scene-bg s5-bg clip" data-start="116.4" data-duration="15.6" data-track-index="0"></div>
+
+      <!-- SCENE 1: The Gap -->
+      <div data-hf-id="hf-s3d8" id="mount-s1-opening" class="clip" data-layout-allow-occlusion data-composition-id="s1-opening" data-composition-src="compositions/s1-opening.html" data-start="0" data-duration="14.7" data-track-index="1" data-width="1920" data-height="1080"></div>
+
+      <div data-hf-id="hf-4d5x" id="mount-lt-kicker-name" class="clip" data-layout-allow-overlap data-layout-allow-occlusion data-composition-id="lt-kicker-name" data-composition-src="compositions/lt-kicker-name.html" data-start="2" data-duration="12.7" data-track-index="2" data-width="1920" data-height="1080"></div>
+
+      <!-- SCENE 2: x402 + Hedera -->
+      <div data-hf-id="hf-c4r7" id="mount-flowchart" class="clip" data-layout-allow-occlusion data-composition-id="flowchart" data-composition-src="compositions/flowchart.html" data-start="16.7" data-duration="21" data-track-index="1" data-width="1920" data-height="1080"></div>
+
+      <div data-hf-id="hf-xe10" id="mount-apple-money-count" class="clip" data-layout-allow-overlap data-layout-allow-occlusion data-composition-id="apple-money-count" data-composition-src="compositions/apple-money-count.html" data-start="22" data-duration="5" data-track-index="2" data-width="1920" data-height="1080"></div>
+
+      <!-- SCENE 3: Live Demo -->
+      <div data-hf-id="hf-iixx" id="mount-code-snippet-apple-terminal-pro" class="clip" data-layout-allow-occlusion data-composition-id="code-snippet-apple-terminal-pro" data-composition-src="compositions/code-snippet-apple-terminal-pro.html" data-start="39.7" data-duration="54.3" data-track-index="1" data-width="1920" data-height="1080"></div>
+
+      <div data-hf-id="hf-bjd6" id="mount-x402-handshake-reveal" class="clip" data-layout-allow-overlap data-layout-allow-occlusion data-composition-id="x402-handshake-reveal" data-composition-src="compositions/x402-handshake-reveal.html" data-start="55" data-duration="12" data-track-index="2" data-width="1920" data-height="1080"></div>
+
+      <div data-hf-id="hf-vfxc" id="mount-vfx-text-cursor" class="clip" data-layout-allow-overlap data-layout-allow-occlusion data-composition-id="vfx-text-cursor" data-composition-src="compositions/vfx-text-cursor.html" data-start="70" data-duration="11" data-track-index="2" data-width="1920" data-height="1080"></div>
+
+      <div data-hf-id="hf-pc3d" id="mount-payer-console-3d" class="clip" data-layout-allow-overlap data-layout-allow-occlusion data-composition-id="payer-console-3d" data-composition-src="compositions/payer-console-3d.html" data-start="81" data-duration="12" data-track-index="2" data-width="1920" data-height="1080"></div>
+
+      <!-- SCENE 4: On-Chain Proof -->
+      <div data-hf-id="hf-zu56" id="mount-data-chart" class="clip" data-layout-allow-occlusion data-composition-id="data-chart" data-composition-src="compositions/data-chart.html" data-start="96" data-duration="18.4" data-track-index="1" data-width="1920" data-height="1080"></div>
+
+      <!-- SCENE 5: Close -->
+      <div data-hf-id="hf-s9xf" id="mount-logo-outro" class="clip" data-layout-allow-occlusion data-composition-id="logo-outro" data-composition-src="compositions/logo-outro.html" data-start="116.4" data-duration="15.6" data-track-index="1" data-width="1920" data-height="1080"></div>
+
+      <div data-hf-id="hf-6aub" id="mount-s5-outro-lt" class="clip" data-layout-allow-occlusion data-composition-id="s5-outro-lt" data-composition-src="compositions/s5-outro-lt.html" data-start="120" data-duration="12" data-track-index="2" data-width="1920" data-height="1080"></div>
+
+      <!-- TRANSITIONS -->
+      <div data-hf-id="hf-wcao" id="mount-glitch" data-composition-id="glitch" data-composition-src="compositions/glitch.html" data-start="14.7" data-duration="2" data-track-index="3" data-width="1920" data-height="1080"></div>
+
+      <div data-hf-id="hf-7qo7" id="mount-domain-warp-dissolve" data-composition-id="domain-warp-dissolve" data-composition-src="compositions/domain-warp-dissolve.html" data-start="37.7" data-duration="2" data-track-index="3" data-width="1920" data-height="1080"></div>
+
+      <div data-hf-id="hf-zycn" id="mount-flash-through-white" data-composition-id="flash-through-white" data-composition-src="compositions/flash-through-white.html" data-start="94" data-duration="2" data-track-index="3" data-width="1920" data-height="1080"></div>
+
+      <div data-hf-id="hf-4hq8" id="mount-ridged-burn" data-composition-id="ridged-burn" data-composition-src="compositions/ridged-burn.html" data-start="114.4" data-duration="2" data-track-index="3" data-width="1920" data-height="1080"></div>
+
+      <!-- GLOBAL OVERLAYS (inlined from components) -->
+      <div data-hf-id="hf-zvq0" id="grain-overlay" class="clip" data-layout-ignore data-start="0" data-duration="132" data-track-index="9" style="position: absolute; top: 0; left: 0; width: 100%; height: 100%; pointer-events: none; z-index: 100;">
+        <div data-hf-id="hf-0qtj" class="grain-texture"></div>
+      </div>
+      <div data-hf-id="hf-hfae" id="hf-vignette" class="clip" data-layout-ignore data-start="0" data-duration="132" data-track-index="8" style="position: absolute; top: 0; left: 0; width: 100%; height: 100%; pointer-events: none; z-index: 90;
+          background: radial-gradient(ellipse at center, transparent 45%, rgba(0, 0, 0, 0.7) 100%);">
+      </div>
+
+      <!-- AUDIO -->
+      <audio data-hf-id="hf-6ai1" id="vo" src="assets/vo-master.mp3" class="clip" data-start="0" data-duration="131.3" data-track-index="10" data-volume="1"></audio>
+
+      <audio data-hf-id="hf-eswf" id="bgm" src="assets/bgm.mp3" class="clip" data-start="0" data-duration="132" data-track-index="11" data-volume="0.3"></audio>
+    </div>
+
+    <script>
+      window.__timelines = window.__timelines || {};
+      try {
+        window.__timelines["main"] = gsap.timeline({ paused: true });
+      } catch(e) {
+        window.__timelines["main"] = { paused: true };
+      }
+    </script>
+  </body>
+</html>

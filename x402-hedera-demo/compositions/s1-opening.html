@@ -1,0 +1,108 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=1920, height=1080">
+    <script src="https://cdn.jsdelivr.net/npm/gsap@3.14.2/dist/gsap.min.js"></script>
+    <style>
+      * { margin: 0; padding: 0; box-sizing: border-box; }
+      html, body { width: 1920px; height: 1080px; overflow: hidden; background: #000; }
+      #root { position: relative; width: 1920px; height: 1080px; overflow: hidden; background: radial-gradient(ellipse at 50% 50%, #0d0d1a 0%, #000 70%); font-family: 'Inter', 'Arial Black', sans-serif; }
+      .cursor-text { position: absolute; left: 120px; right: 120px; top: 50%; transform: translateY(-50%); z-index: 2; }
+      .cursor-line { font-size: 56px; font-weight: 700; color: #fff; line-height: 1.2; letter-spacing: -0.01em; min-height: 68px; }
+      .cursor-line .type-area { display: inline; }
+      .cursor-line .caret { display: inline-block; width: 4px; height: 56px; background: #A4A2F5; margin-left: 4px; vertical-align: text-bottom; }
+      .punch-words { position: absolute; bottom: 320px; left: 50%; transform: translateX(-50%); display: flex; gap: 40px; z-index: 3; }
+      .punch-word { font-size: 56px; font-weight: 900; color: #fff; letter-spacing: -0.02em; opacity: 0; }
+      .punch-word:nth-child(1) { color: #ff5f57; }
+      .punch-word:nth-child(2) { color: #ffbd2e; }
+      .punch-word:nth-child(3) { color: #ff5f57; }
+      .bg-glow { position: absolute; inset: 0; z-index: 0; }
+      .bg-glow .glow-1 { position: absolute; width: 600px; height: 600px; border-radius: 50%; background: radial-gradient(circle, rgba(124,92,252,0.12), transparent); top: 20%; left: -10%; }
+      .bg-glow .glow-2 { position: absolute; width: 500px; height: 500px; border-radius: 50%; background: radial-gradient(circle, rgba(164,162,245,0.08), transparent); bottom: 10%; right: -5%; }
+      .slam-overlay { position: absolute; inset: 0; z-index: 10; display: flex; align-items: center; justify-content: center; background: #000; opacity: 0; }
+      .slam-word { font-size: 180px; font-weight: 900; color: #fff; letter-spacing: -0.03em; }
+    </style>
+  </head>
+  <body>
+    <div data-hf-id="hf-i6rc" id="root" data-composition-id="s1-opening" data-width="1920" data-height="1080" data-start="0" data-duration="14.7">
+      <div data-hf-id="hf-rc9h" class="bg-glow">
+        <div data-hf-id="hf-3ghp" class="glow-1"></div>
+        <div data-hf-id="hf-7elq" class="glow-2"></div>
+      </div>
+
+      <div data-hf-id="hf-web6" class="cursor-text">
+        <div data-hf-id="hf-1q25" class="cursor-line">
+          <span data-hf-id="hf-h01x" id="typed" class="type-area"></span><span data-hf-id="hf-fir1" class="caret" id="caret"></span><span data-hf-id="hf-zqpx" id="typedRest" class="type-area" style="color: transparent;"></span>
+        </div>
+      </div>
+
+      <div data-hf-id="hf-fti9" id="punchWords" class="punch-words">
+        <span data-hf-id="hf-7t8a" class="punch-word" id="pw1">SUBSCRIPTIONS.</span>
+        <span data-hf-id="hf-9dql" class="punch-word" id="pw2">INVOICES.</span>
+        <span data-hf-id="hf-8aiq" class="punch-word" id="pw3">CHARGEBACKS.</span>
+      </div>
+
+      <div data-hf-id="hf-nrvn" id="slamOverlay" class="slam-overlay" data-layout-allow-overlap data-layout-allow-occlusion><span data-hf-id="hf-slmw" id="slamWord" class="slam-word">402.</span></div>
+    </div>
+
+    <script>
+      window.__timelines = window.__timelines || {};
+      var tl = gsap.timeline({ paused: true });
+
+      var text = "Every payment rail was built for a human with a credit card.";
+      var typed = document.getElementById("typed");
+      var typedRest = document.getElementById("typedRest");
+      var caret = document.getElementById("caret");
+      var typingSpeed = 0.04;
+
+      typedRest.textContent = text;
+      var fullW = Math.ceil(typedRest.offsetWidth);
+      typed.textContent = text;
+      typedRest.textContent = "";
+      gsap.set(typed, { display: "inline-block", overflow: "hidden", whiteSpace: "pre", verticalAlign: "top", width: 0 });
+      gsap.set(caret, { opacity: 0 });
+      gsap.set("#slamWord", { scale: 1.6, opacity: 0 });
+
+      var typingDur = text.length * typingSpeed;
+      var typingStart = 0.5;
+      var typingEnd = typingStart + typingDur;
+
+      tl.to(caret, { opacity: 1, duration: 0.08 }, 0.1);
+      tl.to(typed, { width: fullW, duration: typingDur, ease: "none" }, typingStart);
+      tl.set(typed, { width: "auto" }, typingEnd);
+      tl.to(caret, { opacity: 0, duration: 0.1 }, typingEnd + 0.3);
+      tl.to(caret, { opacity: 1, duration: 0.1 }, typingEnd + 0.5);
+      tl.to(caret, { opacity: 0, duration: 0.1 }, typingEnd + 0.7);
+      tl.to(caret, { opacity: 1, duration: 0.1 }, typingEnd + 0.9);
+
+      var pwStart = typingEnd + 1.2;
+      tl.to("#pw1", { opacity: 1, x: -20, duration: 0.35, ease: "power2.out" }, pwStart);
+      tl.to("#pw2", { opacity: 1, x: -20, duration: 0.35, ease: "power2.out" }, pwStart + 0.3);
+      tl.to("#pw3", { opacity: 1, x: -20, duration: 0.35, ease: "power2.out" }, pwStart + 0.6);
+
+      tl.to("#pw1", { color: "#ff5f57", scale: 1.05, duration: 0.2, yoyo: true, repeat: 1 }, pwStart + 1.5);
+      tl.to("#pw2", { color: "#ffbd2e", scale: 1.05, duration: 0.2, yoyo: true, repeat: 1 }, pwStart + 1.5);
+      tl.to("#pw3", { color: "#ff5f57", scale: 1.05, duration: 0.2, yoyo: true, repeat: 1 }, pwStart + 1.5);
+
+      // Punch words exit early to clear the stage for the 402 slam
+      tl.to(["#pw1", "#pw2", "#pw3"], { opacity: 0, y: -30, duration: 0.45, ease: "power2.in", stagger: 0.06 }, pwStart + 2.6);
+
+      // "402." slam — the protocol number punches in over a hard black card
+      var slamStart = pwStart + 3.2;
+      tl.to("#slamOverlay", { opacity: 1, duration: 0.12, ease: "power2.out" }, slamStart);
+      tl.to("#slamWord", { scale: 1, opacity: 1, duration: 0.34, ease: "back.out(1.6)" }, slamStart + 0.02);
+      tl.to("#slamWord", { scale: 1.045, duration: 0.55, ease: "sine.inOut", yoyo: true, repeat: 3 }, slamStart + 0.5);
+      tl.to("#slamWord", { scale: 1.18, opacity: 0, duration: 0.32, ease: "power2.in" }, slamStart + 4.6);
+      tl.to("#slamOverlay", { opacity: 0, duration: 0.4, ease: "power2.in" }, slamStart + 4.65);
+
+      tl.to(["#typed", "#caret"], { opacity: 0, duration: 0.5, ease: "power2.in" }, 13.9);
+      tl.to(["#typed", "#caret", "#typedRest", "#pw1", "#pw2", "#pw3"], { visibility: "hidden" }, 14.65);
+
+      window.__timelines["s1-opening"] = tl;
+
+      window.__hyperframes = window.__hyperframes || {};
+      window.__hyperframes.getVariables = function() { return {}; };
+    </script>
+  </body>
+</html>

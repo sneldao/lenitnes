@@ -1,0 +1,51 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=1920, height=1080">
+    <script src="https://cdn.jsdelivr.net/npm/gsap@3.14.2/dist/gsap.min.js"></script>
+    <style>
+      * { margin: 0; padding: 0; box-sizing: border-box; }
+      html, body { width: 1920px; height: 1080px; overflow: hidden; background: transparent; }
+      #root { position: relative; width: 1920px; height: 1080px; overflow: hidden; background: transparent; color: #fff; font-family: -apple-system, BlinkMacSystemFont, "Helvetica Neue", Arial, sans-serif; }
+      .green-flash { position: absolute; inset: 0; z-index: 1; background: #A4A2F5; opacity: 0; }
+      .stage-content { position: relative; z-index: 5; display: flex; width: 100%; height: 100%; align-items: center; justify-content: center; padding: 120px 160px; }
+      .amount-wrap { position: relative; display: flex; align-items: center; justify-content: center; min-width: 1080px; min-height: 260px; flex-direction: column; }
+      .amount { position: relative; color: #A4A2F5; font-size: 130px; font-weight: 900; line-height: 0.9; letter-spacing: 0; font-variant-numeric: tabular-nums; text-align: center; white-space: nowrap; text-shadow: 0 3px 0 rgba(164,162,245,0.2), 0 18px 36px rgba(0,0,0,0.3), 0 42px 92px rgba(0,0,0,0.2); will-change: transform, color, opacity; }
+      .sub-label { font-size: 28px; color: rgba(255,255,255,0.6); margin-top: 20px; font-weight: 500; letter-spacing: 0.02em; opacity: 0; }
+      .hedera-badge { display: inline-block; background: #A4A2F5; color: #fff; padding: 4px 16px; border-radius: 20px; font-size: 18px; font-weight: 600; margin-top: 16px; opacity: 0; }
+    </style>
+  </head>
+  <body>
+    <div data-hf-id="hf-dv2z" id="root" data-composition-id="apple-money-count" data-root="true" data-start="0" data-duration="5" data-width="1920" data-height="1080">
+      <div data-hf-id="hf-moor" id="greenFlash" class="green-flash"></div>
+      <div data-hf-id="hf-hg9m" class="stage-content">
+        <div data-hf-id="hf-glp5" class="amount-wrap">
+          <div data-hf-id="hf-il7z" id="amount" class="amount">$0.0001</div>
+          <div data-hf-id="hf-yai9" id="subLabel" class="sub-label">Fixed HBAR transfer fee</div>
+          <div data-hf-id="hf-adno" id="hederaBadge" class="hedera-badge">Hedera</div>
+        </div>
+      </div>
+    </div>
+
+    <script>
+      window.__timelines = window.__timelines || {};
+      var amount = document.querySelector("#amount");
+      var tl = gsap.timeline({ paused: true });
+
+      tl.from("#amount", { y: 40, opacity: 0, scale: 0.98, duration: 0.45, ease: "power2.out" }, 0);
+      tl.to("#amount", { color: "#30d158", textShadow: "0 3px 0 rgba(48,209,88,0.2), 0 18px 40px rgba(48,209,88,0.3)", duration: 0.25 }, 1.0);
+      tl.to("#amount", { scale: 1.06, duration: 0.16, ease: "back.out(2.2)" }, 1.0);
+      tl.to("#amount", { scale: 1, duration: 0.23, ease: "power2.out" }, 1.17);
+      tl.to("#greenFlash", { opacity: 0.25, duration: 0.08 }, 1.0);
+      tl.to("#greenFlash", { opacity: 0, duration: 0.5 }, 1.08);
+      tl.to("#subLabel", { opacity: 1, y: -5, duration: 0.4, ease: "power2.out" }, 1.5);
+      tl.to("#hederaBadge", { opacity: 1, y: -3, duration: 0.35, ease: "back.out(1.5)" }, 1.8);
+      tl.to("#amount", { opacity: 0, scale: 0.98, duration: 0.28, ease: "power2.in" }, 4.0);
+      tl.to("#subLabel", { opacity: 0, duration: 0.2 }, 4.0);
+      tl.to("#hederaBadge", { opacity: 0, duration: 0.2 }, 4.0);
+
+      window.__timelines["apple-money-count"] = tl;
+    </script>
+  </body>
+</html>

@@ -1,4 +1,4 @@
-import type { SignalClassification, SignalType } from '@lenitnes/types';
+import type { MonitorDomain, SignalClassification, SignalType } from '@lenitnes/types';
 import type { GitHubCommit } from '../github.js';
 
 export type { GitHubCommit };
@@ -22,12 +22,16 @@ export interface DetectorInput {
   monitorUrl: string;
   monitorCondition: string;
   news?: NewsEvidence[];
+  /** Vertical of the monitor being checked; defaults to 'code'. */
+  domain?: MonitorDomain;
 }
 
 export interface SignalDetector {
   readonly type: SignalType;
   readonly label: string;
   readonly description: string;
+  /** Verticals this detector applies to. Undefined = all verticals. */
+  readonly domains?: MonitorDomain[];
   detect(input: DetectorInput): SignalClassification | null | Promise<SignalClassification | null>;
 }
 

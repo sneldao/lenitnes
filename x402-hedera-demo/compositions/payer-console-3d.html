@@ -1,0 +1,424 @@
+<!-- 3D Payer Console — full ui-3d-reveal treatment (preserve-3d window, depth face, tilt/float), on-brand for x402 × Hedera -->
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=1920, height=1080" />
+    <title>x402 Payer Console</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800;900&family=JetBrains+Mono:wght@400;700&display=block"
+      rel="stylesheet"
+    />
+    <script src="https://cdn.jsdelivr.net/npm/gsap@3.14.2/dist/gsap.min.js"></script>
+    <style>
+      * { margin: 0; padding: 0; box-sizing: border-box; }
+      html, body { width: 1920px; height: 1080px; overflow: hidden; background: transparent; }
+
+      #pc-root {
+        position: relative;
+        width: 1920px;
+        height: 1080px;
+        overflow: hidden;
+        font-family: "Inter", sans-serif;
+      }
+      #pc-root .pc-scrim {
+        position: absolute;
+        inset: 0;
+        background:
+          radial-gradient(ellipse 1000px 700px at 30% 40%, rgba(124,92,252,0.10) 0%, transparent 60%),
+          radial-gradient(ellipse 800px 600px at 75% 70%, rgba(46,204,113,0.07) 0%, transparent 60%),
+          radial-gradient(ellipse at center, rgba(5,6,12,0.66) 0%, rgba(5,6,12,0.9) 100%);
+        opacity: 0;
+        pointer-events: none;
+      }
+      #pc-root .pc-stage {
+        position: absolute;
+        inset: 0;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        perspective: 2600px;
+        perspective-origin: 50% 46%;
+      }
+      #pc-root .pc-glow {
+        position: absolute;
+        width: 1300px;
+        height: 820px;
+        left: 50%;
+        top: 50%;
+        transform: translate(-50%, -50%);
+        background: radial-gradient(ellipse at center, rgba(124,92,252,0.20) 0%, transparent 65%);
+        filter: blur(50px);
+        opacity: 0;
+        pointer-events: none;
+      }
+      #pc-root .pc-wrapper {
+        position: relative;
+        transform-style: preserve-3d;
+        will-change: transform;
+      }
+      /* ── Console window (front face) ── */
+      #pc-root .pc-console {
+        width: 1240px;
+        height: 680px;
+        background: #10111c;
+        border: 1px solid rgba(164,162,245,0.26);
+        border-radius: 14px;
+        overflow: hidden;
+        display: flex;
+        flex-direction: column;
+        box-shadow:
+          inset -1px 0 0 rgba(124,92,252,0.2),
+          0 50px 130px rgba(0,0,0,0.75);
+      }
+      #pc-root .pc-depth {
+        position: absolute;
+        top: 14px;
+        left: 1240px;
+        width: 12px;
+        height: 652px;
+        transform-origin: 0% 50%;
+        transform: rotateY(90deg);
+        background: linear-gradient(to right, rgba(124,92,252,0.45) 0%, rgba(60,50,140,0.25) 45%, rgba(10,12,30,0.95) 100%);
+        border-radius: 3px 2px 2px 3px;
+      }
+      /* ── Titlebar ── */
+      #pc-root .pc-titlebar {
+        height: 46px;
+        background: #171827;
+        border-bottom: 1px solid rgba(255,255,255,0.08);
+        display: flex;
+        align-items: center;
+        padding: 0 16px;
+        position: relative;
+        flex-shrink: 0;
+      }
+      #pc-root .pc-lights { display: flex; gap: 8px; }
+      #pc-root .pc-lights span { width: 13px; height: 13px; border-radius: 50%; }
+      #pc-root .l-close { background: #ff5f57; }
+      #pc-root .l-min { background: #ffbd2e; }
+      #pc-root .l-full { background: #28c840; }
+      #pc-root .pc-title {
+        position: absolute;
+        left: 50%;
+        transform: translateX(-50%);
+        font-family: "JetBrains Mono", monospace;
+        font-size: 14px;
+        color: rgba(255,255,255,0.65);
+        letter-spacing: 0.02em;
+      }
+      #pc-root .pc-netbadge {
+        margin-left: auto;
+        font-family: "JetBrains Mono", monospace;
+        font-size: 12px;
+        font-weight: 700;
+        letter-spacing: 0.16em;
+        color: #A4A2F5;
+        background: rgba(164,162,245,0.12);
+        border: 1px solid rgba(164,162,245,0.35);
+        padding: 4px 12px;
+        border-radius: 5px;
+      }
+      /* ── Body: three columns ── */
+      #pc-root .pc-body {
+        flex: 1;
+        display: flex;
+        gap: 14px;
+        padding: 16px;
+        min-height: 0;
+      }
+      #pc-root .pc-col {
+        background: rgba(255,255,255,0.025);
+        border: 1px solid rgba(255,255,255,0.07);
+        border-radius: 10px;
+        padding: 14px 16px;
+        display: flex;
+        flex-direction: column;
+        min-height: 0;
+      }
+      #pc-root .pc-pipeline { width: 280px; flex-shrink: 0; }
+      #pc-root .pc-log { flex: 1; min-width: 0; }
+      #pc-root .pc-settle { width: 300px; flex-shrink: 0; position: relative; }
+      #pc-root .pc-colhead {
+        font-family: "JetBrains Mono", monospace;
+        font-size: 12px;
+        font-weight: 700;
+        letter-spacing: 0.22em;
+        color: rgba(255,255,255,0.4);
+        padding-bottom: 10px;
+        margin-bottom: 12px;
+        border-bottom: 1px solid rgba(255,255,255,0.08);
+      }
+      /* ── Pipeline steps ── */
+      #pc-root .pc-step {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        padding: 11px 10px;
+        border-radius: 8px;
+        margin-bottom: 6px;
+      }
+      #pc-root .pc-dot {
+        width: 12px;
+        height: 12px;
+        border-radius: 50%;
+        background: #33354d;
+        flex-shrink: 0;
+      }
+      #pc-root .pc-step-name {
+        display: block;
+        font-size: 14px;
+        font-weight: 800;
+        letter-spacing: 0.06em;
+        color: rgba(255,255,255,0.35);
+      }
+      #pc-root .pc-step-sub {
+        display: block;
+        font-family: "JetBrains Mono", monospace;
+        font-size: 11px;
+        color: rgba(255,255,255,0.28);
+        margin-top: 2px;
+      }
+      /* ── Log ── */
+      #pc-root .pc-logbody {
+        font-family: "JetBrains Mono", monospace;
+        font-size: 15px;
+        line-height: 1.75;
+        color: rgba(255,255,255,0.75);
+        overflow: hidden;
+      }
+      #pc-root .pc-line { opacity: 0; white-space: pre; }
+      #pc-root .pc-line.dim { color: rgba(255,255,255,0.38); }
+      #pc-root .pc-line.amber { color: #f39c12; font-weight: 700; }
+      #pc-root .pc-line.green { color: #2ecc71; font-weight: 700; }
+      #pc-root .pc-line.purple { color: #A4A2F5; }
+      #pc-root .pc-caret {
+        display: inline-block;
+        width: 9px;
+        height: 16px;
+        background: #2ecc71;
+        vertical-align: text-bottom;
+      }
+      /* ── Settlement ── */
+      #pc-root .pc-amount {
+        font-family: "JetBrains Mono", monospace;
+        font-size: 52px;
+        font-weight: 700;
+        color: #fff;
+        line-height: 1;
+        margin: 6px 0 4px;
+        letter-spacing: -0.02em;
+      }
+      #pc-root .pc-amount span { font-size: 22px; color: #A4A2F5; }
+      #pc-root .pc-kv {
+        display: flex;
+        justify-content: space-between;
+        align-items: baseline;
+        padding: 9px 0;
+        border-bottom: 1px solid rgba(255,255,255,0.06);
+      }
+      #pc-root .pc-k {
+        font-family: "JetBrains Mono", monospace;
+        font-size: 12px;
+        color: rgba(255,255,255,0.38);
+        text-transform: uppercase;
+        letter-spacing: 0.12em;
+      }
+      #pc-root .pc-v {
+        font-family: "JetBrains Mono", monospace;
+        font-size: 15px;
+        font-weight: 700;
+        color: rgba(255,255,255,0.85);
+      }
+      #pc-root .pc-v.accent { color: #A4A2F5; }
+      #pc-root .pc-status {
+        margin-top: 18px;
+        font-family: "JetBrains Mono", monospace;
+        font-size: 17px;
+        font-weight: 700;
+        letter-spacing: 0.1em;
+        text-align: center;
+        padding: 11px 0;
+        border-radius: 8px;
+        color: #f39c12;
+        background: rgba(243,156,18,0.10);
+        border: 1px solid rgba(243,156,18,0.4);
+      }
+      #pc-root .pc-status.paid {
+        position: absolute;
+        left: 16px;
+        right: 16px;
+        bottom: 14px;
+        margin-top: 0;
+        color: #2ecc71;
+        background: rgba(46,204,113,0.10);
+        border: 1px solid rgba(46,204,113,0.45);
+        opacity: 0;
+      }
+      #pc-root .pc-stamp {
+        position: absolute;
+        top: 118px;
+        right: 20px;
+        padding: 10px 16px;
+        border: 3px solid #2ecc71;
+        border-radius: 8px;
+        color: #2ecc71;
+        font-weight: 900;
+        font-size: 26px;
+        letter-spacing: 0.05em;
+        line-height: 1;
+        text-align: center;
+        transform: rotate(-11deg);
+        box-shadow: 0 0 0 2px rgba(46,204,113,0.22) inset;
+        opacity: 0;
+        mix-blend-mode: screen;
+      }
+      #pc-root .pc-stamp span {
+        display: block;
+        margin-top: 6px;
+        font-family: "JetBrains Mono", monospace;
+        font-size: 10px;
+        font-weight: 700;
+        letter-spacing: 0.14em;
+      }
+    </style>
+  </head>
+  <body>
+    <div
+      id="pc-root"
+      data-composition-id="payer-console-3d"
+      data-start="0"
+      data-duration="12"
+      data-width="1920"
+      data-height="1080"
+    >
+      <div id="pcScrim" class="pc-scrim"></div>
+      <div class="pc-stage">
+        <div id="pcGlow" class="pc-glow"></div>
+        <div class="pc-wrapper" id="pcWrapper">
+          <div class="pc-console" id="pcConsole">
+            <div class="pc-titlebar" id="pcTitlebar">
+              <div class="pc-lights"><span class="l-close"></span><span class="l-min"></span><span class="l-full"></span></div>
+              <div class="pc-title">x402-agent-payer — hedera:testnet</div>
+              <div class="pc-netbadge">TESTNET</div>
+            </div>
+            <div class="pc-body">
+              <div class="pc-col pc-pipeline" id="pcPipeline">
+                <div class="pc-colhead">PAYMENT FLOW</div>
+                <div class="pc-step" id="st1"><span class="pc-dot"></span><div><span class="pc-step-name">REQUEST</span><span class="pc-step-sub">GET /paid/feed</span></div></div>
+                <div class="pc-step" id="st2"><span class="pc-dot"></span><div><span class="pc-step-name">CHALLENGE</span><span class="pc-step-sub">402 Payment Required</span></div></div>
+                <div class="pc-step" id="st3"><span class="pc-dot"></span><div><span class="pc-step-name">SIGN</span><span class="pc-step-sub">HBAR transfer</span></div></div>
+                <div class="pc-step" id="st4"><span class="pc-dot"></span><div><span class="pc-step-name">RETRY</span><span class="pc-step-sub">PAYMENT-SIGNATURE</span></div></div>
+                <div class="pc-step" id="st5"><span class="pc-dot"></span><div><span class="pc-step-name">SETTLE</span><span class="pc-step-sub">200 OK</span></div></div>
+              </div>
+              <div class="pc-col pc-log" id="pcLog">
+                <div class="pc-colhead">AGENT LOG</div>
+                <div class="pc-logbody">
+                  <div class="pc-line" id="lg1">$ x402-agent-payer /paid/feed</div>
+                  <div class="pc-line" id="lg2">GET /paid/feed</div>
+                  <div class="pc-line amber" id="lg3">← 402 Payment Required</div>
+                  <div class="pc-line dim" id="lg4">   exact-hedera · 0.25 HBAR → 0.0.9137770</div>
+                  <div class="pc-line" id="lg5">signing HBAR TransferTransaction…</div>
+                  <div class="pc-line dim" id="lg6">   memo ba7b3c9e · txId 0.0.9832906@1785356627</div>
+                  <div class="pc-line" id="lg7">retry with X-PAYMENT header…</div>
+                  <div class="pc-line green" id="lg8">✓ 200 OK — PAYMENT SETTLED</div>
+                  <div class="pc-line purple" id="lg9">receipt → HCS topic 0.0.9159618</div>
+                  <div class="pc-line" id="lg10"><span class="pc-caret" id="pcCaret"></span></div>
+                </div>
+              </div>
+              <div class="pc-col pc-settle" id="pcSettle">
+                <div class="pc-colhead">SETTLEMENT</div>
+                <div class="pc-amount" id="pcAmount">0.25<span> HBAR</span></div>
+                <div class="pc-kv"><span class="pc-k">payer</span><span class="pc-v">0.0.9832906</span></div>
+                <div class="pc-kv"><span class="pc-k">payee</span><span class="pc-v accent">0.0.9137770</span></div>
+                <div class="pc-kv"><span class="pc-k">memo</span><span class="pc-v accent">ba7b3c9e</span></div>
+                <div class="pc-status" id="pcPending">● PENDING</div>
+                <div class="pc-status paid" id="pcPaid">✓ PAID</div>
+                <div class="pc-stamp" id="pcStamp">NOTARIZED<span>HCS · 0.0.9159618</span></div>
+              </div>
+            </div>
+          </div>
+          <div class="pc-depth"></div>
+        </div>
+      </div>
+    </div>
+
+    <script>
+      window.__timelines = window.__timelines || {};
+      (function () {
+        var tl = gsap.timeline({ paused: true });
+        var S = "#pc-root";
+
+        // Initial hidden states (immediate, outside the timeline).
+        gsap.set("#pcWrapper", { rotationY: -35, x: -110, opacity: 0, transformOrigin: "50% 50%" });
+        gsap.set(["#pcPipeline", "#pcLog", "#pcSettle"], { opacity: 0 });
+        gsap.set("#pcPipeline", { x: -18 });
+        gsap.set("#pcSettle", { x: 18 });
+        gsap.set("#pcAmount", { opacity: 0, y: 10 });
+        gsap.set("#pcPending", { opacity: 0 });
+        gsap.set("#pcStamp", { scale: 2.4, rotation: -30, opacity: 0 });
+
+        // Enter: ambient glow + scrim, console swings in from a 3D tilt.
+        tl.to("#pcScrim", { opacity: 1, duration: 0.4, ease: "power2.out" }, 0);
+        tl.to("#pcGlow", { opacity: 1, duration: 0.55, ease: "power2.out" }, 0.08);
+        tl.to("#pcWrapper", { rotationY: 0, x: 0, opacity: 1, duration: 0.85, ease: "power3.out" }, 0.1);
+
+        // Panels stagger in.
+        tl.to("#pcPipeline", { opacity: 1, x: 0, duration: 0.45, ease: "power2.out" }, 0.75);
+        tl.to("#pcLog", { opacity: 1, duration: 0.45, ease: "power2.out" }, 0.9);
+        tl.to("#pcSettle", { opacity: 1, x: 0, duration: 0.45, ease: "power2.out" }, 1.05);
+        tl.to("#pcAmount", { opacity: 1, y: 0, duration: 0.4, ease: "power2.out" }, 1.3);
+        tl.to("#pcPending", { opacity: 1, duration: 0.3 }, 1.5);
+
+        // Agent log prints; pipeline lights up in sync.
+        var lines = ["#lg1", "#lg2", "#lg3", "#lg4", "#lg5", "#lg6", "#lg7", "#lg8", "#lg9", "#lg10"];
+        var lineTimes = [1.6, 2.1, 2.6, 3.0, 3.5, 3.9, 4.4, 5.0, 5.6, 6.0];
+        lines.forEach(function (id, i) {
+          tl.to(S + " " + id, { opacity: 1, duration: 0.18, ease: "power1.out" }, lineTimes[i]);
+        });
+
+        function lightStep(id, color, glow, t) {
+          tl.to(S + " " + id + " .pc-dot", { backgroundColor: color, boxShadow: "0 0 12px 2px " + glow, duration: 0.25 }, t);
+          tl.to(S + " " + id + " .pc-step-name", { color: "#ffffff", duration: 0.25 }, t);
+          tl.to(S + " " + id + " .pc-step-sub", { color: "rgba(255,255,255,0.55)", duration: 0.25 }, t);
+        }
+        lightStep("#st1", "#A4A2F5", "rgba(164,162,245,0.5)", 2.1);
+        lightStep("#st2", "#f39c12", "rgba(243,156,18,0.5)", 2.6);
+        lightStep("#st3", "#A4A2F5", "rgba(164,162,245,0.5)", 3.5);
+        lightStep("#st4", "#A4A2F5", "rgba(164,162,245,0.5)", 4.4);
+        lightStep("#st5", "#2ecc71", "rgba(46,204,113,0.55)", 5.0);
+
+        // Status flips PENDING → PAID as the payment settles.
+        tl.to("#pcPending", { opacity: 0, duration: 0.2 }, 5.2);
+        tl.to("#pcPaid", { opacity: 1, duration: 0.35, ease: "power2.out" }, 5.3);
+        tl.fromTo("#pcPaid", { scale: 1.15 }, { scale: 1, duration: 0.35, ease: "back.out(2)" }, 5.3);
+        tl.to("#pcAmount", { color: "#2ecc71", duration: 0.3 }, 5.3);
+
+        // Caret blinks after the last line.
+        tl.to("#pcCaret", { opacity: 0, duration: 0.12 }, 6.4);
+        tl.to("#pcCaret", { opacity: 1, duration: 0.12 }, 6.7);
+        tl.to("#pcCaret", { opacity: 0, duration: 0.12 }, 7.0);
+        tl.to("#pcCaret", { opacity: 1, duration: 0.12 }, 7.3);
+
+        // Notarization stamp slams onto the settlement panel.
+        tl.to("#pcStamp", { scale: 1, rotation: -11, opacity: 0.92, duration: 0.32, ease: "back.out(2.6)" }, 7.6);
+        tl.to("#pcConsole", { scale: 0.99, duration: 0.1, ease: "power2.out" }, 7.6);
+        tl.to("#pcConsole", { scale: 1, duration: 0.4, ease: "elastic.out(1, 0.5)" }, 7.7);
+        tl.to("#pcGlow", { opacity: 0.8, scale: 1.08, duration: 0.3, yoyo: true, repeat: 1 }, 7.6);
+
+        // Gentle 3D float while the VO lands.
+        tl.to("#pcWrapper", { rotationY: 2.5, y: -8, duration: 1.1, ease: "sine.inOut", yoyo: true, repeat: 1 }, 8.6);
+
+        // Exit: console tilts away, ambient clears back to the terminal.
+        tl.to("#pcWrapper", { rotationY: 24, x: 130, opacity: 0, duration: 1.0, ease: "power2.in" }, 10.9);
+        tl.to("#pcGlow", { opacity: 0, duration: 0.9, ease: "power2.in" }, 11.0);
+        tl.to("#pcScrim", { opacity: 0, duration: 1.0, ease: "power2.in" }, 11.0);
+        tl.set(["#pcWrapper", "#pcScrim", "#pcGlow"], { visibility: "hidden" }, 11.95);
+
+        window.__timelines["payer-console-3d"] = tl;
+      })();
+    </script>
+  </body>
+</html>

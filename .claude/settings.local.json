@@ -17,7 +17,8 @@
       "Bash(/usr/bin/python3 *)",
       "Bash(git commit *)",
       "Bash(npx eslint *)",
-      "Bash(curl -s \"https://lenitnes.persidian.com/api/scorecard\")"
+      "Bash(curl -s \"https://lenitnes.persidian.com/api/scorecard\")",
+      "Bash(ssh *)"
     ]
   }
 }

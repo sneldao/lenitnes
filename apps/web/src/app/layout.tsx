@@ -6,6 +6,7 @@ import { ErrorBoundary } from '@/components/ErrorBoundary';
 import { ToastProvider } from '@/components/ui/toast';
 
 import { Nav } from '@/components/Nav';
+import { LiveSignalTicker } from '@/components/LiveSignalTicker';
 
 export const metadata: Metadata = {
   title: 'LENITNES — proof-chained signal monitoring',
@@ -41,6 +42,11 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
               </Link>
               <Nav />
             </header>
+
+            {/* Ambient Live Telemetry Marquee Bar */}
+            <div className="-mx-4 sm:-mx-6 mt-1">
+              <LiveSignalTicker />
+            </div>
 
             {/* ── Single column: no sidebar ── */}
             <div className="flex flex-1 flex-col py-4 sm:py-6">

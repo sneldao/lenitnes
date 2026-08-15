@@ -22,6 +22,7 @@ import {
   ShieldCheck,
   Download,
   FileSpreadsheet,
+  Share2,
 } from 'lucide-react';
 import { CONSENSUS_WATCHLIST, findWatchlistEntry, type RepoTier } from '@lenitnes/types';
 import { api, type RepoTiersResponse } from '@/lib/api';
@@ -31,6 +32,8 @@ import { ProofInspectorModal, type ProofPayload } from '@/components/ProofInspec
 import { GitDiffInspector } from '@/components/GitDiffInspector';
 import { exportScanDataAsJson, exportScanDataAsCsv } from '@/lib/exportBacktestData';
 import { DomainTooltip } from '@/components/ui/DomainTooltip';
+import { CrowdVerdictVote } from '@/components/CrowdVerdictVote';
+import { ShareSignalCardModal } from '@/components/ShareSignalCardModal';
 
 const API = process.env.NEXT_PUBLIC_API_URL || '/api';
 
@@ -652,6 +655,7 @@ function VerdictCard({
   onInspectProof: (payload: ProofPayload) => void;
 }) {
   const [detailsOpen, setDetailsOpen] = useState(false);
+  const [shareOpen, setShareOpen] = useState(false);
   const action = v.agentScore.recommended_action;
   const ActionIcon = action === 'short' ? TrendingDown : action === 'long' ? TrendingUp : Minus;
   const outcome = v.priceOutcome;
@@ -673,12 +677,26 @@ function VerdictCard({
             {v.agentScore.conviction}/100
           </span>
           <span className="font-mono text-[10px] uppercase text-slate-500">{action}</span>
+          <button
+            onClick={() => setShareOpen(true)}
+            className="p-1 rounded text-slate-400 hover:text-accent hover:bg-ink-light transition-colors cursor-pointer ml-1"
+            title="Share Viral Signal Card"
+          >
+            <Share2 className="h-3.5 w-3.5" />
+          </button>
         </div>
       </div>
 
       <p className="font-mono text-xs text-slate-300 bg-ink-light/50 p-2.5 rounded-lg border border-edge/20">
         <span className="text-accent">{v.hash.slice(0, 7)}</span>: {v.message}
       </p>
+
+      {/* Gamified Crowd Voting */}
+      <CrowdVerdictVote
+        signalKey={`${repo}_${v.hash}`}
+        agentConviction={v.agentScore.conviction}
+        agentAction={action}
+      />
 
       <div className="flex flex-wrap items-center justify-between gap-2">
         <div className="flex flex-wrap gap-1.5">
@@ -787,6 +805,19 @@ function VerdictCard({
             </span>
           )}
         </div>
+      )}
+
+      {/* Share Modal */}
+      {shareOpen && (
+        <ShareSignalCardModal
+          repo={repo}
+          commitHash={v.hash}
+          message={v.message}
+          conviction={v.agentScore.conviction}
+          action={action}
+          outcomePct={outcome?.t7dPct ?? outcome?.t1dPct}
+          onClose={() => setShareOpen(false)}
+        />
       )}
     </div>
   );

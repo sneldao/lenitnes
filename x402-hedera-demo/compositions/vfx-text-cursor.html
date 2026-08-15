@@ -1,0 +1,218 @@
+<!-- hyperframes-registry-item: vfx-text-cursor (adapted on-brand: x402 settle beat) -->
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=1920, height=1080" />
+    <title>x402 Settle Beat</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;800;900&family=JetBrains+Mono:wght@400;700&display=block"
+      rel="stylesheet"
+    />
+    <script src="https://cdn.jsdelivr.net/npm/gsap@3.14.2/dist/gsap.min.js"></script>
+    <style>
+      * { margin: 0; padding: 0; box-sizing: border-box; }
+      html, body { width: 1920px; height: 1080px; overflow: hidden; background: transparent; }
+
+      #vfx-root {
+        position: relative;
+        width: 1920px;
+        height: 1080px;
+        overflow: hidden;
+        font-family: "Inter", sans-serif;
+      }
+      #vfx-root .vfx-scrim {
+        position: absolute;
+        inset: 0;
+        background: radial-gradient(ellipse at center, rgba(5,6,12,0.62) 0%, rgba(5,6,12,0.86) 100%);
+        opacity: 0;
+        pointer-events: none;
+      }
+      #vfx-root .vfx-stage {
+        position: absolute;
+        inset: 0;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+      }
+      #vfx-root .vfx-card {
+        width: 1180px;
+        padding: 64px 88px 58px;
+        background: rgba(13,14,26,0.92);
+        border: 1px solid rgba(164,162,245,0.3);
+        border-radius: 18px;
+        box-shadow: 0 60px 140px rgba(0,0,0,0.7), inset 0 1px 0 rgba(255,255,255,0.06);
+        background-image: radial-gradient(rgba(164,162,245,0.06) 1px, transparent 1px);
+        background-size: 26px 26px;
+        backdrop-filter: blur(12px);
+        -webkit-backdrop-filter: blur(12px);
+        position: relative;
+        overflow: hidden;
+        will-change: transform, opacity, filter;
+      }
+      #vfx-root .vfx-kicker {
+        display: inline-block;
+        font-family: "JetBrains Mono", monospace;
+        font-size: 20px;
+        font-weight: 700;
+        letter-spacing: 0.28em;
+        color: #A4A2F5;
+        background: rgba(164,162,245,0.1);
+        border: 1px solid rgba(164,162,245,0.35);
+        padding: 8px 18px 8px 22px;
+        border-radius: 6px;
+        opacity: 0;
+      }
+      #vfx-root .vfx-body { position: relative; height: 400px; margin-top: 26px; }
+      #vfx-root .vfx-phase {
+        position: absolute;
+        inset: 0;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        will-change: transform, opacity;
+      }
+      #vfx-root .vfx-big {
+        font-size: 210px;
+        font-weight: 900;
+        line-height: 1;
+        letter-spacing: -0.03em;
+        white-space: nowrap;
+        display: flex;
+        align-items: center;
+      }
+      #vfx-root .vfx-big.amber { color: #f39c12; }
+      #vfx-root .vfx-big.green { color: #2ecc71; }
+      #vfx-root .vfx-typed,
+      #vfx-root .vfx-rest { display: inline-block; white-space: pre; }
+      #vfx-root .vfx-caret {
+        display: inline-block;
+        width: 12px;
+        height: 180px;
+        margin-left: 10px;
+        border-radius: 3px;
+        background: linear-gradient(180deg, #A4A2F5, #7c5cfc);
+        box-shadow: 0 0 22px rgba(164,162,245,0.85);
+        opacity: 0;
+      }
+      #vfx-root .vfx-sub {
+        margin-top: 30px;
+        font-family: "JetBrains Mono", monospace;
+        font-size: 32px;
+        font-weight: 700;
+        letter-spacing: 0.3em;
+        text-transform: uppercase;
+        opacity: 0;
+      }
+      #vfx-root .vfx-sub.amber { color: #f39c12; }
+      #vfx-root .vfx-sub.green { color: #2ecc71; }
+      #vfx-root .vfx-mono {
+        margin-top: 22px;
+        font-family: "JetBrains Mono", monospace;
+        font-size: 21px;
+        color: rgba(164,162,245,0.75);
+        letter-spacing: 0.02em;
+        opacity: 0;
+      }
+    </style>
+  </head>
+  <body>
+    <div
+      id="vfx-root"
+      data-composition-id="vfx-text-cursor"
+      data-start="0"
+      data-duration="11"
+      data-width="1920"
+      data-height="1080"
+    >
+      <div id="vfxScrim" class="vfx-scrim"></div>
+      <div class="vfx-stage">
+        <div id="vfxCard" class="vfx-card">
+          <div id="vfxKicker" class="vfx-kicker">X402 × HEDERA</div>
+
+          <div class="vfx-body">
+            <div id="phaseA" class="vfx-phase">
+              <div class="vfx-big amber">
+                <span id="codeTyped" class="vfx-typed"></span><span id="codeRest" class="vfx-rest">402</span><span id="codeCaret" class="vfx-caret"></span>
+              </div>
+              <div id="subA" class="vfx-sub amber">Payment Required</div>
+            </div>
+
+            <div id="phaseB" class="vfx-phase">
+              <div id="codeB" class="vfx-big green">200 OK</div>
+              <div id="subB" class="vfx-sub green">settled on Hedera · 0.25 HBAR</div>
+              <div id="receiptLine" class="vfx-mono">receipt → HCS topic 0.0.9159618</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <script>
+      window.__timelines = window.__timelines || {};
+      (function () {
+        var tl = gsap.timeline({ paused: true });
+
+        var codeTyped = document.getElementById("codeTyped");
+        var codeRest = document.getElementById("codeRest");
+        var codeCaret = document.getElementById("codeCaret");
+
+        // Build-time measurement (deterministic): size the reveal from a hidden copy.
+        var codeText = codeRest.textContent;
+        var codeW = Math.ceil(codeRest.offsetWidth);
+        codeTyped.textContent = codeText;
+        codeRest.textContent = "";
+        gsap.set(codeTyped, { display: "inline-block", overflow: "hidden", whiteSpace: "pre", verticalAlign: "top", width: 0 });
+
+        // Initial hidden states (immediate, outside the timeline).
+        gsap.set("#vfxScrim", { opacity: 0 });
+        gsap.set("#vfxCard", { opacity: 0, scale: 1.22, filter: "blur(14px)" });
+        gsap.set("#vfxKicker", { y: -22, opacity: 0 });
+        gsap.set("#phaseA", { opacity: 1 });
+        gsap.set("#subA", { y: 26, opacity: 0 });
+        gsap.set(codeCaret, { opacity: 0 });
+        gsap.set("#phaseB", { opacity: 0 });
+        gsap.set("#codeB", { scale: 1.35, opacity: 0 });
+        gsap.set("#subB", { y: 26, opacity: 0 });
+        gsap.set("#receiptLine", { opacity: 0 });
+
+        // Enter: scrim + frosted card settle in.
+        tl.to("#vfxScrim", { opacity: 1, duration: 0.45, ease: "power2.out" }, 0.05);
+        tl.to("#vfxCard", { opacity: 1, scale: 1, filter: "blur(0px)", duration: 0.7, ease: "expo.out" }, 0.1);
+        tl.to("#vfxKicker", { y: 0, opacity: 1, duration: 0.4, ease: "back.out(2)" }, 0.55);
+
+        // Phase A: type "402" with a glowing cursor, then the challenge label.
+        tl.to(codeCaret, { opacity: 1, duration: 0.08 }, 0.8);
+        tl.to(codeTyped, { width: codeW, duration: 0.85, ease: "none" }, 0.85);
+        tl.set(codeTyped, { width: "auto" }, 1.7);
+        tl.to(codeCaret, { opacity: 0, duration: 0.1 }, 1.9);
+        tl.to(codeCaret, { opacity: 1, duration: 0.1 }, 2.1);
+        tl.to("#subA", { y: 0, opacity: 1, duration: 0.4, ease: "power2.out" }, 2.0);
+        tl.to(codeCaret, { opacity: 0, duration: 0.1 }, 2.5);
+        tl.to(codeCaret, { opacity: 1, duration: 0.1 }, 2.7);
+        tl.to(codeCaret, { opacity: 0, duration: 0.12 }, 3.4);
+
+        // Swap: challenge slides out, settlement pops in.
+        tl.to("#phaseA", { opacity: 0, x: -70, duration: 0.4, ease: "power2.in" }, 3.9);
+        tl.set("#phaseB", { opacity: 1 }, 4.2);
+        tl.to("#codeB", { scale: 1, opacity: 1, duration: 0.5, ease: "back.out(1.7)" }, 4.2);
+        tl.to("#subB", { y: 0, opacity: 1, duration: 0.4, ease: "power2.out" }, 4.75);
+        tl.to("#receiptLine", { opacity: 1, duration: 0.45, ease: "power2.out" }, 5.25);
+
+        // Settled glow pulse, then a gentle breathe while the VO lands.
+        tl.to("#vfxCard", { boxShadow: "0 60px 140px rgba(0,0,0,0.7), 0 0 60px rgba(46,204,113,0.28), inset 0 1px 0 rgba(255,255,255,0.06)", duration: 0.3, yoyo: true, repeat: 1 }, 5.6);
+        tl.to("#vfxCard", { scale: 1.012, duration: 1.8, ease: "sine.inOut", yoyo: true, repeat: 1 }, 6.2);
+
+        // Exit: card lifts away, scrim clears back to the terminal.
+        tl.to("#vfxCard", { opacity: 0, scale: 1.14, filter: "blur(8px)", duration: 0.6, ease: "power2.in" }, 9.8);
+        tl.to("#vfxScrim", { opacity: 0, duration: 0.7, ease: "power2.in" }, 9.9);
+        tl.set(["#vfxCard", "#vfxScrim"], { visibility: "hidden" }, 10.7);
+
+        window.__timelines["vfx-text-cursor"] = tl;
+      })();
+    </script>
+  </body>
+</html>

@@ -32,7 +32,7 @@ import {
   applyChainConvictionBoost,
 } from '../services/domain/chain-conviction.js';
 import { marketData } from '../services/data-providers/registry.js';
-import type { AgentScore } from '@lenitnes/types';
+import type { AgentAction, AgentScore } from '@lenitnes/types';
 import { executeAgentTrade, type TradeReceipt } from '../services/treasury.js';
 import {
   buildOutcomeWindows,
@@ -112,7 +112,7 @@ export interface CheckMetadata {
   gate2Blocked?: boolean;
   agentConviction?: number;
   agentBand?: 'low' | 'mid' | 'high';
-  agentAction?: 'long' | 'short' | 'none';
+  agentAction?: AgentAction;
   agentThesis?: string;
   // Day 5: treasury trade receipt (above-threshold only).
   tradeTxHash?: string;
@@ -792,7 +792,7 @@ export async function executeCheck(monitor: Monitor): Promise<{
   //   - the signal is a heartbeat
   let tradeReceipt: TradeReceipt | null = null;
   let orderId: string | null = null;
-  if (agentScore && !gate2Blocked && !isHeartbeat && signalId) {
+  if (agentScore && !gate2Blocked && !isHeartbeat && signalId && monitor.domain !== 'bio') {
     // Trade execution is encapsulated in treasury.executeAgentTrade
     // (DRY) — the single entry point shared with the narrative-
     // synthesis scan. Resolves the token, applies the risk gate,
@@ -808,7 +808,13 @@ export async function executeCheck(monitor: Monitor): Promise<{
   // intentionally NOT broadcast — the reasoning archive
   // (agent_scores) is the surface for those, the public channel
   // is reserved for verified trades.
-  if (agentScore && !gate2Blocked && !isHeartbeat && signalId && tradeReceipt) {
+  if (
+    agentScore &&
+    !gate2Blocked &&
+    !isHeartbeat &&
+    signalId &&
+    (tradeReceipt || monitor.domain === 'bio')
+  ) {
     // The proof data (ipfs_cid / hedera_tx_id / arb_tx_hash) is
     // written to the signal row by the post-commit step. Pull it
     // back out so the broadcast can include explorer links.
@@ -838,12 +844,14 @@ export async function executeCheck(monitor: Monitor): Promise<{
         hcs_dispatch: agentScore.hcs_dispatch,
         dedicated_topic: agentScore.proof_action === 'dedicated_topic',
       },
-      tradeReceipt: {
-        chain: tradeReceipt.chain,
-        txHash: tradeReceipt.txHash,
-        pair: tradeReceipt.pair,
-        mode: tradeReceipt.mode,
-      },
+      tradeReceipt: tradeReceipt
+        ? {
+            chain: tradeReceipt.chain,
+            txHash: tradeReceipt.txHash,
+            pair: tradeReceipt.pair,
+            mode: tradeReceipt.mode,
+          }
+        : null,
       proofs: {
         ipfsCid: signalProofs?.ipfs_cid ?? null,
         hederaTxId: signalProofs?.hedera_hcs_message_id ?? null,

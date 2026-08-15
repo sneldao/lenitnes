@@ -1,0 +1,58 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=1920, height=1080">
+    <title>Logo Outro</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin="">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;900&family=JetBrains+Mono:wght@400;700&display=block" rel="stylesheet">
+    <script src="https://cdn.jsdelivr.net/npm/gsap@3.14.2/dist/gsap.min.js"></script>
+    <style>
+      * { margin: 0; padding: 0; box-sizing: border-box; }
+      html, body { margin: 0; width: 1920px; height: 1080px; overflow: hidden; background: #0a0a0f; }
+      #logo-outro { position: relative; width: 1920px; height: 1080px; overflow: hidden; background: radial-gradient(ellipse at 50% 40%, #12102a 0%, #0a0a0f 70%); font-family: 'Inter', sans-serif; }
+      .logo-glow { position: absolute; width: 400px; height: 400px; border-radius: 50%; background: radial-gradient(circle, rgba(124,92,252,0.2), transparent); top: 20%; left: 50%; transform: translateX(-50%); }
+      .logo-container { position: absolute; top: 45%; left: 50%; transform: translate(-50%, -50%); display: flex; align-items: center; justify-content: center; }
+      .text-container { position: absolute; bottom: 280px; left: 50%; transform: translateX(-50%); text-align: center; }
+      .tagline { font-size: 22px; font-weight: 500; color: rgba(255,255,255,0.6); letter-spacing: 0.02em; opacity: 0; }
+      .brand-name { font-size: 96px; font-weight: 900; color: #fff; letter-spacing: -0.03em; opacity: 0; }
+      .brand-sub { font-size: 24px; font-weight: 400; color: rgba(255,255,255,0.4); margin-top: 8px; letter-spacing: 0.08em; text-transform: uppercase; opacity: 0; }
+      .hashscan-links { position: absolute; bottom: 80px; left: 50%; transform: translateX(-50%); display: flex; gap: 20px; opacity: 0; }
+      .hashscan-link { font-size: 13px; color: rgba(164,162,245,0.6); font-family: 'JetBrains Mono', monospace; text-decoration: none; }
+    </style>
+  </head>
+  <body>
+    <div data-hf-id="hf-8xbj" id="logo-outro" data-composition-id="logo-outro" data-width="1920" data-height="1080" data-start="0" data-duration="15.6">
+      <div data-hf-id="hf-put4" class="logo-glow" id="glow"></div>
+
+      <div data-hf-id="hf-8tgh" class="logo-container" id="logoContainer">
+        <div data-hf-id="hf-r42j" id="brandName" class="brand-name">LENITNES</div>
+      </div>
+
+      <div data-hf-id="hf-ppg1" class="text-container" id="textContainer">
+        <div data-hf-id="hf-ehzk" id="tagline" class="tagline">Every signal notarized. Every read paid. Every payment on-chain.</div>
+      </div>
+
+      <div data-hf-id="hf-4w8h" id="hashscanLinks" class="hashscan-links">
+        <span data-hf-id="hf-ajth" class="hashscan-link">hashscan.io/testnet/account/0.0.9137770</span>
+        <span data-hf-id="hf-h67c" class="hashscan-link">hashscan.io/testnet/topic/0.0.9159618</span>
+      </div>
+    </div>
+
+    <script>
+      window.__timelines = window.__timelines || {};
+      var tl = gsap.timeline({ paused: true });
+
+      tl.from("#glow", { scale: 0, opacity: 0, duration: 0.8, ease: "power2.out" }, 0);
+      tl.to("#brandName", { opacity: 1, y: -20, duration: 0.5, ease: "power2.out" }, 0.3);
+      tl.to("#brandName", { scale: 1.05, duration: 0.3, yoyo: true, repeat: 1, ease: "power1.inOut" }, 1.0);
+      tl.to("#glow", { scale: 1.25, opacity: 0.7, duration: 3.5, ease: "sine.inOut", yoyo: true, repeat: 2 }, 2.0);
+
+      tl.to("#tagline", { opacity: 1, y: -10, duration: 0.5, ease: "power2.out" }, 2.0);
+      tl.to("#hashscanLinks", { opacity: 1, duration: 0.5 }, 2.6);
+
+      window.__timelines["logo-outro"] = tl;
+    </script>
+  </body>
+</html>

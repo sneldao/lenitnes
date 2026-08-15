@@ -1,5 +1,6 @@
 import { config } from '../config.js';
 import { logger } from '../logger.js';
+import type { AgentAction } from '@lenitnes/types';
 import { monitorRepoFromUrl } from './domain/repo-tier-policy.js';
 import { formatUtcShort } from './telegram-messages.js';
 import { classifySignalSource } from './domain/signal-source.js';
@@ -209,7 +210,7 @@ export interface BroadcastSignalInput {
   agentScore: {
     conviction: number;
     thesis: string;
-    recommended_action: 'long' | 'short' | 'none';
+    recommended_action: AgentAction;
     confidence_band: 'low' | 'mid' | 'high';
     /**
      * Agent's first-person dispatch — written to Hedera HCS via

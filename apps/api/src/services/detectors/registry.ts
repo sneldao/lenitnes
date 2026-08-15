@@ -10,6 +10,8 @@ import { protocolUpgradeDetector } from './protocol-upgrade.js';
 import { supplyChainRiskDetector } from './supply-chain-risk.js';
 import { newsSignalDetector } from './news-signal.js';
 import { mlDetector } from './ml.js';
+import { methodFixDetector } from './method-fix.js';
+import { resultsRewriteDetector } from './results-rewrite.js';
 
 const detectors: SignalDetector[] = [
   emergencyPatchDetector,
@@ -22,11 +24,16 @@ const detectors: SignalDetector[] = [
   supplyChainRiskDetector,
   newsSignalDetector,
   mlDetector,
+  // LENITNES[bio] — scientific-software integrity detectors (domain-gated)
+  methodFixDetector,
+  resultsRewriteDetector,
 ];
 
 export async function runDetectors(input: DetectorInput): Promise<SignalClassification[]> {
+  const domain = input.domain ?? 'code';
   const results: SignalClassification[] = [];
   for (const detector of detectors) {
+    if (detector.domains && !detector.domains.includes(domain)) continue;
     const classification = await detector.detect(input);
     if (classification) results.push(classification);
   }

@@ -1,0 +1,117 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=1920, height=1080">
+    <title>Flowchart</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin="">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Space+Mono:wght@400;700&display=block" rel="stylesheet">
+    <script src="https://cdn.jsdelivr.net/npm/gsap@3.14.2/dist/gsap.min.js"></script>
+    <style>
+      * { margin: 0; padding: 0; box-sizing: border-box; }
+      html, body { margin: 0; width: 1920px; height: 1080px; overflow: hidden; background-color: #0a0a1a; }
+      #flowchart { width: 1920px; height: 1080px; background-color: #0a0a1a; background-image: radial-gradient(rgba(162, 89, 255, 0.08) 1px, transparent 1px); background-size: 24px 24px; position: absolute; overflow: hidden; font-family: "Space Mono", monospace; }
+      #flowchart .canvas { width: 100%; height: 100%; position: absolute; }
+      #flowchart .node { position: absolute; transform: translate(-50%, -50%) scale(0); padding: 14px 22px; border-radius: 12px; font-size: 16px; font-weight: 600; color: #fff; box-shadow: 0 4px 20px rgba(0,0,0,0.3); white-space: nowrap; display: flex; flex-direction: column; align-items: center; justify-content: center; z-index: 10; }
+      #flowchart .node.purple { background: #5b3fd4; }
+      #flowchart .node.green { background: #196f3d; }
+      #flowchart .node.orange { background: #9a4f00; }
+      #flowchart .node.blue { background: #21618c; }
+      #flowchart .node.pink { background: #922b55; }
+      #flowchart .node.cyan { background: #0e6655; }
+      #flowchart .node.dim { background: #2d2d4a; border: 1px solid #7c5cfc; }
+      #flowchart .connectors { position: absolute; top: 0; left: 0; z-index: 5; pointer-events: none; }
+      #flowchart .connector { stroke-dasharray: 1200; stroke-dashoffset: 1200; }
+      #flowchart .connector-label { position: absolute; font-size: 12px; font-weight: 600; color: #aaa; background: rgba(10,10,26,0.9); padding: 2px 8px; border-radius: 4px; opacity: 0; z-index: 6; transform: translate(-50%, -50%); font-family: "Inter", sans-serif; }
+      #flowchart .arrow-head { position: absolute; z-index: 5; opacity: 0; }
+      #flowchart .title-label { position: absolute; top: 40px; left: 50%; transform: translateX(-50%); font-size: 28px; font-weight: 700; color: #fff; opacity: 0; z-index: 20; font-family: "Inter", sans-serif; letter-spacing: -0.02em; }
+      #flowchart .hedera-accent { color: #A4A2F5; }
+      #flowchart .fade-overlay { position: absolute; top: 0; left: 0; width: 100%; height: 100%; background-color: #0a0a1a; opacity: 0; z-index: 1000; pointer-events: none; }
+      #flowchart .packet { position: absolute; left: 0; top: 0; width: 16px; height: 16px; margin-left: -8px; margin-top: -8px; border-radius: 50%; background: radial-gradient(circle, #ffffff 0%, #A4A2F5 45%, rgba(164,162,245,0) 75%); box-shadow: 0 0 18px 6px rgba(164,162,245,0.55); z-index: 8; opacity: 0; pointer-events: none; }
+    </style>
+  </head>
+  <body>
+    <div data-hf-id="hf-ngyc" id="flowchart" data-composition-id="flowchart" data-width="1920" data-height="1080" data-start="0" data-duration="21">
+      <div data-hf-id="hf-nq1o" class="canvas">
+        <svg data-hf-id="hf-vzh1" class="connectors" width="1920" height="1080" viewBox="0 0 1920 1080">
+          <path data-hf-id="hf-ubts" id="c1" class="connector" d="M 960 140 L 960 210 L 650 210 L 650 280" fill="none" stroke="#A4A2F5" stroke-width="3" />
+          <path data-hf-id="hf-6uct" id="c2" class="connector" d="M 960 140 L 960 210 L 1270 210 L 1270 280" fill="none" stroke="#A4A2F5" stroke-width="3" />
+          <path data-hf-id="hf-j98f" id="c3" class="connector" d="M 650 340 L 650 400 L 450 400 L 450 470" fill="none" stroke="#A4A2F5" stroke-width="3" />
+          <path data-hf-id="hf-4rr4" id="c4" class="connector" d="M 650 340 L 650 400 L 850 400 L 850 470" fill="none" stroke="#A4A2F5" stroke-width="3" />
+          <path data-hf-id="hf-rkek" id="c5" class="connector" d="M 1270 340 L 1270 410 L 1450 410 L 1450 480" fill="none" stroke="#A4A2F5" stroke-width="3" />
+          <path data-hf-id="hf-vkt3" id="c6" class="connector" d="M 1270 340 L 1270 410 L 1090 410 L 1090 480" fill="none" stroke="#A4A2F5" stroke-width="3" />
+          <path data-hf-id="hf-tb71" id="c7" class="connector" d="M 1450 540 L 1450 610 L 960 610 L 960 680" fill="none" stroke="#A4A2F5" stroke-width="3" stroke-dasharray="8,4" />
+        </svg>
+
+        <div data-hf-id="hf-wmao" id="label1" class="connector-label" style="left: 800px; top: 245px;">GET /paid/feed</div>
+        <div data-hf-id="hf-vgjt" id="label2" class="connector-label" style="left: 1110px; top: 245px;">402 Payment Required</div>
+
+        <div data-hf-id="hf-nhmb" class="title-label" id="title-label">x402 <span data-hf-id="hf-ho4a" class="hedera-accent">×</span> Hedera</div>
+
+        <div data-hf-id="hf-wskv" id="n1" class="node purple" style="left: 960px; top: 110px;">Agent requests data</div>
+        <div data-hf-id="hf-vmer" id="n2" class="node green" style="left: 650px; top: 310px">GET → 402</div>
+        <div data-hf-id="hf-bxcv" id="n3" class="node orange" style="left: 1270px; top: 310px">402 + PAYMENT-REQUIRED</div>
+        <div data-hf-id="hf-szn8" id="n4" class="node blue" style="left: 450px; top: 500px">Sign HBAR transfer</div>
+        <div data-hf-id="hf-tvxy" id="n5" class="node cyan" style="left: 850px; top: 500px">Memo = UUID (replay protection)</div>
+        <div data-hf-id="hf-6liu" id="n6" class="node pink" style="left: 1450px; top: 510px">Retry with PAYMENT-SIGNATURE</div>
+        <div data-hf-id="hf-95il" id="n7" class="node purple" style="left: 1090px; top: 510px">Verifies: payer, payee, amount, sig</div>
+        <div data-hf-id="hf-2vg6" id="n8" class="node green" style="left: 960px; top: 710px">200 OK + PAYMENT-RESPONSE</div>
+
+        <div data-hf-id="hf-pkt1" id="packet" class="packet"></div>
+
+        <div data-hf-id="hf-q6ni" id="fade-overlay" class="fade-overlay"></div>
+      </div>
+
+      <script>
+        (function () {
+          var tl = gsap.timeline({ paused: true });
+          var S = '[data-composition-id="flowchart"]';
+
+          tl.to(S + ' #title-label', { opacity: 1, y: -10, duration: 0.5, ease: "power2.out" }, 0);
+          tl.to(S + ' #n1', { scale: 1, duration: 0.4, ease: "back.out(1.7)" }, 0.3);
+          tl.addLabel("h1", "+=0.5");
+          tl.to(S + ' #c1, ' + S + ' #c2', { strokeDashoffset: 0, duration: 0.5, ease: "none" }, "h1");
+          tl.to(S + ' #label1, ' + S + ' #label2', { opacity: 1, duration: 0.2 }, "h1+=0.25");
+          tl.to(S + ' #n2', { scale: 1, duration: 0.4, ease: "back.out(1.7)" }, "h1+=0.3");
+          tl.to(S + ' #n3', { scale: 1, duration: 0.4, ease: "back.out(1.7)" }, "h1+=0.5");
+          tl.addLabel("h2", "+=0.4");
+          tl.to(S + ' #c3, ' + S + ' #c4, ' + S + ' #c5, ' + S + ' #c6', { strokeDashoffset: 0, duration: 0.4, ease: "none" }, "h2");
+          var leaves = [S + ' #n4', S + ' #n5', S + ' #n6', S + ' #n7'];
+          leaves.forEach(function(id, i) {
+            tl.to(id, { scale: 1, duration: 0.4, ease: "back.out(1.7)" }, "h2+=" + (0.3 + i * 0.12));
+          });
+          tl.addLabel("h3", "+=0.3");
+          tl.to(S + ' #c7', { strokeDashoffset: 0, duration: 0.4, ease: "none" }, "h3");
+          tl.to(S + ' #n8', { scale: 1, duration: 0.5, ease: "back.out(2)" }, "h3+=0.2");
+          tl.to(S + ' #n8', { scale: 1.07, duration: 0.7, ease: "sine.inOut", yoyo: true, repeat: 5 }, 8);
+
+          // Payment packets travel the happy path (request -> 402 -> sign -> retry -> 200 OK)
+          var packet = S + ' #packet';
+          var pathPts = [
+            [960,110],[960,210],[1270,210],[1270,310],
+            [1270,410],[1450,410],[1450,510],
+            [1450,610],[960,610],[960,710]
+          ];
+          function runPacket(t0) {
+            tl.set(packet, { x: pathPts[0][0], y: pathPts[0][1], opacity: 0, scale: 1 }, t0);
+            tl.to(packet, { opacity: 1, duration: 0.18 }, t0);
+            var t = t0 + 0.1;
+            for (var i = 1; i < pathPts.length; i++) {
+              tl.to(packet, { x: pathPts[i][0], y: pathPts[i][1], duration: 0.26, ease: "power1.inOut" }, t);
+              t += 0.26;
+            }
+            tl.to(S + ' #n8', { boxShadow: "0 0 34px rgba(46,204,113,0.75)", duration: 0.22, yoyo: true, repeat: 1 }, t);
+            tl.to(packet, { opacity: 0, scale: 1.8, duration: 0.3, ease: "power2.out" }, t);
+          }
+          runPacket(6.0);
+          runPacket(11.5);
+          runPacket(17.0);
+
+          tl.to(S + ' #fade-overlay', { opacity: 1, duration: 0.6 }, 20.3);
+          window.__timelines["flowchart"] = tl;
+        })();
+      </script>
+    </div>
+  </body>
+</html>

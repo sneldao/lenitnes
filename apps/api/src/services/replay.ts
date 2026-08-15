@@ -12,7 +12,13 @@
 // detector or scoring logic.
 // ─────────────────────────────────────────────────────────────
 
-import type { AgentScore, Chain, SignalClassification } from '@lenitnes/types';
+import type {
+  AgentAction,
+  AgentScore,
+  Chain,
+  MonitorDomain,
+  SignalClassification,
+} from '@lenitnes/types';
 import { buildAgentEnvFromConfig, score } from './agent.js';
 import {
   enrichCommitStats,
@@ -30,6 +36,7 @@ import {
 } from './data-providers/coingecko/index.js';
 import { config } from '../config.js';
 import { directionalPctChange, isDirectionalHit } from './domain/outcome-metrics.js';
+import { formatLiteratureContext, searchLiterature } from './literature.js';
 import { sortReposBySectorSequence } from './domain/sector-graph.js';
 import { buildSequenceContextFromEvents, type SequenceEvent } from './domain/sequence-context.js';
 import { logger } from '../logger.js';
@@ -51,6 +58,8 @@ export interface ReplayInput {
   from: string;
   to: string;
   asset: string;
+  /** Vertical: 'code' (crypto, default) or 'bio' (scientific software). */
+  domain?: MonitorDomain;
   /** Optional override — defaults to MOCK_AGENT from env so tests are deterministic. */
   mock?: boolean;
   /** Pre-fetched price series (watchlist sweep shares one series per asset). */
@@ -71,10 +80,10 @@ export interface ReplayCommitVerdict {
     label: string;
   }>;
   agentScore: AgentScore;
-  /** A paper trade would have been placed on this commit. */
+  /** A paper trade would have been placed on this commit (bio: alert instead). */
   wouldHaveTraded: {
     chain: Chain;
-    side: 'long' | 'short' | 'none';
+    side: AgentAction;
     pair: string;
     paper: true;
   };
@@ -88,6 +97,14 @@ export interface ReplayCommitVerdict {
     correct: boolean | null;
     /** T+7d directional verdict when matured. */
     correctT7d: boolean | null;
+  };
+  /** Bio vertical: the dated ground-truth event this alert scores against. */
+  bioOutcome?: {
+    event_kind: 'retraction' | 'correction' | 'disclosure' | 'release';
+    event_at: string;
+    event_source: string;
+    lead_days: number;
+    confirmed: boolean;
   };
 }
 
@@ -118,26 +135,6 @@ export interface DetectorResponsiveness {
   avgDirectionalT7d: number | null;
 }
 
-/** Canonical halo2 example — the founding case study.
- *
- * Replays the agent against the public emergency response to the
- * 2026 Orchard soundness vulnerability (CVE-class bug discovered
- * by Taylor Hornby + Anthropic Opus 4.8 on 2026-05-29, disclosed
- * 2026-06-04, ZEC -50% in 48h):
- *
- *   2026-06-02 ~02:00 UTC — Zebra 4.5.3 emergency soft fork at
- *     block 3,363,426 disables all Orchard-containing transactions.
- *   2026-06-03 00:05 EDT — Zebra 5.0.0 / NU6.2 hard fork at block
- *     3,364,600 re-enables Orchard with the corrected halo2 circuit.
- *   2026-06-04→06-05 — public disclosure, ZEC drops from ~$624 to
- *     ~$309, $5B in market cap erased.
- *
- * LENITNES doesn't claim to have found the bug (Hornby + Opus 4.8
- * did). It claims the EMERGENCY RESPONSE pattern in public repos
- * — a surprise soft fork disabling a feature with no preceding
- * bug report, immediately followed by a hard fork that swaps the
- * verifying key — is exactly what our detectors fire on. Two days
- * of warning before formal disclosure. SHORT ZEC. */
 export const HALO2_REPLAY: ReplayCommitVerdict = {
   // Public Zebra 4.5.3 emergency release (the signal the agent
   // actually sees in real time — the bug fix itself was disclosed
@@ -202,6 +199,92 @@ export const HALO2_REPLAY: ReplayCommitVerdict = {
   },
 };
 
+/** Canonical LENITNES[bio] example — the science founding case study.
+ *
+ * In May 2015 AFNI silently corrected a 15-year-old edge-effect bug in
+ * 3dClustSim's cluster-size thresholding (commit 2baf5710, 2015-05-12).
+ * A year later Eklund, Nichols & Knutsson's "Cluster failure" study
+ * (PNAS 2016, doi:10.1073/pnas.1602413113) showed the parametric
+ * cluster-inference methods in AFNI/FSL/SPM inflated false-positive
+ * rates far beyond the nominal 5%, invalidating large swaths of
+ * published task-fMRI results. The fix commit is a textbook
+ * method_fix signal: validity-relevant, under-documented, in a tool
+ * thousands of papers depended on. LENITNES[bio] claims this pattern —
+ * a quiet statistical-method correction in widely-used scientific
+ * software — is exactly what the bio detectors + v6 rubric fire on,
+ * 413 days before the community-wide exposure.
+ *
+ * Real artifacts (GitHub API, verified 2026-08-15):
+ *   commit 2baf57105ef054481a2011cbbb082496fe3b8e17 (2015-05-12T14:53:37Z)
+ *   follow-ups: 94b03435 (help), 34c5e4a0 (-tdof option), 721bd150 (typo) */
+export const CLUSTSIM_REPLAY: ReplayCommitVerdict = {
+  hash: '2baf57105ef054481a2011cbbb082496fe3b8e17',
+  message: 'deal with edge effects in 3dClustSim',
+  committedAt: '2015-05-12T14:53:37.000Z',
+  detectorClassifications: [
+    {
+      detector_type: 'method_fix',
+      score: 94,
+      confidence: 90,
+      label: 'Statistical-method correction in cluster-size thresholding kernel',
+    },
+    {
+      detector_type: 'emergency_patch',
+      score: 62,
+      confidence: 55,
+      label: 'Corrective commit to core inference routine without preceding issue thread',
+    },
+    {
+      detector_type: 'results_rewrite',
+      score: 48,
+      confidence: 50,
+      label: 'Numerical outputs regenerated alongside the thresholding change',
+    },
+  ],
+  agentScore: {
+    id: 'agent-score-clustsim',
+    signal_id: 'sig-clustsim-replay',
+    rubric_version: 'v6',
+    conviction: 88,
+    thesis:
+      'Commit 2baf5710 corrects edge effects in 3dClustSim cluster-size thresholding — a core fMRI inference routine. Undocumented numerical corrections in widely-used statistical code are a classic precursor to mass invalidation of dependent results. ALERT.',
+    recommended_action: 'alert',
+    confidence_band: 'high',
+    hcs_dispatch:
+      'I observed a method_fix signal on afni/afni at 2015-05-12: commit 2baf5710 corrects edge effects in 3dClustSim cluster-size thresholding, a core routine whose false-positive calibration underlies thousands of published fMRI studies. The change is under-documented (no issue thread, terse message) in a widely-used statistical kernel. Conviction 88/100, recommending alert: published results relying on pre-fix 3dClustSim p-values should be treated as suspect pending re-analysis. I acknowledge the fix may be benign tuning; the alert stands on the pattern, not on certainty of harm.',
+    proof_action: 'dedicated_topic',
+    literature: [
+      {
+        title:
+          'Cluster failure: Why fMRI inferences for spatial extent have inflated false-positive rates',
+        doi: '10.1073/pnas.1602413113',
+        primary_id: 'pmcid:PMC4936732',
+        year: '2016',
+        source: 'firecrawl',
+      },
+    ],
+    raw_response: {
+      model: 'replay-stub',
+      input: 'afni 3dClustSim edge-effect fix replay',
+    },
+    created_at: '2015-05-12T15:10:00.000Z',
+  },
+  wouldHaveTraded: {
+    // Bio vertical: no trade — the commitment is the HCS-anchored alert.
+    chain: 'hedera',
+    side: 'alert',
+    pair: '—',
+    paper: true,
+  },
+  bioOutcome: {
+    event_kind: 'disclosure',
+    event_at: '2016-06-28T00:00:00.000Z',
+    event_source: 'doi:10.1073/pnas.1602413113',
+    lead_days: 413,
+    confirmed: true,
+  },
+};
+
 /** Max day-batches sent to the agent per replay — bounds LLM cost.
  * Batches beyond the cap keep their detector classifications but are
  * dropped from the scored output (strongest-first). */
@@ -226,7 +309,7 @@ function groupByDay(commits: GitHubCommit[]): Map<string, GitHubCommit[]> {
 async function fetchPriceOutcome(
   asset: string,
   dayIso: string,
-  recommendedAction: 'long' | 'short' | 'none',
+  recommendedAction: AgentAction,
   series: PricePoint[] | null,
 ): Promise<ReplayCommitVerdict['priceOutcome']> {
   const dayStart = new Date(`${dayIso}T00:00:00Z`);
@@ -273,8 +356,16 @@ export async function replay(input: ReplayInput): Promise<{
   verdicts: ReplayCommitVerdict[];
   flaggedBatches: number;
 }> {
+  const domain: MonitorDomain = input.domain ?? 'code';
   logger.info(
-    { repo: input.repo, from: input.from, to: input.to, asset: input.asset, mock: input.mock },
+    {
+      repo: input.repo,
+      from: input.from,
+      to: input.to,
+      asset: input.asset,
+      domain,
+      mock: input.mock,
+    },
     'replay: scanning historical commit range',
   );
 
@@ -306,6 +397,35 @@ export async function replay(input: ReplayInput): Promise<{
 
   const sequenceLog = input.sequenceLog ?? [];
 
+  // Bio vertical: one literature lookup per replay (repo-level), folded
+  // into every batch's agent input as corroboration context.
+  let literatureContext = '';
+  if (domain === 'bio') {
+    try {
+      const commitLines = commits
+        .map((c) => c.message.split('\n')[0])
+        .slice(0, 8)
+        .join(' | ')
+        .slice(0, 400);
+      const refs = await searchLiterature(
+        input.repo,
+        commitLines,
+        `scientific software integrity watch: ${input.repo}`,
+      );
+      literatureContext = formatLiteratureContext(refs);
+    } catch (err) {
+      logger.warn(
+        { err, repo: input.repo },
+        'replay: literature lookup failed — continuing without',
+      );
+    }
+  }
+
+  const conditionText =
+    domain === 'bio'
+      ? 'Any commit fixing or silently changing statistical methods, analysis pipelines, or results-bearing code in scientific software.'
+      : 'Any commit referencing a consensus-critical change, emergency patch, or security vulnerability fix.';
+
   // Detector pass per day-batch — free, runs on everything.
   const firing: Array<{
     day: string;
@@ -324,8 +444,8 @@ export async function replay(input: ReplayInput): Promise<{
       },
       commits: batch,
       monitorUrl: input.repo,
-      monitorCondition:
-        'Any commit referencing a consensus-critical change, emergency patch, or security vulnerability fix.',
+      monitorCondition: conditionText,
+      domain,
     });
     if (classifications.length > 0) {
       const topScore = Math.max(...classifications.map((c) => c.score));
@@ -368,6 +488,7 @@ export async function replay(input: ReplayInput): Promise<{
       const agentScore = await score(
         {
           signal_id: `replay-${f.day}-${strongest.sha.slice(0, 8)}`,
+          domain,
           detector_classifications: f.classifications.map((c) => ({
             detector_type: c.type,
             score: c.score,
@@ -375,18 +496,20 @@ export async function replay(input: ReplayInput): Promise<{
             label: c.label,
             metadata: c.metadata,
           })),
-          asset_mapping: { coingeckoId: input.asset, direction: 'both' },
+          asset_mapping: { coingeckoId: input.asset || undefined, direction: 'both' },
           evidence_text: formatCommitEvidence(f.batch, 10),
           condition_summary: `Replay ${input.repo} · ${f.day} · ${f.batch.length} commit(s)`,
           precedent_count: 0,
           sequence_context: sequence_context || undefined,
+          literature_context: literatureContext || undefined,
         },
         env,
       );
 
-      const priceOutcome = input.asset
-        ? await fetchPriceOutcome(input.asset, f.day, agentScore.recommended_action, priceSeries)
-        : undefined;
+      const priceOutcome =
+        domain === 'bio' || !input.asset
+          ? undefined
+          : await fetchPriceOutcome(input.asset, f.day, agentScore.recommended_action, priceSeries);
 
       verdicts.push({
         hash: strongest.sha,
@@ -399,12 +522,20 @@ export async function replay(input: ReplayInput): Promise<{
           label: c.label,
         })),
         agentScore,
-        wouldHaveTraded: {
-          chain: 'bnb',
-          side: agentScore.recommended_action,
-          pair: input.asset ? `${input.asset.toUpperCase()}USD` : 'UNKNOWN',
-          paper: true,
-        },
+        wouldHaveTraded:
+          domain === 'bio'
+            ? {
+                chain: 'hedera',
+                side: agentScore.recommended_action,
+                pair: '—',
+                paper: true,
+              }
+            : {
+                chain: 'bnb',
+                side: agentScore.recommended_action,
+                pair: input.asset ? `${input.asset.toUpperCase()}USD` : 'UNKNOWN',
+                paper: true,
+              },
         commitCount: f.batch.length,
         priceOutcome,
       });
@@ -558,14 +689,18 @@ export function describeReplay(input: {
   from?: string;
   to?: string;
   asset?: string;
+  domain?: MonitorDomain;
 }): ReplayInput {
   const now = new Date();
   const ninetyDaysAgo = new Date(now.getTime() - 90 * 24 * 3600 * 1000);
+  const domain: MonitorDomain = input.domain ?? 'code';
   return {
     repo: input.repo,
     from: input.from ?? ninetyDaysAgo.toISOString(),
     to: input.to ?? now.toISOString(),
-    asset: input.asset ?? 'zcash',
+    // Bio replays have no priced asset — outcomes are discrete events.
+    asset: input.asset ?? (domain === 'bio' ? '' : 'zcash'),
+    domain,
   };
 }
 

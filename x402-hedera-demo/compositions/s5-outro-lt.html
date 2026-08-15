@@ -1,0 +1,81 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8">
+    <script src="https://cdn.jsdelivr.net/npm/gsap@3.14.2/dist/gsap.min.js"></script>
+    <style>
+      * { margin: 0; padding: 0; box-sizing: border-box; }
+      html, body { background: transparent; overflow: hidden; }
+      body { width: 1920px; height: 1080px; }
+      #root .lt {
+        position: absolute;
+        left: 130px;
+        bottom: 122px;
+        display: flex;
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 14px;
+      }
+      #root .lt-kickwrap { overflow: hidden; }
+      #root .lt-kicker {
+        display: inline-block;
+        font-family: "Space Mono", monospace;
+        font-size: 22px;
+        font-weight: 700;
+        color: #ffffff;
+        background: #3b2a86;
+        padding: 6px 14px;
+        letter-spacing: 0.1em;
+        text-transform: uppercase;
+        white-space: nowrap;
+      }
+      #root .lt-name {
+        font-family: "Archivo Black", sans-serif;
+        font-size: 56px;
+        font-weight: 400;
+        color: #ffffff;
+        line-height: 0.98;
+        letter-spacing: -0.015em;
+        text-transform: uppercase;
+        white-space: normal;
+        max-width: 1600px;
+        text-shadow: 0 2px 22px rgba(0, 0, 0, 0.5);
+      }
+      #root .lt-baseline {
+        height: 5px;
+        width: 100%;
+        background: #7c5cfc;
+        border-radius: 3px;
+        transform-origin: 0% 50%;
+      }
+    </style>
+  </head>
+  <body>
+    <div data-hf-id="hf-9wp9" id="root" data-composition-id="s5-outro-lt" data-width="1920" data-height="1080" data-start="0" data-duration="12">
+      <div data-hf-id="hf-oj5g" id="lt-clip" class="clip" data-start="0" data-duration="12" data-track-index="0">
+        <div data-hf-id="hf-twi6" id="lt" class="lt">
+          <div data-hf-id="hf-xtof" class="lt-kickwrap">
+            <span data-hf-id="hf-48zr" id="lt-kicker" class="lt-kicker">SUBMISSION</span>
+          </div>
+          <div data-hf-id="hf-qlfe" id="lt-name" class="lt-name">github.com/sneldao/lenitnes</div>
+          <div data-hf-id="hf-tqpq" id="lt-baseline" class="lt-baseline"></div>
+        </div>
+      </div>
+    </div>
+
+    <script>
+      window.__timelines = window.__timelines || {};
+      var tl = gsap.timeline({ paused: true });
+      var kicker = document.getElementById("lt-kicker");
+      var nameEl = document.getElementById("lt-name");
+      var baseline = document.getElementById("lt-baseline");
+      gsap.set(kicker, { y: -40 });
+      gsap.set(nameEl, { y: 34, opacity: 0 });
+      gsap.set(baseline, { scaleX: 0 });
+      tl.to(kicker, { y: 0, duration: 0.42, ease: "back.out(2)" }, 0.1);
+      tl.to(nameEl, { y: 0, opacity: 1, duration: 0.45, ease: "back.out(1.5)" }, 0.32);
+      tl.to(baseline, { scaleX: 1, duration: 0.5, ease: "power4.out" }, 0.5);
+      window.__timelines["s5-outro-lt"] = tl;
+    </script>
+  </body>
+</html>
