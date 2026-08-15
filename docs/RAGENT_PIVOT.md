@@ -5,16 +5,24 @@
 > **LENITNES[bio]** — the re:AGENT build: a sentinel for scientific
 > software integrity. Same pipeline, same proof chain, new domain.
 
-> **Build status (Sat 2026-08-15, ~midnight local):** All code-side exit
-> criteria met and pushed to `origin/main`. Bio detector verified live
-> against the real afni `2baf5710` fix commit (method_fix fires). Migrations
-> 008 + 009 validated on a scratch PG14 (alert/investigate accepted,
-> literature JSONB stored, invalid actions rejected). **Outstanding:**
-> (1) LLM credits — Virtuals key returned 402 mid-live-test; need top-up or
-> hackathon Claude credits for live rubric-v6 scoring (mock mode covers demo
-> via `CLUSTSIM_REPLAY`); (2) deploy migrations + bio watchlist to VPS so
-> monitors accumulate real signals overnight; (3) Paperclip key + Boltz repo
-> confirmation from organizers.
+> **Build status (Sat 2026-08-15, late evening):** Deployed and live.
+> Provider swap complete (`ac77d2d`): NVIDIA/Virtuals removed; the agent
+> now scores on a Qwen3.8 chain — keyless HF endpoint (`Qwen/Qwen3.8-27B`,
+> ~30 req/min) primary, TokenRouter (`qwen/qwen3.8-max-free`) fallback,
+> thinking disabled for clean JSON. Verified locally end-to-end (live
+> replay scored via the HF endpoint). Lockfile regression from the bio
+> commit fixed (`a767ace`, restore from `c49b8df`), docker `npm ci` green.
+> VPS deploy of `a767ace` succeeded: migrations 008 + 009 applied,
+> 5 bio monitors seeded, containers healthy, `.env` on the new provider
+> chain. **First live production bio signal already scored:**
+> `choderalab/openmmtools` commit `16b62a2` (minimization routine change),
+> `results_rewrite` detector, conviction 68 / investigate / rubric v6 via
+> Qwen3.8-27B — below the 70 broadcast threshold, archived to the
+> reasoning archive as designed. **Outstanding:** (1) Paperclip key + Boltz
+> repo confirmation from organizers; (2) visual QA of new web pages
+> (`/case-study/clustsim`, `/scorecard?domain=bio`, `/scan` toggle);
+> (3) demo video + pitch rehearsal; (4) first above-threshold bio
+> broadcast (needs conviction ≥ 70).
 
 ## The decision (one line)
 
