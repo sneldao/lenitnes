@@ -248,6 +248,31 @@ export interface ScorecardResponse {
   generatedAt: string;
 }
 
+// [bio] vertical — event-based integrity metrics. No price windows;
+// an alert is judged against the dated scientific record.
+export interface ScorecardBioAlert {
+  signalId: string;
+  detectedAt: string;
+  monitorUrl: string;
+  conviction: number | null;
+  thesis: string | null;
+  primaryDetector: string | null;
+  eventKind: 'retraction' | 'correction' | 'disclosure' | 'release' | null;
+  eventAt: string | null;
+  eventSource: string | null;
+  leadDays: number | null;
+}
+
+export interface ScorecardBioResponse {
+  totalAlerts: number;
+  confirmedEvents: number;
+  precision: number | null;
+  avgLeadDays: number | null;
+  maxLeadDays: number | null;
+  alerts: ScorecardBioAlert[];
+  generatedAt: string;
+}
+
 // ── Signal source attribution ─────────────────────────────────
 
 export type SignalSourceCategory = 'commit' | 'narrative' | 'thesis' | 'proactive';
@@ -576,6 +601,7 @@ export const api = {
     }>(`/dlq?limit=${limit}`),
 
   getScorecard: () => reqCamel<ScorecardResponse>(`/scorecard`),
+  getScorecardBio: () => reqCamel<ScorecardBioResponse>(`/scorecard?domain=bio`),
   getScorecardRecent: (limit?: number) =>
     reqCamel<ScorecardRecentCall[]>(`/scorecard/recent${limit ? `?limit=${limit}` : ''}`),
 

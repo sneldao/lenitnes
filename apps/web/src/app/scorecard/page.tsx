@@ -1,6 +1,6 @@
 'use client';
 
-import { useMemo } from 'react';
+import { useMemo, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import Link from 'next/link';
 import {
@@ -14,7 +14,12 @@ import {
   Shield,
   Radar,
 } from 'lucide-react';
-import { api, type ScorecardResponse, type PortfolioResponse } from '@/lib/api';
+import {
+  api,
+  type ScorecardResponse,
+  type ScorecardBioResponse,
+  type PortfolioResponse,
+} from '@/lib/api';
 import { qk, REFETCH } from '@/lib/queryKeys';
 import {
   formatRatio,
@@ -44,6 +49,162 @@ function pctTone(n: number | null): string {
 }
 
 export default function ScorecardPage() {
+  const [domain, setDomain] = useState<'code' | 'bio'>(() =>
+    typeof window !== 'undefined' &&
+    new URLSearchParams(window.location.search).get('domain') === 'bio'
+      ? 'bio'
+      : 'code',
+  );
+
+  return (
+    <div className="space-y-8">
+      {/* Domain tabs — badge style, mono text, no emoji */}
+      <div className="flex items-center gap-2 pt-2" role="tablist" aria-label="Scorecard domain">
+        {(['code', 'bio'] as const).map((d) => (
+          <button
+            key={d}
+            role="tab"
+            aria-selected={domain === d}
+            onClick={() => setDomain(d)}
+            className={`rounded border px-2.5 py-1 font-mono text-[11px] uppercase tracking-widest transition-colors ${
+              domain === d
+                ? 'border-accent/50 bg-accent/10 text-accent'
+                : 'border-edge/40 text-slate-500 hover:border-edge hover:text-slate-300'
+            }`}
+          >
+            [{d}]
+          </button>
+        ))}
+      </div>
+      {domain === 'bio' ? <BioScorecard /> : <CodeScorecard />}
+    </div>
+  );
+}
+
+// ── [bio] vertical: event-based integrity scorecard ──────────
+
+function BioScorecard() {
+  const { data, isLoading, isError } = useQuery<ScorecardBioResponse>({
+    queryKey: qk.scorecardBio(),
+    queryFn: () => api.getScorecardBio(),
+    refetchInterval: REFETCH.medium,
+  });
+
+  if (isLoading) return <PageLoader label="Recomputing the record…" />;
+  if (isError || !data)
+    return (
+      <PageError message="Failed to load the bio scorecard. The API may be down — try again in a moment." />
+    );
+
+  return (
+    <div className="space-y-8">
+      <header>
+        <p className="mb-2 font-mono text-[10px] uppercase tracking-widest text-signal">
+          lenitnes[bio] · scientific software integrity
+        </p>
+        <h1 className="font-display text-3xl font-semibold text-slate-100 sm:text-4xl">
+          Did the alert precede the record?
+        </h1>
+      </header>
+
+      <section className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+        <StatCard
+          icon={<Activity className="h-3 w-3" />}
+          label="Alerts committed"
+          value={data.totalAlerts.toString()}
+        />
+        <StatCard
+          icon={<Target className="h-3 w-3" />}
+          label="Confirmed events"
+          value={data.confirmedEvents.toString()}
+        />
+        <StatCard
+          icon={<Zap className="h-3 w-3" />}
+          label="Precision"
+          value={data.precision != null ? formatRatio(data.precision) : '—'}
+          caveat="confirmed / alerts"
+        />
+        <StatCard
+          icon={<Radar className="h-3 w-3" />}
+          label="Avg lead time"
+          value={data.avgLeadDays != null ? `${Math.round(data.avgLeadDays)}d` : '—'}
+          caveat={data.maxLeadDays != null ? `best ${data.maxLeadDays}d` : 'alert → event'}
+        />
+      </section>
+
+      {data.alerts.length > 0 ? (
+        <section className="card">
+          <h2 className="section-title mb-2 flex items-center gap-2">
+            <Radar className="h-3.5 w-3.5 text-accent" />
+            Alerts
+          </h2>
+          <ul>
+            {data.alerts.map((a, i) => (
+              <li key={a.signalId} className="border-t border-edge/20 first:border-t-0">
+                <Link
+                  href={`/signals/${a.signalId}`}
+                  className="group grid animate-signal-enter grid-cols-[1fr_auto] items-center gap-x-4 gap-y-1.5 px-2 py-3 transition-colors hover:bg-accent/[0.04] sm:grid-cols-[150px_1fr_auto_auto]"
+                  style={{ animationDelay: `${i * 50}ms` }}
+                >
+                  <div className="order-2 min-w-0 font-mono text-[10px] text-slate-600 sm:order-1">
+                    <div>{formatDate(a.detectedAt)}</div>
+                    <div className="truncate">
+                      {a.primaryDetector
+                        ? formatDetectorType(a.primaryDetector)
+                        : shortUrl(a.monitorUrl)}
+                    </div>
+                  </div>
+                  <p className="order-1 min-w-0 truncate text-sm text-slate-200 transition-colors group-hover:text-accent sm:order-2">
+                    {a.thesis ?? 'No thesis recorded'}
+                  </p>
+                  <div className="order-3 flex items-center gap-2">
+                    {a.eventKind ? (
+                      <span className="badge bg-signal/15 text-[9px] uppercase text-signal">
+                        {a.eventKind}
+                        {a.leadDays != null ? ` +${a.leadDays}d` : ''}
+                      </span>
+                    ) : (
+                      <span className="badge bg-slate-500/15 text-[9px] uppercase text-slate-400">
+                        pending
+                      </span>
+                    )}
+                    {a.conviction != null && (
+                      <span className="font-mono text-base font-bold text-accent">
+                        {a.conviction}
+                      </span>
+                    )}
+                  </div>
+                  <div className="order-4 font-mono text-[10px] text-slate-600">
+                    {shortUrl(a.monitorUrl)}
+                  </div>
+                </Link>
+              </li>
+            ))}
+          </ul>
+        </section>
+      ) : (
+        <div className="card border-edge/30 py-10 text-center">
+          <h2 className="mt-2 font-display text-xl font-semibold text-slate-200">
+            No bio alerts committed yet.
+          </h2>
+          <p className="mx-auto mt-2 max-w-md text-sm leading-relaxed text-slate-500">
+            The founding replay is live — see the 3dClustSim case study.
+          </p>
+          <div className="mt-5">
+            <Link
+              href="/case-study/clustsim"
+              className="btn px-4 py-2 text-xs uppercase tracking-wider"
+            >
+              See the founding example
+            </Link>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function CodeScorecard() {
   const { data, isLoading, isError, dataUpdatedAt } = useQuery<ScorecardResponse>({
     queryKey: qk.scorecard(),
     queryFn: () => api.getScorecard(),
@@ -95,7 +256,7 @@ export default function ScorecardPage() {
       <header className="flex flex-wrap items-end justify-between gap-4">
         <div>
           <p className="mb-2 font-mono text-[10px] uppercase tracking-widest text-accent">
-            public track record · updated live
+            lenitnes[code] · public track record · updated live
           </p>
           <h1 className="font-display text-3xl font-semibold text-slate-100 sm:text-4xl">
             Was the agent right?

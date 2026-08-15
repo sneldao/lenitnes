@@ -844,6 +844,8 @@ export async function executeCheck(monitor: Monitor): Promise<{
         hcs_dispatch: agentScore.hcs_dispatch,
         dedicated_topic: agentScore.proof_action === 'dedicated_topic',
       },
+      domain: monitor.domain,
+      literature: agentScore.literature,
       tradeReceipt: tradeReceipt
         ? {
             chain: tradeReceipt.chain,

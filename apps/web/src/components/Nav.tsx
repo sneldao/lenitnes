@@ -19,7 +19,8 @@ const MORE_LINKS = [
   { href: '/reasoning', label: 'Reasoning' },
   { href: '/intelligence', label: 'Intelligence' },
   { href: '/monitors', label: 'Watchlist' },
-  { href: '/case-study/halo2', label: 'Case Study' },
+  { href: '/case-study/halo2', label: 'Case study [code]' },
+  { href: '/case-study/clustsim', label: 'Case study [bio]' },
 ];
 
 export function Nav() {
@@ -90,7 +91,7 @@ export function Nav() {
             />
           </button>
           {moreOpen && (
-            <div className="absolute right-0 top-full z-50 mt-1 w-44 overflow-hidden rounded-xl border border-edge/60 bg-panel/98 shadow-card backdrop-blur-xl">
+            <div className="absolute right-0 top-full z-50 mt-1 w-52 overflow-hidden rounded-xl border border-edge/60 bg-panel/98 shadow-card backdrop-blur-xl">
               {MORE_LINKS.map((l) => (
                 <Link
                   key={l.href}

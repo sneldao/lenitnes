@@ -51,9 +51,23 @@ function Hero() {
         The agent that <em className="not-italic text-accent">would have shorted</em> halo2.
       </h1>
 
+      {/* Vertical tags — the badge row */}
+      <div className="mt-4 flex items-center justify-center gap-2 font-mono text-[11px]">
+        <span className="rounded border border-accent/40 bg-accent/10 px-2 py-0.5 uppercase tracking-widest text-accent">
+          [code]
+        </span>
+        <span className="text-slate-600">·</span>
+        <span className="rounded border border-signal/40 bg-signal/10 px-2 py-0.5 uppercase tracking-widest text-signal">
+          [bio]
+        </span>
+      </div>
+
       <p className="mx-auto mt-4 max-w-xl text-sm leading-relaxed text-slate-400">
-        An autonomous AI agent reads public commits to consensus-critical crypto code, scores every
-        signal on-chain, and publishes its calls before the market moves. No human in the loop.
+        One engine, two verticals. <span className="font-mono text-xs text-slate-300">[code]</span>{' '}
+        watches consensus-critical crypto repos and scores against price.{' '}
+        <span className="font-mono text-xs text-slate-300">[bio]</span> watches scientific software
+        and scores against the record — retractions, corrections, disclosures. Every call committed
+        on-chain before the outcome.
       </p>
 
       <div className="mt-6 flex flex-wrap items-center justify-center gap-3">
@@ -68,7 +82,13 @@ function Hero() {
           href="/case-study/halo2"
           className="btn-ghost inline-flex items-center gap-2 px-5 py-2.5 text-xs uppercase tracking-wider"
         >
-          The halo2 replay
+          halo2 <span className="font-mono text-[10px] opacity-60">[code]</span>
+        </Link>
+        <Link
+          href="/case-study/clustsim"
+          className="btn-ghost inline-flex items-center gap-2 px-5 py-2.5 text-xs uppercase tracking-wider"
+        >
+          3dClustSim <span className="font-mono text-[10px] opacity-60">[bio]</span>
         </Link>
       </div>
 

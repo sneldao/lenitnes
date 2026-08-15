@@ -7,6 +7,7 @@
 
 export const qk = {
   scorecard: () => ['scorecard', 'summary'] as const,
+  scorecardBio: () => ['scorecard', 'bio'] as const,
   scorecardRecent: (limit?: number) => ['scorecard', 'recent', limit ?? 'default'] as const,
   responsiveness: () => ['backtest', 'responsiveness'] as const,
   responsivenessCompare: () => ['backtest', 'responsiveness', 'compare'] as const,

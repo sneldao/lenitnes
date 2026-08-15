@@ -7,7 +7,7 @@ import { cn } from '@/lib/utils';
 interface CrowdVerdictVoteProps {
   signalKey: string;
   agentConviction: number;
-  agentAction: 'long' | 'short' | 'none';
+  agentAction: 'long' | 'short' | 'none' | 'alert' | 'investigate';
 }
 
 export function CrowdVerdictVote({

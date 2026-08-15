@@ -73,8 +73,8 @@ export const methodFixDetector: SignalDetector = {
     if (commits.length === 0) return null;
 
     const { matchedCommits, matchedKeywords, score } = commitScore(commits, KEYWORDS, {
-      message: 30,
-      size: 0.03,
+      message: 40,
+      size: 0.04,
     });
 
     if (matchedCommits.length === 0) return null;

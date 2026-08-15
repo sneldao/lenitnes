@@ -1,6 +1,6 @@
 import { config } from '../config.js';
 import { logger } from '../logger.js';
-import type { AgentAction } from '@lenitnes/types';
+import type { AgentAction, LiteratureRef, MonitorDomain } from '@lenitnes/types';
 import { monitorRepoFromUrl } from './domain/repo-tier-policy.js';
 import { formatUtcShort } from './telegram-messages.js';
 import { classifySignalSource } from './domain/signal-source.js';
@@ -221,6 +221,10 @@ export interface BroadcastSignalInput {
     /** True when the agent minted a dedicated HCS topic for this signal. */
     dedicated_topic?: boolean;
   };
+  /** Vertical tag — 'bio' renders the integrity-alert layout. */
+  domain?: MonitorDomain;
+  /** Corroborating literature rows (bio vertical). */
+  literature?: LiteratureRef[];
   tradeReceipt: {
     chain: string;
     txHash: string;
@@ -242,6 +246,7 @@ export interface BroadcastSignalInput {
  * since repeat readers already know the schedule.
  */
 export function formatSignalBroadcastMessage(input: BroadcastSignalInput): string {
+  if (input.domain === 'bio') return formatBioSignalBroadcastMessage(input);
   const lines: string[] = [];
   const asset = (input.tradeReceipt?.pair ?? 'watchlist').replace(/USD$/i, '').toUpperCase();
   const action = input.agentScore.recommended_action.toUpperCase();
@@ -327,6 +332,67 @@ export function formatSignalBroadcastMessage(input: BroadcastSignalInput): strin
   lines.push(`⏱ Verdict at T+1d · T+7d (auto-posted)`);
   lines.push(`🔗 ${config.webOrigin}/signals/${input.signalId}`);
   lines.push(`📊 ${config.webOrigin}/scorecard · ${config.webOrigin}/portfolio`);
+
+  return lines.join('\n');
+}
+
+/**
+ * Bio-vertical broadcast: an integrity alert, not a trade. No pair,
+ * no venue, no price-outcome schedule — the verdict is checked
+ * against the scientific record (correction / retraction / disclosure).
+ */
+function formatBioSignalBroadcastMessage(input: BroadcastSignalInput): string {
+  const lines: string[] = [];
+  const action = input.agentScore.recommended_action.toUpperCase();
+  const conviction = input.agentScore.conviction;
+  const band = input.agentScore.confidence_band;
+  const repo = monitorRepoFromUrl(input.monitorUrl);
+  const detector = input.primaryDetector ? ` · ${input.primaryDetector}` : '';
+
+  lines.push(`🔬 LENITNES[bio] · ${action} · ${conviction}/100 (${band})`);
+  lines.push(`📍 ${repo}${detector} · ${formatUtcShort(input.detectedAt)}`);
+  lines.push('');
+  lines.push(`💭 ${input.agentScore.thesis}`);
+  lines.push('');
+
+  if (input.literature?.length) {
+    lines.push('📚 Literature');
+    for (const ref of input.literature.slice(0, 3)) {
+      const id = ref.doi ? `doi:${ref.doi}` : (ref.primary_id ?? '');
+      lines.push(`   • ${ref.title}${ref.year ? ` (${ref.year})` : ''}${id ? ` · ${id}` : ''}`);
+    }
+    lines.push('');
+  }
+
+  if (input.agentScore.hcs_dispatch) {
+    const tag = input.agentScore.dedicated_topic
+      ? '🪶 Anchored on Hedera (dedicated topic)'
+      : '🪶 Anchored on Hedera';
+    lines.push(tag);
+    lines.push(`   "${input.agentScore.hcs_dispatch}"`);
+    lines.push('');
+  }
+
+  const proofLines: string[] = [];
+  if (input.proofs.hederaTxId) {
+    proofLines.push(
+      `   ⛓ HashScan: https://hashscan.io/testnet/transaction/${encodeURIComponent(input.proofs.hederaTxId)}`,
+    );
+  } else {
+    proofLines.push(`   ⛓ HashScan: pending`);
+  }
+  if (input.proofs.ipfsCid) {
+    proofLines.push(`   📦 Grove: https://grove.lens.xyz/ipfs/${input.proofs.ipfsCid}`);
+  } else {
+    proofLines.push(`   📦 Grove: pending`);
+  }
+  lines.push(`📋 Proof`);
+  lines.push(...proofLines);
+  lines.push('');
+
+  lines.push(`⏱ Verdict: scored against correction / retraction record`);
+  lines.push(`🔗 ${config.webOrigin}/signals/${input.signalId}`);
+  lines.push(`📊 ${config.webOrigin}/scorecard?domain=bio`);
 
   return lines.join('\n');
 }

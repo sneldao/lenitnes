@@ -46,12 +46,19 @@ interface ScanVerdict {
   agentScore: {
     conviction: number;
     thesis: string;
-    recommended_action: 'long' | 'short' | 'none';
+    recommended_action: 'long' | 'short' | 'none' | 'alert' | 'investigate';
   };
   priceOutcome?: {
     t1dPct: number | null;
     t7dPct: number | null;
     correct: boolean | null;
+  };
+  bioOutcome?: {
+    event_kind: string;
+    event_at: string;
+    event_source: string;
+    lead_days: number;
+    confirmed: boolean;
   };
 }
 
@@ -60,6 +67,7 @@ interface ScanResponse {
   from: string;
   to: string;
   asset: string;
+  domain?: 'code' | 'bio';
   mode: 'mock' | 'live';
   verdicts: ScanVerdict[];
 }
@@ -96,17 +104,57 @@ const FEATURED_REPOS: Array<{
   },
 ];
 
+// [bio] presets — scientific software integrity scans. No asset; outcomes
+// are dated events in the scientific record, not price moves.
+const BIO_FEATURED_REPOS: Array<{
+  repo: string;
+  description: string;
+  sampleSignal: string;
+  from?: string;
+  to?: string;
+}> = [
+  {
+    repo: 'afni/afni',
+    description:
+      'fMRI analysis suite. Watches statistical-method fixes that can invalidate published results.',
+    sampleSignal: '3dClustSim edge-effect fix — 413d before “Cluster failure”',
+    from: '2015-04-01T00:00:00Z',
+    to: '2015-07-01T00:00:00Z',
+  },
+  {
+    repo: 'nextstrain/ncov',
+    description:
+      'SARS-CoV-2 phylogenetics pipeline. Watches schema/ancestry changes behind published trees.',
+    sampleSignal: 'Nextclade schema rewrite alert',
+  },
+  {
+    repo: 'choderalab/openmmtools',
+    description:
+      'Molecular simulation toolkit. Watches silent sampler/integrator parameter changes.',
+    sampleSignal: 'Sampler state correction alert',
+  },
+];
+
 export default function ScanPage() {
   const [scanMode, setScanMode] = useState<'single' | 'compare'>('single');
+  const [domain, setDomain] = useState<'code' | 'bio'>('code');
   const [repoInput, setRepoInput] = useState('');
   const [assetInput, setAssetInput] = useState('');
   const [compareRepoInput, setCompareRepoInput] = useState('');
   const [compareAssetInput, setCompareAssetInput] = useState('');
 
-  const [submitted, setSubmitted] = useState<{ repo: string; asset: string } | null>(null);
-  const [submittedCompare, setSubmittedCompare] = useState<{ repo: string; asset: string } | null>(
-    null,
-  );
+  const [submitted, setSubmitted] = useState<{
+    repo: string;
+    asset: string;
+    domain: 'code' | 'bio';
+    from?: string;
+    to?: string;
+  } | null>(null);
+  const [submittedCompare, setSubmittedCompare] = useState<{
+    repo: string;
+    asset: string;
+    domain: 'code' | 'bio';
+  } | null>(null);
 
   const [activeProof, setActiveProof] = useState<ProofPayload | null>(null);
   const inputEl = useRef<HTMLInputElement | null>(null);
@@ -138,12 +186,22 @@ export default function ScanPage() {
 
   // Primary Scan Query
   const { data, isLoading, isError } = useQuery<ScanResponse>({
-    queryKey: ['scan', submitted?.repo, submitted?.asset],
+    queryKey: [
+      'scan',
+      submitted?.repo,
+      submitted?.asset,
+      submitted?.domain,
+      submitted?.from,
+      submitted?.to,
+    ],
     enabled: !!submitted,
     staleTime: 10 * 60 * 1000,
     queryFn: async () => {
       const params = new URLSearchParams({ repo: submitted!.repo });
       if (submitted!.asset) params.set('asset', submitted!.asset);
+      if (submitted!.domain === 'bio') params.set('domain', 'bio');
+      if (submitted!.from) params.set('from', submitted!.from);
+      if (submitted!.to) params.set('to', submitted!.to);
       const res = await fetch(`${API}/backtest/replay?${params}`);
       if (!res.ok) throw new Error(`API ${res.status}`);
       return res.json();
@@ -152,12 +210,13 @@ export default function ScanPage() {
 
   // Secondary Compare Scan Query
   const { data: compareData, isLoading: isCompareLoading } = useQuery<ScanResponse>({
-    queryKey: ['scan', submittedCompare?.repo, submittedCompare?.asset],
+    queryKey: ['scan', submittedCompare?.repo, submittedCompare?.asset, submittedCompare?.domain],
     enabled: !!submittedCompare && scanMode === 'compare',
     staleTime: 10 * 60 * 1000,
     queryFn: async () => {
       const params = new URLSearchParams({ repo: submittedCompare!.repo });
       if (submittedCompare!.asset) params.set('asset', submittedCompare!.asset);
+      if (submittedCompare!.domain === 'bio') params.set('domain', 'bio');
       const res = await fetch(`${API}/backtest/replay?${params}`);
       if (!res.ok) throw new Error(`API ${res.status}`);
       return res.json();
@@ -170,13 +229,16 @@ export default function ScanPage() {
       .replace(/^https?:\/\/(www\.)?github\.com\//i, '')
       .replace(/\/$/, '');
 
-  const runSingle = (repo: string, asset: string) => {
+  const runSingle = (repo: string, asset: string, range?: { from?: string; to?: string }) => {
     const cleaned = cleanRepoName(repo);
     if (!/^[\w.-]+\/[\w.-]+$/.test(cleaned)) return;
     const fromWatchlist = findWatchlistEntry(cleaned);
     setSubmitted({
       repo: cleaned,
-      asset: (asset.trim() || fromWatchlist?.asset || '').toLowerCase(),
+      asset: domain === 'bio' ? '' : (asset.trim() || fromWatchlist?.asset || '').toLowerCase(),
+      domain,
+      from: range?.from,
+      to: range?.to,
     });
   };
 
@@ -188,6 +250,7 @@ export default function ScanPage() {
     setSubmittedCompare({
       repo: cleaned2,
       asset: (asset2.trim() || fromWatchlist2?.asset || '').toLowerCase(),
+      domain,
     });
   };
 
@@ -209,42 +272,69 @@ export default function ScanPage() {
           </div>
 
           {/* Single vs Compare Mode Picker */}
-          <div className="flex items-center gap-1 rounded-xl border border-edge/40 bg-panel/60 p-1 text-xs font-mono">
-            <button
-              onClick={() => setScanMode('single')}
-              className={`rounded-lg px-3 py-1 font-medium transition-colors cursor-pointer ${
-                scanMode === 'single'
-                  ? 'bg-accent/15 text-accent'
-                  : 'text-slate-400 hover:text-slate-200'
-              }`}
-            >
-              Single Repo Scan
-            </button>
-            <button
-              onClick={() => {
-                setScanMode('compare');
-                if (!compareRepoInput && submitted) {
-                  setCompareRepoInput('MystenLabs/sui');
-                  setCompareAssetInput('sui');
-                }
-              }}
-              className={`flex items-center gap-1.5 rounded-lg px-3 py-1 font-medium transition-colors cursor-pointer ${
-                scanMode === 'compare'
-                  ? 'bg-accent/15 text-accent'
-                  : 'text-slate-400 hover:text-slate-200'
-              }`}
-            >
-              <Scale className="h-3 w-3" /> Compare Repos
-            </button>
+          <div className="flex items-center gap-2">
+            {/* Vertical toggle — badge style, mono text */}
+            <div className="flex items-center gap-1 rounded-xl border border-edge/40 bg-panel/60 p-1 font-mono text-[11px]">
+              {(['code', 'bio'] as const).map((d) => (
+                <button
+                  key={d}
+                  onClick={() => {
+                    setDomain(d);
+                    if (d === 'bio') setScanMode('single');
+                  }}
+                  className={`rounded-lg px-2.5 py-1 uppercase tracking-wider transition-colors cursor-pointer ${
+                    domain === d
+                      ? 'bg-accent/15 text-accent'
+                      : 'text-slate-400 hover:text-slate-200'
+                  }`}
+                >
+                  [{d}]
+                </button>
+              ))}
+            </div>
+            <div className="flex items-center gap-1 rounded-xl border border-edge/40 bg-panel/60 p-1 text-xs font-mono">
+              <button
+                onClick={() => setScanMode('single')}
+                className={`rounded-lg px-3 py-1 font-medium transition-colors cursor-pointer ${
+                  scanMode === 'single'
+                    ? 'bg-accent/15 text-accent'
+                    : 'text-slate-400 hover:text-slate-200'
+                }`}
+              >
+                Single Repo Scan
+              </button>
+              <button
+                onClick={() => {
+                  setScanMode('compare');
+                  if (!compareRepoInput && submitted) {
+                    setCompareRepoInput('MystenLabs/sui');
+                    setCompareAssetInput('sui');
+                  }
+                }}
+                className={`flex items-center gap-1.5 rounded-lg px-3 py-1 font-medium transition-colors cursor-pointer ${
+                  scanMode === 'compare'
+                    ? 'bg-accent/15 text-accent'
+                    : 'text-slate-400 hover:text-slate-200'
+                }`}
+              >
+                <Scale className="h-3 w-3" /> Compare Repos
+              </button>
+            </div>
           </div>
         </div>
 
         <h1 className="font-display text-3xl font-semibold text-slate-100 sm:text-4xl">
-          {scanMode === 'single' ? 'Leak-scan' : 'Repository Signal Comparison'}
+          {scanMode === 'single'
+            ? domain === 'bio'
+              ? 'Research-integrity scan'
+              : 'Leak-scan'
+            : 'Repository Signal Comparison'}
         </h1>
         <p className="max-w-2xl text-sm leading-relaxed text-slate-400">
           {scanMode === 'single'
-            ? 'Point the production engine at any public GitHub repository to audit its last 90 days of commits.'
+            ? domain === 'bio'
+              ? 'Point the production engine at any scientific software repo — method fixes and silent result-bearing changes, scored against the published record.'
+              : 'Point the production engine at any public GitHub repository to audit its last 90 days of commits.'
             : 'Compare commit signal frequency, replay tiers, and price outcome responsiveness side-by-side between two repos.'}
         </p>
       </div>
@@ -279,12 +369,13 @@ export default function ScanPage() {
             <input
               value={assetInput}
               onChange={(e) => setAssetInput(e.target.value)}
-              placeholder="asset 1 (optional)"
-              className="rounded-xl border border-edge/60 bg-ink-light/80 px-4 py-3 text-sm text-slate-200 placeholder:text-slate-500 focus:border-accent/50 focus:outline-none transition-colors sm:w-36"
+              placeholder={domain === 'bio' ? 'no asset · event outcomes' : 'asset 1 (optional)'}
+              disabled={domain === 'bio'}
+              className="rounded-xl border border-edge/60 bg-ink-light/80 px-4 py-3 text-sm text-slate-200 placeholder:text-slate-500 focus:border-accent/50 focus:outline-none transition-colors sm:w-36 disabled:opacity-40"
             />
           </div>
 
-          {scanMode === 'compare' && (
+          {scanMode === 'compare' && domain === 'code' && (
             <div className="flex flex-col gap-2.5 sm:flex-row pt-1 animate-fade-in">
               <div className="relative flex-1">
                 <input
@@ -318,30 +409,48 @@ export default function ScanPage() {
         {/* Presets */}
         <div className="flex flex-wrap items-center gap-2 text-xs text-slate-500">
           <span className="font-mono text-[11px] text-slate-400">Presets:</span>
-          {FEATURED_REPOS.map((ex) => (
-            <button
-              key={ex.repo}
-              onClick={() => {
-                if (scanMode === 'single') {
-                  setRepoInput(ex.repo);
-                  setAssetInput(ex.asset);
-                  runSingle(ex.repo, ex.asset);
-                } else {
-                  setRepoInput('zcash/halo2');
-                  setAssetInput('zec');
-                  setCompareRepoInput(ex.repo);
-                  setCompareAssetInput(ex.asset);
-                  runCompare('zcash/halo2', 'zec', ex.repo, ex.asset);
-                }
-              }}
-              className="group flex items-center gap-1.5 rounded-lg border border-edge/40 bg-ink-light/40 px-2.5 py-1 font-mono text-[11px] text-slate-300 transition-all hover:border-accent/40 hover:text-accent cursor-pointer"
-            >
-              <span>{ex.repo}</span>
-              <span className={`rounded px-1 text-[9px] uppercase ${tierBadgeClass(ex.tier)}`}>
-                {ex.tier}-tier
-              </span>
-            </button>
-          ))}
+          {domain === 'bio'
+            ? BIO_FEATURED_REPOS.map((ex) => (
+                <button
+                  key={ex.repo}
+                  onClick={() => {
+                    if (scanMode !== 'single') return;
+                    setRepoInput(ex.repo);
+                    setAssetInput('');
+                    runSingle(ex.repo, '', { from: ex.from, to: ex.to });
+                  }}
+                  className="group flex items-center gap-1.5 rounded-lg border border-edge/40 bg-ink-light/40 px-2.5 py-1 font-mono text-[11px] text-slate-300 transition-all hover:border-accent/40 hover:text-accent cursor-pointer"
+                >
+                  <span>{ex.repo}</span>
+                  <span className="rounded px-1 text-[9px] uppercase text-signal border border-signal/30 bg-signal/10">
+                    bio
+                  </span>
+                </button>
+              ))
+            : FEATURED_REPOS.map((ex) => (
+                <button
+                  key={ex.repo}
+                  onClick={() => {
+                    if (scanMode === 'single') {
+                      setRepoInput(ex.repo);
+                      setAssetInput(ex.asset);
+                      runSingle(ex.repo, ex.asset);
+                    } else {
+                      setRepoInput('zcash/halo2');
+                      setAssetInput('zec');
+                      setCompareRepoInput(ex.repo);
+                      setCompareAssetInput(ex.asset);
+                      runCompare('zcash/halo2', 'zec', ex.repo, ex.asset);
+                    }
+                  }}
+                  className="group flex items-center gap-1.5 rounded-lg border border-edge/40 bg-ink-light/40 px-2.5 py-1 font-mono text-[11px] text-slate-300 transition-all hover:border-accent/40 hover:text-accent cursor-pointer"
+                >
+                  <span>{ex.repo}</span>
+                  <span className={`rounded px-1 text-[9px] uppercase ${tierBadgeClass(ex.tier)}`}>
+                    {ex.tier}-tier
+                  </span>
+                </button>
+              ))}
         </div>
       </div>
 

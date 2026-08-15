@@ -9,7 +9,7 @@ interface ShareSignalCardModalProps {
   commitHash: string;
   message: string;
   conviction: number;
-  action: 'long' | 'short' | 'none';
+  action: 'long' | 'short' | 'none' | 'alert' | 'investigate';
   outcomePct?: number | null;
   onClose: () => void;
 }

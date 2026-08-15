@@ -189,6 +189,100 @@ export async function recentCalls(limit: number = 20): Promise<RecentCall[]> {
   return recentCallsQuery(limit);
 }
 
+// ── Bio vertical: event-based credibility ────────────────────
+// The [bio] vertical doesn't score against price — it scores against
+// the scientific record. An alert is "confirmed" when a dated event
+// (retraction / correction / disclosure / release) is recorded on its
+// signal_outcomes row. Precision = confirmed / alerts. Lead time =
+// days between the committed alert and the event date.
+
+export interface BioAlertRow {
+  signalId: string;
+  detectedAt: string;
+  monitorUrl: string;
+  conviction: number | null;
+  thesis: string | null;
+  primaryDetector: string | null;
+  eventKind: string | null;
+  eventAt: string | null;
+  eventSource: string | null;
+  leadDays: number | null;
+}
+
+export interface ScorecardBio {
+  totalAlerts: number;
+  confirmedEvents: number;
+  precision: number | null;
+  avgLeadDays: number | null;
+  maxLeadDays: number | null;
+  alerts: BioAlertRow[];
+  generatedAt: string;
+}
+
+export async function bio(): Promise<ScorecardBio> {
+  const { rows } = await query<{
+    signal_id: string;
+    detected_at: string;
+    monitor_url: string;
+    conviction: number | null;
+    thesis: string | null;
+    primary_detector: string | null;
+    event_kind: string | null;
+    event_at: string | null;
+    event_source: string | null;
+    lead_days: number | null;
+  }>(
+    `SELECT
+       s.id AS signal_id,
+       s.detected_at,
+       m.url AS monitor_url,
+       ag.conviction,
+       ag.thesis,
+       (SELECT sc.detector_type FROM signal_classifications sc
+         WHERE sc.signal_id = s.id ORDER BY sc.score DESC LIMIT 1) AS primary_detector,
+       so.event_kind,
+       so.event_at,
+       so.event_source,
+       so.lead_days
+     FROM signals s
+     JOIN monitors m ON m.id = s.monitor_id
+     LEFT JOIN agent_scores ag ON ag.signal_id = s.id
+     LEFT JOIN signal_outcomes so ON so.signal_id = s.id AND so.event_kind IS NOT NULL
+     WHERE m.domain = 'bio' AND s.is_heartbeat = false
+     ORDER BY s.detected_at DESC
+     LIMIT 100`,
+  );
+
+  const alerts: BioAlertRow[] = rows.map((r) => ({
+    signalId: r.signal_id,
+    detectedAt: r.detected_at,
+    monitorUrl: r.monitor_url,
+    conviction: r.conviction,
+    thesis: r.thesis,
+    primaryDetector: r.primary_detector,
+    eventKind: r.event_kind,
+    eventAt: r.event_at,
+    eventSource: r.event_source,
+    leadDays: r.lead_days != null ? Number(r.lead_days) : null,
+  }));
+
+  const totalAlerts = alerts.length;
+  const confirmed = alerts.filter((a) => a.eventKind != null);
+  const leads = confirmed
+    .map((a) => a.leadDays)
+    .filter((d): d is number => d != null && Number.isFinite(d));
+
+  return {
+    totalAlerts,
+    confirmedEvents: confirmed.length,
+    precision: totalAlerts > 0 ? confirmed.length / totalAlerts : null,
+    avgLeadDays: leads.length > 0 ? leads.reduce((a, b) => a + b, 0) / leads.length : null,
+    maxLeadDays: leads.length > 0 ? Math.max(...leads) : null,
+    alerts,
+    generatedAt: new Date().toISOString(),
+  };
+}
+
 // ── Internal queries ───────────────────────────────────────
 
 async function countsQuery(): Promise<CountsRow> {
