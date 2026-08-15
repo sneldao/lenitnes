@@ -5,6 +5,17 @@
 > **LENITNES[bio]** — the re:AGENT build: a sentinel for scientific
 > software integrity. Same pipeline, same proof chain, new domain.
 
+> **Build status (Sat 2026-08-15, ~midnight local):** All code-side exit
+> criteria met and pushed to `origin/main`. Bio detector verified live
+> against the real afni `2baf5710` fix commit (method_fix fires). Migrations
+> 008 + 009 validated on a scratch PG14 (alert/investigate accepted,
+> literature JSONB stored, invalid actions rejected). **Outstanding:**
+> (1) LLM credits — Virtuals key returned 402 mid-live-test; need top-up or
+> hackathon Claude credits for live rubric-v6 scoring (mock mode covers demo
+> via `CLUSTSIM_REPLAY`); (2) deploy migrations + bio watchlist to VPS so
+> monitors accumulate real signals overnight; (3) Paperclip key + Boltz repo
+> confirmation from organizers.
+
 ## The decision (one line)
 
 **Enter Track A: repoint the existing engine at scientific software
@@ -317,14 +328,14 @@ paths. No changes to treasury, trading venues, x402, or proofs.
 
 ## Weekend timeline
 
-| When            | Block                                                                                            |
-| --------------- | ------------------------------------------------------------------------------------------------ |
-| Sat 10:25–12:10 | Register Track A; ask organizers for Paperclip key; confirm Boltz repo location                  |
-| Sat 13:00–15:30 | Migration 008 ✅ + bio watchlist ✅ + rubric v6 + domain wiring in types/agent/replay            |
-| Sat 15:30–18:30 | Two bio detectors + literature.ts (Firecrawl first) + event-outcome scoring                      |
-| Sat 19:15–22:00 | **afni replay end-to-end → case-study page → scorecard tabs.** Demo-critical; protect this block |
-| Sat 22:00–23:00 | Telegram bio format; freeze scope                                                                |
-| Sun 9:00–10:45  | Landing hero, methodology sections, README paragraph, submit by 10:45                            |
+| When            | Block                                                                           | Status                                                |
+| --------------- | ------------------------------------------------------------------------------- | ----------------------------------------------------- |
+| Sat 10:25–12:10 | Register Track A; ask organizers for Paperclip key; confirm Boltz repo location | key + repo still open                                 |
+| Sat 13:00–15:30 | Migration 008 + bio watchlist + rubric v6 + domain wiring in types/agent/replay | ✅                                                    |
+| Sat 15:30–18:30 | Two bio detectors + literature.ts (Firecrawl first) + event-outcome scoring     | ✅                                                    |
+| Sat 19:15–22:00 | afni replay end-to-end → case-study page → scorecard tabs                       | ✅ (mock; live LLM blocked on credits)                |
+| Sat 22:00–23:00 | Telegram bio format; freeze scope                                               | ✅ format done, first live send pending               |
+| Sun 9:00–10:45  | Landing hero, methodology sections, README paragraph, submit by 10:45           | ✅ hero/methodology/README done — submit prep remains |
 
 ## Exit criteria
 
