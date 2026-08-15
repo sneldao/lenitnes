@@ -115,8 +115,10 @@ science" with built-in evaluation — the event's explicit theme
   `literature.ts` adapter.
 - **TinyFish Search** — `GET https://api.search.tinyfish.ai` (key in
   `.env`, free). Retraction-news corroboration (retractionwatch.com).
-- **Claude** — event credits; `agent.ts` is OpenAI-SDK-shaped, repoint
-  `AGENT_BASE_URL`/`AGENT_MODEL` (or keep `MOCK_AGENT=1` for
+- **Qwen3.8 chain** — `agent.ts` is OpenAI-SDK-shaped and points at a free
+  HF Inference Endpoint (`Qwen/Qwen3.8-27B`, keyless) with a TokenRouter
+  fallback (`qwen/qwen3.8-max-free`). Override via `HF_QWEN_BASE_URL` /
+  `HF_QWEN_MODEL` / `TOKENROUTER_*` (or keep `MOCK_AGENT=1` for
   deterministic replays).
 
 ## Architecture mapping — what changes, what doesn't

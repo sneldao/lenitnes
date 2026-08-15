@@ -364,8 +364,8 @@ chains.
 
 ## What we're NOT tracking here (intentionally)
 
-- **Model selection** (`AGENT_MODEL`) — vendor decision, not a
-  calibration knob
+- **Model selection** (Qwen3.8 via HF endpoint / TokenRouter fallback) —
+  vendor decision, not a calibration knob
 - **Per-detector weights** — none currently exposed; the
   detector pipeline is keyword-based, not weighted. Predictive
   weight per detector is measured post-hoc on the

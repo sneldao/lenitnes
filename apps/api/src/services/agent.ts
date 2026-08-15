@@ -52,6 +52,11 @@ export interface AgentEnv {
   dailyBudgetUsd: number;
   inputCostPer1M: number;
   outputCostPer1M: number;
+  /**
+   * Optional fallback provider tried once when the primary call fails
+   * (rate limits, outages, empty responses). Same AgentEnv shape.
+   */
+  fallback?: Pick<AgentEnv, 'apiKey' | 'baseUrl' | 'model'>;
 }
 
 export class AgentBudgetExceededError extends Error {
@@ -351,45 +356,92 @@ export async function score(input: AgentInput, env: AgentEnv): Promise<AgentScor
     { role: 'user', content: prompt },
   ];
 
-  // One corrective retry on malformed output: feed the bad response
-  // back and demand bare JSON. Weak instruction-followers (observed:
-  // "### Output" preambles) usually comply on the second attempt;
-  // a second failure is a real error and propagates.
+  // Provider chain: try primary, then env.fallback once on transport
+  // failures (rate limits, outages, empty responses). Each provider
+  // gets one corrective retry on malformed JSON output.
+  const providers: Array<Pick<AgentEnv, 'apiKey' | 'baseUrl' | 'model'>> = [
+    { apiKey: env.apiKey, baseUrl: env.baseUrl, model: env.model },
+  ];
+  if (env.fallback) providers.push(env.fallback);
+
+  // Both Qwen3.8 endpoints think by default; the scoring rubric wants a
+  // clean JSON answer, so disable the reasoning trace and cap output.
+  // (reasoning_effort passes through as an extra body field.)
+  const createParams = {
+    messages,
+    temperature,
+    max_tokens: 4096,
+    reasoning_effort: 'none',
+  };
+
   let parsed: ReturnType<typeof parseAgentResponse> | null = null;
   let message = '';
-  for (let attempt = 0; attempt < 2 && !parsed; attempt++) {
-    const response = await client.chat.completions.create({
-      model: env.model,
-      messages,
-      temperature,
-    });
+  let usedModel = env.model;
+  let lastErr: unknown = null;
+  for (const provider of providers) {
+    const provClient =
+      provider === providers[0]
+        ? client
+        : new OpenAI({ apiKey: provider.apiKey, baseURL: provider.baseUrl });
+    usedModel = provider.model;
+    const convo = messages.slice(0, 2);
+    for (let attempt = 0; attempt < 2 && !parsed; attempt++) {
+      let content: string | null | undefined;
+      try {
+        const response = await provClient.chat.completions.create({
+          model: provider.model,
+          ...createParams,
+          messages: convo,
+        } as OpenAI.Chat.ChatCompletionCreateParamsNonStreaming);
 
-    const content = response.choices[0]?.message?.content;
-    if (response.usage) {
-      recordCost(env, response.usage.prompt_tokens ?? 0, response.usage.completion_tokens ?? 0);
-    }
-    if (!content || typeof content !== 'string') {
-      throw new AgentScoreError('Empty response from agent');
-    }
-    message = content;
+        content = response.choices[0]?.message?.content;
+        if (response.usage) {
+          recordCost(env, response.usage.prompt_tokens ?? 0, response.usage.completion_tokens ?? 0);
+        }
+      } catch (err) {
+        lastErr = err;
+        logger.warn(
+          {
+            signalId: input.signal_id,
+            provider: provider.baseUrl,
+            model: provider.model,
+            err,
+          },
+          'agent provider call failed',
+        );
+        break; // next provider
+      }
 
-    try {
-      parsed = parseAgentResponse(content);
-    } catch (err) {
-      if (attempt === 1) throw err;
-      logger.warn(
-        { signalId: input.signal_id, err },
-        'agent response unparseable — retrying with corrective instruction',
-      );
-      messages.push({ role: 'assistant', content });
-      messages.push({
-        role: 'user',
-        content:
-          'Your previous response was not valid JSON. Respond again with ONLY the JSON object — no markdown fences, no headings, no prose.',
-      });
+      if (!content || typeof content !== 'string') {
+        lastErr = new AgentScoreError('Empty response from agent');
+        logger.warn(
+          { signalId: input.signal_id, model: provider.model },
+          'agent returned empty content — trying next provider',
+        );
+        break; // next provider
+      }
+      message = content;
+
+      try {
+        parsed = parseAgentResponse(content);
+      } catch (err) {
+        lastErr = err;
+        if (attempt === 1) break; // next provider
+        logger.warn(
+          { signalId: input.signal_id, err },
+          'agent response unparseable — retrying with corrective instruction',
+        );
+        convo.push({ role: 'assistant', content });
+        convo.push({
+          role: 'user',
+          content:
+            'Your previous response was not valid JSON. Respond again with ONLY the JSON object — no markdown fences, no headings, no prose.',
+        });
+      }
     }
+    if (parsed) break;
   }
-  if (!parsed) throw new AgentScoreError('Agent response unparseable after retry');
+  if (!parsed) throw lastErr ?? new AgentScoreError('Agent response unparseable after retry');
 
   // Enforce the rubric invariant the model sometimes violates:
   // action "none" with conviction > 50 is only legitimate when the
@@ -416,7 +468,7 @@ export async function score(input: AgentInput, env: AgentEnv): Promise<AgentScor
     hcs_dispatch: parsed.hcs_dispatch,
     proof_action: parsed.proof_action,
     raw_response: {
-      model: env.model,
+      model: usedModel,
       response: parsed,
       content: message,
       agent_input: compactInput,
@@ -643,29 +695,40 @@ export async function fetchOutcomeContext(
 /**
  * Build AgentEnv from process.env. Single place that reads the env
  * vars; called by loop.ts at request time (not at module load).
+ *
+ * Provider chain (both OpenAI-compatible Qwen3.8 endpoints):
+ *   primary  — free HF Inference Endpoint, Qwen/Qwen3.8-27B (keyless,
+ *              ~30 req/min, thinking OFF for scoring)
+ *   fallback — TokenRouter, qwen/qwen3.8-max-free (keyed; free tier is
+ *              ~1 req/min, so it covers outages, not throughput)
+ * Set AGENT_PROVIDER=tokenrouter to flip the order.
  */
 export function buildAgentEnvFromConfig(): AgentEnv {
-  // Prefer NVIDIA API if key is set, fall back to Virtuals.
-  const nvidiaKey = process.env.NVIDIA_API_KEY ?? '';
-  if (nvidiaKey) {
-    return {
-      apiKey: nvidiaKey,
-      baseUrl: process.env.NVIDIA_BASE_URL ?? 'https://integrate.api.nvidia.com/v1',
-      model: process.env.AGENT_MODEL ?? 'minimaxai/minimax-m3',
-      mock: process.env.MOCK_AGENT === '1',
-      dailyBudgetUsd: Number(process.env.DAILY_AGENT_BUDGET_USD ?? 20),
-      inputCostPer1M: Number(process.env.AGENT_INPUT_COST_PER_1M_USD ?? 0.15),
-      outputCostPer1M: Number(process.env.AGENT_OUTPUT_COST_PER_1M_USD ?? 0.6),
-    };
-  }
+  const hf: Pick<AgentEnv, 'apiKey' | 'baseUrl' | 'model'> = {
+    apiKey: process.env.HF_QWEN_API_KEY || 'not-needed',
+    baseUrl:
+      process.env.HF_QWEN_BASE_URL ??
+      'https://g9hnto0u7lvbu837.us-east-2.aws.endpoints.huggingface.cloud/v1',
+    model: process.env.HF_QWEN_MODEL ?? 'Qwen/Qwen3.8-27B',
+  };
+  const tokenRouter: Pick<AgentEnv, 'apiKey' | 'baseUrl' | 'model'> = {
+    apiKey: process.env.TOKENROUTER_API_KEY ?? '',
+    baseUrl: process.env.TOKENROUTER_BASE_URL ?? 'https://api.tokenrouter.com/v1',
+    model: process.env.TOKENROUTER_MODEL ?? 'qwen/qwen3.8-max-free',
+  };
+  const preferTokenRouter =
+    process.env.AGENT_PROVIDER === 'tokenrouter' && tokenRouter.apiKey !== '';
+  const primary = preferTokenRouter ? tokenRouter : hf;
+  const backup = preferTokenRouter ? hf : tokenRouter.apiKey ? tokenRouter : undefined;
+
   return {
-    apiKey: process.env.VIRTUALS_API_KEY ?? '',
-    baseUrl: process.env.VIRTUALS_BASE_URL ?? 'https://compute.virtuals.io/v1',
-    model: process.env.AGENT_MODEL ?? 'moonshotai/kimi-k2-0905',
+    ...primary,
     mock: process.env.MOCK_AGENT === '1',
     dailyBudgetUsd: Number(process.env.DAILY_AGENT_BUDGET_USD ?? 20),
-    inputCostPer1M: Number(process.env.AGENT_INPUT_COST_PER_1M_USD ?? 0.6),
-    outputCostPer1M: Number(process.env.AGENT_OUTPUT_COST_PER_1M_USD ?? 2.5),
+    // Both endpoints are free-tier; costs tracked for honesty, not billing.
+    inputCostPer1M: Number(process.env.AGENT_INPUT_COST_PER_1M_USD ?? 0.15),
+    outputCostPer1M: Number(process.env.AGENT_OUTPUT_COST_PER_1M_USD ?? 0.6),
+    fallback: backup,
   };
 }
 

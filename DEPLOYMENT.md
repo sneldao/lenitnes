@@ -22,7 +22,7 @@ Pick the track you want; both can run on the same API instance.
    curl -L https://foundry.paradigm.xyz | bash
    foundryup
    ```
-4. **An NVIDIA API key (primary) or Virtuals API key (fallback).** The agent prefers NVIDIA (minimax-m3). Get a key at https://build.nvidia.com. For tests, set `MOCK_AGENT=1` and skip this.
+4. **No LLM key required.** The agent scores on a free, keyless Qwen3.8 endpoint by default (see `.env.example`). Optionally set `TOKENROUTER_API_KEY` for a fallback provider, or `MOCK_AGENT=1` for deterministic tests.
 5. **(BSC track only) Trust Wallet Agent Kit.** Used for self-custody signing on BSC.
    ```bash
    npm install -g @trustwallet/cli
@@ -74,13 +74,16 @@ psql $DATABASE_URL -f db/seed/treasury_wallets.sql
 EVM_PRIVATE_KEY=ac9d...your-key-here...
 TREASURY_PRIVATE_KEY=ac9d...your-key-here...   # same value; config reads TREASURY_PRIVATE_KEY
 
-# LLM provider (primary: NVIDIA, fallback: Virtuals)
-NVIDIA_API_KEY=nvapi-...
-NVIDIA_BASE_URL=https://integrate.api.nvidia.com/v1
-AGENT_MODEL=nvidia/minimax-m3
-AGENT_TEMPERATURE=1.00
-VIRTUALS_API_KEY=acp-...
-VIRTUALS_BASE_URL=https://compute.virtuals.io/v1
+# LLM provider chain (both OpenAI-compatible Qwen3.8 endpoints).
+# Primary: free HF Inference Endpoint, keyless, ~30 req/min per IP.
+HF_QWEN_BASE_URL=https://g9hnto0u7lvbu837.us-east-2.aws.endpoints.huggingface.cloud/v1
+HF_QWEN_MODEL=Qwen/Qwen3.8-27B
+AGENT_TEMPERATURE=0
+# Fallback: TokenRouter free tier (keyed; ~1 req/min, outage cover only).
+TOKENROUTER_API_KEY=sk-...
+TOKENROUTER_BASE_URL=https://api.tokenrouter.com/v1
+TOKENROUTER_MODEL=qwen/qwen3.8-max-free
+# AGENT_PROVIDER=tokenrouter   # flip order to make TokenRouter primary
 # For deterministic tests, set MOCK_AGENT=1 and skip API keys.
 MOCK_AGENT=0
 

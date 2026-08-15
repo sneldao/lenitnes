@@ -76,11 +76,20 @@ export const envSchema = z
       .string()
       .optional()
       .transform((v) => v === '1'),
-    VIRTUALS_API_KEY: z.string().optional().default(''),
-    VIRTUALS_BASE_URL: z.string().url().default('https://compute.virtuals.io/v1'),
-    AGENT_MODEL: z.string().default('moonshotai/kimi-k2-0905'),
-    AGENT_INPUT_COST_PER_1M_USD: floatFromString().default(0.6),
-    AGENT_OUTPUT_COST_PER_1M_USD: floatFromString().default(2.5),
+    // Agent LLM providers (OpenAI-compatible Qwen3.8 endpoints).
+    // Primary: free HF Inference Endpoint (keyless, ~30 req/min).
+    // Fallback: TokenRouter free tier (keyed; ~1 req/min, outage cover).
+    HF_QWEN_BASE_URL: z
+      .string()
+      .url()
+      .default('https://g9hnto0u7lvbu837.us-east-2.aws.endpoints.huggingface.cloud/v1'),
+    HF_QWEN_MODEL: z.string().default('Qwen/Qwen3.8-27B'),
+    TOKENROUTER_API_KEY: z.string().optional().default(''),
+    TOKENROUTER_BASE_URL: z.string().url().default('https://api.tokenrouter.com/v1'),
+    TOKENROUTER_MODEL: z.string().default('qwen/qwen3.8-max-free'),
+    AGENT_PROVIDER: z.string().optional().default('hf'),
+    AGENT_INPUT_COST_PER_1M_USD: floatFromString().default(0.15),
+    AGENT_OUTPUT_COST_PER_1M_USD: floatFromString().default(0.6),
     // Raised from 70 → 80 on 2026-06-26 after the first conviction
     // cohort (5 trades, 0% win rate, avg t1h −0.5%). Higher floor =
     // fewer trades but each one carries more agent confidence.

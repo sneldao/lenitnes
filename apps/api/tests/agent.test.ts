@@ -304,21 +304,48 @@ describe('agent.precedentCount', () => {
 
 describe('agent.buildAgentEnvFromConfig', () => {
   beforeEach(() => {
-    delete process.env.VIRTUALS_API_KEY;
-    delete process.env.VIRTUALS_BASE_URL;
-    delete process.env.AGENT_MODEL;
+    delete process.env.HF_QWEN_BASE_URL;
+    delete process.env.HF_QWEN_MODEL;
+    delete process.env.TOKENROUTER_API_KEY;
+    delete process.env.TOKENROUTER_BASE_URL;
+    delete process.env.TOKENROUTER_MODEL;
+    delete process.env.AGENT_PROVIDER;
     delete process.env.MOCK_AGENT;
     delete process.env.DAILY_AGENT_BUDGET_USD;
     delete process.env.AGENT_INPUT_COST_PER_1M_USD;
     delete process.env.AGENT_OUTPUT_COST_PER_1M_USD;
   });
 
-  it('uses the Virtuals defaults when no env is set', () => {
+  it('uses the keyless HF Qwen3.8-27B endpoint by default', () => {
     const env = buildAgentEnvFromConfig();
-    expect(env.baseUrl).toBe('https://compute.virtuals.io/v1');
-    expect(env.model).toBe('moonshotai/kimi-k2-0905');
+    expect(env.baseUrl).toBe(
+      'https://g9hnto0u7lvbu837.us-east-2.aws.endpoints.huggingface.cloud/v1',
+    );
+    expect(env.model).toBe('Qwen/Qwen3.8-27B');
     expect(env.mock).toBe(false);
     expect(env.dailyBudgetUsd).toBe(20);
+    // No TokenRouter key ⇒ no fallback provider configured.
+    expect(env.fallback).toBeUndefined();
+  });
+
+  it('configures TokenRouter as fallback when its key is set', () => {
+    process.env.TOKENROUTER_API_KEY = 'sk-test';
+    const env = buildAgentEnvFromConfig();
+    expect(env.model).toBe('Qwen/Qwen3.8-27B');
+    expect(env.fallback).toEqual({
+      apiKey: 'sk-test',
+      baseUrl: 'https://api.tokenrouter.com/v1',
+      model: 'qwen/qwen3.8-max-free',
+    });
+  });
+
+  it('AGENT_PROVIDER=tokenrouter flips the order when a key is set', () => {
+    process.env.TOKENROUTER_API_KEY = 'sk-test';
+    process.env.AGENT_PROVIDER = 'tokenrouter';
+    const env = buildAgentEnvFromConfig();
+    expect(env.baseUrl).toBe('https://api.tokenrouter.com/v1');
+    expect(env.model).toBe('qwen/qwen3.8-max-free');
+    expect(env.fallback?.model).toBe('Qwen/Qwen3.8-27B');
   });
 
   it('respects MOCK_AGENT=1', () => {

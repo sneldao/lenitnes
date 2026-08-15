@@ -49,19 +49,19 @@ No human input in the steady state. See [`docs/AGENT_ARCHITECTURE.md`](./docs/AG
 
 ## Stack
 
-| Layer          | Choice                                                                        |
-| -------------- | ----------------------------------------------------------------------------- |
-| API            | Express 5 + TypeScript (Node 20, ESM)                                         |
-| DB             | PostgreSQL 14                                                                 |
-| Agent          | LLM via NVIDIA API (`AGENT_MODEL`) · versioned rubric (v4)                    |
-| Market data    | CoinMarketCap Pro via spot price hub · CoinGecko historical (+ x402 fallback) |
-| News + macro   | SoSoValue On-Chain Finance API                                                |
-| Notarize       | Hedera HCS + Arbitrum SignalRegistry                                          |
-| Trading (AMM)  | PancakeSwap V2 on BSC                                                         |
-| Trading (CLOB) | SoDEX orderbook on ValueChain                                                 |
-| Broadcast      | Telegram public channel                                                       |
-| Frontend       | Next.js 16 + Tailwind                                                         |
-| **Payments**   | **x402-over-Hedera (`exact-hedera` scheme) — pay-per-signal in HBAR**         |
+| Layer          | Choice                                                                                             |
+| -------------- | -------------------------------------------------------------------------------------------------- |
+| API            | Express 5 + TypeScript (Node 20, ESM)                                                              |
+| DB             | PostgreSQL 14                                                                                      |
+| Agent          | Qwen3.8 chain: HF free endpoint (keyless) → TokenRouter fallback · rubric v4 `[code]` / v6 `[bio]` |
+| Market data    | CoinMarketCap Pro via spot price hub · CoinGecko historical (+ x402 fallback)                      |
+| News + macro   | SoSoValue On-Chain Finance API                                                                     |
+| Notarize       | Hedera HCS + Arbitrum SignalRegistry                                                               |
+| Trading (AMM)  | PancakeSwap V2 on BSC                                                                              |
+| Trading (CLOB) | SoDEX orderbook on ValueChain                                                                      |
+| Broadcast      | Telegram public channel                                                                            |
+| Frontend       | Next.js 16 + Tailwind                                                                              |
+| **Payments**   | **x402-over-Hedera (`exact-hedera` scheme) — pay-per-signal in HBAR**                              |
 
 ## x402-over-Hedera — pay-per-signal autonomous commerce
 
@@ -83,7 +83,7 @@ npm install --legacy-peer-deps
 # 2. Configure
 cp .env.example .env
 # Required: JWT_SECRET, ENCRYPTION_KEY, WEBHOOK_SECRET (32-byte hex each)
-# Required: DATABASE_URL, NVIDIA_API_KEY (or MOCK_AGENT=1 for testing)
+# Required: DATABASE_URL (live LLM runs keyless by default; set MOCK_AGENT=1 for deterministic tests, TOKENROUTER_API_KEY for the fallback provider)
 # Optional: SOSO_VALUE_API_KEY (news + macro feeds), SODEX_* (orderbook execution)
 
 # 3. Migrate + seed
