@@ -287,6 +287,7 @@ export async function executeCheck(monitor: Monitor): Promise<{
           commits: enriched,
           monitorUrl: monitor.url,
           monitorCondition: monitor.condition_text,
+          domain: monitor.domain,
         });
         if (precomputedDetectors.length > 0) {
           const topConfidence = precomputedDetectors.reduce(
@@ -459,6 +460,7 @@ export async function executeCheck(monitor: Monitor): Promise<{
               commits: result.commits,
               monitorUrl: monitor.url,
               monitorCondition: monitor.condition_text,
+              domain: monitor.domain,
             });
       if (detectorResults.length > 0) {
         classifications = detectorResults.map((c) => ({
@@ -623,9 +625,31 @@ export async function executeCheck(monitor: Monitor): Promise<{
           buildSequenceContextLive(monitor.url, monitor.asset_mapping),
           buildDetectorTrackRecordContext(detectorTypes),
         ]);
+
+      // Bio vertical: corroborate with the literature before scoring.
+      let literatureContext: string | undefined;
+      if (monitor.domain === 'bio') {
+        try {
+          const { searchLiterature, formatLiteratureContext } =
+            await import('../services/literature.js');
+          const refs = await searchLiterature(
+            monitor.url,
+            (result.evidence ?? '').slice(0, 800),
+            `scientific software integrity watch: ${monitor.url}`,
+          );
+          literatureContext = formatLiteratureContext(refs) || undefined;
+        } catch (err) {
+          logger.warn(
+            { err, monitorId: monitor.id },
+            'literature lookup failed — scoring without it',
+          );
+        }
+      }
+
       agentScore = await scoreAndPersist(
         {
           signal_id: signalId,
+          domain: monitor.domain,
           detector_classifications: detectorResultsFull.map((d) => ({
             detector_type: d.type,
             score: d.score,
@@ -643,6 +667,7 @@ export async function executeCheck(monitor: Monitor): Promise<{
           sequence_context: sequenceContext || undefined,
           book_context: bookContext || undefined,
           detector_track_record: trackRecordContext || undefined,
+          literature_context: literatureContext,
         },
         env,
       );

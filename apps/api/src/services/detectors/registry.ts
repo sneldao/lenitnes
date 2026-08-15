@@ -33,7 +33,13 @@ export async function runDetectors(input: DetectorInput): Promise<SignalClassifi
   const domain = input.domain ?? 'code';
   const results: SignalClassification[] = [];
   for (const detector of detectors) {
-    if (detector.domains && !detector.domains.includes(domain)) continue;
+    // Domain gating: bio vertical runs only bio-tagged detectors;
+    // code vertical runs all legacy detectors (untagged or code-tagged).
+    if (domain === 'bio') {
+      if (!detector.domains?.includes('bio')) continue;
+    } else if (detector.domains && !detector.domains.includes('code')) {
+      continue;
+    }
     const classification = await detector.detect(input);
     if (classification) results.push(classification);
   }
