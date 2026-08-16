@@ -1,5 +1,5 @@
 import Link from 'next/link';
-import { ArrowRight, BookOpen, FlaskConical, ShieldCheck } from 'lucide-react';
+import { ArrowRight, BookOpen, FileText, FlaskConical, ShieldCheck } from 'lucide-react';
 
 export const metadata = {
   title: 'LENITNES Research — scientific software integrity',
@@ -51,6 +51,12 @@ export default function ResearchPage() {
             className="btn-ghost inline-flex items-center gap-2 px-5 py-2.5 text-xs uppercase tracking-wider"
           >
             Run a scan
+          </Link>
+          <Link
+            href="/reasoning?domain=research"
+            className="btn-ghost inline-flex items-center gap-2 px-5 py-2.5 text-xs uppercase tracking-wider"
+          >
+            <FileText className="h-3.5 w-3.5" /> Reasoning
           </Link>
         </div>
       </header>

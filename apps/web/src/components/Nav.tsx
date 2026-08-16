@@ -9,6 +9,7 @@ import {
   ChevronDown,
   Eye,
   FileSearch,
+  FileText,
   FlaskConical,
   LineChart,
   MoreHorizontal,
@@ -20,10 +21,10 @@ import {
 // ─────────────────────────────────────────────────────────────
 // Nav — consolidated to four primary items:
 //
-//   Markets  (flyout: scorecard, portfolio, calibration, watchlist, scan)
-//   Research (flyout: lab, integrity scorecard, science scan, watchlist, methodology)
+//   Markets  (flyout: scorecard, portfolio, calibration, reasoning, watchlist)
+//   Research (flyout: lab, integrity scorecard, science scan, reasoning, watchlist)
 //   How it works
-//   More     (flyout: case studies, signals, reasoning, intelligence, watchlist)
+//   More     (flyout: case studies, intelligence, watchlist)
 //
 // Each portal owns its sub-pages; the scorecard routes accept
 // ?domain=markets|research (plus legacy code|science|bio aliases).
@@ -61,6 +62,13 @@ const MARKETS_ITEMS: FlyItem[] = [
     iconColor: 'text-accent',
   },
   {
+    label: 'Reasoning',
+    href: '/reasoning?domain=markets',
+    description: 'Every scored call, markets only',
+    icon: <FileText className="h-3.5 w-3.5" />,
+    iconColor: 'text-accent',
+  },
+  {
     label: 'Watchlist',
     href: '/monitors',
     description: 'Consensus repos being watched',
@@ -92,6 +100,13 @@ const RESEARCH_ITEMS: FlyItem[] = [
     iconColor: 'text-signal',
   },
   {
+    label: 'Reasoning',
+    href: '/reasoning?domain=research',
+    description: 'Scored science calls, research only',
+    icon: <FileText className="h-3.5 w-3.5" />,
+    iconColor: 'text-signal',
+  },
+  {
     label: 'Watchlist',
     href: '/monitors',
     description: 'Scientific software repos',
@@ -106,12 +121,6 @@ const MORE_ITEMS: FlyItem[] = [
     href: '/monitors',
     description: 'All monitored repos',
     icon: <Eye className="h-3.5 w-3.5" />,
-  },
-  {
-    label: 'Reasoning',
-    href: '/reasoning',
-    description: 'Agent scoring stream',
-    icon: <LineChart className="h-3.5 w-3.5" />,
   },
   {
     label: 'Intelligence',

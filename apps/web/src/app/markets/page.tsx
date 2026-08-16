@@ -6,6 +6,7 @@ import {
   Activity,
   ArrowRight,
   BarChart3,
+  FileText,
   PieChart,
   ScanSearch,
   Shield,
@@ -43,6 +44,12 @@ const START_LINKS = [
     title: 'Calibration',
     description: 'Conviction bands & repo tiers',
     icon: <SlidersHorizontal className="h-3.5 w-3.5 text-accent" />,
+  },
+  {
+    href: '/reasoning?domain=markets',
+    title: 'Reasoning',
+    description: 'Every scored call, markets only',
+    icon: <FileText className="h-3.5 w-3.5 text-accent" />,
   },
   {
     href: '/scan?domain=markets',
@@ -161,7 +168,7 @@ export default function MarketsPortal() {
       </section>
 
       {/* ── Where to go next ── */}
-      <section className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+      <section className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
         {START_LINKS.map((l) => (
           <Link
             key={l.title}

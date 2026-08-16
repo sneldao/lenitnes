@@ -1,6 +1,6 @@
 'use client';
 
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import Link from 'next/link';
 import { ArrowUpRight, Filter } from 'lucide-react';
@@ -8,9 +8,12 @@ import { api, type ReasoningItem } from '@/lib/api';
 import { qk, REFETCH } from '@/lib/queryKeys';
 import { cn } from '@/lib/utils';
 import { formatDate, shortUrl, timeAgo } from '@/lib/format';
+import { domainLabel, normalizeDomainParam } from '@/lib/domain';
 import { PageLoader, PageError } from '@/components/ui/page-states';
 
 type FeedFilter = 'all' | 'traded' | 'passed';
+// Internal wire values; the page renders them as [markets] / [research].
+type VerticalFilter = 'all' | 'code' | 'science';
 
 // ─────────────────────────────────────────────────────────────
 // Public reasoning archive — every scored call the agent made,
@@ -19,6 +22,14 @@ type FeedFilter = 'all' | 'traded' | 'passed';
 // ─────────────────────────────────────────────────────────────
 export default function ReasoningPage() {
   const [filter, setFilter] = useState<FeedFilter>('all');
+  // ?domain=markets|research deep-links straight to one vertical's
+  // reasoning (portals link here scoped; legacy aliases still resolve).
+  const [vertical, setVertical] = useState<VerticalFilter>('all');
+
+  useEffect(() => {
+    const requested = new URLSearchParams(window.location.search).get('domain');
+    if (requested) setVertical(normalizeDomainParam(requested));
+  }, []);
 
   const { data, isLoading, isError } = useQuery({
     queryKey: ['reasoning', 'feed'],
@@ -27,14 +38,16 @@ export default function ReasoningPage() {
   });
 
   const items = useMemo(() => {
-    const all = data?.items ?? [];
+    const all = (data?.items ?? []).filter((i) => vertical === 'all' || i.domain === vertical);
     if (filter === 'traded') return all.filter((i) => i.traded);
     if (filter === 'passed') return all.filter((i) => !i.traded);
     return all;
-  }, [data, filter]);
+  }, [data, filter, vertical]);
 
   const tradedCount = data?.items.filter((i) => i.traded).length ?? 0;
   const passedCount = (data?.count ?? 0) - tradedCount;
+  const marketsCount = data?.items.filter((i) => i.domain === 'code').length ?? 0;
+  const researchCount = data?.items.filter((i) => i.domain === 'science').length ?? 0;
 
   if (isLoading) return <PageLoader label="Loading reasoning archive…" />;
   if (isError || !data)
@@ -51,23 +64,50 @@ export default function ReasoningPage() {
           What the agent saw — and mostly passed on
         </h1>
         <p className="mt-2 max-w-2xl text-sm leading-relaxed text-slate-400">
-          Every signal the rubric scored, including the ones that never traded. Selective silence is
-          the skill; the scored log is the proof.
+          Every signal the rubric scored, from both verticals — tagged{' '}
+          <span className="font-mono text-xs text-accent">[markets]</span> /{' '}
+          <span className="font-mono text-xs text-signal">[research]</span> — including the ones
+          that never traded or alerted. Selective silence is the skill; the scored log is the proof.
         </p>
       </header>
 
-      {/* Filter row */}
-      <div className="flex items-center gap-2">
+      {/* Filter row — vertical scope first, then status */}
+      <div className="flex flex-wrap items-center gap-2">
+        {(
+          [
+            { key: 'all', label: `Both · ${data.count}` },
+            { key: 'code', label: `Markets · ${marketsCount}` },
+            { key: 'science', label: `Research · ${researchCount}` },
+          ] as const
+        ).map((v) => (
+          <button
+            key={v.key}
+            onClick={() => setVertical(v.key)}
+            aria-pressed={vertical === v.key}
+            className={cn(
+              'inline-flex items-center gap-1.5 rounded-full border px-3 py-1.5 font-mono text-[11px] uppercase tracking-wider transition-colors',
+              vertical === v.key
+                ? v.key === 'science'
+                  ? 'border-signal/50 bg-signal/10 text-signal'
+                  : 'border-accent/50 bg-accent/10 text-accent'
+                : 'border-edge/40 text-slate-400 hover:border-edge-light/60 hover:text-slate-300',
+            )}
+          >
+            {v.label}
+          </button>
+        ))}
+        <span className="mx-1 h-4 w-px bg-edge/40" aria-hidden />
         {(
           [
             { key: 'all', label: `All · ${data.count}` },
-            { key: 'traded', label: `Traded · ${tradedCount}` },
+            { key: 'traded', label: `Acted · ${tradedCount}` },
             { key: 'passed', label: `Passed · ${passedCount}` },
           ] as const
         ).map((f) => (
           <button
             key={f.key}
             onClick={() => setFilter(f.key)}
+            aria-pressed={filter === f.key}
             className={cn(
               'inline-flex items-center gap-1.5 rounded-full border px-3 py-1.5 font-mono text-[11px] uppercase tracking-wider transition-colors',
               filter === f.key
@@ -103,12 +143,15 @@ export default function ReasoningPage() {
 function ReasoningRow({ item, index }: { item: ReasoningItem; index: number }) {
   const conviction = item.conviction ?? 0;
   const action = item.recommendedAction ?? 'none';
+  const label = domainLabel(item.domain);
   const actionTone =
     action === 'long'
       ? 'text-signal bg-signal/15'
       : action === 'short'
         ? 'text-danger bg-danger/15'
         : 'text-slate-400 bg-slate-500/15';
+  // Research rows never trade; an alert is their acted state.
+  const statusLabel = item.traded ? 'traded' : action === 'alert' ? 'alerted' : 'passed';
 
   return (
     <li
@@ -126,12 +169,22 @@ function ReasoningRow({ item, index }: { item: ReasoningItem; index: number }) {
             />
           </div>
           <p className="mt-1 font-mono text-[9px] uppercase tracking-wider text-slate-600">
-            {item.traded ? 'traded' : 'passed'}
+            {statusLabel}
           </p>
         </div>
 
         <div className="min-w-0 flex-1">
           <div className="flex flex-wrap items-center gap-2">
+            <span
+              className={cn(
+                'rounded px-1.5 py-px font-mono text-[10px] uppercase tracking-wider',
+                label === 'research'
+                  ? 'border border-signal/30 bg-signal/10 text-signal'
+                  : 'border border-accent/30 bg-accent/10 text-accent',
+              )}
+            >
+              [{label}]
+            </span>
             <span className={cn('badge text-[10px] uppercase', actionTone)}>{action}</span>
             {item.asset && (
               <span className="font-mono text-xs font-semibold text-slate-200">{item.asset}</span>

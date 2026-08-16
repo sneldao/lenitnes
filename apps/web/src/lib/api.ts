@@ -407,11 +407,13 @@ export interface ReasoningItem {
   createdAt: string;
   asset: string | null;
   monitorUrl: string;
+  /** Internal wire vertical: 'code' (markets) | 'science' (research). */
+  domain: 'code' | 'science';
   conditionSummary: string | null;
   detectorTypes: string[];
   conviction: number | null;
   thesis: string | null;
-  recommendedAction: 'long' | 'short' | 'none' | null;
+  recommendedAction: 'long' | 'short' | 'none' | 'alert' | 'investigate' | null;
   confidenceBand: 'low' | 'mid' | 'high' | null;
   rubricVersion: string;
   traded: boolean;

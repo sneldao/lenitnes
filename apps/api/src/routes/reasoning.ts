@@ -10,6 +10,7 @@ interface ReasoningRow {
   created_at: string;
   asset: string | null;
   monitor_url: string;
+  domain: 'code' | 'science';
   condition_summary: string | null;
   detector_types: string[] | null;
   conviction: number | null;
@@ -41,6 +42,7 @@ reasoningRouter.get('/', async (req: Request, res: Response) => {
        a.created_at::text                                  AS created_at,
        COALESCE(m.asset_mapping->>'coingeckoId')           AS asset,
        m.url                                               AS monitor_url,
+       m.domain                                            AS domain,
        LEFT(s.condition_summary, 300)                      AS condition_summary,
        COALESCE(
          (SELECT array_agg(DISTINCT sc.detector_type)
