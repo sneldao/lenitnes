@@ -89,7 +89,7 @@ export function Nav() {
             />
           </button>
           {moreOpen && (
-            <div className="absolute right-0 top-full z-50 mt-1 w-52 overflow-hidden rounded-xl border border-edge/60 bg-panel/98 shadow-card backdrop-blur-xl">
+            <div className="absolute right-0 top-full z-50 mt-1 w-52 overflow-hidden rounded-xl border border-edge/60 bg-panel/95 shadow-card backdrop-blur-xl">
               {MORE_LINKS.map((l) => (
                 <Link
                   key={l.href}

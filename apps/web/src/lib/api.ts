@@ -141,6 +141,7 @@ export interface Monitor {
   lastSeenCommitHash: string | null;
   assetMapping: AssetMapping;
   createdAt: string;
+  domain?: 'code' | 'bio';
 }
 
 export interface Order {

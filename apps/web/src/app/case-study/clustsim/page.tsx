@@ -56,14 +56,19 @@ interface ClustsimResponse {
 }
 
 // The story arc: a quiet statistical fix → a public invalidation a year later.
+// Honesty note: the system did not exist in 2015. The alert is a replay of the
+// historical commit through today's pipeline, demonstrating what it would catch.
 const TIMELINE = [
   { date: 'May 12, 2015', event: 'AFNI commits an edge-effect fix to 3dClustSim (2baf5710)' },
-  { date: 'May 12, 2015', event: 'Agent fires an integrity ALERT on the fix (replayed)' },
   {
     date: 'Jun 28, 2016',
     event: '"Cluster failure" published in PNAS — inflated fMRI false positives',
   },
   { date: 'Afterward', event: 'Cluster-inference results across task-fMRI called into question' },
+  {
+    date: 'Aug 2026',
+    event: 'Replayed through LENITNES[bio]: the pipeline flags the fix as an integrity alert',
+  },
 ];
 
 export default function ClustsimCaseStudyPage() {
@@ -115,8 +120,9 @@ export default function ClustsimCaseStudyPage() {
           </p>
         </div>
         <h1 className="font-display text-3xl font-semibold leading-tight text-slate-100 sm:text-5xl">
-          The agent flagged a quiet <span className="text-accent">3dClustSim</span> fix —{' '}
-          <span className="text-accent">413 days</span> before the field found out
+          A quiet <span className="text-accent">3dClustSim</span> fix went unnoticed for{' '}
+          <span className="text-accent">413 days</span> — this replay shows the sentinel would catch
+          it
         </h1>
         <div className="mt-4 grid gap-2 sm:grid-cols-4">
           {TIMELINE.map((event, i) => (
@@ -138,7 +144,10 @@ export default function ClustsimCaseStudyPage() {
           </a>{' '}
           quietly fixed an edge-effect bug in 3dClustSim. A year later, Eklund et al. showed those
           methods inflated fMRI false positives far beyond 5%. That fix commit is exactly the
-          pattern LENITNES[bio] watches for.
+          pattern LENITNES[bio] watches for. This page is a{' '}
+          <strong className="text-slate-300">replay</strong>: the system was built in 2026 and run
+          against the historical commit to prove the detection pipeline end-to-end. A live monitor
+          now watches afni/afni for anything similar.
         </p>
       </header>
 
@@ -191,10 +200,9 @@ export default function ClustsimCaseStudyPage() {
           />
           <DetailTile
             icon={CalendarClock}
-            label="Lead time to disclosure"
+            label="Historical window"
             value={`${leadDays} days`}
-            hint="alert committed → ground-truth event"
-            positive
+            hint="fix commit → public disclosure; a live run would alert at the commit"
           />
         </div>
       </section>
@@ -258,12 +266,14 @@ export default function ClustsimCaseStudyPage() {
             </div>
             <div className="rounded-xl border border-edge/30 bg-ink-light/30 p-4">
               <div className="font-mono text-[10px] uppercase tracking-wider text-slate-500">
-                lead time
+                window (replayed)
               </div>
-              <div className="mt-1 font-mono text-lg font-bold text-signal">
+              <div className="mt-1 font-mono text-lg font-bold text-slate-100">
                 {outcome.lead_days} days
               </div>
-              <div className="mt-0.5 text-[11px] text-slate-500">before the record caught up</div>
+              <div className="mt-0.5 text-[11px] text-slate-500">
+                fix commit → public disclosure
+              </div>
             </div>
             <div className="rounded-xl border border-edge/30 bg-ink-light/30 p-4">
               <div className="font-mono text-[10px] uppercase tracking-wider text-slate-500">
