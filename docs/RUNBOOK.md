@@ -392,10 +392,36 @@ suspect the channel isn't wired.
 
 ---
 
-## Public Telegram format (2026-07-11)
+## Public Telegram format (2026-07-11, updated 2026-08-16)
 
 Implementation: `apps/api/src/services/telegram-messages.ts`
-(signal posts: `apps/api/src/services/notify.ts`).
+(signal posts: `apps/api/src/services/notify.ts`, daily digest:
+`apps/api/src/services/watch-report.ts`).
+
+### Every public message is vertical-tagged (2026-08-16)
+
+The channel speaks for one instrument, two oracles — so every
+message carries its vertical, matching the web tags:
+
+- `🛡️ LENITNES[markets] · …` — trades, TP/SL closes, verdicts,
+  watchlist entries on code monitors
+- `🔬 LENITNES[research] · …` — integrity alerts, watchlist
+  entries on science monitors
+- Watchlist-entry posts are plain text (no HTML — `sendTelegram`
+  posts without `parse_mode`, so `<b>` tags used to leak literally).
+
+### Daily digest (09:00 UTC, always posts)
+
+Posted whether anything fired or not — quiet days read as
+**deliberate**, never as a dead channel:
+
+- Lead: instrument line — `N judgments scored · M notarized (HCS)
+· monitors · repos`
+- `[markets]`: top 24h judgments (thesis + link), 7d watchlist
+  movers, trade count, book line
+- `[research]`: 24h/7d judgments, alerts committed, confirmed
+  record events, top judgment with deep link
+- Stat strip + deep links to both scorecards and `/reasoning`
 
 ### New signal broadcast (above-threshold trades)
 

@@ -486,7 +486,7 @@ async function checkTakeProfitStopLoss(): Promise<void> {
       const pnlLabel =
         totalPnl >= 0 ? `+$${totalPnl.toFixed(2)}` : `-$${Math.abs(totalPnl).toFixed(2)}`;
       const lines: string[] = [
-        `🛡️ LENITNES · ${hits.length === 1 ? 'position closed' : `${hits.length} positions closed`} · ${pnlLabel}`,
+        `🛡️ LENITNES[markets] · ${hits.length === 1 ? 'position closed' : `${hits.length} positions closed`} · ${pnlLabel}`,
         ``,
       ];
       for (const h of hits) {

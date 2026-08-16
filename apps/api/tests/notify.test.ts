@@ -42,7 +42,7 @@ describe('formatSignalBroadcastMessage', () => {
       ...baseInput,
       primaryDetector: 'emergency_patch',
     });
-    expect(msg).toContain('🛡️ LENITNES · ZEC LONG · 85/100 (high) · PAPER');
+    expect(msg).toContain('🛡️ LENITNES[markets] · ZEC LONG · 85/100 (high) · PAPER');
     expect(msg).toContain('📍 zcash/halo2 · emergency_patch');
     expect(msg).toContain('Critical soundness fix merged');
   });

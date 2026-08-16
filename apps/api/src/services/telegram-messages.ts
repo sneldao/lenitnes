@@ -84,7 +84,7 @@ export function formatSingleVerdictMessage(
   const modeTag = item.tradeMode === 'live' ? 'LIVE' : 'PAPER';
   const detector = item.primaryDetector ? ` · ${item.primaryDetector}` : '';
   const lines: string[] = [
-    `🔎 LENITNES · verdict · ${item.asset.toUpperCase()} ${action} @ ${item.conviction}/100 · ${label}`,
+    `🔎 LENITNES[markets] · verdict · ${item.asset.toUpperCase()} ${action} @ ${item.conviction}/100 · ${label}`,
     `📍 ${item.repo}${detector} · ${formatUtcShort(item.detectedAt)} · ${modeTag}`,
     '',
     headline,
@@ -136,7 +136,7 @@ export function formatVerdictDigestMessage(
       : null;
 
   const lines: string[] = [
-    `🔎 LENITNES · verdict digest · ${asset} · ${label}`,
+    `🔎 LENITNES[markets] · verdict digest · ${asset} · ${label}`,
     `${items.length} calls matured — ${hits}/${withVerdict.length || items.length} correct${avgDir ? ` · avg ${avgDir} directional` : ''}`,
     '',
   ];

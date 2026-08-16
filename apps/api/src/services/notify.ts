@@ -261,7 +261,9 @@ export function formatSignalBroadcastMessage(input: BroadcastSignalInput): strin
   const source = classifySignalSource(input.monitorUrl, input.detectorTypes);
   const isSynthesis = source.category !== 'commit';
 
-  lines.push(`🛡️ LENITNES · ${asset} ${action} · ${conviction}/100 (${band}) · ${modeTag}`);
+  lines.push(
+    `🛡️ LENITNES[markets] · ${asset} ${action} · ${conviction}/100 (${band}) · ${modeTag}`,
+  );
   lines.push(`📍 ${repo}${detector} · ${formatUtcShort(input.detectedAt)}`);
   if (isSynthesis) {
     lines.push(`${source.tag} ${source.label} — ${source.explanation}`);

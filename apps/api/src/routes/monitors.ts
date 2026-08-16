@@ -50,17 +50,21 @@ monitorsRouter.post('/', validate(createMonitorSchema), async (req, res) => {
   });
 
   // ── Public feed: announce new watchlist entry to Telegram channel ──
+  // Vertical-tagged like every other public message. Plain text, not
+  // HTML — sendTelegram posts without parse_mode, so <b>/<a> tags used
+  // to leak literally into the channel.
   if (monitor.is_public && config.telegram.publicChannelId) {
     const freqMin = Math.round(monitor.frequency_seconds / 60);
     const freqLabel = freqMin < 60 ? `${freqMin}m` : `${Math.round(freqMin / 60)}h`;
+    const tag = monitor.domain === 'science' ? '🔬 LENITNES[research]' : '🛡️ LENITNES[markets]';
     notify
       .sendTelegram(
         config.telegram.publicChannelId,
-        `🛡️ <b>New watchlist entry live</b>\n` +
-          `<b>${monitor.condition_text.slice(0, 80)}${monitor.condition_text.length > 80 ? '…' : ''}</b>\n\n` +
+        `${tag} · new watchlist entry\n` +
+          `${monitor.condition_text.slice(0, 80)}${monitor.condition_text.length > 80 ? '…' : ''}\n\n` +
           `📍 ${monitor.url}\n` +
           `⏱ Every ${freqLabel}\n` +
-          `🔗 <a href="${config.webOrigin}/signals?monitorId=${monitor.id}">View signals</a>`,
+          `🔗 ${config.webOrigin}/signals?monitorId=${monitor.id}`,
       )
       .catch((err) =>
         logger.warn({ err, monitorId: monitor.id }, 'failed to post watchlist entry to Telegram'),

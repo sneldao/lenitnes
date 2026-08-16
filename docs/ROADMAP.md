@@ -4,6 +4,8 @@
 > the enterprise direction to become a real product. Written
 > 2026-07-07 after the "one engine, two audiences" pass.
 > Updated 2026-07-26 with tournament signal expansion.
+> Updated 2026-08-16 with the security/performance hardening pass and
+> the vertical-scoped Telegram digest.
 
 ## Where things stand
 
@@ -18,6 +20,20 @@ detectors + rubric run as a leak-scan over a company's own commit history
 — has a **capability demo**, not a product. `/scan` and the sample report
 in `docs/samples/` prove the engine can do the job; nothing yet
 exists that would let a company actually buy it.
+
+**2026-08-16 hardening pass** (security + performance): per-visitor
+rate limiting (`trust proxy` + re-scoped limiter; tighter admin
+limiter), API/web debug ports bound to loopback only (the published
+ports were verified publicly reachable — Docker-published ports
+bypass ufw), non-root container users on all three images,
+timing-safe admin key compare, web-layer security headers (CSP
+with `frame-ancestors` preserving the HF Space mirror, HSTS,
+nosniff), no default DB password, deploy preflight that aborts on
+root-owned files. Performance baseline: Lighthouse (mobile) was
+~78-85 with LCP 4-5s driven by a render-blocking Google Fonts CSS
+request; fonts are now self-hosted via `next/font` (FCP −1.4-1.7s,
+CLS → 0). The remaining lever is the SSR/streaming + route-level
+code splitting refactor below.
 
 ## What exists (trading direction)
 
@@ -35,7 +51,9 @@ exists that would let a company actually buy it.
 - **Propr perp venue**: live shorts + L1 assets (ZEC/SOL/SUI/ARB),
   3-tier account discovery, reduceOnly closes, SL+TP attachment
 - **Operator tooling**: dead-man's switch, gas alerts, TP/SL
-  auto-close, daily watch report, outcome verdict broadcasts
+  auto-close, outcome verdict broadcasts — plus a vertical-scoped
+  daily Telegram digest (09:00 UTC, always posts) covering both
+  `[markets]` and `[research]` in one instrument-voice message
 
 ## What exists (enterprise direction)
 

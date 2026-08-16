@@ -457,6 +457,19 @@ T+1d/T+7d outcome verdicts, and the daily report. A dead-man's
 switch pages the operator (TELEGRAM_OPERATOR_CHAT_ID) when checks
 stop for 2h or scoring starves for 48h.
 
+**4b. Every public message is vertical-tagged and the daily report
+is a two-vertical digest (2026-08-16).** All posts carry their
+vertical — `​LENITNES[markets]​` for trades/closes/verdicts,
+`LENITNES[research]` for integrity alerts — matching the web tags.
+The daily report was restructured (`services/watch-report.ts`) into
+a same-loop digest that always posts: an instrument lead line
+(judgments scored · HCS-notarized count), a `[markets]` section
+(top judgments, watchlist movers, trades, book) and a `[research]`
+section (24h/7d judgments, alerts, confirmed record events, top
+judgment link). A quiet day now reads as deliberate silence in
+both verticals, never as a trading journal with the research side
+invisible.
+
 **5. One engine, two audiences.** services/replay.ts runs the SAME
 detectors + rubric over any public repo's commit history
 (GET /backtest/replay — mock scoring publicly, live agent reasoning

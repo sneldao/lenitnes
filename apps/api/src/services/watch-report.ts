@@ -2,6 +2,7 @@ import { query } from '../db/pool.js';
 import { config } from '../config.js';
 import { sendTelegram } from './notify.js';
 import { getPortfolioSummary } from './portfolio.js';
+import { monitorRepoFromUrl } from './domain/repo-tier-policy.js';
 import { logger } from '../logger.js';
 
 interface MonitorRow {
@@ -20,6 +21,13 @@ interface SignalRow {
   detected_at: string;
   conviction: number;
   thesis: string;
+}
+
+interface ResearchRow {
+  sig24h: string;
+  sig7d: string;
+  alerts7d: string;
+  confirmed7d: string;
 }
 
 interface RepoGroup {
@@ -64,6 +72,14 @@ function groupMonitors(rows: MonitorRow[]): RepoGroup[] {
   return [...groups.values()];
 }
 
+interface ResearchSignalRow {
+  id: string;
+  url: string;
+  conviction: number;
+  action: string;
+  thesis: string;
+}
+
 export async function buildWatchReport(): Promise<string> {
   const { rows: monitorRows } = await query<MonitorRow>(
     `SELECT
@@ -79,8 +95,9 @@ export async function buildWatchReport(): Promise<string> {
      ORDER BY m.url, m.frequency_seconds`,
   );
 
-  // "Top", not "latest": rank by conviction, recency tie-break.
-  // Heartbeats and convicted-zero syntheses are not top-of-day material.
+  // ── [markets] — "Top", not "latest": rank by conviction, recency
+  // tie-break. Heartbeats and convicted-zero syntheses are not
+  // top-of-day material.
   const { rows: recentSignals } = await query<SignalRow>(
     `SELECT
        s.id::text,
@@ -94,10 +111,56 @@ export async function buildWatchReport(): Promise<string> {
      JOIN agent_scores a ON a.signal_id = s.id
      WHERE s.detected_at > now() - interval '24 hours'
        AND s.is_heartbeat = false
+       AND m.domain = 'code'
        AND a.conviction IS NOT NULL
        AND a.conviction > 0
      ORDER BY a.conviction DESC, s.detected_at DESC
      LIMIT 5`,
+  );
+
+  // ── [research] — the second oracle, same loop. Absent here, a
+  //    quiet research week would be invisible on the channel, and the
+  //    digest would read as a trading journal — the exact blended
+  //    signal the brand split removes.
+  const { rows: researchRows } = await query<ResearchRow>(
+    `SELECT
+       COUNT(*) FILTER (WHERE s.detected_at > now() - interval '24 hours')::text AS sig24h,
+       COUNT(*)::text AS sig7d,
+       COUNT(*) FILTER (WHERE ag.recommended_action = 'alert')::text AS alerts7d,
+       COUNT(*) FILTER (
+         WHERE ag.recommended_action = 'alert'
+           AND EXISTS (
+             SELECT 1 FROM signal_outcomes o
+             WHERE o.signal_id = s.id AND o.event_match_status = 'confirmed'
+           )
+       )::text AS confirmed7d
+     FROM signals s
+     JOIN monitors m ON m.id = s.monitor_id
+     JOIN agent_scores ag ON ag.signal_id = s.id
+     WHERE m.domain = 'science'
+       AND s.is_heartbeat = false
+       AND s.detected_at > now() - interval '7 days'
+       AND ag.recommended_action IN ('alert', 'investigate', 'none')`,
+  );
+  const research = researchRows[0];
+
+  const { rows: topResearch } = await query<ResearchSignalRow>(
+    `SELECT
+       s.id::text,
+       m.url,
+       ag.conviction::int AS conviction,
+       ag.recommended_action AS action,
+       COALESCE(LEFT(ag.thesis, 200), '') AS thesis
+     FROM signals s
+     JOIN monitors m ON m.id = s.monitor_id
+     JOIN agent_scores ag ON ag.signal_id = s.id
+     WHERE m.domain = 'science'
+       AND s.is_heartbeat = false
+       AND s.detected_at > now() - interval '7 days'
+       AND ag.conviction IS NOT NULL
+       AND ag.conviction > 0
+     ORDER BY ag.conviction DESC, s.detected_at DESC
+     LIMIT 1`,
   );
 
   const groups = groupMonitors(monitorRows);
@@ -111,9 +174,18 @@ export async function buildWatchReport(): Promise<string> {
   const checks24h = await query<{ c: string }>(
     "SELECT COUNT(*)::text AS c FROM signals WHERE detected_at > now() - interval '24 hours'",
   ).then((r) => parseInt(r.rows[0]?.c ?? '0'));
-  const aboveThreshold7d = await query<{ c: string }>(
-    "SELECT COUNT(*)::text AS c FROM agent_scores WHERE conviction >= 70 AND created_at > now() - interval '7 days'",
-  ).then((r) => parseInt(r.rows[0]?.c ?? '0'));
+  // Verdicts notarized on Hedera HCS — the shared proof spine. Same
+  // filter as the scorecard's proofCoverage (successful 0.0.x message ids).
+  const { rows: notarizedRows } = await query<{ total: string; with_hedera: string }>(
+    `SELECT
+       COUNT(*)::text AS total,
+       COUNT(*) FILTER (
+         WHERE hedera_hcs_message_id IS NOT NULL
+           AND hedera_hcs_message_id LIKE '0.0.%'
+       )::text AS with_hedera
+     FROM signals WHERE NOT is_heartbeat`,
+  );
+  const notarized = parseInt(notarizedRows[0]?.with_hedera ?? '0');
 
   const { rows: recentOrders } = await query<{
     chain: string;
@@ -133,105 +205,96 @@ export async function buildWatchReport(): Promise<string> {
   const groupsTotal = groups.length;
   const activeCount = monitorRows.length;
 
-  // ── Lead: state-of-the-agent in one line ──
-  // Same voice as the hourly heartbeat — verdict first, infra last.
-  // Daily is "what happened today"; hourly is "where are we now".
-  if (aboveThreshold7d > 0) {
-    lines.push(
-      `🛡️ LENITNES · daily · ${today} · ${aboveThreshold7d} high-conviction signal(s) this week`,
-    );
-  } else if (recentSignals.length > 0) {
-    const top = recentSignals[0];
-    const topMeta = assetMeta(top.asset);
-    lines.push(
-      `🛡️ LENITNES · daily · ${today} · ${topMeta.label} ${top.conviction}/100 (close miss)`,
-    );
-  } else {
-    lines.push(`🛡️ LENITNES · daily · ${today} · all ${groupsTotal} repos clean`);
-  }
+  // ── Lead: the instrument, not a vertical ──
+  // One engine, two oracles: the loop, the notarization, and the
+  // grading discipline are the identity. Vertical sections follow.
+  lines.push(`🛡️ LENITNES · daily · ${today}`);
+  lines.push(
+    `${totalSignals} judgments scored · ${notarized} notarized (HCS) · ${activeCount} monitors · ${groupsTotal} repos`,
+  );
   lines.push('');
 
-  // ── Top signals — show the actual thesis, not a count ──
+  // ── [markets] ───────────────────────────────────────────────
   if (recentSignals.length > 0) {
-    lines.push(`💭 Top signals (24h)`);
+    lines.push(`[markets] · top judgments (24h)`);
     for (const s of recentSignals.slice(0, 3)) {
       const meta = assetMeta(s.asset);
       const link = s.conviction >= 70 ? ` · ${config.webOrigin}/signals/${s.id}` : '';
       lines.push(`   ${meta.emoji} ${meta.label} · ${s.conviction}/100${link}`);
       if (s.thesis) lines.push(`     "${s.thesis.replace(/\n/g, ' ')}"`);
     }
-    lines.push('');
+  } else {
+    lines.push(`[markets] · nothing above threshold (24h) — selective silence`);
   }
-
-  // ── Watchlist roll-up — only show movers ──
+  // Watchlist roll-up — only show movers
   const noisy = groups
     .map((g) => ({ group: g, total: g.monitors.reduce((s, m) => s + m.signals_7d, 0) }))
     .filter((x) => x.total > 0)
     .sort((a, b) => b.total - a.total);
 
   if (noisy.length > 0) {
-    lines.push(`📊 Watchlist activity (7d, real signals — heartbeats excluded)`);
-    // Two repos can map to the same asset (geth + reth → Ethereum):
-    // disambiguate with the repo name on repeats so the list never
-    // shows the same label twice with no way to tell them apart.
     const seenLabels = new Map<string, number>();
-    for (const { group, total } of noisy) {
+    for (const { group, total } of noisy.slice(0, 4)) {
       const meta = assetMeta(group.asset);
       const dupes = (seenLabels.get(meta.label) ?? 0) + 1;
       seenLabels.set(meta.label, dupes);
       const repoShort = group.repoName.split('/')[1] ?? group.repoName;
       lines.push(
-        `   ${meta.emoji} ${meta.label}${dupes > 1 ? ` (${repoShort})` : ''} · ${total} signal(s)`,
+        `   ${meta.emoji} ${meta.label}${dupes > 1 ? ` (${repoShort})` : ''} · ${total} signal(s) (7d)`,
       );
     }
     const quietCount = groupsTotal - noisy.length;
     if (quietCount > 0) lines.push(`   … ${quietCount} other repo(s) quiet`);
-    lines.push('');
   }
-
-  // ── Trades — only when something fired ──
   if (recentOrders.length > 0) {
-    lines.push(`💼 Trades (7d)`);
-    for (const o of recentOrders) {
-      const tx = o.chain_tx_hash ? o.chain_tx_hash.slice(0, 10) + '…' : 'pending';
-      const venue = o.chain_tx_hash?.startsWith('0xpropr:')
-        ? ' · propr perp'
-        : o.chain_tx_hash?.startsWith('0xpap')
-          ? ' · paper'
-          : '';
-      lines.push(`   ${o.chain} · ${o.status}${venue} · ${tx} (${o.placed_at.slice(0, 10)})`);
-    }
-    lines.push('');
+    lines.push(`   💼 trades (7d) · ${recentOrders.length}`);
   }
-
-  // ── Book state — moved here from the (removed) hourly heartbeat.
-  //    Public-safe fields only; no internal hygiene warnings.
+  // Book state — public-safe fields only; no internal hygiene warnings.
   try {
     const book = await getPortfolioSummary();
     if (book.total_open_positions > 0 || book.total_closed_positions > 0) {
       const realized = book.realized_pnl_usd;
-      const unrealized = book.unrealized_pnl_usd;
       const parts = [
         `${book.total_open_positions} open`,
         `${book.total_closed_positions} closed`,
         `${realized >= 0 ? '+' : ''}$${realized.toFixed(2)} realized`,
       ];
-      if (book.total_open_positions > 0) {
-        parts.push(`${unrealized >= 0 ? '+' : ''}$${unrealized.toFixed(2)} unrealized`);
-      }
-      lines.push(`💼 Book · ${parts.join(' · ')}`);
-      lines.push('');
+      lines.push(`   📒 book · ${parts.join(' · ')}`);
     }
   } catch (err) {
     logger.warn({ err }, 'watch report: portfolio summary failed (section skipped)');
   }
+  lines.push('');
 
-  // ── One-line stat strip + footer ──
+  // ── [research] ──────────────────────────────────────────────
+  const res = research as ResearchRow | undefined;
+  const res24h = Number(res?.sig24h ?? 0);
+  const res7d = Number(res?.sig7d ?? 0);
+  const resAlerts = Number(res?.alerts7d ?? 0);
+  const resConfirmed = Number(res?.confirmed7d ?? 0);
   lines.push(
-    `📈 ${totalSignals} scored signals · ${last24hSignals} new (24h) · ${checks24h} checks (24h) · ${activeCount} monitors · ${groupsTotal} repos`,
+    `[research] · ${res24h} judgment(s) (24h) · ${res7d} (7d) · ${resAlerts} alert(s) · ${resConfirmed} confirmed record event(s)`,
+  );
+  const top = topResearch[0];
+  if (top) {
+    const repo = monitorRepoFromUrl(top.url);
+    lines.push(
+      `   🔬 ${repo} · ${top.conviction}/100 (${top.action}) · ${config.webOrigin}/signals/${top.id}`,
+    );
+    if (top.thesis) lines.push(`     "${top.thesis.replace(/\n/g, ' ')}"`);
+  } else {
+    lines.push(`   💤 no judgments this week — record unchanged`);
+  }
+  lines.push('');
+
+  // ── One-line stat strip + deep links, both verticals ──
+  lines.push(
+    `📊 ${totalSignals} scored · ${notarized} notarized · ${last24hSignals} new (24h) · ${checks24h} checks (24h)`,
   );
   lines.push('');
-  lines.push(`🔗 ${config.webOrigin}/scorecard · ${config.webOrigin}/portfolio`);
+  lines.push(
+    `🔗 ${config.webOrigin}/scorecard?domain=markets · ${config.webOrigin}/scorecard?domain=research\n🔗 ${config.webOrigin}/reasoning`,
+  );
 
   return lines.join('\n');
 }
