@@ -477,3 +477,32 @@ with X-Admin-Key). This is simultaneously the case-study generator
 and the enterprise leak-scan demo ("what did your last quarter of
 commits tell the market?"). Nothing may fork detector or scoring
 logic for one audience — the engine identity IS the product claim.
+
+**6. Evidence paths — the chain as a first-class object (2026-08-17,
+plan).** Single-commit calls are rare jackpots; the durable signal
+surface is chained, medium-strength evidence. Planned additive
+model (migration 013, Postgres — the corpus is ~25 repos, so no
+graph DB; the value is the annotation policy):
+
+- `evidence_nodes` — node_type: commit | advisory | pr | release |
+  paper | macro | signal; source, detected_at, payload
+- `evidence_links` — typed edges: `same_sha`, `backport`,
+  `releases_fix`, `corroborates`, `contradicts`, `same_root`,
+  `supersedes`, `paper_depends_on`, `mechanism_shared`;
+  provenance: auto | curated | retrospective
+- `signal_paths` — the ordered path a call was scored against
+- `path_commitments` — hash(path) anchored on HCS with the call:
+  the chain is pre-registered exactly like the verdict
+
+Grading composition (rubric v7, still a versioned .md swap):
+conviction over the path = primary node evidence × corroboration
+edges × contradiction dampeners × historical pattern priors —
+composition owned by the rubric file, never by ad-hoc code.
+
+**Honesty invariant:** only pre-outcome edges may feed a chain.
+Edges discovered after the outcome ("this paper also depended on
+it") are labeled `retrospective` and excluded from calibration —
+chaining must stay pre-registration discipline, not hindsight
+fitting. The chain runner reruns deterministically from the same
+tables the call was written to, preserving the recompute-from-
+tables proof invariant.

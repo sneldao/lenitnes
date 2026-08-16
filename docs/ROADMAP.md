@@ -6,6 +6,7 @@
 > Updated 2026-07-26 with tournament signal expansion.
 > Updated 2026-08-16 with the security/performance hardening pass and
 > the vertical-scoped Telegram digest.
+> Updated 2026-08-17 with the chained-analysis evolution plan.
 
 ## Where things stand
 
@@ -111,6 +112,104 @@ infrastructure once a real yes justifies it, not before.
 - [ ] `org_id` tenancy on `monitors` + private delivery channel
 - [ ] Pricing/packaging decided
 - [ ] First paid engagement
+
+## The chain evolution — where the ongoing signal lives (2026-08-17)
+
+A single commit can be a complete call — halo2: 95/100, four-detector
+consensus, days before disclosure. But those events are rare by
+construction: high-severity single commits are the exception, and the
+corpus mostly produces medium-strength evidence that only becomes a
+defensible thesis when **connected**. The current pipeline already
+chains at the prompt level (narrative scan, thesis synthesis, proactive
+scan) — but the chain is text, not structure: nothing links the
+cross-repo occurrences of one event, no downstream paper is associated
+with a library change, and a `[research]` finding never feeds a
+`[markets]` call even when the mechanism is identical. **Chaining is
+where the ongoing signal lives; the single-commit call is the rare
+jackpot.**
+
+The evolution: make the path a first-class object. Every invariant
+stays — one engine, two oracles, the call as the unit of proof, HCS
+pre-notarization, public recomputation from the same tables — and we
+add one structured layer: typed evidence nodes and edges, chain-scored
+by a versioned rubric, pre-committed like calls.
+
+### Data model — additive, Postgres, no graph DB
+
+Migration 013 adds four tables. The corpus is ~25 repos; the value is
+in the annotation policy, not the query engine.
+
+- `evidence_nodes` — node_type: commit | advisory | pr | release |
+  paper | macro | signal; source (repo, sha, url), detected_at, payload
+- `evidence_links` — typed edges: kind (`same_sha`, `backport`,
+  `releases_fix`, `corroborates`, `contradicts`, `same_root`,
+  `supersedes`, `paper_depends_on`, `mechanism_shared`), from/to,
+  provenance (auto | curated | retrospective)
+- `signal_paths` — signal_id + ordered node ids + edge kinds; the
+  chain a call was scored against
+- `path_commitments` — hash(path) anchored on HCS with the call, so
+  the chain is pre-registered like the verdict
+
+### Edge annotation policy — the product rule
+
+Only edges derivable from **pre-outcome** evidence may feed a chain:
+
+- **Auto**: same-SHA backports/cherry-picks across repos; release +\
+  advisory on one repo; multi-detector on one commit (already exists
+  as consensus); commit + PR + release within N days
+- **Curated**: paper→library mappings (the downstream-consumer radar,
+  seeded with the known cases: AFNI/3dClustSim and the papers it
+  invalidated, the OpenMM barostat case, halo2 consumers)
+- **Forbidden after the outcome**: post-outcome edges are labeled
+  `retrospective` and excluded from calibration — the honesty rule
+  that keeps chaining from becoming hindsight fitting
+
+### Phases — build order
+
+**P0 — Evidence tables + chain commitment.** Migration 013
+(`evidence_nodes`, `evidence_links`, `signal_paths`, `path_commitments`);
+the chain runner assembles auto-edges for every committed signal and
+anchors the path hash on HCS alongside the call. No scoring change;
+replay stays byte-compatible.
+
+**P1 — Same-event chains visible.** `/signals/[id]` renders the path
+("one event, three repos") instead of an isolated verdict; the reasoning
+archive shows chain membership. Ships the halo2-shaped case as a
+connected object, not a coincidence.
+
+**P2 — Chain-graded rubric (v7).** The rubric .md gains a chain section:
+composition formula (primary node, corroboration edges, contradiction
+dampeners, pattern priors), chain citations alongside commit citations,
+conviction bands per path length. Same file-swap versioning, same
+calibration machinery.
+
+**P3 — Downstream-consumer radar.** Curated paper↔library mapping;
+a `results_rewrite` / `method_fix` in a library with mapped papers
+emits "N published results affected" — the reproducibility surface of
+a field, not a single repo. This is the `[research]` vertical's real
+product direction, graded against the record.
+
+**P4 — Cross-vertical chains.** A `[research]` path that reaches a
+`[markets]` mechanism (library fix → protocol → price) becomes
+dual-graded: both authorities score the same path; the market verdict
+and the record verdict are two facts about one call. The agnostic
+positioning becomes a product, not just an architecture story.
+
+**P5 — Phenomenon-type replay library.** Typed patterns
+(silent-merge → emergency-patch, cluster-threshold-fix,
+force-removal-in-MD-pipeline) with a replay library that surfaces
+"this shape has fired N times; the outcome distribution was X". The
+agent cites the pattern in the thesis; the public calibration page
+shows pattern hit rates.
+
+### Status
+
+- [ ] P0 evidence tables + HCS chain commitment
+- [ ] P1 same-event chains surfaced on /signals + archive
+- [ ] P2 chain-graded rubric v7
+- [ ] P3 downstream-consumer radar (curated seed: AFNI, OpenMM, halo2)
+- [ ] P4 cross-vertical dual-graded chains
+- [ ] P5 phenomenon-type replay library
 
 ## UI/UX polish backlog (post-hackathon)
 
