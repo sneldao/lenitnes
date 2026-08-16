@@ -6,6 +6,7 @@
 // raw numbers + the open questions.
 
 import { useQuery } from '@tanstack/react-query';
+import { useState } from 'react';
 import Link from 'next/link';
 import { Activity, AlertTriangle, GitBranch, Target, TrendingUp } from 'lucide-react';
 import {
@@ -18,6 +19,7 @@ import {
 import { qk, REFETCH } from '@/lib/queryKeys';
 import { formatRatio, formatDetectorType, tierBadgeClass, formatNullableRatio } from '@/lib/format';
 import { PageLoader, PageError } from '@/components/ui/page-states';
+import { useShowMore, ShowMoreButton } from '@/components/ui/show-more';
 
 function fmtPct(n: number | null): string {
   if (n == null) return '—';
@@ -66,6 +68,11 @@ export default function CalibrationPage() {
 
   const liveByRepo = new Map(compare?.live?.profiles?.map((p) => [p.repo.toLowerCase(), p]) ?? []);
   const driftByRepo = new Map(compare?.drift?.map((d) => [d.repo.toLowerCase(), d]) ?? []);
+
+  const DETECTOR_VISIBLE = 10;
+  const FORWARD_VISIBLE = 5;
+  const detectorMore = useShowMore(data?.bySignalType.length ?? 0, DETECTOR_VISIBLE);
+  const forwardMore = useShowMore(forwardPaper?.entries.length ?? 0, FORWARD_VISIBLE);
 
   if (isLoading) return <PageLoader label="Loading calibration…" />;
   if (isError || !data) return <PageError message="Failed to load calibration data." />;
@@ -241,6 +248,13 @@ export default function CalibrationPage() {
               </tbody>
             </table>
           </div>
+          <ShowMoreButton
+            total={data.bySignalType.length}
+            initial={DETECTOR_VISIBLE}
+            expanded={detectorMore.expanded}
+            onToggle={detectorMore.toggle}
+            noun="detectors"
+          />
         </section>
       )}
 
@@ -406,6 +420,13 @@ export default function CalibrationPage() {
               </tbody>
             </table>
           </div>
+          <ShowMoreButton
+            total={forwardPaper.entries.length}
+            initial={FORWARD_VISIBLE}
+            expanded={forwardMore.expanded}
+            onToggle={forwardMore.toggle}
+            noun="entries"
+          />
         </section>
       )}
 
