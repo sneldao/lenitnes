@@ -1,6 +1,6 @@
 'use client';
 
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import Link from 'next/link';
 import {
@@ -58,12 +58,14 @@ function pctTone(n: number | null): string {
 }
 
 export default function ScorecardPage() {
-  const [domain, setDomain] = useState<'code' | 'bio'>(() =>
-    typeof window !== 'undefined' &&
-    new URLSearchParams(window.location.search).get('domain') === 'bio'
-      ? 'bio'
-      : 'code',
-  );
+  const [domain, setDomain] = useState<'code' | 'bio'>('code');
+
+  // Read ?domain=bio after mount to avoid SSR/client hydration mismatch.
+  useEffect(() => {
+    if (new URLSearchParams(window.location.search).get('domain') === 'bio') {
+      setDomain('bio');
+    }
+  }, []);
 
   return (
     <div className="space-y-8">
