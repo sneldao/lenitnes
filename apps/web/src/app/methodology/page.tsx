@@ -5,7 +5,7 @@ import { MethodologyClient } from './MethodologyClient';
 export const metadata = {
   title: 'How it works — LENITNES',
   description:
-    'How LENITNES turns public commits to consensus-critical code into scored trades, gated by a versioned safety layer.',
+    'How LENITNES turns repository changes into proof-chained market theses or scientific-integrity alerts, using separate versioned rubrics and outcome oracles.',
 };
 
 export default function MethodologyPage() {

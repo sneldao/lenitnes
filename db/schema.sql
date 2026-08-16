@@ -70,7 +70,10 @@ CREATE TABLE IF NOT EXISTS signals (
   -- user has already seen. NULL = unviewed.
   viewed_at              TIMESTAMPTZ,
   viewed_by              UUID REFERENCES users(id) ON DELETE SET NULL,
-  search_results         JSONB NOT NULL DEFAULT '[]'::jsonb
+  search_results         JSONB NOT NULL DEFAULT '[]'::jsonb,
+  -- live = prospective production signal; replay = retrospective evaluation
+  evaluation_mode        TEXT NOT NULL DEFAULT 'live'
+    CHECK (evaluation_mode IN ('live', 'replay'))
 );
 
 CREATE INDEX IF NOT EXISTS idx_signals_monitor_id  ON signals(monitor_id);
@@ -260,6 +263,11 @@ ALTER TABLE signal_outcomes ADD COLUMN IF NOT EXISTS event_kind   TEXT;
 ALTER TABLE signal_outcomes ADD COLUMN IF NOT EXISTS event_at     TIMESTAMPTZ;
 ALTER TABLE signal_outcomes ADD COLUMN IF NOT EXISTS event_source TEXT;
 ALTER TABLE signal_outcomes ADD COLUMN IF NOT EXISTS lead_days    INTEGER;
+ALTER TABLE signal_outcomes ADD COLUMN IF NOT EXISTS event_source_url TEXT;
+ALTER TABLE signal_outcomes ADD COLUMN IF NOT EXISTS event_match_status TEXT NOT NULL DEFAULT 'unreviewed';
+ALTER TABLE signal_outcomes DROP CONSTRAINT IF EXISTS signal_outcomes_event_match_status_check;
+ALTER TABLE signal_outcomes ADD CONSTRAINT signal_outcomes_event_match_status_check
+    CHECK (event_match_status IN ('unreviewed', 'candidate', 'confirmed', 'rejected'));
 
 CREATE INDEX IF NOT EXISTS idx_monitors_domain ON monitors(domain);
 CREATE INDEX IF NOT EXISTS idx_signal_outcomes_event

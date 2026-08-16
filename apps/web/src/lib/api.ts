@@ -201,7 +201,7 @@ export interface ScorecardRecentCall {
   domain: 'code' | 'bio';
   conviction: number | null;
   thesis: string | null;
-  recommendedAction: 'long' | 'short' | 'none' | null;
+  recommendedAction: 'long' | 'short' | 'none' | 'alert' | 'investigate' | null;
   tradeTxHash: string | null;
   outcomes: OutcomePill;
 }
@@ -267,13 +267,28 @@ export interface ScorecardBioAlert {
   signalId: string;
   detectedAt: string;
   monitorUrl: string;
+  evaluationMode: 'live' | 'replay';
+  action: 'alert';
   conviction: number | null;
   thesis: string | null;
   primaryDetector: string | null;
   eventKind: 'retraction' | 'correction' | 'disclosure' | 'release' | null;
   eventAt: string | null;
   eventSource: string | null;
+  eventSourceUrl: string | null;
+  eventMatchStatus: 'unreviewed' | 'candidate' | 'confirmed' | 'rejected' | null;
   leadDays: number | null;
+}
+
+export interface ScorecardBioCohort {
+  totalSignals: number;
+  totalAlerts: number;
+  totalInvestigations: number;
+  totalNoise: number;
+  confirmedEvents: number;
+  precision: number | null;
+  avgLeadDays: number | null;
+  maxLeadDays: number | null;
 }
 
 export interface ScorecardBioResponse {
@@ -282,7 +297,11 @@ export interface ScorecardBioResponse {
   precision: number | null;
   avgLeadDays: number | null;
   maxLeadDays: number | null;
+  cohorts: { live: ScorecardBioCohort; replay: ScorecardBioCohort };
   alerts: ScorecardBioAlert[];
+  page: number;
+  pageSize: number;
+  totalPages: number;
   generatedAt: string;
 }
 
@@ -614,7 +633,10 @@ export const api = {
     }>(`/dlq?limit=${limit}`),
 
   getScorecard: () => reqCamel<ScorecardResponse>(`/scorecard`),
-  getScorecardBio: () => reqCamel<ScorecardBioResponse>(`/scorecard?domain=bio`),
+  getScorecardBio: (page = 1, pageSize = 20) =>
+    reqCamel<ScorecardBioResponse>(
+      `/scorecard?domain=bio&page=${encodeURIComponent(page)}&pageSize=${encodeURIComponent(pageSize)}`,
+    ),
   getScorecardRecent: (limit?: number) =>
     reqCamel<ScorecardRecentCall[]>(`/scorecard/recent${limit ? `?limit=${limit}` : ''}`),
 

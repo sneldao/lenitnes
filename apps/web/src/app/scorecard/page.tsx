@@ -139,17 +139,22 @@ export default function ScorecardPage() {
 // ── [bio] vertical: event-based integrity scorecard ──────────
 
 function BioScorecard() {
+  const [page, setPage] = useState(1);
+  const pageSize = 20;
   const { data, isLoading, isError } = useQuery<ScorecardBioResponse>({
-    queryKey: qk.scorecardBio(),
-    queryFn: () => api.getScorecardBio(),
+    queryKey: qk.scorecardBio(page, pageSize),
+    queryFn: () => api.getScorecardBio(page, pageSize),
     refetchInterval: REFETCH.medium,
   });
 
-  if (isLoading) return <PageLoader label="Recomputing the record…" />;
+  if (isLoading) return <PageLoader label="Recomputing the science record…" />;
   if (isError || !data)
     return (
-      <PageError message="Failed to load the bio scorecard. The API may be down — try again in a moment." />
+      <PageError message="Failed to load the science scorecard. The API may be down — try again in a moment." />
     );
+
+  const live = data.cohorts.live;
+  const replay = data.cohorts.replay;
 
   return (
     <div className="space-y-8">
@@ -161,101 +166,159 @@ function BioScorecard() {
           Did the alert precede the record?
         </h1>
         <p className="mt-2 max-w-2xl text-xs leading-relaxed text-slate-500">
-          Graded today against dated retractions, corrections, and disclosures — mostly via replay
-          of known history. The live arm commits verdicts before the record moves; the numbers below
-          grow as those mature.
+          Live alerts are scored only against explicitly adjudicated scientific-record events.
+          Historical replays are shown separately and never inflate the prospective record.
         </p>
       </header>
 
       <section className="grid grid-cols-2 gap-3 sm:grid-cols-4">
         <StatCard
           icon={<Activity className="h-3 w-3" />}
-          label="Alerts committed"
-          value={data.totalAlerts.toString()}
+          label="Live alerts committed"
+          value={live.totalAlerts.toString()}
+          caveat={`${live.totalInvestigations} investigations · ${live.totalNoise} noise`}
         />
         <StatCard
           icon={<Target className="h-3 w-3" />}
           label="Confirmed events"
-          value={data.confirmedEvents.toString()}
+          value={live.confirmedEvents.toString()}
+          caveat="adjudicated only"
         />
         <StatCard
           icon={<Zap className="h-3 w-3" />}
-          label="Precision"
-          value={data.precision != null ? formatRatio(data.precision) : '—'}
-          caveat="confirmed / alerts"
+          label="Live precision"
+          value={live.precision != null ? formatRatio(live.precision) : '—'}
+          caveat="confirmed / live alerts"
         />
         <StatCard
           icon={<Radar className="h-3 w-3" />}
           label="Avg lead time"
-          value={data.avgLeadDays != null ? `${Math.round(data.avgLeadDays)}d` : '—'}
-          caveat={data.maxLeadDays != null ? `best ${data.maxLeadDays}d` : 'alert → event'}
+          value={live.avgLeadDays != null ? `${Math.round(live.avgLeadDays)}d` : '—'}
+          caveat={live.maxLeadDays != null ? `best ${live.maxLeadDays}d` : 'alert → event'}
         />
+      </section>
+
+      <section className="grid gap-3 sm:grid-cols-2">
+        <div className="rounded-xl border border-signal/25 bg-signal/[0.04] p-4">
+          <p className="font-mono text-[10px] uppercase tracking-wider text-signal">
+            Prospective live cohort
+          </p>
+          <p className="mt-2 text-sm text-slate-300">
+            {live.totalAlerts} alert{live.totalAlerts === 1 ? '' : 's'} · {live.confirmedEvents}{' '}
+            confirmed
+          </p>
+          <p className="mt-1 text-xs text-slate-500">
+            Only confirmed event matches contribute to precision.
+          </p>
+        </div>
+        <div className="rounded-xl border border-edge/40 bg-panel/40 p-4">
+          <p className="font-mono text-[10px] uppercase tracking-wider text-slate-500">
+            Retrospective replay cohort
+          </p>
+          <p className="mt-2 text-sm text-slate-300">
+            {replay.totalAlerts} alert{replay.totalAlerts === 1 ? '' : 's'} ·{' '}
+            {replay.confirmedEvents} confirmed
+          </p>
+          <p className="mt-1 text-xs text-slate-500">
+            Calibration examples, excluded from the live record.
+          </p>
+        </div>
       </section>
 
       {data.alerts.length > 0 ? (
         <section className="card">
           <h2 className="section-title mb-2 flex items-center gap-2">
             <Radar className="h-3.5 w-3.5 text-accent" />
-            Alerts
+            Committed alerts
           </h2>
           <ul>
-            {data.alerts.map((a, i) => (
-              <li key={a.signalId} className="border-t border-edge/20 first:border-t-0">
-                <Link
-                  href={`/signals/${a.signalId}`}
-                  className="group grid animate-signal-enter grid-cols-[1fr_auto] items-center gap-x-4 gap-y-1.5 px-2 py-3 transition-colors hover:bg-accent/[0.04] sm:grid-cols-[150px_1fr_auto_auto]"
-                  style={{ animationDelay: `${i * 50}ms` }}
-                >
-                  <div className="order-2 min-w-0 font-mono text-[10px] text-slate-600 sm:order-1">
-                    <div>{formatDate(a.detectedAt)}</div>
-                    <div className="truncate">
-                      {a.primaryDetector
-                        ? formatDetectorType(a.primaryDetector)
-                        : shortUrl(a.monitorUrl)}
+            {data.alerts.map((a, i) => {
+              const status = a.eventMatchStatus ?? (a.eventKind ? 'unreviewed' : 'pending');
+              const statusClass =
+                status === 'confirmed'
+                  ? 'bg-signal/15 text-signal'
+                  : status === 'candidate'
+                    ? 'bg-warn/15 text-warn'
+                    : 'bg-slate-500/15 text-slate-400';
+              return (
+                <li key={a.signalId} className="border-t border-edge/20 first:border-t-0">
+                  <Link
+                    href={`/signals/${a.signalId}`}
+                    className="group grid animate-signal-enter grid-cols-[1fr_auto] items-center gap-x-4 gap-y-1.5 px-2 py-3 transition-colors hover:bg-accent/[0.04] sm:grid-cols-[150px_1fr_auto_auto]"
+                    style={{ animationDelay: `${i * 50}ms` }}
+                  >
+                    <div className="order-2 min-w-0 font-mono text-[10px] text-slate-600 sm:order-1">
+                      <div>{formatDate(a.detectedAt)}</div>
+                      <div className="truncate">
+                        {a.primaryDetector
+                          ? formatDetectorType(a.primaryDetector)
+                          : shortUrl(a.monitorUrl)}
+                      </div>
                     </div>
-                  </div>
-                  <p className="order-1 min-w-0 truncate text-sm text-slate-200 transition-colors group-hover:text-accent sm:order-2">
-                    {a.thesis ?? 'No thesis recorded'}
-                  </p>
-                  <div className="order-3 flex items-center gap-2">
-                    {a.eventKind ? (
-                      <span className="badge bg-signal/15 text-[9px] uppercase text-signal">
-                        {a.eventKind}
+                    <p className="order-1 min-w-0 truncate text-sm text-slate-200 transition-colors group-hover:text-accent sm:order-2">
+                      {a.thesis ?? 'No thesis recorded'}
+                    </p>
+                    <div className="order-3 flex items-center gap-2">
+                      <span className={`badge text-[9px] uppercase ${statusClass}`}>
+                        {status}
+                        {a.eventKind ? ` · ${a.eventKind}` : ''}
                         {a.leadDays != null ? ` +${a.leadDays}d` : ''}
                       </span>
-                    ) : (
-                      <span className="badge bg-slate-500/15 text-[9px] uppercase text-slate-400">
-                        pending
+                      <span
+                        className={`font-mono text-[9px] uppercase ${a.evaluationMode === 'replay' ? 'text-slate-500' : 'text-signal/70'}`}
+                      >
+                        [{a.evaluationMode}]
                       </span>
-                    )}
-                    {a.conviction != null && (
-                      <span className="font-mono text-base font-bold text-accent">
-                        {a.conviction}
-                      </span>
-                    )}
-                  </div>
-                  <div className="order-4 font-mono text-[10px] text-slate-600">
-                    {shortUrl(a.monitorUrl)}
-                  </div>
-                </Link>
-              </li>
-            ))}
+                      {a.conviction != null && (
+                        <span className="font-mono text-base font-bold text-accent">
+                          {a.conviction}
+                        </span>
+                      )}
+                    </div>
+                    <div className="order-4 font-mono text-[10px] text-slate-600">
+                      {shortUrl(a.monitorUrl)}
+                    </div>
+                  </Link>
+                </li>
+              );
+            })}
           </ul>
+          <div className="mt-3 flex items-center justify-between border-t border-edge/20 pt-3">
+            <span className="font-mono text-[10px] text-slate-600">
+              page {data.page} / {data.totalPages}
+            </span>
+            <div className="flex gap-2">
+              <button
+                className="btn-ghost px-3 py-1 text-[10px] disabled:opacity-30"
+                disabled={data.page <= 1}
+                onClick={() => setPage((p) => Math.max(1, p - 1))}
+              >
+                Previous
+              </button>
+              <button
+                className="btn-ghost px-3 py-1 text-[10px] disabled:opacity-30"
+                disabled={data.page >= data.totalPages}
+                onClick={() => setPage((p) => Math.min(data.totalPages, p + 1))}
+              >
+                Next
+              </button>
+            </div>
+          </div>
         </section>
       ) : (
         <div className="card border-edge/30 py-10 text-center">
           <h2 className="mt-2 font-display text-xl font-semibold text-slate-200">
-            No bio alerts committed yet.
+            No live alerts committed yet.
           </h2>
           <p className="mx-auto mt-2 max-w-md text-sm leading-relaxed text-slate-500">
-            The founding replay is live — see the 3dClustSim case study.
+            The founding example is a retrospective replay, not a live result.
           </p>
           <div className="mt-5">
             <Link
               href="/case-study/clustsim"
               className="btn px-4 py-2 text-xs uppercase tracking-wider"
             >
-              See the founding example
+              See the founding replay
             </Link>
           </div>
         </div>

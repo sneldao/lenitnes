@@ -23,7 +23,7 @@ export interface RecentCall {
   domain: 'code' | 'bio';
   conviction: number | null;
   thesis: string | null;
-  recommendedAction: 'long' | 'short' | 'none' | null;
+  recommendedAction: 'long' | 'short' | 'none' | 'alert' | 'investigate' | null;
   tradeTxHash: string | null;
   outcomes: RecentCallOutcome;
 }
@@ -142,7 +142,7 @@ interface RecentRow {
   domain: 'code' | 'bio';
   conviction: number | null;
   thesis: string | null;
-  recommended_action: 'long' | 'short' | 'none' | null;
+  recommended_action: 'long' | 'short' | 'none' | 'alert' | 'investigate' | null;
   trade_tx_hash: string | null;
   outcomes: RecentCallOutcome;
   detector_types: string[];
@@ -194,94 +194,266 @@ export async function recentCalls(limit: number = 20): Promise<RecentCall[]> {
 
 // ── Bio vertical: event-based credibility ────────────────────
 // The [bio] vertical doesn't score against price — it scores against
-// the scientific record. An alert is "confirmed" when a dated event
-// (retraction / correction / disclosure / release) is recorded on its
-// signal_outcomes row. Precision = confirmed / alerts. Lead time =
-// days between the committed alert and the event date.
+// the scientific record. Only agent action='alert' rows are in the
+// alert denominator. An event contributes to precision only after its
+// signal_outcomes row is explicitly adjudicated as confirmed and occurs
+// after detection. Replay and live rows are aggregated independently.
+
+export type BioEvaluationMode = 'live' | 'replay';
+export type BioAction = 'alert' | 'investigate' | 'none';
+export type BioEventMatchStatus = 'unreviewed' | 'candidate' | 'confirmed' | 'rejected';
 
 export interface BioAlertRow {
   signalId: string;
   detectedAt: string;
   monitorUrl: string;
+  evaluationMode: BioEvaluationMode;
+  action: BioAction;
   conviction: number | null;
   thesis: string | null;
   primaryDetector: string | null;
   eventKind: string | null;
   eventAt: string | null;
   eventSource: string | null;
+  eventSourceUrl: string | null;
+  eventMatchStatus: BioEventMatchStatus | null;
   leadDays: number | null;
 }
 
+export interface BioCohortMetrics {
+  totalSignals: number;
+  totalAlerts: number;
+  totalInvestigations: number;
+  totalNoise: number;
+  confirmedEvents: number;
+  precision: number | null;
+  avgLeadDays: number | null;
+  maxLeadDays: number | null;
+}
+
 export interface ScorecardBio {
+  // Top-level metrics are the live cohort. Replays are shown separately
+  // so retrospective examples cannot inflate the prospective record.
   totalAlerts: number;
   confirmedEvents: number;
   precision: number | null;
   avgLeadDays: number | null;
   maxLeadDays: number | null;
+  cohorts: Record<BioEvaluationMode, BioCohortMetrics>;
   alerts: BioAlertRow[];
+  page: number;
+  pageSize: number;
+  totalPages: number;
   generatedAt: string;
 }
 
-export async function bio(): Promise<ScorecardBio> {
-  const { rows } = await query<{
-    signal_id: string;
-    detected_at: string;
-    monitor_url: string;
-    conviction: number | null;
-    thesis: string | null;
-    primary_detector: string | null;
-    event_kind: string | null;
-    event_at: string | null;
-    event_source: string | null;
-    lead_days: number | null;
-  }>(
-    `SELECT
-       s.id AS signal_id,
-       s.detected_at,
-       m.url AS monitor_url,
-       ag.conviction,
-       ag.thesis,
-       (SELECT sc.detector_type FROM signal_classifications sc
-         WHERE sc.signal_id = s.id ORDER BY sc.score DESC LIMIT 1) AS primary_detector,
-       so.event_kind,
-       so.event_at,
-       so.event_source,
-       so.lead_days
-     FROM signals s
-     JOIN monitors m ON m.id = s.monitor_id
-     LEFT JOIN agent_scores ag ON ag.signal_id = s.id
-     LEFT JOIN signal_outcomes so ON so.signal_id = s.id AND so.event_kind IS NOT NULL
-     WHERE m.domain = 'bio' AND s.is_heartbeat = false
-     ORDER BY s.detected_at DESC
-     LIMIT 100`,
-  );
+interface BioAggregateRow {
+  evaluation_mode: BioEvaluationMode;
+  total_signals: number;
+  total_alerts: number;
+  total_investigations: number;
+  total_noise: number;
+  confirmed_events: number;
+  avg_lead_days: number | null;
+  max_lead_days: number | null;
+}
 
-  const alerts: BioAlertRow[] = rows.map((r) => ({
+export async function bio(page = 1, pageSize = 20): Promise<ScorecardBio> {
+  const safePage = Math.max(1, Math.floor(page));
+  const safePageSize = Math.min(50, Math.max(1, Math.floor(pageSize)));
+  const offset = (safePage - 1) * safePageSize;
+
+  const [aggregateResult, alertResult] = await Promise.all([
+    query<BioAggregateRow>(
+      `WITH bio_rows AS (
+         SELECT
+           COALESCE(s.evaluation_mode, 'live')::text AS evaluation_mode,
+           s.detected_at,
+           CASE
+             WHEN ag.recommended_action IN ('alert', 'investigate', 'none')
+               THEN ag.recommended_action
+             ELSE 'none'
+           END AS action,
+           so.event_kind,
+           so.event_at,
+           so.lead_days,
+           so.event_match_status
+         FROM signals s
+         JOIN monitors m ON m.id = s.monitor_id
+         LEFT JOIN LATERAL (
+           SELECT recommended_action
+           FROM agent_scores
+           WHERE signal_id = s.id
+           ORDER BY created_at DESC
+           LIMIT 1
+         ) ag ON true
+         LEFT JOIN LATERAL (
+           SELECT event_kind, event_at, lead_days, event_match_status
+           FROM signal_outcomes
+           WHERE signal_id = s.id AND event_kind IS NOT NULL
+           ORDER BY event_at DESC NULLS LAST, created_at DESC
+           LIMIT 1
+         ) so ON true
+         WHERE m.domain = 'bio' AND s.is_heartbeat = false
+       )
+       SELECT
+         evaluation_mode,
+         COUNT(*)::int AS total_signals,
+         COUNT(*) FILTER (WHERE action = 'alert')::int AS total_alerts,
+         COUNT(*) FILTER (WHERE action = 'investigate')::int AS total_investigations,
+         COUNT(*) FILTER (WHERE action = 'none')::int AS total_noise,
+         COUNT(*) FILTER (
+           WHERE action = 'alert'
+             AND event_kind IS NOT NULL
+             AND event_match_status = 'confirmed'
+             AND event_at > detected_at
+         )::int AS confirmed_events,
+         AVG(lead_days) FILTER (
+           WHERE action = 'alert'
+             AND event_match_status = 'confirmed'
+             AND lead_days IS NOT NULL
+             AND lead_days >= 0
+         ) AS avg_lead_days,
+         MAX(lead_days) FILTER (
+           WHERE action = 'alert'
+             AND event_match_status = 'confirmed'
+             AND lead_days IS NOT NULL
+             AND lead_days >= 0
+         ) AS max_lead_days
+       FROM bio_rows
+       GROUP BY evaluation_mode`,
+    ),
+    query<{
+      signal_id: string;
+      detected_at: string;
+      monitor_url: string;
+      evaluation_mode: BioEvaluationMode;
+      action: BioAction;
+      conviction: number | null;
+      thesis: string | null;
+      primary_detector: string | null;
+      event_kind: string | null;
+      event_at: string | null;
+      event_source: string | null;
+      event_source_url: string | null;
+      event_match_status: BioEventMatchStatus | null;
+      lead_days: number | null;
+    }>(
+      `WITH bio_alerts AS (
+         SELECT
+           s.id AS signal_id,
+           s.detected_at,
+           m.url AS monitor_url,
+           COALESCE(s.evaluation_mode, 'live')::text AS evaluation_mode,
+           ag.recommended_action AS action,
+           ag.conviction,
+           ag.thesis,
+           (SELECT sc.detector_type FROM signal_classifications sc
+             WHERE sc.signal_id = s.id ORDER BY sc.score DESC LIMIT 1) AS primary_detector
+         FROM signals s
+         JOIN monitors m ON m.id = s.monitor_id
+         JOIN LATERAL (
+           SELECT recommended_action, conviction, thesis
+           FROM agent_scores
+           WHERE signal_id = s.id AND recommended_action = 'alert'
+           ORDER BY created_at DESC
+           LIMIT 1
+         ) ag ON true
+         WHERE m.domain = 'bio'
+           AND s.is_heartbeat = false
+           AND COALESCE(s.evaluation_mode, 'live') = 'live'
+       )
+       SELECT
+         a.signal_id,
+         a.detected_at,
+         a.monitor_url,
+         a.evaluation_mode,
+         a.action,
+         a.conviction,
+         a.thesis,
+         a.primary_detector,
+         so.event_kind,
+         so.event_at,
+         so.event_source,
+         so.event_source_url,
+         so.event_match_status,
+         so.lead_days
+       FROM bio_alerts a
+       LEFT JOIN LATERAL (
+         SELECT event_kind, event_at, event_source, event_source_url,
+                event_match_status, lead_days
+         FROM signal_outcomes
+         WHERE signal_id = a.signal_id AND event_kind IS NOT NULL
+         ORDER BY event_at DESC NULLS LAST, created_at DESC
+         LIMIT 1
+       ) so ON true
+       ORDER BY a.detected_at DESC
+       LIMIT $1 OFFSET $2`,
+      [safePageSize, offset],
+    ),
+  ]);
+
+  const emptyMetrics = (): BioCohortMetrics => ({
+    totalSignals: 0,
+    totalAlerts: 0,
+    totalInvestigations: 0,
+    totalNoise: 0,
+    confirmedEvents: 0,
+    precision: null,
+    avgLeadDays: null,
+    maxLeadDays: null,
+  });
+  const cohorts: Record<BioEvaluationMode, BioCohortMetrics> = {
+    live: emptyMetrics(),
+    replay: emptyMetrics(),
+  };
+
+  for (const row of aggregateResult.rows) {
+    const mode: BioEvaluationMode = row.evaluation_mode === 'replay' ? 'replay' : 'live';
+    const alerts = Number(row.total_alerts);
+    const confirmed = Number(row.confirmed_events);
+    cohorts[mode] = {
+      totalSignals: Number(row.total_signals),
+      totalAlerts: alerts,
+      totalInvestigations: Number(row.total_investigations),
+      totalNoise: Number(row.total_noise),
+      confirmedEvents: confirmed,
+      precision: alerts > 0 ? confirmed / alerts : null,
+      avgLeadDays: row.avg_lead_days != null ? Number(row.avg_lead_days) : null,
+      maxLeadDays: row.max_lead_days != null ? Number(row.max_lead_days) : null,
+    };
+  }
+
+  const alerts: BioAlertRow[] = alertResult.rows.map((r) => ({
     signalId: r.signal_id,
     detectedAt: r.detected_at,
     monitorUrl: r.monitor_url,
+    evaluationMode: r.evaluation_mode === 'replay' ? 'replay' : 'live',
+    action: 'alert',
     conviction: r.conviction,
     thesis: r.thesis,
     primaryDetector: r.primary_detector,
     eventKind: r.event_kind,
     eventAt: r.event_at,
     eventSource: r.event_source,
+    eventSourceUrl: r.event_source_url,
+    eventMatchStatus: r.event_match_status,
     leadDays: r.lead_days != null ? Number(r.lead_days) : null,
   }));
-
-  const totalAlerts = alerts.length;
-  const confirmed = alerts.filter((a) => a.eventKind != null);
-  const leads = confirmed
-    .map((a) => a.leadDays)
-    .filter((d): d is number => d != null && Number.isFinite(d));
+  const live = cohorts.live;
+  const totalPages = Math.max(1, Math.ceil(live.totalAlerts / safePageSize));
 
   return {
-    totalAlerts,
-    confirmedEvents: confirmed.length,
-    precision: totalAlerts > 0 ? confirmed.length / totalAlerts : null,
-    avgLeadDays: leads.length > 0 ? leads.reduce((a, b) => a + b, 0) / leads.length : null,
-    maxLeadDays: leads.length > 0 ? Math.max(...leads) : null,
+    totalAlerts: live.totalAlerts,
+    confirmedEvents: live.confirmedEvents,
+    precision: live.precision,
+    avgLeadDays: live.avgLeadDays,
+    maxLeadDays: live.maxLeadDays,
+    cohorts,
     alerts,
+    page: safePage,
+    pageSize: safePageSize,
+    totalPages,
     generatedAt: new Date().toISOString(),
   };
 }

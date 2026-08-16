@@ -90,6 +90,8 @@ export interface Signal {
   is_heartbeat: boolean;
   arb_tx_hash?: string | null;
   search_results?: Array<{ title: string; url: string; snippet: string; siteName?: string }>;
+  /** Prospective production signal or retrospective evaluation row. */
+  evaluation_mode?: 'live' | 'replay';
   orders_count?: number;
   /** @deprecated Removed after pivot. See Signal.viewed_at. */
   viewed_at?: string | null;
@@ -311,6 +313,8 @@ export interface SignalOutcome {
   event_kind?: 'retraction' | 'correction' | 'disclosure' | 'release' | null;
   event_at?: string | null;
   event_source?: string | null;
+  event_source_url?: string | null;
+  event_match_status?: 'unreviewed' | 'candidate' | 'confirmed' | 'rejected' | null;
   lead_days?: number | null;
 }
 

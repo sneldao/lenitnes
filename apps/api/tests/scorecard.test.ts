@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
-import { overall, recentCalls } from '../src/services/scorecard.js';
+import { bio, overall, recentCalls } from '../src/services/scorecard.js';
 import type { ScorecardOverall } from '../src/services/scorecard.js';
 
 const { mockQuery } = vi.hoisted(() => ({ mockQuery: vi.fn() }));
@@ -226,6 +226,79 @@ describe('scorecard.overall — with signals + trades', () => {
       detectorTypes: ['emergency_patch', 'security_critical_patch'],
       domain: 'code',
     });
+  });
+});
+
+describe('scorecard.bio — action-scoped cohorts', () => {
+  beforeEach(() => {
+    mockQuery.mockReset();
+    mockQuery
+      .mockResolvedValueOnce({
+        rows: [
+          {
+            evaluation_mode: 'live',
+            total_signals: 6,
+            total_alerts: 2,
+            total_investigations: 3,
+            total_noise: 1,
+            confirmed_events: 1,
+            avg_lead_days: 41,
+            max_lead_days: 41,
+          },
+          {
+            evaluation_mode: 'replay',
+            total_signals: 1,
+            total_alerts: 1,
+            total_investigations: 0,
+            total_noise: 0,
+            confirmed_events: 1,
+            avg_lead_days: 413,
+            max_lead_days: 413,
+          },
+        ],
+        rowCount: 2,
+      })
+      .mockResolvedValueOnce({
+        rows: [
+          {
+            signal_id: 'bio-live-1',
+            detected_at: '2026-08-16T10:00:00.000Z',
+            monitor_url: 'https://github.com/afni/afni',
+            evaluation_mode: 'live',
+            action: 'alert',
+            conviction: 82,
+            thesis: 'Method fix requires review',
+            primary_detector: 'method_fix',
+            event_kind: 'correction',
+            event_at: '2026-09-26T10:00:00.000Z',
+            event_source: 'curated-ledger',
+            event_source_url: 'https://example.test/event/1',
+            event_match_status: 'confirmed',
+            lead_days: 41,
+          },
+        ],
+        rowCount: 1,
+      });
+  });
+
+  it('counts only alert actions and keeps replay metrics separate', async () => {
+    const result = await bio(1, 10);
+    expect(result.totalAlerts).toBe(2);
+    expect(result.confirmedEvents).toBe(1);
+    expect(result.precision).toBe(0.5);
+    expect(result.cohorts.live.totalInvestigations).toBe(3);
+    expect(result.cohorts.replay.confirmedEvents).toBe(1);
+    expect(result.alerts[0]).toMatchObject({
+      signalId: 'bio-live-1',
+      evaluationMode: 'live',
+      eventMatchStatus: 'confirmed',
+      eventSourceUrl: 'https://example.test/event/1',
+    });
+  });
+
+  it('uses pagination parameters for the alert listing query', async () => {
+    await bio(3, 10);
+    expect(mockQuery).toHaveBeenCalledWith(expect.stringContaining('LIMIT $1 OFFSET $2'), [10, 20]);
   });
 });
 

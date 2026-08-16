@@ -15,15 +15,15 @@ What varies by vertical is only four slots — the watched corpus, the rubric, t
 
 The tag names the _field being watched_, never the output type:
 
-| Vertical              | Corpus                          | Grading authority                                              | Action on conviction          | Status                         |
-| --------------------- | ------------------------------- | -------------------------------------------------------------- | ----------------------------- | ------------------------------ |
-| `LENITNES[code]`      | consensus-critical crypto repos | market price (T+1h/1d/7d)                                      | trade (paper → live venues)   | Season 1 closed, record public |
-| `LENITNES[bio]`       | scientific software repos       | published record (retractions, corrections, dated disclosures) | integrity alert, HCS-anchored | Season 2 running               |
-| enterprise / `[next]` | a customer's own repos          | internal audit                                                 | leak-scan report              | capability demo (`/scan`)      |
+| Vertical              | Corpus                          | Grading authority                   | Action on conviction          | Status                         |
+| --------------------- | ------------------------------- | ----------------------------------- | ----------------------------- | ------------------------------ |
+| `LENITNES[code]`      | consensus-critical crypto repos | market price (T+1h/1d/7d)           | trade (paper → live venues)   | Season 1 closed, record public |
+| `LENITNES[bio]`       | scientific software repos       | adjudicated published-record events | integrity alert, HCS-anchored | prospective cohort maturing    |
+| enterprise / `[next]` | a customer's own repos          | internal audit                      | leak-scan report              | capability demo (`/scan`)      |
 
 Markets were chosen as Season 1's grader _because_ they are the hardest oracle: price cannot be spun, arrives in hours, and punishes errors in dollars. That season exists to prove the grading discipline works before the same instrument is aimed at the scientific record, where ground truth matters more but arrives slower.
 
-**The epistemic distinction, said once:** the founding case studies (halo2 `[code]`, 3dClustSim `[bio]`) are replays — the engine graded against history whose outcome was already known. The live scorecard commits verdicts against futures it cannot see. Replays calibrate the instrument; live scoring is the record.
+**The epistemic distinction, said once:** the founding case studies (halo2 `[code]`, 3dClustSim `[bio]`) are replays — the engine graded against history whose outcome was already known. The live scorecard commits verdicts against futures it cannot see. Replays calibrate the instrument; live scoring is the record. In `[bio]`, only explicitly adjudicated event matches count toward live precision; a related disclosure is not automatically proof of causation.
 
 ## One engine, two audiences
 
@@ -58,12 +58,12 @@ Operational specifics behind each loop stage:
 1. **Watch** — curated repos. `[code]`: consensus-critical crypto (Zcash, Bitcoin, Ethereum, Solana, Arbitrum, Sui). `[bio]`: scientific software (AFNI, Nextstrain, Opentrons, OpenMMTools). Polling is free: the GitHub API feeds commit diffs directly; news is corroboration only, never the primary signal.
 2. **Detect** — typed commit detectors are the signal gate, domain-scoped: `[code]` runs the consensus/security set (`emergency_patch`, `security_critical_patch`, `silent_merge`, …); `[bio]` runs `method_fix` and `results_rewrite`.
 3. **Score** — an LLM agent evaluates the signal against a versioned rubric (v4 for `[code]`, v6 for `[bio]`). Bio scoring corroborates against the literature (Firecrawl research index, Paperclip when available) and emits `alert`/`investigate`/`none` plus a list of affected claims. Outputs conviction (0–100), thesis, action, confidence band.
-4. **Gate** — conviction ≥ 70 (A-tier repos) to trade; unknown/B-tier repos trade at a stricter ≥ 80 until the responsiveness sweep confirms them. Sub-threshold scores persist as the public reasoning archive but produce no trade and no broadcast.
-5. **Commit** — `[code]`: open a tracked position in the recommended direction (gated behind a double kill switch, paper fallback). `[bio]`: no trade — the commitment is the HCS-anchored alert itself. Every fill/alert is notarized on Hedera HCS and broadcast to Telegram.
+4. **Gate** — conviction ≥ 70 (A-tier repos) to trade or commit a science alert; unknown/B-tier code repos trade at a stricter ≥ 80 until the responsiveness sweep confirms them. Sub-threshold scores persist as the public reasoning archive but produce no trade or broadcast. Bio broadcasts fail closed if HCS anchoring fails.
+5. **Commit** — `[code]`: open a tracked position in the recommended direction (gated behind a double kill switch, paper fallback). `[bio]`: no trade — the commitment is the HCS-anchored alert itself. Public bio alerts are broadcast only after the HCS anchor succeeds.
 6. **Track** — `[code]`: price snapshots at T+1h/1d/7d drive "call CORRECT/WRONG" verdicts. `[bio]`: each alert is graded against a dated event in the scientific record (retraction/correction/disclosure) with a lead-time in days. Drives the scorecard (`?domain=bio` for the integrity card).
 7. **Replay** — the same engine runs over any repo's history (`/backtest/replay`) for case studies and leak-scans. `GET /backtest/responsiveness` sweeps the commit-level watchlist and ranks repos by historical commit→price responsiveness.
 
-No human input in the steady state. See [`docs/AGENT_ARCHITECTURE.md`](./docs/AGENT_ARCHITECTURE.md) for the full design decisions, [`docs/RUNBOOK.md`](./docs/RUNBOOK.md) for the operator runbook, and [`docs/CALIBRATION.md`](./docs/CALIBRATION.md) for the per-knob empirical rationale.
+No human input in detection or scoring; scientific event matching is explicitly adjudicated before it counts as a confirmed outcome. See [`docs/AGENT_ARCHITECTURE.md`](./docs/AGENT_ARCHITECTURE.md) for the full design decisions, [`docs/RUNBOOK.md`](./docs/RUNBOOK.md) for the operator runbook, and [`docs/CALIBRATION.md`](./docs/CALIBRATION.md) for the per-knob empirical rationale.
 
 ## Stack
 

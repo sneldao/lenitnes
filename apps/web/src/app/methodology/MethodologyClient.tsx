@@ -46,16 +46,17 @@ export function MethodologyClient() {
           </span>
           <DomainTooltip term="rubric-v5">
             <span className="rounded bg-accent/10 px-2 py-0.5 font-mono text-[10px] text-accent">
-              Rubric v5
+              v5 [code] · v6 [science]
             </span>
           </DomainTooltip>
         </div>
         <h1 className="font-display text-3xl font-semibold text-slate-100 sm:text-4xl">
-          How LENITNES turns commits into trades
+          How LENITNES turns commits into accountable judgments
         </h1>
         <p className="max-w-2xl text-sm leading-relaxed text-slate-400">
-          Autonomous proof-chained trading: watch GitHub commits, score via versioned LLM rubric,
-          execute trades gated by 7 safety checks.
+          One proof-chained loop, two applications: [code] produces market theses with trade safety
+          gates; [science] produces alert-only integrity judgments graded against adjudicated record
+          events.
         </p>
       </header>
 
@@ -66,7 +67,7 @@ export function MethodologyClient() {
             number="01"
             icon={Eye}
             title="Data & Detection"
-            subtitle="9 detectors · 7d sector graphs"
+            subtitle="typed detectors · domain-scoped evidence"
             active={activeTab === 'detection'}
             onClick={() => setActiveTab(activeTab === 'detection' ? 'all' : 'detection')}
           />
@@ -74,7 +75,7 @@ export function MethodologyClient() {
             number="02"
             icon={Brain}
             title="LLM Scoring"
-            subtitle="Rubric v5 · Conviction 0–100"
+            subtitle="v5 [code] · v6 [science] · Conviction 0–100"
             active={activeTab === 'scoring'}
             onClick={() => setActiveTab(activeTab === 'scoring' ? 'all' : 'scoring')}
           />
@@ -371,7 +372,7 @@ export function MethodologyClient() {
           <SectionHeader
             badge="Pillar 02"
             title="LLM Scoring & Calibration"
-            description="Versioned rubric (v5) evaluating commit intent, conviction scoring, and continuous calibration feedback."
+            description="Domain-scoped rubrics turn commit evidence into conviction, with separate actions and outcome oracles for code and science."
           />
 
           <CollapsibleSection
@@ -390,7 +391,7 @@ export function MethodologyClient() {
                 <div>
                   <div className="text-sm font-medium text-slate-200">LLM Evaluation Model</div>
                   <div className="text-xs text-slate-500">
-                    Versioned rubric (v5) · outputs conviction 0–100 + structured action thesis
+                    v5 [code] / v6 [science] · conviction 0–100 + structured action thesis
                   </div>
                 </div>
               </div>

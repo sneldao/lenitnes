@@ -149,6 +149,13 @@ export default function ScanPage() {
 
   // Pressing '/' anywhere focuses the primary repo input
   useEffect(() => {
+    if (new URLSearchParams(window.location.search).get('domain') === 'bio') {
+      setDomain('bio');
+      setScanMode('single');
+    }
+  }, []);
+
+  useEffect(() => {
     function onKeyDown(e: KeyboardEvent) {
       if (
         e.key === '/' &&
@@ -535,6 +542,7 @@ export default function ScanPage() {
                 <VerdictCard
                   key={v.hash}
                   v={v}
+                  domain={data.domain ?? 'code'}
                   onInspectProof={(payload) => setActiveProof(payload)}
                   repo={data.repo}
                 />
@@ -548,6 +556,7 @@ export default function ScanPage() {
                 <VerdictCard
                   key={v.hash}
                   v={v}
+                  domain={compareData.domain ?? 'code'}
                   onInspectProof={(payload) => setActiveProof(payload)}
                   repo={compareData.repo}
                 />
@@ -616,6 +625,7 @@ export default function ScanPage() {
                 <VerdictCard
                   key={v.hash + v.committedAt}
                   v={v}
+                  domain={data.domain ?? submitted?.domain ?? 'code'}
                   repo={data.repo}
                   onInspectProof={(payload) => setActiveProof(payload)}
                 />
@@ -692,17 +702,29 @@ export default function ScanPage() {
 function VerdictCard({
   v,
   repo,
+  domain,
   onInspectProof,
 }: {
   v: ScanVerdict;
   repo: string;
+  domain: 'code' | 'bio';
   onInspectProof: (payload: ProofPayload) => void;
 }) {
   const [detailsOpen, setDetailsOpen] = useState(false);
   const [shareOpen, setShareOpen] = useState(false);
   const action = v.agentScore.recommended_action;
-  const ActionIcon = action === 'short' ? TrendingDown : action === 'long' ? TrendingUp : Minus;
-  const outcome = v.priceOutcome;
+  const ActionIcon =
+    domain === 'bio'
+      ? action === 'alert'
+        ? ShieldCheck
+        : Minus
+      : action === 'short'
+        ? TrendingDown
+        : action === 'long'
+          ? TrendingUp
+          : Minus;
+  const outcome = domain === 'bio' ? undefined : v.priceOutcome;
+  const bioOutcome = domain === 'bio' ? v.bioOutcome : undefined;
 
   return (
     <div className="rounded-xl border border-edge/60 bg-panel p-4 space-y-3">
@@ -757,20 +779,15 @@ function VerdictCard({
           <button
             onClick={() =>
               onInspectProof({
-                signalId: `sig_${v.hash.slice(0, 8)}`,
-                topicId: '0.0.849201',
-                sequenceNumber: Math.floor(Math.random() * 1000) + 14000,
-                consensusTimestamp: `${v.committedAt.slice(0, 10)} 14:32:01.492012Z`,
-                signalHash: `0x${v.hash}f9b201a4e8d3`,
-                arbitrumTxHash: `0x9a8f7c6e5d4c3b2a1f0e9d8c7b6a5f4e3d2c1b0a`,
-                ipfsCid: `bafybeigdyr3253n73k6p425425235235235`,
+                status: 'unavailable',
+                signalId: `replay_${v.hash.slice(0, 8)}`,
                 repo,
                 commitSha: v.hash,
               })
             }
             className="text-[11px] text-accent hover:underline font-mono flex items-center gap-1 cursor-pointer"
           >
-            <ShieldCheck className="h-3 w-3" /> Proof
+            <ShieldCheck className="h-3 w-3" /> Proof state
           </button>
           <button
             onClick={() => setDetailsOpen(!detailsOpen)}
@@ -819,6 +836,16 @@ function VerdictCard({
         </div>
       )}
 
+      {bioOutcome && (
+        <div className="flex flex-wrap items-center gap-3 border-t border-edge/30 pt-2.5 font-mono text-[11px] text-slate-400">
+          <span className="rounded bg-signal/15 px-1.5 py-0.5 text-[10px] uppercase text-signal">
+            {bioOutcome.confirmed ? 'related record' : 'candidate event'}
+          </span>
+          <span>{bioOutcome.event_kind}</span>
+          <span>+{bioOutcome.lead_days}d</span>
+          <span className="truncate text-slate-600">{bioOutcome.event_source}</span>
+        </div>
+      )}
       {outcome && (outcome.t1dPct != null || outcome.t7dPct != null) && (
         <div className="flex items-center gap-4 border-t border-edge/30 pt-2.5 font-mono text-[11px] text-slate-400">
           {outcome.t1dPct != null && (

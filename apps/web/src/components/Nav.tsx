@@ -19,6 +19,7 @@ const MORE_LINKS = [
   { href: '/intelligence', label: 'Intelligence' },
   { href: '/monitors', label: 'Watchlist' },
   { href: '/case-studies', label: 'Case studies' },
+  { href: '/science', label: 'Science arm' },
 ];
 
 export function Nav() {

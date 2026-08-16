@@ -207,8 +207,9 @@ backtestRouter.get('/replay/halo2', async (_req: Request, res: Response) => {
 });
 
 // GET /backtest/replay/clustsim — the canonical LENITNES[bio] example.
-// Real commit (afni/afni 2baf5710, 2015-05-12) scored against the
-// confirmed ground-truth event (Eklund et al. PNAS 2016, +413d lead).
+// Real commit (afni/afni 2baf5710, 2015-05-12) scored against a
+// related historical disclosure (Eklund et al. PNAS 2016, +413d lead),
+// not presented as causal confirmation.
 backtestRouter.get('/replay/clustsim', async (_req: Request, res: Response) => {
   res.json({ repo: 'afni/afni', domain: 'bio', verdicts: [CLUSTSIM_REPLAY] });
 });

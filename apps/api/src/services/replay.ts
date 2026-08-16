@@ -281,7 +281,9 @@ export const CLUSTSIM_REPLAY: ReplayCommitVerdict = {
     event_at: '2016-06-28T00:00:00.000Z',
     event_source: 'doi:10.1073/pnas.1602413113',
     lead_days: 413,
-    confirmed: true,
+    // This is a related historical disclosure, not a causal adjudication
+    // of this exact commit. Live precision must not treat it as confirmed.
+    confirmed: false,
   },
 };
 

@@ -120,6 +120,7 @@ export interface CheckMetadata {
   tradePair?: string;
   tradeMode?: 'paper' | 'live';
   orderId?: string;
+  hcsAnchored?: boolean;
 }
 
 export async function executeCheck(monitor: Monitor): Promise<{
@@ -130,6 +131,7 @@ export async function executeCheck(monitor: Monitor): Promise<{
   metadata: CheckMetadata;
 }> {
   const proof = getProofService();
+  let hcsAnchored = false;
   const circuitOpts = { name: 'tinyfish', threshold: 5, windowMs: 60_000, cooldownMs: 300_000 };
 
   // ── 0) Virtual monitors are cron-served; never scrape pseudo-URLs ──
@@ -405,6 +407,7 @@ export async function executeCheck(monitor: Monitor): Promise<{
         `UPDATE signals SET ipfs_cid = COALESCE($1, ipfs_cid), hedera_hcs_message_id = COALESCE($2, hedera_hcs_message_id) WHERE id = $3`,
         [cid, hcs.hederaTxId, signalId],
       );
+      hcsAnchored = Boolean(hcs.hederaTxId);
     } catch (err) {
       logger.error({ err, monitorId: monitor.id, signalId }, 'HCS signal proof write failed');
     }
@@ -827,19 +830,12 @@ export async function executeCheck(monitor: Monitor): Promise<{
     orderId = traded.orderId;
   }
 
-  // ── 7) Public broadcast (above-threshold + trade only) ──────────
-  // The agent's verdict goes to the public Telegram channel as a
-  // best-effort fire-and-forget. Sub-threshold signals are
-  // intentionally NOT broadcast — the reasoning archive
-  // (agent_scores) is the surface for those, the public channel
-  // is reserved for verified trades.
-  if (
-    agentScore &&
-    !gate2Blocked &&
-    !isHeartbeat &&
-    signalId &&
-    (tradeReceipt || monitor.domain === 'bio')
-  ) {
+  // ── 7) Public broadcast ────────────────────────────────────────
+  // Bio alerts fail closed: without a successful HCS signal anchor,
+  // the judgment is retained internally but never presented as a
+  // committed public alert. Code calls still require a trade receipt.
+  const canBroadcast = monitor.domain === 'bio' ? hcsAnchored : Boolean(tradeReceipt);
+  if (agentScore && !gate2Blocked && !isHeartbeat && signalId && canBroadcast) {
     // The proof data (ipfs_cid / hedera_tx_id / arb_tx_hash) is
     // written to the signal row by the post-commit step. Pull it
     // back out so the broadcast can include explorer links.
@@ -907,6 +903,7 @@ export async function executeCheck(monitor: Monitor): Promise<{
         result.conditionMet && result.confidence < (monitor.confidence_threshold ?? 50),
       ...(classifications.length > 0 ? { classifications } : {}),
       gate2Blocked,
+      hcsAnchored,
       agentConviction: agentScore?.conviction,
       agentBand: agentScore?.confidence_band,
       agentAction: agentScore?.recommended_action,

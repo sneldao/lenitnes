@@ -148,6 +148,96 @@ adminRouter.get('/risk-check', requireAdmin, async (req, res) => {
   }
 });
 
+// POST /admin/science/events
+// Record or adjudicate a scientific-record event for a bio alert.
+// Events default to `candidate`; only `confirmed` matches contribute
+// to the public live precision metric.
+adminRouter.post('/science/events', requireAdmin, async (req, res) => {
+  const signalId = String(req.body?.signalId ?? '');
+  const eventKind = String(req.body?.eventKind ?? '');
+  const eventAt = String(req.body?.eventAt ?? '');
+  const eventSource = String(req.body?.eventSource ?? '').trim();
+  const eventSourceUrl = String(req.body?.eventSourceUrl ?? '').trim();
+  const eventMatchStatus = String(req.body?.eventMatchStatus ?? 'candidate');
+  const allowedKinds = new Set(['retraction', 'correction', 'disclosure', 'release']);
+  const allowedStatuses = new Set(['unreviewed', 'candidate', 'confirmed', 'rejected']);
+
+  if (
+    !signalId ||
+    !allowedKinds.has(eventKind) ||
+    !eventSource ||
+    !eventSourceUrl ||
+    !allowedStatuses.has(eventMatchStatus)
+  ) {
+    res.status(400).json({
+      error: 'invalid_science_event',
+      message:
+        'signalId, eventKind, eventAt, eventSource, eventSourceUrl, and a valid match status are required',
+    });
+    return;
+  }
+  const parsedEventAt = new Date(eventAt);
+  if (Number.isNaN(parsedEventAt.getTime())) {
+    res.status(400).json({ error: 'invalid_event_at' });
+    return;
+  }
+
+  try {
+    const { rows: signals } = await query<{ detected_at: string }>(
+      `SELECT s.detected_at
+         FROM signals s
+         JOIN monitors m ON m.id = s.monitor_id
+        WHERE s.id = $1 AND m.domain = 'bio' AND s.is_heartbeat = false`,
+      [signalId],
+    );
+    if (!signals[0]) {
+      res.status(404).json({ error: 'bio_signal_not_found' });
+      return;
+    }
+    const detectedAt = new Date(signals[0].detected_at);
+    if (parsedEventAt <= detectedAt) {
+      res.status(400).json({ error: 'event_must_follow_detection' });
+      return;
+    }
+    const leadDays = Math.floor((parsedEventAt.getTime() - detectedAt.getTime()) / 86_400_000);
+
+    await query(
+      `INSERT INTO signal_outcomes
+         (signal_id, asset, window_seconds, price_at_signal, price_after, pct_change, direction,
+          event_kind, event_at, event_source, event_source_url, event_match_status, lead_days)
+       VALUES ($1, 'scientific-record', 0, NULL, NULL, NULL, NULL, $2, $3, $4, $5, $6, $7)
+       ON CONFLICT (signal_id, asset, window_seconds) DO UPDATE SET
+         event_kind = EXCLUDED.event_kind,
+         event_at = EXCLUDED.event_at,
+         event_source = EXCLUDED.event_source,
+         event_source_url = EXCLUDED.event_source_url,
+         event_match_status = EXCLUDED.event_match_status,
+         lead_days = EXCLUDED.lead_days`,
+      [
+        signalId,
+        eventKind,
+        parsedEventAt.toISOString(),
+        eventSource,
+        eventSourceUrl,
+        eventMatchStatus,
+        leadDays,
+      ],
+    );
+    cacheInvalidate('scorecard:');
+    res.json({
+      ok: true,
+      signalId,
+      eventKind,
+      eventAt: parsedEventAt.toISOString(),
+      eventMatchStatus,
+      leadDays,
+    });
+  } catch (err) {
+    logger.error({ err, signalId }, 'admin/science/events failed');
+    res.status(500).json({ error: 'science_event_write_failed' });
+  }
+});
+
 // POST /admin/positions/:id/close
 // Manually close a single open position. Fetches the current
 // CoinGecko price for the asset, then calls closePositionById

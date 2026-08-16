@@ -12,18 +12,18 @@ import {
   ExternalLink,
   ShieldCheck,
 } from 'lucide-react';
-import { cn } from '@/lib/utils';
 
 export interface ProofPayload {
+  status: 'verified' | 'unavailable';
   signalId: string;
-  topicId: string;
-  sequenceNumber: number;
-  consensusTimestamp: string;
-  signalHash: string;
-  arbitrumTxHash: string;
-  ipfsCid: string;
   repo: string;
   commitSha: string;
+  topicId?: string;
+  sequenceNumber?: number;
+  consensusTimestamp?: string;
+  signalHash?: string;
+  arbitrumTxHash?: string;
+  ipfsCid?: string;
 }
 
 interface ProofInspectorModalProps {
@@ -42,24 +42,25 @@ export function ProofInspectorModal({ proof, onClose }: ProofInspectorModalProps
     setTimeout(() => setCopied(false), 2000);
   };
 
+  const verified = proof.status === 'verified';
+
   return (
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-ink/80 backdrop-blur-md p-4 animate-fade-in"
+      className="fixed inset-0 z-50 flex items-center justify-center bg-ink/80 p-4 backdrop-blur-md"
       onClick={onClose}
     >
       <div
-        className="w-full max-w-lg rounded-2xl border border-edge/60 bg-panel shadow-card overflow-hidden flex flex-col space-y-4 p-5 sm:p-6"
+        className="flex w-full max-w-lg flex-col space-y-4 overflow-hidden rounded-2xl border border-edge/60 bg-panel p-5 shadow-card sm:p-6"
         onClick={(e) => e.stopPropagation()}
       >
-        {/* Header */}
         <div className="flex items-center justify-between border-b border-edge/30 pb-3">
           <div className="flex items-center gap-2">
-            <span className="p-1.5 rounded-lg bg-accent/10 text-accent">
+            <span className="rounded-lg bg-accent/10 p-1.5 text-accent">
               <ShieldCheck className="h-4 w-4" />
             </span>
             <div>
               <h3 className="font-display text-sm font-semibold text-slate-100">
-                On-Chain Proof Receipt Inspector
+                Proof receipt inspector
               </h3>
               <p className="font-mono text-[10px] text-slate-400">
                 Signal ID: <span className="text-accent">{proof.signalId}</span>
@@ -68,101 +69,97 @@ export function ProofInspectorModal({ proof, onClose }: ProofInspectorModalProps
           </div>
           <button
             onClick={onClose}
-            className="p-1.5 text-slate-500 hover:text-slate-200 rounded-lg hover:bg-ink-light transition-colors"
+            className="rounded-lg p-1.5 text-slate-500 transition-colors hover:bg-ink-light hover:text-slate-200"
           >
             <X className="h-4 w-4" />
           </button>
         </div>
 
-        {/* 3 Proof Layers */}
-        <div className="space-y-2 text-xs">
-          {/* Hedera HCS */}
-          <div className="rounded-xl border border-edge/40 bg-ink-light/40 p-3 space-y-1.5">
-            <div className="flex items-center justify-between">
-              <span className="font-mono text-[11px] font-semibold text-slate-200 flex items-center gap-1.5">
-                <Zap className="h-3.5 w-3.5 text-accent" /> Hedera HCS Notarization
-              </span>
-              <span className="rounded bg-signal/15 text-signal px-1.5 py-0.5 font-mono text-[9px] uppercase font-bold flex items-center gap-1">
-                <CheckCircle2 className="h-2.5 w-2.5" /> Validated
-              </span>
-            </div>
-            <div className="grid grid-cols-2 gap-2 font-mono text-[10px] text-slate-400 pt-1">
-              <div>
-                Topic: <span className="text-slate-200">{proof.topicId}</span>
-              </div>
-              <div>
-                Seq #: <span className="text-slate-200">{proof.sequenceNumber}</span>
-              </div>
-              <div className="col-span-2 truncate">
-                Timestamp: <span className="text-accent">{proof.consensusTimestamp}</span>
-              </div>
-            </div>
-            <a
-              href={`https://hashscan.io/mainnet/topic/${proof.topicId}`}
-              target="_blank"
-              rel="noreferrer"
-              className="inline-flex items-center gap-1 font-mono text-[10px] text-accent hover:underline pt-1"
-            >
-              Verify on HashScan Explorer <ExternalLink className="h-2.5 w-2.5" />
-            </a>
+        {!verified ? (
+          <div className="rounded-xl border border-warn/30 bg-warn/[0.06] p-4">
+            <p className="font-mono text-[11px] font-semibold uppercase tracking-wider text-warn">
+              No on-chain receipt attached
+            </p>
+            <p className="mt-2 text-sm leading-relaxed text-slate-300">
+              This is a historical replay/capability scan. It has commit evidence and an agent
+              verdict, but it was not a live production signal and has no HCS, Arbitrum, or IPFS
+              receipt to verify.
+            </p>
+            <p className="mt-3 font-mono text-[10px] text-slate-500">
+              {proof.repo} · {proof.commitSha.slice(0, 12)}
+            </p>
           </div>
-
-          {/* Arbitrum Registry */}
-          <div className="rounded-xl border border-edge/40 bg-ink-light/40 p-3 space-y-1.5">
-            <div className="flex items-center justify-between">
-              <span className="font-mono text-[11px] font-semibold text-slate-200 flex items-center gap-1.5">
-                <Lock className="h-3.5 w-3.5 text-accent" /> Arbitrum SignalRegistry Contract
-              </span>
-              <span className="rounded bg-accent/10 text-accent px-1.5 py-0.5 font-mono text-[9px] uppercase">
-                Sepolia Testnet
-              </span>
-            </div>
-            <div className="font-mono text-[10px] text-slate-400 space-y-0.5 pt-1">
-              <div className="truncate">
-                Signal Hash: <span className="text-slate-200">{proof.signalHash}</span>
+        ) : (
+          <div className="space-y-2 text-xs">
+            <div className="space-y-1.5 rounded-xl border border-edge/40 bg-ink-light/40 p-3">
+              <div className="flex items-center justify-between">
+                <span className="flex items-center gap-1.5 font-mono text-[11px] font-semibold text-slate-200">
+                  <Zap className="h-3.5 w-3.5 text-accent" /> Hedera HCS notarization
+                </span>
+                <span className="flex items-center gap-1 rounded bg-signal/15 px-1.5 py-0.5 font-mono text-[9px] font-bold uppercase text-signal">
+                  <CheckCircle2 className="h-2.5 w-2.5" /> Verified
+                </span>
               </div>
-              <div className="truncate">
-                Tx Hash: <span className="text-slate-200">{proof.arbitrumTxHash}</span>
+              <div className="grid grid-cols-2 gap-2 pt-1 font-mono text-[10px] text-slate-400">
+                <div>
+                  Topic: <span className="text-slate-200">{proof.topicId}</span>
+                </div>
+                <div>
+                  Seq #: <span className="text-slate-200">{proof.sequenceNumber}</span>
+                </div>
+                <div className="col-span-2 truncate">
+                  Timestamp: <span className="text-accent">{proof.consensusTimestamp}</span>
+                </div>
               </div>
+              {proof.topicId && (
+                <a
+                  href={`https://hashscan.io/testnet/topic/${proof.topicId}`}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="inline-flex items-center gap-1 pt-1 font-mono text-[10px] text-accent hover:underline"
+                >
+                  Verify on HashScan <ExternalLink className="h-2.5 w-2.5" />
+                </a>
+              )}
             </div>
+            {proof.arbitrumTxHash && (
+              <div className="space-y-1.5 rounded-xl border border-edge/40 bg-ink-light/40 p-3">
+                <span className="flex items-center gap-1.5 font-mono text-[11px] font-semibold text-slate-200">
+                  <Lock className="h-3.5 w-3.5 text-accent" /> Arbitrum SignalRegistry
+                </span>
+                <div className="truncate font-mono text-[10px] text-slate-400">
+                  Tx: <span className="text-slate-200">{proof.arbitrumTxHash}</span>
+                </div>
+              </div>
+            )}
+            {proof.ipfsCid && (
+              <div className="space-y-1.5 rounded-xl border border-edge/40 bg-ink-light/40 p-3">
+                <span className="flex items-center gap-1.5 font-mono text-[11px] font-semibold text-slate-200">
+                  <FileText className="h-3.5 w-3.5 text-accent" /> IPFS evidence package
+                </span>
+                <div className="truncate font-mono text-[10px] text-slate-400">
+                  CID: <span className="text-slate-200">{proof.ipfsCid}</span>
+                </div>
+              </div>
+            )}
           </div>
+        )}
 
-          {/* IPFS Package */}
-          <div className="rounded-xl border border-edge/40 bg-ink-light/40 p-3 space-y-1.5">
-            <div className="flex items-center justify-between">
-              <span className="font-mono text-[11px] font-semibold text-slate-200 flex items-center gap-1.5">
-                <FileText className="h-3.5 w-3.5 text-accent" /> IPFS Evidence Package
-              </span>
-              <span className="font-mono text-[9px] text-slate-500">Immutable Storage</span>
-            </div>
-            <div className="font-mono text-[10px] text-slate-400 space-y-0.5 pt-1">
-              <div className="truncate">
-                CID: <span className="text-slate-200">{proof.ipfsCid}</span>
-              </div>
-              <div>
-                Target Repo: <span className="text-accent">{proof.repo}</span> (
-                {proof.commitSha.slice(0, 7)})
-              </div>
-            </div>
-          </div>
-        </div>
-
-        {/* Footer Actions */}
         <div className="flex items-center justify-between border-t border-edge/30 pt-3">
           <button
             onClick={copyJson}
-            className="btn-ghost inline-flex items-center gap-1.5 text-xs text-slate-300 hover:text-accent font-mono py-1.5 px-3 rounded-lg border border-edge/50 cursor-pointer"
+            className="btn-ghost inline-flex cursor-pointer items-center gap-1.5 rounded-lg border border-edge/50 px-3 py-1.5 font-mono text-xs text-slate-300 hover:text-accent"
           >
             {copied ? (
               <Check className="h-3.5 w-3.5 text-signal" />
             ) : (
               <Copy className="h-3.5 w-3.5" />
             )}
-            {copied ? 'Copied JSON Payload' : 'Copy JSON Receipt'}
+            {copied ? 'Copied JSON' : 'Copy JSON state'}
           </button>
           <button
             onClick={onClose}
-            className="btn px-4 py-1.5 text-xs uppercase tracking-wider font-semibold cursor-pointer"
+            className="btn cursor-pointer px-4 py-1.5 text-xs font-semibold uppercase tracking-wider"
           >
             Close
           </button>

@@ -250,7 +250,7 @@ export default function ClustsimCaseStudyPage() {
         <section className="card reveal reveal-delay-2 in-view border-signal/30">
           <h2 className="section-title mb-4 flex items-center gap-2">
             <CalendarClock className="h-3.5 w-3.5 text-signal" />
-            Ground truth
+            Historical reference
           </h2>
           <div className="grid gap-3 sm:grid-cols-3">
             <div className="rounded-xl border border-edge/30 bg-ink-light/30 p-4">
@@ -284,7 +284,7 @@ export default function ClustsimCaseStudyPage() {
                   outcome.confirmed ? 'text-signal' : 'text-slate-400'
                 }`}
               >
-                {outcome.confirmed ? 'CONFIRMED' : 'PENDING'}
+                {outcome.confirmed ? 'CONFIRMED' : 'RELATED DISCLOSURE'}
               </div>
               <div className="mt-0.5 break-all text-[11px] text-slate-500">
                 {outcome.event_source}
@@ -292,8 +292,9 @@ export default function ClustsimCaseStudyPage() {
             </div>
           </div>
           <p className="mt-4 text-xs leading-relaxed text-slate-500">
-            No price to mark to market — a [bio] alert is graded against a dated event in the
-            scientific record.
+            No price to mark to market — this replay is compared with a dated scientific-record
+            disclosure. It is a calibration example, not causal proof that this commit produced the
+            later finding.
           </p>
         </section>
       )}

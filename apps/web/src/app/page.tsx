@@ -3,7 +3,12 @@
 import { useQuery } from '@tanstack/react-query';
 import Link from 'next/link';
 import { ArrowRight } from 'lucide-react';
-import { api, type ScorecardResponse, type ScorecardRecentCall } from '@/lib/api';
+import {
+  api,
+  type ScorecardBioResponse,
+  type ScorecardResponse,
+  type ScorecardRecentCall,
+} from '@/lib/api';
 import { qk, REFETCH } from '@/lib/queryKeys';
 import { timeAgo, convictionColor } from '@/lib/format';
 import { cn } from '@/lib/utils';
@@ -75,8 +80,8 @@ function Hero() {
         One engine, many ground truths.{' '}
         <span className="font-mono text-xs text-slate-300">[code]</span> scores repositories against
         price; <span className="font-mono text-xs text-slate-300">[bio]</span> scores scientific
-        software against the record. Every verdict is notarized on Hedera HCS before the world can
-        react — then graded in public, losses included.
+        software against the record. Public alerts are HCS-anchored before the outcome; replays are
+        labeled separately — then both are graded in public, losses included.
       </p>
 
       <div className="mt-6 flex flex-wrap items-center justify-center gap-3">
@@ -92,6 +97,12 @@ function Hero() {
           className="btn-ghost inline-flex items-center gap-2 px-5 py-2.5 text-xs uppercase tracking-wider"
         >
           Case studies
+        </Link>
+        <Link
+          href="/science"
+          className="btn-ghost inline-flex items-center gap-2 px-5 py-2.5 text-xs uppercase tracking-wider"
+        >
+          Science arm
         </Link>
       </div>
 
@@ -135,22 +146,27 @@ function TrackRecordStrip() {
     queryFn: () => api.getScorecard(),
     refetchInterval: REFETCH.medium,
   });
+  const { data: bio } = useQuery<ScorecardBioResponse>({
+    queryKey: qk.scorecardBio(),
+    queryFn: () => api.getScorecardBio(),
+    refetchInterval: REFETCH.medium,
+  });
 
   const proof = data?.proofCoverage;
 
-  // Instrument-level metrics — the loop works the same in every vertical.
+  // These are explicitly scoped application metrics, not a blended score.
   const stats: { label: string; value: string; caveat?: string }[] = [
-    { label: 'Signals scored', value: data?.totalSignals?.toString() ?? '—' },
+    { label: '[code] signals scored', value: data?.totalSignals?.toString() ?? '—' },
     {
-      label: 'Verdicts notarized',
+      label: '[code] HCS-proofed',
       value: proof ? `${proof.withHederaHcs}/${proof.totalSignals}` : '—',
-      caveat: 'Hedera HCS · before outcome',
+      caveat: 'before market outcome',
     },
-    { label: 'Outcomes graded', value: data ? `${data.outcomesSummary.closed}` : '—' },
+    { label: '[science] alerts', value: bio?.totalAlerts?.toString() ?? '—' },
     {
-      label: 'Hit ratio',
-      value: data ? `${(data.hitRatio * 100).toFixed(0)}%` : '—',
-      caveat: 'Season 1 · T+1d',
+      label: '[science] confirmed',
+      value: bio?.confirmedEvents?.toString() ?? '—',
+      caveat: 'adjudicated events only',
     },
   ];
 
@@ -193,13 +209,14 @@ function HowItWorksStrip() {
   return (
     <section className="text-center">
       <h2 className="mb-4 font-display text-xl font-semibold text-slate-100 sm:text-2xl">
-        One loop. <span className="italic text-accent">No human input.</span>
+        One loop. <span className="italic text-accent">Separate oracles.</span>
       </h2>
       <div className="rounded-xl border border-edge/40 bg-panel/30 p-4 sm:p-6">
         <ProofFlow />
       </div>
       <p className="mt-3 text-[11px] text-slate-600">
-        Every step timestamped on <span className="text-signal">Hedera HCS</span>.
+        Public commitments are timestamped on <span className="text-signal">Hedera HCS</span>; proof
+        coverage is shown live.
       </p>
     </section>
   );

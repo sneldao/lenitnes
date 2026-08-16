@@ -82,6 +82,61 @@ describe('admin — auth', () => {
   });
 });
 
+describe('admin — science event adjudication', () => {
+  beforeEach(() => {
+    mockQuery.mockReset();
+  });
+
+  it('records a candidate event without counting it as confirmed', async () => {
+    mockQuery
+      .mockResolvedValueOnce({ rows: [{ detected_at: '2026-08-16T00:00:00.000Z' }], rowCount: 1 })
+      .mockResolvedValueOnce({ rows: [], rowCount: 1 });
+
+    const server = makeServer();
+    const res = await request(server)
+      .post('/admin/science/events')
+      .set('X-Admin-Key', 'test-admin-key-12345')
+      .send({
+        signalId: 'bio-signal-1',
+        eventKind: 'correction',
+        eventAt: '2026-08-20T00:00:00.000Z',
+        eventSource: 'curated-ledger',
+        eventSourceUrl: 'https://example.test/correction/1',
+      });
+    expect(res.status).toBe(200);
+    expect(res.body).toMatchObject({
+      ok: true,
+      signalId: 'bio-signal-1',
+      eventMatchStatus: 'candidate',
+      leadDays: 4,
+    });
+    expect(mockQuery.mock.calls[1]?.[0]).toContain('event_match_status');
+    server.close();
+  });
+
+  it('rejects an event that predates detection', async () => {
+    mockQuery.mockResolvedValueOnce({
+      rows: [{ detected_at: '2026-08-20T00:00:00.000Z' }],
+      rowCount: 1,
+    });
+    const server = makeServer();
+    const res = await request(server)
+      .post('/admin/science/events')
+      .set('X-Admin-Key', 'test-admin-key-12345')
+      .send({
+        signalId: 'bio-signal-1',
+        eventKind: 'disclosure',
+        eventAt: '2026-08-19T00:00:00.000Z',
+        eventSource: 'curated-ledger',
+        eventSourceUrl: 'https://example.test/disclosure/1',
+        eventMatchStatus: 'confirmed',
+      });
+    expect(res.status).toBe(400);
+    expect(res.body).toMatchObject({ error: 'event_must_follow_detection' });
+    server.close();
+  });
+});
+
 describe('admin — cache control', () => {
   beforeEach(() => {
     mockQuery.mockReset();

@@ -12,12 +12,15 @@ export const scorecardRouter = Router();
 const CACHE_TTL_MS = 60_000;
 
 // GET /scorecard?domain=code|bio — public, cached 60s.
-// domain=bio returns event-based integrity metrics (lead time,
-// precision vs retraction/correction record) instead of price stats.
+// domain=bio returns action-scoped event metrics. Retrospective replay
+// rows are reported separately from the prospective live cohort.
 // Default (no domain / domain=code) returns the existing crypto card.
 scorecardRouter.get('/', async (req: Request, res: Response) => {
   const domain = req.query.domain === 'bio' ? 'bio' : 'code';
-  const cacheKey = `scorecard:${domain}:v1`;
+  const page = Math.max(1, Number(req.query.page ?? 1) || 1);
+  const pageSize = Math.min(50, Math.max(1, Number(req.query.pageSize ?? 20) || 20));
+  const cacheKey =
+    domain === 'bio' ? `scorecard:${domain}:v2:${page}:${pageSize}` : `scorecard:${domain}:v1`;
 
   if (domain === 'bio') {
     const cachedBio = cacheGet<scorecard.ScorecardBio>(cacheKey);
@@ -27,7 +30,7 @@ scorecardRouter.get('/', async (req: Request, res: Response) => {
       return;
     }
     try {
-      const data = await scorecard.bio();
+      const data = await scorecard.bio(page, pageSize);
       cacheSet(cacheKey, data, CACHE_TTL_MS);
       res.setHeader('X-Cache', 'MISS');
       res.json(data);
