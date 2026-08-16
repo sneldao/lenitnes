@@ -18,11 +18,13 @@
 > `choderalab/openmmtools` commit `16b62a2` (minimization routine change),
 > `results_rewrite` detector, conviction 68 / investigate / rubric v6 via
 > Qwen3.8-27B — below the 70 broadcast threshold, archived to the
-> reasoning archive as designed. **Outstanding:** (1) Paperclip key + Boltz
-> repo confirmation from organizers; (2) visual QA of new web pages
-> (`/case-study/clustsim`, `/scorecard?domain=bio`, `/scan` toggle);
-> (3) demo video + pitch rehearsal; (4) first above-threshold bio
-> broadcast (needs conviction ≥ 70).
+> reasoning archive as designed. **Outstanding:** (1) Paperclip/GXL key
+> stored and wired, but currently rejected by the GXL BioMedRxiv API
+> ("Invalid API key") — ask organizers to activate/reissue; Firecrawl
+> remains the working literature source in the meantime; (2) visual QA
+> of new web pages (`/case-study/clustsim`, `/scorecard?domain=bio`,
+> `/scan` toggle); (3) demo video + pitch rehearsal; (4) first
+> above-threshold bio broadcast (needs conviction ≥ 70).
 
 ## The decision (one line)
 
@@ -118,9 +120,11 @@ science" with built-in evaluation — the event's explicit theme
   verified working **keyless** (~43M abstracts: PubMed/bioRxiv/medRxiv/arXiv).
   Literature corroboration step: when a detector fires, the agent looks
   up linked papers and reasons about which published claims are affected.
-- **Paperclip** — hackathon-provided; primary literature workspace if
-  the key lands in time, Firecrawl is the fallback. Both behind one
-  `literature.ts` adapter.
+- **Paperclip** — hackathon-provided literature source, served by GXL's
+  BioMedRxiv MCP server (469K+ bioRxiv/medRxiv preprints). Enabled when
+  `PAPERCLIP_API_KEY` / `PAPERCLIP_API_URL` are set (`POST /api/shell`,
+  `X-API-Key` header); Firecrawl is the always-on fallback. Both live
+  behind one `literature.ts` adapter.
 - **TinyFish Search** — `GET https://api.search.tinyfish.ai` (key in
   `.env`, free). Retraction-news corroboration (retractionwatch.com).
 - **Qwen3.8 chain** — `agent.ts` is OpenAI-SDK-shaped and points at a free

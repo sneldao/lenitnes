@@ -73,16 +73,29 @@ async function searchFirecrawl(query: string, k: number): Promise<LiteratureRef[
 }
 
 async function searchPaperclip(query: string, k: number): Promise<LiteratureRef[]> {
+  // "Paperclip" is the hackathon literature tool, served by GXL's
+  // BioMedRxiv MCP server. Real shape (from the gxl-papers CLI):
+  //   POST {base}/api/shell  with X-API-Key, body {command, session_id}
+  //   command: search "query" — virtual filesystem over 469K+ bioRxiv/
+  //   medRxiv preprints. Disabled unless PAPERCLIP_API_KEY is set;
+  //   Firecrawl remains the always-on fallback.
   const base = process.env.PAPERCLIP_API_URL ?? '';
   const key = process.env.PAPERCLIP_API_KEY ?? '';
-  if (!base || !key) return []; // disabled until the hackathon key is set
+  if (!base || !key) return [];
 
   try {
-    const url = new URL('/search', base);
-    url.searchParams.set('q', query);
-    url.searchParams.set('limit', String(k));
-    const res = await fetch(url.toString(), {
-      headers: { Authorization: `Bearer ${key}`, Accept: 'application/json' },
+    const sessionId = 'lenitnes_' + (query.replace(/[^a-z0-9]+/gi, '').slice(0, 12) || 'search');
+    const res = await fetch(`${base.replace(/\/+$/, '')}/api/shell`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-API-Key': key,
+        Accept: 'application/json',
+      },
+      body: JSON.stringify({
+        command: `search "${query.replace(/"/g, '')}"`,
+        session_id: sessionId,
+      }),
       signal: AbortSignal.timeout(TIMEOUT_MS),
     });
     if (!res.ok) {
@@ -90,17 +103,50 @@ async function searchPaperclip(query: string, k: number): Promise<LiteratureRef[
       return [];
     }
     const data = (await res.json()) as {
-      results?: Array<{ title?: string; doi?: string; year?: string | number }>;
+      stdout?: string;
+      stderr?: string;
+      exit_code?: number;
     };
-    return (data.results ?? []).slice(0, k).map<LiteratureRef>((p) => ({
-      title: p.title ?? '(untitled)',
-      doi: p.doi ?? null,
-      primary_id: null,
-      year: p.year ?? null,
-      source: 'paperclip',
-    }));
+    return parsePaperclipOutput(data.stdout ?? '', k);
   } catch (err) {
     logger.warn({ err }, 'literature: paperclip search error');
+    return [];
+  }
+}
+
+/**
+ * Parse the shell stdout into refs. The corpus output shape isn't
+ * publicly documented; accept JSON with a results/papers array when
+ * the server returns structured data, otherwise log a sample and
+ * return [] (Firecrawl covers the gap until the shape is confirmed).
+ */
+export function parsePaperclipOutput(stdout: string, k: number): LiteratureRef[] {
+  const trimmed = stdout.trim();
+  if (!trimmed) return [];
+  try {
+    const parsed = JSON.parse(trimmed) as { results?: unknown[]; papers?: unknown[] } | unknown[];
+    const arr = Array.isArray(parsed)
+      ? parsed
+      : [...(parsed.results ?? []), ...(parsed.papers ?? [])];
+    if (!arr.length) return [];
+    return arr.slice(0, k).map<LiteratureRef>((raw) => {
+      const p = (typeof raw === 'object' && raw !== null ? raw : {}) as Record<string, unknown>;
+      const year =
+        typeof p.year === 'number' ? String(p.year) : ((p.year as string | undefined) ?? null);
+      return {
+        title: typeof p.title === 'string' ? p.title : '(untitled)',
+        doi: typeof p.doi === 'string' ? p.doi : null,
+        primary_id:
+          typeof p.id === 'string' ? p.id : typeof p.doc_id === 'string' ? p.doc_id : null,
+        year,
+        source: 'paperclip',
+        abstract: typeof p.abstract === 'string' ? p.abstract : null,
+      };
+    });
+  } catch {
+    // Non-JSON stdout: keep a sample in the logs so the real format can
+    // be wired once a working key shows what search actually prints.
+    logger.debug({ sample: trimmed.slice(0, 240) }, 'literature: paperclip stdout not JSON');
     return [];
   }
 }
