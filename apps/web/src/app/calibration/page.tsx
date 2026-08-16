@@ -228,7 +228,7 @@ export default function CalibrationPage() {
                 </tr>
               </thead>
               <tbody>
-                {data.bySignalType.map((row) => (
+                {data.bySignalType.slice(0, detectorMore.shown).map((row) => (
                   <tr key={row.detectorType} className="border-b border-edge/20 last:border-0">
                     <td className="py-2 pr-3 text-slate-300">
                       {formatDetectorType(row.detectorType)}
@@ -403,7 +403,7 @@ export default function CalibrationPage() {
                 </tr>
               </thead>
               <tbody>
-                {forwardPaper.entries.slice(0, 15).map((e) => (
+                {forwardPaper.entries.slice(0, forwardMore.shown).map((e) => (
                   <tr key={e.signalId} className="border-b border-edge/20 last:border-0">
                     <td className="py-2 pr-3 text-slate-500">{e.detectedAt.slice(0, 10)}</td>
                     <td className="py-2 pr-3 text-slate-300">{e.repo}</td>

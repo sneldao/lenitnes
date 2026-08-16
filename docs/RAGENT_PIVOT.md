@@ -54,6 +54,17 @@
 > a "Season 1 · closed" banner: why it failed, what Season 2 changes.
 > This is the Track-A story: the public scorecard caught its own
 > accounting bug and restated the ledger in the open.
+>
+> **Status update (Sun 2026-08-16, ~13:45):** UX consolidation after
+> reviewer feedback ("too much on screen at once"). Per-venue realized
+> P&L chips on scorecard hero + portfolio summary. Progressive
+> disclosure everywhere: scorecard recent-calls gain a 24h/7d/30d/all
+> window filter + show-5 cap; detector & watchlist tables cap at 8 rows;
+> calibration forward-paper log caps at 5 — all expandable via shared
+> `useShowMore`/`ShowMoreButton`. Methodology now opens on a single
+> pillar (Detection) with every section collapsed by default. Stale
+> "Rubric v4" / "NVIDIA API" copy bumped to v5 + "LLM provider chain"
+> across methodology, calibration, ProofFlow, and command palette.
 
 ## Fresh-session handoff
 
