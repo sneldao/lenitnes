@@ -12,6 +12,7 @@ import {
   ArrowLeft,
   Copy,
   Check,
+  ChevronDown,
   Eye,
   Zap,
   Image as ImageIcon,
@@ -46,6 +47,7 @@ export default function SignalDetailPage({ params }: { params: Promise<{ id: str
   const shareToken = searchParams?.get('share') ?? undefined;
 
   const [copied, setCopied] = useState<'link' | 'receipt' | null>(null);
+  const [dispatchOpen, setDispatchOpen] = useState(false);
 
   const queryKey = isPublic ? qk.publicProof(id) : qk.signal(id);
   const queryFn = isPublic ? () => api.getPublicProof(id, shareToken) : () => api.getSignal(id);
@@ -331,9 +333,27 @@ export default function SignalDetailPage({ params }: { params: Promise<{ id: str
                 </span>
               )}
             </div>
-            <blockquote className="rounded-xl border-l-2 border-violet/40 bg-ink-light/40 px-4 py-3 text-sm italic leading-relaxed text-slate-200">
+            {/* Monologue clamped to ~4 lines; the full first-person
+                text sits one click deep unless it is already short. */}
+            <blockquote
+              className={cn(
+                'rounded-xl border-l-2 border-violet/40 bg-ink-light/40 px-4 py-3 text-sm italic leading-relaxed text-slate-200',
+                !dispatchOpen && signal.agentScore.hcsDispatch.length > 240 && 'line-clamp-4',
+              )}
+            >
               &ldquo;{signal.agentScore.hcsDispatch}&rdquo;
             </blockquote>
+            {signal.agentScore.hcsDispatch.length > 240 && (
+              <button
+                onClick={() => setDispatchOpen((v) => !v)}
+                className="mt-2 inline-flex items-center gap-1 font-mono text-[10px] uppercase tracking-wider text-slate-500 transition-colors hover:text-violet"
+              >
+                <ChevronDown
+                  className={cn('h-3 w-3 transition-transform', dispatchOpen && 'rotate-180')}
+                />
+                {dispatchOpen ? 'less' : 'full text'}
+              </button>
+            )}
             <div className="mt-3 grid gap-1.5 text-[11px] font-mono text-slate-500">
               <div>
                 rubric {signal.agentScore.rubricVersion}

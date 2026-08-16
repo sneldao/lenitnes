@@ -139,6 +139,11 @@ export function AgentReasoningCard({
   // feels laggy.
   const { displayed, done, skip } = useTypewriter(agentScore.thesis ?? '', 8);
   const [detailsOpen, setDetailsOpen] = useState(false);
+  // Corroborating sources rarely exceed a handful; cap the visible list
+  // so a long evidence trail never walks the page.
+  const LIT_VISIBLE = 5;
+  const [litOpen, setLitOpen] = useState(false);
+  const literature = agentScore.literature ?? [];
 
   const convColor = convictionColor(agentScore.conviction);
 
@@ -228,14 +233,14 @@ export function AgentReasoningCard({
       </div>
 
       {/* Literature — corroborating sources cited by the agent (science) */}
-      {agentScore.literature && agentScore.literature.length > 0 && (
+      {literature.length > 0 && (
         <div className="mx-5 mt-3 rounded-xl border border-edge/30 bg-ink-light/20 px-4 py-3">
           <p className="mb-2 flex items-center gap-1.5 font-mono text-[10px] uppercase tracking-widest text-slate-500">
             <BookOpen className="h-3 w-3" />
             Corroborating literature
           </p>
           <ul className="space-y-1.5">
-            {agentScore.literature.map((ref, i) => (
+            {(litOpen ? literature : literature.slice(0, LIT_VISIBLE)).map((ref, i) => (
               <li key={ref.doi ?? ref.primary_id ?? i} className="text-xs text-slate-300">
                 <span className="text-slate-200">{ref.title}</span>
                 {ref.year && <span className="text-slate-500"> ({ref.year})</span>}
@@ -245,6 +250,17 @@ export function AgentReasoningCard({
               </li>
             ))}
           </ul>
+          {literature.length > LIT_VISIBLE && (
+            <button
+              onClick={() => setLitOpen((v) => !v)}
+              className="mt-2 inline-flex items-center gap-1 font-mono text-[10px] uppercase tracking-wider text-slate-500 transition-colors hover:text-accent"
+            >
+              <ChevronDown
+                className={cn('h-3 w-3 transition-transform', litOpen && 'rotate-180')}
+              />
+              {litOpen ? 'collapse' : `show all ${literature.length} sources`}
+            </button>
+          )}
         </div>
       )}
 
