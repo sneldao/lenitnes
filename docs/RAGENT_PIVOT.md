@@ -343,7 +343,7 @@ paths. No changes to treasury, trading venues, x402, or proofs.
 | Sat 10:25–12:10 | Register Track A; ask organizers for Paperclip key; confirm Boltz repo location | key + repo still open                                 |
 | Sat 13:00–15:30 | Migration 008 + bio watchlist + rubric v6 + domain wiring in types/agent/replay | ✅                                                    |
 | Sat 15:30–18:30 | Two bio detectors + literature.ts (Firecrawl first) + event-outcome scoring     | ✅                                                    |
-| Sat 19:15–22:00 | afni replay end-to-end → case-study page → scorecard tabs                       | ✅ (mock; live LLM blocked on credits)                |
+| Sat 19:15–22:00 | afni replay end-to-end → case-study page → scorecard tabs                       | ✅ (mock + live: credits unblocked via Qwen chain)    |
 | Sat 22:00–23:00 | Telegram bio format; freeze scope                                               | ✅ format done, first live send pending               |
 | Sun 9:00–10:45  | Landing hero, methodology sections, README paragraph, submit by 10:45           | ✅ hero/methodology/README done — submit prep remains |
 
