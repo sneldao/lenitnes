@@ -65,6 +65,20 @@
 > pillar (Detection) with every section collapsed by default. Stale
 > "Rubric v4" / "NVIDIA API" copy bumped to v5 + "LLM provider chain"
 > across methodology, calibration, ProofFlow, and command palette.
+>
+> **Status update (Sun 2026-08-16, later):** Nav consolidated to 3
+> primary tabs + 5 under "More" (Calibration merged into Scorecard as
+> collapsible deep-dive sections; both case studies behind one
+> `/case-studies` hub with a [code]/[bio] toggle; `/calibration` is now
+> a 307 redirect). Fixed Nav dropdown transparency bug (`bg-panel/98`
+> isn't a real Tailwind class → `bg-panel/95`). Monitors page rebuilt
+> as a dense tile grid with one-at-a-time expand (progressive
+> disclosure), domain filter chips, and system monitors moved to a
+> quiet strip. Clustsim case-study honesty pass: it's a replay of a
+> 2015 commit through the 2026 pipeline, not a live 413-day-early
+> catch — timeline, headline, and "lead time" copy all reframed.
+> Reviewed pbakaus/impeccable + vercel-labs/agent-skills for design
+> guidance (distill/clarify principles already applied this session).
 
 ## Fresh-session handoff
 
