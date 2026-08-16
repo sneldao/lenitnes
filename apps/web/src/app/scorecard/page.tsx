@@ -241,6 +241,38 @@ function CodeScorecard() {
     return closed.map((p) => (acc += p.pnlUsd));
   }, [portfolio]);
 
+  // Per-venue realized P&L — "which platform made/lost money?" at a glance.
+  const venueBreakdown = useMemo(() => {
+    const map = new Map<string, { pnl: number; n: number }>();
+    for (const p of portfolio?.closed ?? []) {
+      const key = ('venue' in p ? (p.venue as string) : null) ?? 'paper';
+      const cur = map.get(key) ?? { pnl: 0, n: 0 };
+      cur.pnl += p.pnlUsd;
+      cur.n += 1;
+      map.set(key, cur);
+    }
+    return [...map.entries()].sort((a, b) => b[1].pnl - a[1].pnl);
+  }, [portfolio]);
+
+  // ── Progressive disclosure state ──
+  const [showAllDetectors, setShowAllDetectors] = useState(false);
+  const [showAllWatchlist, setShowAllWatchlist] = useState(false);
+  const [showAllCalls, setShowAllCalls] = useState(false);
+  const [callWindow, setCallWindow] = useState<'24h' | '7d' | '30d' | 'all'>('7d');
+
+  const DETECTOR_VISIBLE = 8;
+  const WATCHLIST_VISIBLE = 8;
+  const CALLS_VISIBLE = 5;
+
+  // Recent calls filtered by the selected time window.
+  const filteredCalls = useMemo(() => {
+    if (callWindow === 'all') return data?.recentCalls ?? [];
+    const ms =
+      callWindow === '24h' ? 86_400_000 : callWindow === '7d' ? 604_800_000 : 2_592_000_000;
+    const cutoff = Date.now() - ms;
+    return (data?.recentCalls ?? []).filter((c) => new Date(c.detectedAt).getTime() >= cutoff);
+  }, [data, callWindow]);
+
   if (isLoading) return <PageLoader label="Recomputing the track record…" />;
   if (isError || !data)
     return (
@@ -396,6 +428,25 @@ function CodeScorecard() {
                   </p>
                   {pnlCurve.length > 1 && (
                     <PnlSparkline points={pnlCurve} className="mt-3" width={140} height={36} />
+                  )}
+                  {/* Per-venue realized breakdown */}
+                  {venueBreakdown.length > 0 && (
+                    <div className="mt-3 flex flex-wrap items-center gap-1.5">
+                      <span className="font-mono text-[9px] uppercase tracking-wider text-slate-600">
+                        by venue:
+                      </span>
+                      {venueBreakdown.map(([venue, v]) => (
+                        <span
+                          key={venue}
+                          className="inline-flex items-center gap-1 rounded border border-edge/40 px-1.5 py-0.5 font-mono text-[9px]"
+                        >
+                          <span className="uppercase text-slate-500">{venue}</span>
+                          <span className={v.pnl >= 0 ? 'text-signal' : 'text-danger'}>
+                            {formatUsd(v.pnl, { showPositiveSign: true })}
+                          </span>
+                        </span>
+                      ))}
+                    </div>
                   )}
                 </div>
               </div>
@@ -605,7 +656,10 @@ function CodeScorecard() {
                         </tr>
                       </thead>
                       <tbody>
-                        {data.bySignalType.map((row) => (
+                        {(showAllDetectors
+                          ? data.bySignalType
+                          : data.bySignalType.slice(0, DETECTOR_VISIBLE)
+                        ).map((row) => (
                           <tr
                             key={row.detectorType}
                             className="border-b border-edge/20 last:border-0"
@@ -630,6 +684,16 @@ function CodeScorecard() {
                       </tbody>
                     </table>
                   </div>
+                  {data.bySignalType.length > DETECTOR_VISIBLE && (
+                    <button
+                      onClick={() => setShowAllDetectors((v) => !v)}
+                      className="mt-2 w-full rounded-lg border border-edge/40 py-1.5 font-mono text-[10px] uppercase tracking-wider text-slate-500 transition-colors hover:border-accent/40 hover:text-accent"
+                    >
+                      {showAllDetectors
+                        ? `collapse to ${DETECTOR_VISIBLE}`
+                        : `show all ${data.bySignalType.length} detectors`}
+                    </button>
+                  )}
                 </div>
               )}
 
@@ -650,7 +714,10 @@ function CodeScorecard() {
                         </tr>
                       </thead>
                       <tbody>
-                        {data.byWatchlist.map((row) => (
+                        {(showAllWatchlist
+                          ? data.byWatchlist
+                          : data.byWatchlist.slice(0, WATCHLIST_VISIBLE)
+                        ).map((row) => (
                           <tr key={row.monitorId} className="border-b border-edge/20 last:border-0">
                             <td className="py-2 pr-3 text-slate-300">{shortUrl(row.url)}</td>
                             <td className="px-2 py-2 text-right text-slate-400">{row.total}</td>
@@ -665,67 +732,129 @@ function CodeScorecard() {
                       </tbody>
                     </table>
                   </div>
+                  {data.byWatchlist.length > WATCHLIST_VISIBLE && (
+                    <button
+                      onClick={() => setShowAllWatchlist((v) => !v)}
+                      className="mt-2 w-full rounded-lg border border-edge/40 py-1.5 font-mono text-[10px] uppercase tracking-wider text-slate-500 transition-colors hover:border-accent/40 hover:text-accent"
+                    >
+                      {showAllWatchlist
+                        ? `collapse to ${WATCHLIST_VISIBLE}`
+                        : `show all ${data.byWatchlist.length} repos`}
+                    </button>
+                  )}
                 </div>
               )}
             </section>
           )}
 
-          {/* ── Recent calls — tight rows, whole row clickable ── */}
-          {data.recentCalls.length > 0 && (
-            <section className="card reveal in-view reveal-delay-4">
-              <h2 className="section-title mb-2 flex items-center gap-2">
-                <Radar className="h-3.5 w-3.5 text-accent" />
-                Recent calls
-              </h2>
-              <ul>
-                {data.recentCalls.map((call, i) => (
-                  <li key={call.signalId} className="border-t border-edge/20 first:border-t-0">
-                    <Link
-                      href={`/signals/${call.signalId}`}
-                      className="group grid animate-signal-enter grid-cols-[1fr_auto] items-center gap-x-4 gap-y-1.5 px-2 py-3 transition-colors hover:bg-accent/[0.04] sm:grid-cols-[150px_1fr_auto_auto]"
-                      style={{ animationDelay: `${i * 50}ms` }}
-                    >
-                      <div className="order-2 min-w-0 font-mono text-[10px] text-slate-600 sm:order-1">
-                        <div>{formatDate(call.detectedAt)}</div>
-                        <div className="truncate">
-                          {call.detectorTypes.slice(0, 2).map(formatDetectorType).join(' · ') ||
-                            shortUrl(call.monitorUrl)}
-                        </div>
-                      </div>
-                      <p className="order-1 min-w-0 truncate text-sm text-slate-200 transition-colors group-hover:text-accent sm:order-2">
-                        {call.thesis ?? 'No thesis recorded'}
-                      </p>
-                      <div className="order-3 flex items-center gap-2">
-                        {call.recommendedAction && (
-                          <span
-                            className={`badge text-[9px] uppercase ${
-                              call.recommendedAction === 'long'
-                                ? 'bg-signal/15 text-signal'
-                                : call.recommendedAction === 'short'
-                                  ? 'bg-danger/15 text-danger'
-                                  : 'bg-slate-500/15 text-slate-400'
-                            }`}
+          {/* ── Recent calls — tight rows, whole row clickable, filtered by window ── */}
+          {(() => {
+            const inWindow = filteredCalls;
+            const visible = showAllCalls ? inWindow : inWindow.slice(0, CALLS_VISIBLE);
+            return (
+              <section className="card reveal in-view reveal-delay-4">
+                <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
+                  <h2 className="section-title flex items-center gap-2">
+                    <Radar className="h-3.5 w-3.5 text-accent" />
+                    Recent calls
+                    <span className="font-mono text-[10px] font-normal normal-case tracking-normal text-slate-600">
+                      {inWindow.length} in window
+                    </span>
+                  </h2>
+                  <div className="flex gap-1" role="tablist" aria-label="Time window">
+                    {(['24h', '7d', '30d', 'all'] as const).map((w) => (
+                      <button
+                        key={w}
+                        role="tab"
+                        aria-selected={callWindow === w}
+                        onClick={() => {
+                          setCallWindow(w);
+                          setShowAllCalls(false);
+                        }}
+                        className={`rounded border px-2 py-0.5 font-mono text-[10px] uppercase tracking-wider transition-colors ${
+                          callWindow === w
+                            ? 'border-accent/50 bg-accent/10 text-accent'
+                            : 'border-edge/40 text-slate-500 hover:border-edge hover:text-slate-300'
+                        }`}
+                      >
+                        {w}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+                {inWindow.length === 0 ? (
+                  <p className="py-6 text-center text-xs text-slate-500">
+                    No calls in this window.
+                  </p>
+                ) : (
+                  <>
+                    <ul>
+                      {visible.map((call, i) => (
+                        <li
+                          key={call.signalId}
+                          className="border-t border-edge/20 first:border-t-0"
+                        >
+                          <Link
+                            href={`/signals/${call.signalId}`}
+                            className="group grid animate-signal-enter grid-cols-[1fr_auto] items-center gap-x-4 gap-y-1.5 px-2 py-3 transition-colors hover:bg-accent/[0.04] sm:grid-cols-[150px_1fr_auto_auto]"
+                            style={{ animationDelay: `${i * 50}ms` }}
                           >
-                            {call.recommendedAction}
-                          </span>
-                        )}
-                        {call.conviction != null && (
-                          <span className="font-mono text-base font-bold text-accent">
-                            {call.conviction}
-                          </span>
-                        )}
-                      </div>
-                      <div className="order-4 flex gap-1.5">
-                        <OutcomePill label="1h" value={call.outcomes.t1h} />
-                        <OutcomePill label="1d" value={call.outcomes.t1d} />
-                        <OutcomePill label="7d" value={call.outcomes.t7d} />
-                      </div>
-                    </Link>
-                  </li>
-                ))}
-              </ul>
-            </section>
-          )}
+                            <div className="order-2 min-w-0 font-mono text-[10px] text-slate-600 sm:order-1">
+                              <div>{formatDate(call.detectedAt)}</div>
+                              <div className="truncate">
+                                {call.detectorTypes
+                                  .slice(0, 2)
+                                  .map(formatDetectorType)
+                                  .join(' · ') || shortUrl(call.monitorUrl)}
+                              </div>
+                            </div>
+                            <p className="order-1 min-w-0 truncate text-sm text-slate-200 transition-colors group-hover:text-accent sm:order-2">
+                              {call.thesis ?? 'No thesis recorded'}
+                            </p>
+                            <div className="order-3 flex items-center gap-2">
+                              {call.recommendedAction && (
+                                <span
+                                  className={`badge text-[9px] uppercase ${
+                                    call.recommendedAction === 'long'
+                                      ? 'bg-signal/15 text-signal'
+                                      : call.recommendedAction === 'short'
+                                        ? 'bg-danger/15 text-danger'
+                                        : 'bg-slate-500/15 text-slate-400'
+                                  }`}
+                                >
+                                  {call.recommendedAction}
+                                </span>
+                              )}
+                              {call.conviction != null && (
+                                <span className="font-mono text-base font-bold text-accent">
+                                  {call.conviction}
+                                </span>
+                              )}
+                            </div>
+                            <div className="order-4 flex gap-1.5">
+                              <OutcomePill label="1h" value={call.outcomes.t1h} />
+                              <OutcomePill label="1d" value={call.outcomes.t1d} />
+                              <OutcomePill label="7d" value={call.outcomes.t7d} />
+                            </div>
+                          </Link>
+                        </li>
+                      ))}
+                    </ul>
+                    {inWindow.length > CALLS_VISIBLE && (
+                      <button
+                        onClick={() => setShowAllCalls((v) => !v)}
+                        className="mt-2 w-full rounded-lg border border-edge/40 py-1.5 font-mono text-[10px] uppercase tracking-wider text-slate-500 transition-colors hover:border-accent/40 hover:text-accent"
+                      >
+                        {showAllCalls
+                          ? `collapse to ${CALLS_VISIBLE}`
+                          : `show all ${inWindow.length} calls`}
+                      </button>
+                    )}
+                  </>
+                )}
+              </section>
+            );
+          })()}
         </>
       )}
 

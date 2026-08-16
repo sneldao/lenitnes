@@ -30,6 +30,10 @@ import { SkeletonStatCard, SkeletonList } from '@/components/ui/skeleton';
 import { Breadcrumbs } from '@/components/ui/breadcrumbs';
 import { Tooltip } from '@/components/ui/tooltip';
 import { SignalSourceBadge } from '@/components/SignalSourceBadge';
+import { useShowMore, ShowMoreButton } from '@/components/ui/show-more';
+
+const OPEN_VISIBLE = 5;
+const CLOSED_VISIBLE = 5;
 
 type VenueBadge = PositionVenue | 'onchain';
 
@@ -90,17 +94,24 @@ export default function PortfolioPage() {
 
   // Merge hub ticks into position rows: live current price + recomputed
   // unrealized P&L per position; sort by drama (|pnl %| desc, priced
-  // positions first).
+  // positions first). Venue-aware: spot/paper store asset QUANTITY,
+  // propr perps store USD NOTIONAL — same rule as the API (see
+  // services/treasury/pnl.ts). Multiplying a price delta by notional
+  // inflates PnL ~x470 (the season-1 accounting bug).
   const liveOpen = useMemo(() => {
     const merged = (data?.open ?? []).map((p) => {
       const tick = prices?.prices[p.asset];
       if (!tick || p.entryPriceUsd == null || p.entryAmount <= 0) return p;
       const sign = p.direction === 'short' ? -1 : 1;
+      const pct = sign * ((tick - p.entryPriceUsd) / p.entryPriceUsd) * 100;
       return {
         ...p,
         currentPriceUsd: tick,
-        unrealizedPnlUsd: sign * (tick - p.entryPriceUsd) * p.entryAmount,
-        unrealizedPnlPct: sign * ((tick - p.entryPriceUsd) / p.entryPriceUsd) * 100,
+        unrealizedPnlUsd:
+          p.venue === 'propr'
+            ? p.entryAmount * (pct / 100)
+            : sign * (tick - p.entryPriceUsd) * p.entryAmount,
+        unrealizedPnlPct: pct,
       };
     });
     return merged.sort(
@@ -150,6 +161,22 @@ export default function PortfolioPage() {
         ? 'negative'
         : undefined;
   const realizedTone = summary.realizedPnlUsd >= 0 ? 'positive' : 'negative';
+
+  // Per-venue realized P&L — answers "which platform made/lost money?" at a glance.
+  const venueBreakdown = useMemo(() => {
+    const map = new Map<string, { pnl: number; n: number }>();
+    for (const p of closedPositions) {
+      const key = p.venue ?? 'paper';
+      const cur = map.get(key) ?? { pnl: 0, n: 0 };
+      cur.pnl += p.pnlUsd;
+      cur.n += 1;
+      map.set(key, cur);
+    }
+    return [...map.entries()].sort((a, b) => b[1].pnl - a[1].pnl);
+  }, [closedPositions]);
+
+  const openMore = useShowMore(liveOpen.length, OPEN_VISIBLE);
+  const closedMore = useShowMore(closedPositions.length, CLOSED_VISIBLE);
 
   return (
     <div className="animate-fade-in space-y-8">
@@ -208,6 +235,26 @@ export default function PortfolioPage() {
         />
       </div>
 
+      {venueBreakdown.length > 0 && (
+        <div className="reveal in-view -mt-4 flex flex-wrap items-center gap-2">
+          <span className="font-mono text-[10px] uppercase tracking-wider text-slate-600">
+            realized by venue:
+          </span>
+          {venueBreakdown.map(([venue, v]) => (
+            <span
+              key={venue}
+              className="inline-flex items-center gap-1.5 rounded border border-edge/40 px-2 py-1 font-mono text-[10px]"
+            >
+              {venueBadge(venue as VenueBadge)}
+              <span className={v.pnl >= 0 ? 'text-signal' : 'text-danger'}>
+                {formatUsd(v.pnl, { showPositiveSign: true })}
+              </span>
+              <span className="text-slate-600">({v.n})</span>
+            </span>
+          ))}
+        </div>
+      )}
+
       {/* Open positions */}
       <h2 className="section-title">Open Positions</h2>
       {openPositions.length === 0 ? (
@@ -225,11 +272,20 @@ export default function PortfolioPage() {
           </Link>
         </div>
       ) : (
-        <div className="mb-8 grid gap-3 lg:grid-cols-2">
-          {liveOpen.map((p, i) => (
-            <OpenPositionCard key={p.id} position={p} index={i} />
-          ))}
-        </div>
+        <>
+          <div className="mb-2 grid gap-3 lg:grid-cols-2">
+            {liveOpen.slice(0, openMore.shown).map((p, i) => (
+              <OpenPositionCard key={p.id} position={p} index={i} />
+            ))}
+          </div>
+          <ShowMoreButton
+            total={liveOpen.length}
+            initial={OPEN_VISIBLE}
+            expanded={openMore.expanded}
+            onToggle={openMore.toggle}
+            noun="positions"
+          />
+        </>
       )}
 
       {/* Closed positions */}
@@ -252,51 +308,62 @@ export default function PortfolioPage() {
           </Link>
         </div>
       ) : (
-        <div className="space-y-2">
-          {closedPositions.map((p, i) => (
-            <div
-              key={p.id}
-              className={`animate-signal-enter flex items-center justify-between rounded-xl border p-4 ${
-                p.pnlUsd >= 0
-                  ? 'border-signal/30 bg-signal/[0.03]'
-                  : 'border-danger/30 bg-danger/[0.03]'
-              }`}
-              style={{ animationDelay: `${i * 60}ms` }}
-            >
-              <div className="flex items-center gap-3">
-                <div
-                  className={`flex h-8 w-8 items-center justify-center rounded-lg ${
-                    p.pnlUsd >= 0 ? 'bg-signal/10' : 'bg-danger/10'
-                  }`}
-                >
-                  {p.pnlUsd >= 0 ? (
-                    <TrendingUp className="h-4 w-4 text-signal" />
-                  ) : (
-                    <TrendingDown className="h-4 w-4 text-danger" />
-                  )}
+        <>
+          <div className="space-y-2">
+            {closedPositions.slice(0, closedMore.shown).map((p, i) => (
+              <div
+                key={p.id}
+                className={`animate-signal-enter flex items-center justify-between rounded-xl border p-4 ${
+                  p.pnlUsd >= 0
+                    ? 'border-signal/30 bg-signal/[0.03]'
+                    : 'border-danger/30 bg-danger/[0.03]'
+                }`}
+                style={{ animationDelay: `${i * 60}ms` }}
+              >
+                <div className="flex items-center gap-3">
+                  <div
+                    className={`flex h-8 w-8 items-center justify-center rounded-lg ${
+                      p.pnlUsd >= 0 ? 'bg-signal/10' : 'bg-danger/10'
+                    }`}
+                  >
+                    {p.pnlUsd >= 0 ? (
+                      <TrendingUp className="h-4 w-4 text-signal" />
+                    ) : (
+                      <TrendingDown className="h-4 w-4 text-danger" />
+                    )}
+                  </div>
+                  <div>
+                    <p className="text-sm font-medium text-slate-200">{p.asset}</p>
+                    <p className="flex items-center gap-2 text-xs text-slate-500">
+                      {priceUsd(p.entryPriceUsd)} → {priceUsd(p.exitPriceUsd)}
+                      {' · '}
+                      {timeAgo(p.closedAt)}
+                      {p.convictionAtOpen ? ` · conviction ${p.convictionAtOpen}` : ''}
+                      {venueBadge(p.venue)}
+                    </p>
+                  </div>
                 </div>
-                <div>
-                  <p className="text-sm font-medium text-slate-200">{p.asset}</p>
-                  <p className="flex items-center gap-2 text-xs text-slate-500">
-                    {priceUsd(p.entryPriceUsd)} → {priceUsd(p.exitPriceUsd)}
-                    {' · '}
-                    {timeAgo(p.closedAt)}
-                    {p.convictionAtOpen ? ` · conviction ${p.convictionAtOpen}` : ''}
-                    {venueBadge(p.venue)}
+                <div className="text-right">
+                  <p
+                    className={`text-sm font-bold ${p.pnlUsd >= 0 ? 'text-signal' : 'text-danger'}`}
+                  >
+                    {formatPct(p.pnlPct)}
+                  </p>
+                  <p className={`text-xs ${p.pnlUsd >= 0 ? 'text-signal/70' : 'text-danger/70'}`}>
+                    {formatUsd(p.pnlUsd)}
                   </p>
                 </div>
               </div>
-              <div className="text-right">
-                <p className={`text-sm font-bold ${p.pnlUsd >= 0 ? 'text-signal' : 'text-danger'}`}>
-                  {formatPct(p.pnlPct)}
-                </p>
-                <p className={`text-xs ${p.pnlUsd >= 0 ? 'text-signal/70' : 'text-danger/70'}`}>
-                  {formatUsd(p.pnlUsd)}
-                </p>
-              </div>
-            </div>
-          ))}
-        </div>
+            ))}
+          </div>
+          <ShowMoreButton
+            total={closedPositions.length}
+            initial={CLOSED_VISIBLE}
+            expanded={closedMore.expanded}
+            onToggle={closedMore.toggle}
+            noun="trades"
+          />
+        </>
       )}
     </div>
   );

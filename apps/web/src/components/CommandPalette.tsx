@@ -72,7 +72,7 @@ export function CommandPalette() {
       id: 'nav-methodology',
       category: 'Navigation',
       title: 'Methodology & How it Works',
-      subtitle: '4 pillars, LLM Rubric v4, 7 safety gates',
+      subtitle: '4 pillars, LLM Rubric v5, 7 safety gates',
       href: '/methodology',
       icon: BookOpen,
     },
@@ -139,7 +139,7 @@ export function CommandPalette() {
     {
       id: 'act-rubric-sim',
       category: 'Quick Action',
-      title: 'Launch Rubric v4 Simulator',
+      title: 'Launch Rubric v5 Simulator',
       subtitle: 'Interactive conviction score & gate sandbox',
       href: '/methodology#scoring',
       icon: Sparkles,

@@ -428,8 +428,8 @@ export default function CalibrationPage() {
             <span>
               Set the trade floor at <strong className="text-slate-200">70</strong> and added a{' '}
               <strong className="text-slate-200">30-min settling delay</strong> so the agent only
-              sees commits past the immediate news pop. Rubric v4 (Jul 2026) hardened what 70+
-              requires: cited commit SHA + independent corroboration.
+              sees commits past the immediate news pop. Rubric v5 (Aug 2026) adds the learning loop:
+              each detector's 90-day track record now feeds every conviction score.
             </span>
           </li>
           <li className="flex gap-2">

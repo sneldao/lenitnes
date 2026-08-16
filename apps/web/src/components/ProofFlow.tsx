@@ -22,7 +22,7 @@ import { cn } from '@/lib/utils';
 const STEPS: { label: string; icon: LucideIcon; color: string; phase: string }[] = [
   { label: 'Commit', icon: GitCommit, color: '#06b6d4', phase: 'watching public commits…' },
   { label: 'Detect', icon: Zap, color: '#22d3ee', phase: 'a commit tripped a detector…' },
-  { label: 'Score', icon: Brain, color: '#8b5cf6', phase: 'LLM scoring against rubric v4…' },
+  { label: 'Score', icon: Brain, color: '#8b5cf6', phase: 'LLM scoring against rubric v5…' },
   { label: 'HCS', icon: Link2, color: '#10b981', phase: 'notarizing the call to Hedera HCS…' },
   { label: 'Track', icon: TrendingUp, color: '#34d399', phase: 'tracking the T+1d outcome…' },
 ];

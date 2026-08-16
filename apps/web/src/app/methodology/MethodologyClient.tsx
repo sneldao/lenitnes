@@ -34,7 +34,7 @@ import { cn } from '@/lib/utils';
 type PillarTab = 'all' | 'detection' | 'scoring' | 'safety' | 'verification';
 
 export function MethodologyClient() {
-  const [activeTab, setActiveTab] = useState<PillarTab>('all');
+  const [activeTab, setActiveTab] = useState<PillarTab>('detection');
 
   return (
     <article className="mx-auto max-w-4xl space-y-8 pb-16">
@@ -44,9 +44,9 @@ export function MethodologyClient() {
           <span className="font-mono text-[10px] uppercase tracking-widest text-accent">
             methodology
           </span>
-          <DomainTooltip term="rubric-v4">
+          <DomainTooltip term="rubric-v5">
             <span className="rounded bg-accent/10 px-2 py-0.5 font-mono text-[10px] text-accent">
-              Rubric v4
+              Rubric v5
             </span>
           </DomainTooltip>
         </div>
@@ -74,7 +74,7 @@ export function MethodologyClient() {
             number="02"
             icon={Brain}
             title="LLM Scoring"
-            subtitle="Rubric v4 · Conviction 0–100"
+            subtitle="Rubric v5 · Conviction 0–100"
             active={activeTab === 'scoring'}
             onClick={() => setActiveTab(activeTab === 'scoring' ? 'all' : 'scoring')}
           />
@@ -232,7 +232,7 @@ export function MethodologyClient() {
               </span>
             }
             aside={<span className="font-mono text-xs text-slate-400">Heuristic pass</span>}
-            defaultOpen={true}
+            defaultOpen={activeTab === 'detection'}
           >
             <div className="space-y-3">
               <p className="text-xs text-slate-400">
@@ -371,18 +371,18 @@ export function MethodologyClient() {
           <SectionHeader
             badge="Pillar 02"
             title="LLM Scoring & Calibration"
-            description="Versioned rubric (v4) evaluating commit intent, conviction scoring, and continuous calibration feedback."
+            description="Versioned rubric (v5) evaluating commit intent, conviction scoring, and continuous calibration feedback."
           />
 
           <CollapsibleSection
             title={
               <span className="flex items-center gap-2 font-display text-base font-semibold text-slate-200">
                 <Brain className="h-4 w-4 text-accent" />
-                LLM Agent & Versioned Rubric (v4)
+                LLM Agent & Versioned Rubric (v5)
               </span>
             }
-            aside={<span className="font-mono text-xs text-accent">NVIDIA API</span>}
-            defaultOpen={true}
+            aside={<span className="font-mono text-xs text-accent">LLM provider chain</span>}
+            defaultOpen={activeTab === 'scoring'}
           >
             <div className="space-y-4">
               <div className="flex items-center gap-3 rounded-xl border border-edge/30 bg-ink-light/40 p-4">
@@ -390,7 +390,7 @@ export function MethodologyClient() {
                 <div>
                   <div className="text-sm font-medium text-slate-200">LLM Evaluation Model</div>
                   <div className="text-xs text-slate-500">
-                    Versioned rubric (v4) · outputs conviction 0–100 + structured action thesis
+                    Versioned rubric (v5) · outputs conviction 0–100 + structured action thesis
                   </div>
                 </div>
               </div>
@@ -423,8 +423,9 @@ export function MethodologyClient() {
                   Why a versioned rubric?
                 </p>
                 <p className="mt-1 leading-relaxed">
-                  Rubric changes bump the version so performance slices stay comparable. v4 requires
-                  commit SHA citations and hard-caps news-only signals.
+                  Rubric changes bump the version so performance slices stay comparable. v5 adds the
+                  learning loop — each detector's 90-day track record feeds every score — and
+                  requires commit SHA citations with news-only signals hard-capped.
                 </p>
               </div>
 
@@ -502,7 +503,7 @@ export function MethodologyClient() {
               </span>
             }
             aside={<span className="font-mono text-xs text-accent">Fail → Paper</span>}
-            defaultOpen={true}
+            defaultOpen={activeTab === 'safety'}
           >
             <div className="space-y-4">
               <p className="text-xs text-slate-400">
@@ -590,7 +591,7 @@ export function MethodologyClient() {
               </span>
             }
             aside={<span className="font-mono text-xs text-slate-400">HCS · Arbitrum · IPFS</span>}
-            defaultOpen={true}
+            defaultOpen={activeTab === 'verification'}
           >
             <div className="space-y-4">
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
@@ -863,7 +864,7 @@ function RubricSandbox() {
   const [upstreamEvent, setUpstreamEvent] = useState(true);
   const [tier, setTier] = useState<'A' | 'B' | 'C'>('A');
 
-  // Interactive Scoring Logic (matches Rubric v4 spec)
+  // Interactive Scoring Logic (matches Rubric v5 spec)
   let score = 30; // base score
   if (flags.emergency_patch) score += 25;
   if (flags.security_critical) score += 20;
@@ -897,7 +898,7 @@ function RubricSandbox() {
     <div className="rounded-xl border border-edge/50 bg-ink-light/30 p-4 space-y-3">
       <div className="flex items-center justify-between">
         <span className="font-mono text-[10px] uppercase tracking-wider text-accent font-semibold flex items-center gap-1.5">
-          <Sparkles className="h-3.5 w-3.5" /> Interactive Rubric v4 Simulator
+          <Sparkles className="h-3.5 w-3.5" /> Interactive Rubric v5 Simulator
         </span>
         <span className="text-[10px] font-mono text-slate-500">Live Conviction Sandbox</span>
       </div>

@@ -4,6 +4,11 @@ import type { ReactNode } from 'react';
 import { Tooltip } from './tooltip';
 
 const DICTIONARY: Record<string, { label: string; detail: string }> = {
+  'rubric-v5': {
+    label: 'LLM Rubric v5',
+    detail:
+      'Versioned evaluation rubric (the learning loop): each detector’s 90-day track record feeds every score, commit SHA citations are required, and news-only signals are hard-capped. Conviction scored 0–100.',
+  },
   'rubric-v4': {
     label: 'LLM Rubric v4',
     detail:
