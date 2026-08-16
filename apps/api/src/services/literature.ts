@@ -72,45 +72,149 @@ async function searchFirecrawl(query: string, k: number): Promise<LiteratureRef[
   }));
 }
 
+/**
+ * MCP JSON-RPC helper for the GXL endpoint. Handles optional SSE
+ * responses and session-id propagation (Mcp-Session-Id header).
+ */
+interface McpJsonRpcResponse {
+  jsonrpc?: string;
+  id?: number;
+  result?: unknown;
+  error?: { code?: number; message?: string };
+}
+
+async function mcpCall(
+  base: string,
+  key: string,
+  method: string,
+  params: unknown,
+  sessionId: string | null,
+  id: number,
+): Promise<{ data: McpJsonRpcResponse; sessionId: string | null }> {
+  const headers: Record<string, string> = {
+    'Content-Type': 'application/json',
+    Accept: 'application/json, text/event-stream',
+    'X-API-Key': key,
+  };
+  if (sessionId) headers['Mcp-Session-Id'] = sessionId;
+  const res = await fetch(`${base.replace(/\/+$/, '')}/mcp`, {
+    method: 'POST',
+    headers,
+    body: JSON.stringify({ jsonrpc: '2.0', id, method, params }),
+    signal: AbortSignal.timeout(TIMEOUT_MS),
+  });
+  const sidHeader = res.headers.get('mcp-session-id');
+  const text = await res.text();
+  // MCP servers may answer with SSE; pull the data: lines if so.
+  let payload = text;
+  if (text.includes('\ndata:') || text.startsWith('data:')) {
+    payload = text
+      .split('\n')
+      .filter((l) => l.startsWith('data:'))
+      .map((l) => l.slice(5).trim())
+      .join('\n');
+  }
+  let data: McpJsonRpcResponse;
+  try {
+    data = JSON.parse(payload) as McpJsonRpcResponse;
+  } catch {
+    data = { error: { message: `unparseable MCP response: ${payload.slice(0, 120)}` } };
+  }
+  return { data, sessionId: sidHeader ?? sessionId };
+}
+
+/** Pull text out of an MCP tools/call result ({content:[{type:'text',text}]}). */
+export function extractMcpText(result: unknown): string {
+  if (!result || typeof result !== 'object') return '';
+  const r = result as { content?: unknown; structuredContent?: unknown };
+  const blocks = Array.isArray(r.content) ? r.content : [];
+  const texts = blocks
+    .filter(
+      (b): b is { type: string; text?: string } =>
+        typeof b === 'object' && b !== null && (b as Record<string, unknown>).type === 'text',
+    )
+    .map((b) => b.text ?? '')
+    .filter(Boolean);
+  if (texts.length) return texts.join('\n');
+  if (r.structuredContent) {
+    try {
+      return JSON.stringify(r.structuredContent);
+    } catch {
+      return '';
+    }
+  }
+  return '';
+}
+
 async function searchPaperclip(query: string, k: number): Promise<LiteratureRef[]> {
-  // "Paperclip" is the hackathon literature tool, served by GXL's
-  // BioMedRxiv MCP server. Real shape (from the gxl-papers CLI):
-  //   POST {base}/api/shell  with X-API-Key, body {command, session_id}
-  //   command: search "query" — virtual filesystem over 469K+ bioRxiv/
-  //   medRxiv preprints. Disabled unless PAPERCLIP_API_KEY is set;
-  //   Firecrawl remains the always-on fallback.
+  // "Paperclip" = GXL BioMedRxiv research server (hackathon literature tool).
+  // Verified 2026-08-16 with the organizer key: auth works ONLY on
+  // POST {base}/mcp (JSON-RPC, X-API-Key) — /api/shell and /tools/* reject it.
+  // Flow: initialize -> tools/call scholar_search -> DELETE /sessions/{id}.
+  // The shared server enforces a session cap ("Maximum number of sessions
+  // (100) reached"); while that persists we degrade to Firecrawl. Once GXL
+  // clears/raises the cap this goes live with no code change.
   const base = process.env.PAPERCLIP_API_URL ?? '';
   const key = process.env.PAPERCLIP_API_KEY ?? '';
   if (!base || !key) return [];
 
+  let sessionId: string | null = null;
   try {
-    const sessionId = 'lenitnes_' + (query.replace(/[^a-z0-9]+/gi, '').slice(0, 12) || 'search');
-    const res = await fetch(`${base.replace(/\/+$/, '')}/api/shell`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'X-API-Key': key,
-        Accept: 'application/json',
+    const init = await mcpCall(
+      base,
+      key,
+      'initialize',
+      {
+        protocolVersion: '2024-11-05',
+        capabilities: {},
+        clientInfo: { name: 'lenitnes-bio', version: '1.0' },
       },
-      body: JSON.stringify({
-        command: `search "${query.replace(/"/g, '')}"`,
-        session_id: sessionId,
-      }),
-      signal: AbortSignal.timeout(TIMEOUT_MS),
-    });
-    if (!res.ok) {
-      logger.warn({ status: res.status }, 'literature: paperclip request failed');
+      null,
+      1,
+    );
+    if (init.data.error) {
+      logger.debug({ err: init.data.error }, 'literature: paperclip MCP initialize failed');
       return [];
     }
-    const data = (await res.json()) as {
-      stdout?: string;
-      stderr?: string;
-      exit_code?: number;
-    };
-    return parsePaperclipOutput(data.stdout ?? '', k);
+    const result = init.data.result as Record<string, unknown> | undefined;
+    sessionId =
+      init.sessionId ??
+      (typeof result?.sessionId === 'string' ? (result.sessionId as string) : null) ??
+      (typeof result?.session_id === 'string' ? (result.session_id as string) : null);
+
+    const call = await mcpCall(
+      base,
+      key,
+      'tools/call',
+      {
+        name: 'scholar_search',
+        arguments: { query, max_results: k },
+      },
+      sessionId,
+      2,
+    );
+    if (call.data.error) {
+      logger.warn({ err: call.data.error }, 'literature: paperclip tools/call failed');
+      return [];
+    }
+    const text = extractMcpText(call.data.result);
+    if (!text) {
+      logger.debug('literature: paperclip returned no text content');
+      return [];
+    }
+    return parsePaperclipOutput(text, k);
   } catch (err) {
     logger.warn({ err }, 'literature: paperclip search error');
     return [];
+  } finally {
+    // Release our slot on the shared server so we don't contribute to the cap.
+    if (sessionId) {
+      void fetch(`${base.replace(/\/+$/, '')}/sessions/${encodeURIComponent(sessionId)}`, {
+        method: 'DELETE',
+        headers: { 'X-API-Key': key },
+        signal: AbortSignal.timeout(5_000),
+      }).catch(() => undefined);
+    }
   }
 }
 

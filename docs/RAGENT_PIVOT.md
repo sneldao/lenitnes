@@ -26,6 +26,53 @@
 > `/scan` toggle); (3) demo video + pitch rehearsal; (4) first
 > above-threshold bio broadcast (needs conviction ≥ 70).
 
+> **Status update (Sun 2026-08-16, early morning):** GXL confirmed the
+> Paperclip key is activated — the auth issue was on our side: the key is
+> scoped to the **MCP endpoint** (`POST {base}/mcp`, JSON-RPC,
+> `X-API-Key` header), not `/api/shell` (which 401s with it). Verified:
+> `tools/list` returns the full 14-tool catalog incl. `scholar_search`.
+> `tools/call` needs an MCP session, and `initialize` is currently
+> rejected with **"Maximum number of sessions (100) reached"** — a
+> server-wide cap, presumably held by stale hackathon sessions. Adapter
+> retargeted to the MCP flow (initialize → tools/call → release session)
+> and degrades to Firecrawl until the cap clears; no further code change
+> needed when it does. Email to GXL drafted requesting session cleanup
+> and confirming the call flow. All tests green, committed + deployed.
+
+## Fresh-session handoff
+
+Current provider setup:
+
+- Primary scoring provider: keyless HF endpoint, `Qwen/Qwen3.8-27B`
+  (`HF_QWEN_BASE_URL` / `HF_QWEN_MODEL`, no key needed)
+- Fallback scoring provider: TokenRouter, `qwen/qwen3.8-max-free`
+  (`TOKENROUTER_API_KEY`; flip to primary with `AGENT_PROVIDER=tokenrouter`)
+- Anthropic branch: implemented and dormant until `ANTHROPIC_API_KEY` is set
+- Paperclip/GXL literature: adapter wired to the MCP endpoint, currently
+  blocked by the shared server's 100-session cap → degrades to Firecrawl
+- Firecrawl Research Index: keyless, always-on literature fallback
+
+To resume:
+
+1. Read this file (`docs/RAGENT_PIVOT.md`)
+2. Check local `.env` for: `HF_QWEN_BASE_URL`, `HF_QWEN_MODEL`,
+   `TOKENROUTER_API_KEY`, `PAPERCLIP_API_KEY`, `PAPERCLIP_API_URL`
+3. Verify locally:
+   ```bash
+   cd apps/api
+   npx tsc --noEmit
+   npx vitest run
+   npx tsx scripts/replay-afni-live.ts
+   ```
+4. Deploy with `npm run deploy` (handles migrations, seeding, health checks)
+
+Security notes:
+
+- Keys live only in local `.env` and `/opt/lenitnes/.env` on the VPS
+  (both gitignored); gitleaks pre-commit hook active
+- Server `.env` pre-provider-swap backup: `/opt/lenitnes/.env.bak-provider-swap`
+- The TokenRouter key was shared in chat once — rotate it after the hackathon
+
 ## The decision (one line)
 
 **Enter Track A: repoint the existing engine at scientific software
@@ -122,9 +169,13 @@ science" with built-in evaluation — the event's explicit theme
   up linked papers and reasons about which published claims are affected.
 - **Paperclip** — hackathon-provided literature source, served by GXL's
   BioMedRxiv MCP server (469K+ bioRxiv/medRxiv preprints). Enabled when
-  `PAPERCLIP_API_KEY` / `PAPERCLIP_API_URL` are set (`POST /api/shell`,
-  `X-API-Key` header); Firecrawl is the always-on fallback. Both live
-  behind one `literature.ts` adapter.
+  `PAPERCLIP_API_KEY` / `PAPERCLIP_API_URL` are set. Auth verified
+  2026-08-16: the key works on `POST {base}/mcp` (JSON-RPC, `X-API-Key`
+  header), **not** on `/api/shell` or `/tools/*`. Flow: `initialize` →
+  `tools/call scholar_search` → `DELETE /sessions/{id}` (releases the
+  slot). Currently blocked only by the server-wide session cap; degrades
+  to Firecrawl until it clears. Both live behind one `literature.ts`
+  adapter.
 - **TinyFish Search** — `GET https://api.search.tinyfish.ai` (key in
   `.env`, free). Retraction-news corroboration (retractionwatch.com).
 - **Qwen3.8 chain** — `agent.ts` is OpenAI-SDK-shaped and points at a free

@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { parsePaperclipOutput } from '../src/services/literature.js';
+import { parsePaperclipOutput, extractMcpText } from '../src/services/literature.js';
 
 describe('literature.parsePaperclipOutput', () => {
   it('parses a JSON object with a results array', () => {
@@ -40,5 +40,29 @@ describe('literature.parsePaperclipOutput', () => {
   it('returns [] for non-JSON shell output (logged for later wiring)', () => {
     const refs = parsePaperclipOutput('doc-id-1  Some Paper Title\ndoc-id-2 Other', 5);
     expect(refs).toEqual([]);
+  });
+});
+
+describe('literature.extractMcpText', () => {
+  it('joins text content blocks from an MCP tools/call result', () => {
+    const result = {
+      content: [
+        { type: 'text', text: JSON.stringify({ results: [{ title: 'Cluster failure' }] }) },
+        { type: 'image', data: 'zzz' },
+      ],
+    };
+    const text = extractMcpText(result);
+    expect(text).toContain('Cluster failure');
+  });
+
+  it('falls back to structuredContent when no text blocks', () => {
+    const text = extractMcpText({ structuredContent: { results: [] } });
+    expect(text).toContain('results');
+  });
+
+  it('returns empty string for missing/garbage shapes', () => {
+    expect(extractMcpText(null)).toBe('');
+    expect(extractMcpText({})).toBe('');
+    expect(extractMcpText('plain string')).toBe('');
   });
 });
