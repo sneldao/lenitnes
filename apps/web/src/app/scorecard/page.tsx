@@ -333,9 +333,14 @@ function CodeScorecard() {
                   Why it failed
                 </p>
                 <ul className="mt-2 space-y-1.5 text-xs leading-relaxed text-slate-400">
-                  <li>· 6 live perp shorts on ZEC ran into a +9% rally: −$283k</li>
-                  <li>· Inverted calibration: conviction 80–89 hit 25.6%, 90–100 hit 0%</li>
-                  <li>· Sizing bug: notional scaled by quantity, no bankroll cap</li>
+                  <li>
+                    · PnL units bug: perp notionals fed a quantity formula — reported −$283k was
+                    really ≈ −$607. Found via this scorecard, restated publicly (migration 010)
+                  </li>
+                  <li>
+                    · Even corrected: ZEC shorts ran into a +9% rally; 80–89 conviction hit only
+                    25.6%
+                  </li>
                   <li>· T+1d price is a noisy oracle for commit-driven theses</li>
                 </ul>
               </div>
@@ -344,9 +349,9 @@ function CodeScorecard() {
                   What Season 2 changes
                 </p>
                 <ul className="mt-2 space-y-1.5 text-xs leading-relaxed text-slate-400">
+                  <li>· Venue-aware PnL: notional books compute percent × notional</li>
                   <li>· Rubric v6: detector track records feed every score</li>
-                  <li>· USD-notional cap on sizing, live venue gated behind calibration</li>
-                  <li>· Paper-first until conviction proves predictive (n ≥ 30)</li>
+                  <li>· Notional capped $20–$500/trade; live venue gated behind calibration</li>
                   <li>· New oracle: [bio] scores against dated events, not price noise</li>
                 </ul>
               </div>

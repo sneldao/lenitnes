@@ -14,6 +14,7 @@ import { getWallet, getChainConfig } from './evm/client.js';
 import { isTwakConfigured, swap as twakSwap } from './twak.js';
 import { priceData } from './data-providers/registry.js';
 import { computeTpSlLevels, applyRiskGate } from './treasury/risk.js';
+import { computePositionPnl } from './treasury/pnl.js';
 import { initVenues, getVenueForChain } from './venues/registry.js';
 import { resolveTradeableToken } from './treasury/asset-registry.js';
 import { openProprPosition, resolveProprAsset, closeProprPosition } from './venues/propr/index.js';
@@ -769,18 +770,16 @@ export async function closePositionById(
   let pnlUsd: number | null = null;
   let pnlPct: number | null = null;
   if (entryPriceUsd != null && exitPriceUsd != null && entryAmount > 0) {
-    // Shorts profit when price falls.
-    const sign = row.direction === 'short' ? -1 : 1;
-    pnlPct = sign * ((exitPriceUsd - entryPriceUsd) / entryPriceUsd) * 100;
-    // entry_amount semantics are venue-specific: spot/paper store
-    // asset QUANTITY, propr perps store USD NOTIONAL. Price-delta
-    // times notional inflates PnL by the asset's price multiple —
-    // that units mix-up produced the bogus -$283k season-1 figure.
-    // Notional books compute PnL as notional x percent change.
-    pnlUsd =
-      row.venue === 'propr'
-        ? entryAmount * (pnlPct / 100)
-        : sign * (exitPriceUsd - entryPriceUsd) * entryAmount;
+    // Venue-aware units (quantity vs notional) — see treasury/pnl.ts.
+    const pnl = computePositionPnl(
+      row.venue,
+      row.direction as 'long' | 'short',
+      entryAmount,
+      entryPriceUsd,
+      exitPriceUsd,
+    );
+    pnlUsd = pnl.pnlUsd;
+    pnlPct = pnl.pnlPct;
   }
 
   await query(

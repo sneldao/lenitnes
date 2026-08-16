@@ -2,6 +2,7 @@ import { query } from '../db/pool.js';
 import { priceData } from './data-providers/registry.js';
 import { logger } from '../logger.js';
 import { classifySignalSource, explainSignalSource } from './domain/signal-source.js';
+import { computePositionPnl } from './treasury/pnl.js';
 
 export interface PositionReasoning {
   signalId: string | null;
@@ -230,17 +231,16 @@ export async function getOpenPositions(): Promise<OpenPosition[]> {
     let unrealizedPnlUsd: number | null = null;
     let unrealizedPnlPct: number | null = null;
     if (currentPrice != null && entryPrice != null && entryAmount > 0) {
-      // Shorts profit when price falls.
-      const sign = r.direction === 'short' ? -1 : 1;
-      const pct = sign * ((currentPrice - entryPrice) / entryPrice) * 100;
-      // entry_amount semantics are venue-specific: spot/paper store
-      // asset QUANTITY, propr perps store USD NOTIONAL (same units
-      // fix as in closePositionById — see treasury.ts).
-      unrealizedPnlUsd =
-        r.venue === 'propr'
-          ? entryAmount * (pct / 100)
-          : sign * (currentPrice - entryPrice) * entryAmount;
-      unrealizedPnlPct = pct;
+      // Venue-aware units (quantity vs notional) — see treasury/pnl.ts.
+      const pnl = computePositionPnl(
+        r.venue,
+        r.direction as 'long' | 'short',
+        entryAmount,
+        entryPrice,
+        currentPrice,
+      );
+      unrealizedPnlUsd = pnl.pnlUsd;
+      unrealizedPnlPct = pnl.pnlPct;
     }
     return {
       id: r.id,

@@ -38,6 +38,22 @@
 > and degrades to Firecrawl until the cap clears; no further code change
 > needed when it does. Email to GXL drafted requesting session cleanup
 > and confirming the call flow. All tests green, committed + deployed.
+>
+> **Status update (Sun 2026-08-16, ~13:00):** External review flagged
+> the landing ticker's hardcoded outcome percentages and questioned the
+> scorecard's −$283k cumulative P&L. Investigation found BOTH problems:
+> (1) the ticker was static fake data — now fetches real recent calls
+> from `/scorecard/recent`; (2) the −$283k was a **PnL units bug**:
+> Propr perp positions store USD notional in `entry_amount`, but the
+> close path computed `(exit−entry) × entry_amount` as if it were asset
+> quantity, inflating losses ~×470 on ZEC. True Season-1 realized P&L
+> ≈ −$579. Fix: shared venue-aware `computePositionPnl` helper
+> (`services/treasury/pnl.ts`) used by both realized (treasury) and
+> unrealized (portfolio) paths, migration 010 restates the 5 closed
+> propr rows, 6 new regression tests (278 total). Scorecard now carries
+> a "Season 1 · closed" banner: why it failed, what Season 2 changes.
+> This is the Track-A story: the public scorecard caught its own
+> accounting bug and restated the ledger in the open.
 
 ## Fresh-session handoff
 
