@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import Link from 'next/link';
-import { ArrowUpRight, Filter } from 'lucide-react';
+import { ArrowUpRight, ChevronDown, Filter } from 'lucide-react';
 import { api, type ReasoningItem } from '@/lib/api';
 import { qk, REFETCH } from '@/lib/queryKeys';
 import { cn } from '@/lib/utils';
@@ -158,9 +158,11 @@ export default function ReasoningPage() {
 }
 
 function ReasoningRow({ item, index }: { item: ReasoningItem; index: number }) {
+  const [open, setOpen] = useState(false);
   const conviction = item.conviction ?? 0;
   const action = item.recommendedAction ?? 'none';
   const label = domainLabel(item.domain);
+  const hasDetail = item.conditionSummary != null || (item.thesis?.length ?? 0) > 160;
   const actionTone =
     action === 'long'
       ? 'text-signal bg-signal/15'
@@ -225,11 +227,25 @@ function ReasoningRow({ item, index }: { item: ReasoningItem; index: number }) {
               {item.thesis}
             </p>
           )}
-          <div className="mt-2 flex items-center justify-between">
-            <span className="font-mono text-[10px] uppercase tracking-wider text-slate-600">
-              rubric {item.rubricVersion}
-              {item.confidenceBand ? ` · ${item.confidenceBand}` : ''}
-            </span>
+          <div className="mt-2 flex items-center justify-between gap-3">
+            <div className="flex items-center gap-3">
+              {hasDetail && (
+                <button
+                  onClick={() => setOpen(!open)}
+                  aria-expanded={open}
+                  className="inline-flex items-center gap-1 font-mono text-[10px] uppercase tracking-wider text-slate-500 transition-colors hover:text-accent"
+                >
+                  <ChevronDown
+                    className={`h-3 w-3 transition-transform ${open ? 'rotate-180' : ''}`}
+                  />
+                  {open ? 'less' : 'details'}
+                </button>
+              )}
+              <span className="font-mono text-[10px] uppercase tracking-wider text-slate-600">
+                rubric {item.rubricVersion}
+                {item.confidenceBand ? ` · ${item.confidenceBand}` : ''}
+              </span>
+            </div>
             <Link
               href={`/signals/${item.signalId}`}
               className="inline-flex items-center gap-1 font-mono text-[11px] text-accent transition-colors hover:text-accent-glow"
@@ -237,6 +253,21 @@ function ReasoningRow({ item, index }: { item: ReasoningItem; index: number }) {
               full record <ArrowUpRight className="h-3 w-3" />
             </Link>
           </div>
+
+          {/* Row-level disclosure — the full judgment without leaving the page */}
+          {open && hasDetail && (
+            <div className="mt-3 rounded-lg border border-edge/30 bg-ink-light/40 p-3">
+              {item.thesis && (
+                <p className="text-sm leading-relaxed text-slate-300">{item.thesis}</p>
+              )}
+              {item.conditionSummary && (
+                <p className="mt-2 font-mono text-[10px] leading-relaxed text-slate-500">
+                  <span className="uppercase tracking-wider text-slate-600">summary </span>
+                  {item.conditionSummary}
+                </p>
+              )}
+            </div>
+          )}
         </div>
       </div>
     </li>

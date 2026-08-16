@@ -17,7 +17,14 @@ import { timeAgo, convictionColor, assetTicker } from '@/lib/format';
 import { Breadcrumbs } from '@/components/ui/breadcrumbs';
 import { SkeletonList } from '@/components/ui/skeleton';
 import { Tooltip } from '@/components/ui/tooltip';
+import { ShowMoreButton, useShowMore } from '@/components/ui/show-more';
 import { SignalSourceBadge } from '@/components/SignalSourceBadge';
+
+// Progressive disclosure caps — each board answers one question at a
+// glance, then reveals the rest on explicit request.
+const VELOCITY_VISIBLE = 10;
+const PR_VISIBLE = 12;
+const NEAR_MISS_VISIBLE = 6;
 
 // ─────────────────────────────────────────────────────────────
 // Intelligence — the visibility layer over the synthesis pipeline.
@@ -188,6 +195,7 @@ function VelocityBoard({
   readings: VelocityReading[];
   thresholdSigma: number;
 }) {
+  const more = useShowMore(readings.length, VELOCITY_VISIBLE);
   return (
     <section aria-label="Commit velocity">
       <SectionHeading
@@ -201,7 +209,7 @@ function VelocityBoard({
           <EmptyNote text="No monitored repos reporting velocity yet." />
         ) : (
           <ul className="divide-y divide-edge/40">
-            {readings.map((r, i) => (
+            {readings.slice(0, more.shown).map((r, i) => (
               <VelocityRow
                 key={r.monitorId}
                 reading={r}
@@ -212,6 +220,17 @@ function VelocityBoard({
           </ul>
         )}
       </div>
+      {more.needsToggle && (
+        <div className="mt-2 flex justify-center">
+          <ShowMoreButton
+            total={readings.length}
+            initial={VELOCITY_VISIBLE}
+            expanded={more.expanded}
+            onToggle={more.toggle}
+            noun="repos"
+          />
+        </div>
+      )}
     </section>
   );
 }
@@ -328,8 +347,7 @@ function VelocityRow({
 // ── PR impact board ────────────────────────────────────────────
 
 function PrBoard({ readings, threshold }: { readings: PullRequestReading[]; threshold: number }) {
-  // Show the most notable PRs; cap the list so the board stays scannable.
-  const shown = readings.slice(0, 12);
+  const more = useShowMore(readings.length, PR_VISIBLE);
 
   return (
     <section aria-label="Open pull request impact">
@@ -340,16 +358,27 @@ function PrBoard({ readings, threshold }: { readings: PullRequestReading[]; thre
         hintTip={`Impact score weighs keywords (breaking change, governance, exploit), size, review activity, and labels. PRs scoring ${threshold}+ open a signal.`}
       />
       <div className="card mt-4 overflow-hidden">
-        {shown.length === 0 ? (
+        {readings.length === 0 ? (
           <EmptyNote text="No notable open pull requests right now." />
         ) : (
           <ul className="divide-y divide-edge/40">
-            {shown.map((pr, i) => (
+            {readings.slice(0, more.shown).map((pr, i) => (
               <PrRow key={`${pr.repo}-${pr.prNumber}`} pr={pr} index={i} threshold={threshold} />
             ))}
           </ul>
         )}
       </div>
+      {more.needsToggle && (
+        <div className="mt-2 flex justify-center">
+          <ShowMoreButton
+            total={readings.length}
+            initial={PR_VISIBLE}
+            expanded={more.expanded}
+            onToggle={more.toggle}
+            noun="PRs"
+          />
+        </div>
+      )}
     </section>
   );
 }
@@ -457,6 +486,7 @@ function NearMissFeed({
   nearMisses: NearMissSignal[];
   convictionFloor: number;
 }) {
+  const more = useShowMore(nearMisses.length, NEAR_MISS_VISIBLE);
   return (
     <section aria-label="Signals evaluated but passed on" className="xl:sticky xl:top-6">
       <SectionHeading
@@ -477,7 +507,7 @@ function NearMissFeed({
             </p>
           </div>
         ) : (
-          nearMisses.map((n, i) => (
+          nearMisses.slice(0, more.shown).map((n, i) => (
             <Link
               key={n.signalId}
               href={`/signals/${n.signalId}`}
@@ -505,6 +535,17 @@ function NearMissFeed({
               )}
             </Link>
           ))
+        )}
+        {more.needsToggle && (
+          <div className="flex justify-center">
+            <ShowMoreButton
+              total={nearMisses.length}
+              initial={NEAR_MISS_VISIBLE}
+              expanded={more.expanded}
+              onToggle={more.toggle}
+              noun="signals"
+            />
+          </div>
         )}
       </div>
     </section>
