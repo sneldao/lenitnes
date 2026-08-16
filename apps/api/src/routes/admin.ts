@@ -5,6 +5,7 @@
 // ─────────────────────────────────────────────────────────────
 
 import { Router, type Request, type Response, type NextFunction } from 'express';
+import crypto from 'node:crypto';
 import type { Chain } from '@lenitnes/types';
 import { config } from '../config.js';
 import { query } from '../db/pool.js';
@@ -17,13 +18,24 @@ import { logger } from '../logger.js';
 
 export const adminRouter = Router();
 
+// Constant-time comparison: hash both sides to SHA-256 first so the
+// compare is always over equal-length buffers (and a length mismatch
+// doesn't leak anything about the real key). Same pattern as
+// share-token.ts. The plain `!==` this replaces let a remote attacker
+// measure the key byte-by-byte over a localhost-free network path.
+function safeEqual(a: string, b: string): boolean {
+  const ha = crypto.createHash('sha256').update(a).digest();
+  const hb = crypto.createHash('sha256').update(b).digest();
+  return crypto.timingSafeEqual(ha, hb);
+}
+
 function requireAdmin(req: Request, res: Response, next: NextFunction): void {
   if (!config.admin.apiKey) {
     res.status(503).json({ error: 'admin_not_configured', hint: 'set ADMIN_API_KEY' });
     return;
   }
   const provided = req.header('x-admin-key') ?? '';
-  if (provided !== config.admin.apiKey) {
+  if (!safeEqual(provided, config.admin.apiKey)) {
     res.status(401).json({ error: 'invalid_admin_key' });
     return;
   }

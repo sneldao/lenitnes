@@ -1,5 +1,6 @@
 import './globals.css';
 import type { Metadata } from 'next';
+import { Fraunces, JetBrains_Mono } from 'next/font/google';
 import Link from 'next/link';
 import { Providers } from '@/components/Providers';
 import { ErrorBoundary } from '@/components/ErrorBoundary';
@@ -7,6 +8,30 @@ import { ToastProvider } from '@/components/ui/toast';
 
 import { Nav } from '@/components/Nav';
 import { LiveSignalTicker } from '@/components/LiveSignalTicker';
+
+// Self-hosted fonts (next/font): the Google Fonts CSS @import this
+// replaces was the single largest render-blocking resource on every
+// page (~785ms wasted per Lighthouse) — discovered only after the
+// stylesheet parsed, with no preconnect. next/font downloads the
+// woff2 at build time, serves it from this origin, and preloads the
+// critical faces. Space Grotesk (font-sans) was never actually
+// loaded by the old @import, so sans keeps its system fallback.
+const fraunces = Fraunces({
+  subsets: ['latin'],
+  axes: ['opsz'],
+  // Variable font: 'variable' + axes keeps the full weight range
+  // (300-900) without one @font-face per weight.
+  weight: 'variable',
+  display: 'swap',
+  variable: '--font-display',
+});
+
+const jetbrainsMono = JetBrains_Mono({
+  subsets: ['latin'],
+  weight: ['300', '400', '500', '600'],
+  display: 'swap',
+  variable: '--font-mono',
+});
 
 export const metadata: Metadata = {
   title: 'LENITNES — proof-chained software-change judgments',
@@ -19,7 +44,7 @@ export const metadata: Metadata = {
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="en">
+    <html lang="en" className={`${fraunces.variable} ${jetbrainsMono.variable}`}>
       <body>
         <a
           href="#main-content"

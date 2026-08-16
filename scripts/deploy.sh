@@ -46,6 +46,16 @@ if ! ssh $SSH_OPTS "$SSH_HOST" "cd $REMOTE_DIR && git diff --quiet && git diff -
   echo "✗ server tree at $REMOTE_DIR is dirty — resolve on the box, then re-run" >&2
   exit 1
 fi
+# Root-owned files in the checkout block `git reset` on the box (unlink
+# needs write on the directory). This caught the 2026-08 reasoning/
+# page.tsx failure — an early root-era deploy left the dir root-owned.
+ROOT_OWNED="$(ssh $SSH_OPTS "$SSH_HOST" "cd $REMOTE_DIR && find . -user root -not -path './.git/*' -not -path './node_modules/*' -not -name '.*' | head -3")"
+if [ -n "$ROOT_OWNED" ]; then
+  echo "✗ root-owned files would block the checkout:" >&2
+  echo "$ROOT_OWNED" | sed 's/^/    /' >&2
+  echo "  fix: ssh $SSH_HOST \"sudo chown -R linuxuser:linuxuser $REMOTE_DIR\"" >&2
+  exit 1
+fi
 echo "  running: $OLD → target: $SHORT"
 
 rollback_hint() {

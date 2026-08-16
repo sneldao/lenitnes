@@ -41,4 +41,9 @@ COPY --from=base /app/apps/api/package.json ./
 # @hashgraph/sdk, @x402/axios, @x402/evm, and axios are root deps in package.json
 # so npm ci installs them. The root-level install ensures ESM resolution from /app/dist works.
 EXPOSE 8742
+# Run as the unprivileged node user (ships with node:20-slim) — an app-layer
+# RCE must not be a container-root RCE. HOME=/home/node so any runtime cache
+# (e.g. the twak-data wallet volume) lands under the node user's directory.
+ENV HOME=/home/node
+USER node
 CMD ["node", "dist/index.js"]

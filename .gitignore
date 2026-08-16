@@ -36,6 +36,10 @@ cache/
 .env.*.local
 .env.development
 .env.production
+# Coolify / manual .env rewrites leave timestamped backups on the server;
+# they must never be commit candidates.
+.env.bak
+.env.bak.*
 *.pem
 *.key
 secrets/

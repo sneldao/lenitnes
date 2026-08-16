@@ -44,4 +44,8 @@ COPY --from=base /app/apps/web/next.config.mjs ./apps/web/
 
 WORKDIR /app/apps/web
 EXPOSE 3000
+# Run as the unprivileged node user (ships with node:20-alpine) — `next
+# start` only reads .next, so nothing needs root after the build stage.
+ENV HOME=/home/node
+USER node
 CMD ["npm", "run", "start"]

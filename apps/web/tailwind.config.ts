@@ -27,8 +27,11 @@ const config: Config = {
       },
       fontFamily: {
         sans: ['"Space Grotesk"', 'ui-sans-serif', 'system-ui', 'sans-serif'],
-        mono: ['"JetBrains Mono"', 'ui-monospace', 'SFMono-Regular', 'monospace'],
-        display: ['Fraunces', 'ui-serif', 'Georgia', 'serif'],
+        // next/font self-hosts these (see layout.tsx) and exposes the
+        // hashed family via CSS variables — Tailwind must reference the
+        // var, never the literal family name.
+        mono: ['var(--font-mono)', 'ui-monospace', 'SFMono-Regular', 'monospace'],
+        display: ['var(--font-display)', 'ui-serif', 'Georgia', 'serif'],
       },
       // Semantic motion scale — reads from the transitions.dev token
       // block in globals.css so every component animates on the same

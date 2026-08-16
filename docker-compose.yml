@@ -11,7 +11,9 @@ services:
     restart: unless-stopped
     environment:
       POSTGRES_USER: ${POSTGRES_USER:-lenitnes}
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-lenitnes}
+      # No fallback: a missing POSTGRES_PASSWORD must fail the stack
+      # loudly, not quietly provision a DB with a default password.
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD must be set in .env}
       POSTGRES_DB: ${POSTGRES_DB:-lenitnes}
     volumes:
       - lenitnes-db-data:/var/lib/postgresql/data
@@ -38,12 +40,14 @@ services:
       dockerfile: apps/api/Dockerfile
     restart: unless-stopped
     env_file: .env
-    # Expose 8742 on the host so /health and /scorecard are reachable
-    # from the host. Coolify/Traefik would handle the public routing
-    # via the SERVICE_FQDN_API_8742 var; the direct port map is the
-    # fallback for local curl / debug / non-Coolify deploys.
+    # Loopback-only: 8742 was verified publicly reachable on the VPS
+    # (Docker-published ports bypass ufw), which exposed /metrics and
+    # the admin surface. Public traffic never uses this port — Traefik
+    # routes via the coolify network → web → internal rewrite — so
+    # binding to 127.0.0.1 keeps /health + /scorecard reachable for
+    # local curl / deploy checks and closes the public path.
     ports:
-      - '8742:8742'
+      - '127.0.0.1:8742:8742'
     environment:
       SERVICE_FQDN_API_8742: ${SERVICE_FQDN_API_8742:-}
       API_PORT: '8742'
@@ -113,7 +117,7 @@ services:
       SODEX_SYMBOL: ${SODEX_SYMBOL:-}
       SODEX_NETWORK: ${SODEX_NETWORK:-}
     volumes:
-      - twak-data:/root/.twak
+      - twak-data:/home/node/.twak
     depends_on:
       db:
         condition: service_healthy
@@ -177,7 +181,7 @@ services:
       SODEX_SYMBOL: ${SODEX_SYMBOL:-}
       SODEX_NETWORK: ${SODEX_NETWORK:-}
     volumes:
-      - twak-data:/root/.twak
+      - twak-data:/home/node/.twak
     depends_on:
       db:
         condition: service_healthy
@@ -203,7 +207,7 @@ services:
       - 'traefik.http.routers.lenitnes-web.tls.certresolver=letsencrypt'
       - 'traefik.http.services.lenitnes-web.loadbalancer.server.port=3000'
     ports:
-      - '8743:3000'
+      - '127.0.0.1:8743:3000'
     environment:
       - SERVICE_FQDN_WEB_8743
       - NODE_ENV=production

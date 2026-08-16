@@ -35,6 +35,15 @@ import { getDlqDepth } from './queue/dlq.js';
 import { startInvalidationSubscriber, stopInvalidationBus } from './middleware/cacheBus.js';
 
 export const app = express();
+
+// Behind exactly one reverse-proxy hop — the web container's Next.js
+// rewrite in production (Traefik terminates TLS in front of web).
+// trust proxy = 1 makes req.ip the real client IP so the rate limiter
+// buckets per visitor instead of per proxy socket (which was a single
+// shared bucket — a handful of users could exhaust it for everyone).
+// Direct hits on the published debug ports can spoof X-Forwarded-For,
+// so docker-compose binds those ports to 127.0.0.1 (defense in depth).
+app.set('trust proxy', 1);
 app.use(helmet());
 app.use(cors({ origin: config.webOrigin, credentials: true }));
 app.use(
@@ -55,6 +64,15 @@ const generalLimiter = rateLimit({
   legacyHeaders: false,
 });
 app.use(generalLimiter);
+
+// Tighter budget for the /admin surface — a single key deserves one
+// slow door, not 200 attempts per window.
+const adminLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000, // 15 minutes
+  max: 30,
+  standardHeaders: true,
+  legacyHeaders: false,
+});
 
 // ── Request correlation IDs for tracing ──────────────────────
 app.use((req, res, next) => {
@@ -136,7 +154,7 @@ app.get('/demo.mp4', (_req, res) => {
 
 app.use('/proof', proofRouter);
 app.use('/scorecard', scorecardRouter);
-app.use('/admin', adminRouter);
+app.use('/admin', adminLimiter, adminRouter);
 // Public backtest stats for landing page (no auth)
 app.get('/backtest/stats', async (req, res) => {
   const { getBacktestStats } = await import('./services/domain/backtest.service.js');

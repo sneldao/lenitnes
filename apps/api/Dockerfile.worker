@@ -51,4 +51,9 @@ EXPOSE 8741
 # /health/ready → DB + Redis reachable (for k8s readiness probes)
 HEALTHCHECK --interval=30s --timeout=5s --start-period=15s --retries=3 \
   CMD curl -sf http://localhost:8741/health/ready || exit 1
+# Run as the unprivileged node user — an app-layer RCE must not be a root
+# RCE. HOME=/home/node keeps runtime caches (twak wallet volume) in the
+# node user's directory.
+ENV HOME=/home/node
+USER node
 CMD ["node", "dist/worker.js"]
