@@ -27,7 +27,6 @@ function Hero() {
   const { data: recent } = useQuery<ScorecardRecentCall[]>({
     queryKey: qk.scorecardRecent(5),
     queryFn: () => api.getScorecardRecent(5),
-    ...REFETCH,
     refetchInterval: REFETCH.fast,
   });
 

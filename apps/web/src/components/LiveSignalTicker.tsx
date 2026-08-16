@@ -14,7 +14,6 @@ export function LiveSignalTicker() {
   const { data } = useQuery<ScorecardRecentCall[]>({
     queryKey: qk.scorecardRecent(6),
     queryFn: () => api.getScorecardRecent(6),
-    ...REFETCH,
     refetchInterval: REFETCH.fast,
   });
 

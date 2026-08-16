@@ -724,16 +724,13 @@ function CodeScorecard() {
                       </tbody>
                     </table>
                   </div>
-                  {data.bySignalType.length > DETECTOR_VISIBLE && (
-                    <button
-                      onClick={() => setShowAllDetectors((v) => !v)}
-                      className="mt-2 w-full rounded-lg border border-edge/40 py-1.5 font-mono text-[10px] uppercase tracking-wider text-slate-500 transition-colors hover:border-accent/40 hover:text-accent"
-                    >
-                      {showAllDetectors
-                        ? `collapse to ${DETECTOR_VISIBLE}`
-                        : `show all ${data.bySignalType.length} detectors`}
-                    </button>
-                  )}
+                  <ShowMoreButton
+                    total={data.bySignalType.length}
+                    initial={DETECTOR_VISIBLE}
+                    expanded={showAllDetectors}
+                    onToggle={() => setShowAllDetectors((v) => !v)}
+                    noun="detectors"
+                  />
                 </div>
               )}
 
@@ -772,16 +769,13 @@ function CodeScorecard() {
                       </tbody>
                     </table>
                   </div>
-                  {data.byWatchlist.length > WATCHLIST_VISIBLE && (
-                    <button
-                      onClick={() => setShowAllWatchlist((v) => !v)}
-                      className="mt-2 w-full rounded-lg border border-edge/40 py-1.5 font-mono text-[10px] uppercase tracking-wider text-slate-500 transition-colors hover:border-accent/40 hover:text-accent"
-                    >
-                      {showAllWatchlist
-                        ? `collapse to ${WATCHLIST_VISIBLE}`
-                        : `show all ${data.byWatchlist.length} repos`}
-                    </button>
-                  )}
+                  <ShowMoreButton
+                    total={data.byWatchlist.length}
+                    initial={WATCHLIST_VISIBLE}
+                    expanded={showAllWatchlist}
+                    onToggle={() => setShowAllWatchlist((v) => !v)}
+                    noun="repos"
+                  />
                 </div>
               )}
             </section>
@@ -1145,16 +1139,13 @@ function CodeScorecard() {
                         </li>
                       ))}
                     </ul>
-                    {inWindow.length > CALLS_VISIBLE && (
-                      <button
-                        onClick={() => setShowAllCalls((v) => !v)}
-                        className="mt-2 w-full rounded-lg border border-edge/40 py-1.5 font-mono text-[10px] uppercase tracking-wider text-slate-500 transition-colors hover:border-accent/40 hover:text-accent"
-                      >
-                        {showAllCalls
-                          ? `collapse to ${CALLS_VISIBLE}`
-                          : `show all ${inWindow.length} calls`}
-                      </button>
-                    )}
+                    <ShowMoreButton
+                      total={inWindow.length}
+                      initial={CALLS_VISIBLE}
+                      expanded={showAllCalls}
+                      onToggle={() => setShowAllCalls((v) => !v)}
+                      noun="calls"
+                    />
                   </>
                 )}
               </section>

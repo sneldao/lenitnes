@@ -83,8 +83,8 @@ export default function MonitorsPage() {
         <div>
           <h1 className="font-display text-2xl font-semibold text-slate-100">Watchlist</h1>
           <p className="mt-1 text-sm text-slate-400">
-            {monitors.length} monitors · {grouped.size} repos · same coverage as a customer
-            leak-scan
+            {monitors.length} monitors · {activeCount} active · {grouped.size} repos · same coverage
+            as a customer leak-scan
           </p>
         </div>
         <div className="flex items-center gap-1" role="tablist" aria-label="Filter by domain">
@@ -136,7 +136,7 @@ export default function MonitorsPage() {
                   setExpanded(isOpen ? null : repo);
                 }
               }}
-              className={`group cursor-pointer rounded-xl border p-3 text-left transition-all duration-quick ease-smooth-out ${
+              className={`group cursor-pointer rounded-xl border p-3 text-left transition-all duration-quick ease-smooth-out focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent ${
                 isOpen
                   ? 'col-span-full border-accent/40 bg-panel shadow-glow-sm'
                   : 'border-edge/60 bg-panel/60 hover:-translate-y-px hover:border-accent/40 hover:bg-panel hover:shadow-card'
