@@ -164,10 +164,6 @@ science" with built-in evaluation — the event's explicit theme
   perturbation-prediction evaluation suite) — seeded 2026-08-16.
 - **CZ Biohub** (co-host): `Biohub/esm` (2,904★, `main`, protein
   language-model / structure research codebase) — seeded 2026-08-16.
-- **Arc Institute** (co-host): `ArcInstitute/cell-eval` (151★, `main`,
-  perturbation-prediction evaluation suite) — seeded 2026-08-16.
-- **CZ Biohub** (co-host): `Biohub/esm` (2,904★, `main`, protein
-  language-model / structure research code) — seeded 2026-08-16.
 
 ### Tool integrations (host-tool credit)
 
