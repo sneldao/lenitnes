@@ -19,8 +19,8 @@ export interface RecentCall {
   detectedAt: string;
   monitorUrl: string;
   detectorTypes: string[];
-  /** The vertical whose grading authority judged this call: 'code' | 'bio'. */
-  domain: 'code' | 'bio';
+  /** The vertical whose grading authority judged this call: 'code' | 'science'. */
+  domain: 'code' | 'science';
   conviction: number | null;
   thesis: string | null;
   recommendedAction: 'long' | 'short' | 'none' | 'alert' | 'investigate' | null;
@@ -139,7 +139,7 @@ interface RecentRow {
   signal_id: string;
   detected_at: string;
   monitor_url: string;
-  domain: 'code' | 'bio';
+  domain: 'code' | 'science';
   conviction: number | null;
   thesis: string | null;
   recommended_action: 'long' | 'short' | 'none' | 'alert' | 'investigate' | null;
@@ -192,23 +192,23 @@ export async function recentCalls(limit: number = 20): Promise<RecentCall[]> {
   return recentCallsQuery(limit);
 }
 
-// ── Bio vertical: event-based credibility ────────────────────
-// The [bio] vertical doesn't score against price — it scores against
+// ── Science vertical: event-based credibility ────────────────
+// The [science] vertical doesn't score against price — it scores against
 // the scientific record. Only agent action='alert' rows are in the
 // alert denominator. An event contributes to precision only after its
 // signal_outcomes row is explicitly adjudicated as confirmed and occurs
 // after detection. Replay and live rows are aggregated independently.
 
-export type BioEvaluationMode = 'live' | 'replay';
-export type BioAction = 'alert' | 'investigate' | 'none';
-export type BioEventMatchStatus = 'unreviewed' | 'candidate' | 'confirmed' | 'rejected';
+export type ScienceEvaluationMode = 'live' | 'replay';
+export type ScienceAction = 'alert' | 'investigate' | 'none';
+export type ScienceEventMatchStatus = 'unreviewed' | 'candidate' | 'confirmed' | 'rejected';
 
-export interface BioAlertRow {
+export interface ScienceAlertRow {
   signalId: string;
   detectedAt: string;
   monitorUrl: string;
-  evaluationMode: BioEvaluationMode;
-  action: BioAction;
+  evaluationMode: ScienceEvaluationMode;
+  action: ScienceAction;
   conviction: number | null;
   thesis: string | null;
   primaryDetector: string | null;
@@ -216,11 +216,11 @@ export interface BioAlertRow {
   eventAt: string | null;
   eventSource: string | null;
   eventSourceUrl: string | null;
-  eventMatchStatus: BioEventMatchStatus | null;
+  eventMatchStatus: ScienceEventMatchStatus | null;
   leadDays: number | null;
 }
 
-export interface BioCohortMetrics {
+export interface ScienceCohortMetrics {
   totalSignals: number;
   totalAlerts: number;
   totalInvestigations: number;
@@ -231,7 +231,7 @@ export interface BioCohortMetrics {
   maxLeadDays: number | null;
 }
 
-export interface ScorecardBio {
+export interface ScorecardScience {
   // Top-level metrics are the live cohort. Replays are shown separately
   // so retrospective examples cannot inflate the prospective record.
   totalAlerts: number;
@@ -239,16 +239,16 @@ export interface ScorecardBio {
   precision: number | null;
   avgLeadDays: number | null;
   maxLeadDays: number | null;
-  cohorts: Record<BioEvaluationMode, BioCohortMetrics>;
-  alerts: BioAlertRow[];
+  cohorts: Record<ScienceEvaluationMode, ScienceCohortMetrics>;
+  alerts: ScienceAlertRow[];
   page: number;
   pageSize: number;
   totalPages: number;
   generatedAt: string;
 }
 
-interface BioAggregateRow {
-  evaluation_mode: BioEvaluationMode;
+interface ScienceAggregateRow {
+  evaluation_mode: ScienceEvaluationMode;
   total_signals: number;
   total_alerts: number;
   total_investigations: number;
@@ -258,14 +258,14 @@ interface BioAggregateRow {
   max_lead_days: number | null;
 }
 
-export async function bio(page = 1, pageSize = 20): Promise<ScorecardBio> {
+export async function science(page = 1, pageSize = 20): Promise<ScorecardScience> {
   const safePage = Math.max(1, Math.floor(page));
   const safePageSize = Math.min(50, Math.max(1, Math.floor(pageSize)));
   const offset = (safePage - 1) * safePageSize;
 
   const [aggregateResult, alertResult] = await Promise.all([
-    query<BioAggregateRow>(
-      `WITH bio_rows AS (
+    query<ScienceAggregateRow>(
+      `WITH science_rows AS (
          SELECT
            COALESCE(s.evaluation_mode, 'live')::text AS evaluation_mode,
            s.detected_at,
@@ -294,7 +294,7 @@ export async function bio(page = 1, pageSize = 20): Promise<ScorecardBio> {
            ORDER BY event_at DESC NULLS LAST, created_at DESC
            LIMIT 1
          ) so ON true
-         WHERE m.domain = 'bio' AND s.is_heartbeat = false
+         WHERE m.domain = 'science' AND s.is_heartbeat = false
        )
        SELECT
          evaluation_mode,
@@ -320,15 +320,15 @@ export async function bio(page = 1, pageSize = 20): Promise<ScorecardBio> {
              AND lead_days IS NOT NULL
              AND lead_days >= 0
          ) AS max_lead_days
-       FROM bio_rows
+       FROM science_rows
        GROUP BY evaluation_mode`,
     ),
     query<{
       signal_id: string;
       detected_at: string;
       monitor_url: string;
-      evaluation_mode: BioEvaluationMode;
-      action: BioAction;
+      evaluation_mode: ScienceEvaluationMode;
+      action: ScienceAction;
       conviction: number | null;
       thesis: string | null;
       primary_detector: string | null;
@@ -336,10 +336,10 @@ export async function bio(page = 1, pageSize = 20): Promise<ScorecardBio> {
       event_at: string | null;
       event_source: string | null;
       event_source_url: string | null;
-      event_match_status: BioEventMatchStatus | null;
+      event_match_status: ScienceEventMatchStatus | null;
       lead_days: number | null;
     }>(
-      `WITH bio_alerts AS (
+      `WITH science_alerts AS (
          SELECT
            s.id AS signal_id,
            s.detected_at,
@@ -359,7 +359,7 @@ export async function bio(page = 1, pageSize = 20): Promise<ScorecardBio> {
            ORDER BY created_at DESC
            LIMIT 1
          ) ag ON true
-         WHERE m.domain = 'bio'
+         WHERE m.domain = 'science'
            AND s.is_heartbeat = false
            AND COALESCE(s.evaluation_mode, 'live') = 'live'
        )
@@ -378,7 +378,7 @@ export async function bio(page = 1, pageSize = 20): Promise<ScorecardBio> {
          so.event_source_url,
          so.event_match_status,
          so.lead_days
-       FROM bio_alerts a
+       FROM science_alerts a
        LEFT JOIN LATERAL (
          SELECT event_kind, event_at, event_source, event_source_url,
                 event_match_status, lead_days
@@ -393,7 +393,7 @@ export async function bio(page = 1, pageSize = 20): Promise<ScorecardBio> {
     ),
   ]);
 
-  const emptyMetrics = (): BioCohortMetrics => ({
+  const emptyMetrics = (): ScienceCohortMetrics => ({
     totalSignals: 0,
     totalAlerts: 0,
     totalInvestigations: 0,
@@ -403,13 +403,13 @@ export async function bio(page = 1, pageSize = 20): Promise<ScorecardBio> {
     avgLeadDays: null,
     maxLeadDays: null,
   });
-  const cohorts: Record<BioEvaluationMode, BioCohortMetrics> = {
+  const cohorts: Record<ScienceEvaluationMode, ScienceCohortMetrics> = {
     live: emptyMetrics(),
     replay: emptyMetrics(),
   };
 
   for (const row of aggregateResult.rows) {
-    const mode: BioEvaluationMode = row.evaluation_mode === 'replay' ? 'replay' : 'live';
+    const mode: ScienceEvaluationMode = row.evaluation_mode === 'replay' ? 'replay' : 'live';
     const alerts = Number(row.total_alerts);
     const confirmed = Number(row.confirmed_events);
     cohorts[mode] = {
@@ -424,7 +424,7 @@ export async function bio(page = 1, pageSize = 20): Promise<ScorecardBio> {
     };
   }
 
-  const alerts: BioAlertRow[] = alertResult.rows.map((r) => ({
+  const alerts: ScienceAlertRow[] = alertResult.rows.map((r) => ({
     signalId: r.signal_id,
     detectedAt: r.detected_at,
     monitorUrl: r.monitor_url,
@@ -457,6 +457,9 @@ export async function bio(page = 1, pageSize = 20): Promise<ScorecardBio> {
     generatedAt: new Date().toISOString(),
   };
 }
+
+/** Compatibility alias for clients/tests written before the public rename. */
+export const bio = science;
 
 // ── Internal queries ───────────────────────────────────────
 
@@ -811,7 +814,7 @@ async function recentCallsQuery(limit: number): Promise<RecentCall[]> {
     detectedAt: r.detected_at,
     monitorUrl: r.monitor_url,
     detectorTypes: r.detector_types ?? [],
-    domain: r.domain === 'bio' ? 'bio' : 'code',
+    domain: r.domain === 'science' ? 'science' : 'code',
     conviction: r.conviction,
     thesis: r.thesis,
     recommendedAction: r.recommended_action,

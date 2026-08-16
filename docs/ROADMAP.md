@@ -7,11 +7,15 @@
 
 ## Where things stand
 
-LENITNES today is **one engine, one live audience**: the public
-trading agent, with a real track record accumulating on the
-scorecard. The enterprise direction — the same detectors + rubric
-run as a leak-scan over a company's own commit history — has a
-**capability demo**, not a product. `/scan` and the sample report
+LENITNES today is **one engine, two live verticals**: the trading
+vertical (`[markets]`, price oracle — Season 1 closed, record public) and
+the research-integrity vertical (`[research]`, record oracle — alert-only,
+released at re:AGENT Aug 2026, graded only against adjudicated events).
+Public tags name the grading oracle; the API and DB keep the internal
+values `code|science`, and URL params accept `markets|research` plus the
+legacy `code|science|bio` aliases. The enterprise direction — the same
+detectors + rubric run as a leak-scan over a company's own commit history
+— has a **capability demo**, not a product. `/scan` and the sample report
 in `docs/samples/` prove the engine can do the job; nothing yet
 exists that would let a company actually buy it.
 
@@ -95,7 +99,8 @@ infrastructure once a real yes justifies it, not before.
 Findings from the design-repo review (pbakaus/impeccable + vercel-labs/agent-skills,
 Aug 2026). Applied so far: progressive disclosure caps, calibration-into-scorecard
 merge, case-study hub, nav opacity fix, retry buttons on error states, hydration-safe
-scorecard domain tab. Deferred:
+scorecard domain tab, four-item nav consolidation (Markets · Research · How it works
+· More) with per-vertical portals (/markets, /research). Deferred:
 
 1. **SSR / streaming refactor.** Every page is `'use client'` polling via react-query.
    Converting data fetches to server components + Suspense streaming (vercel

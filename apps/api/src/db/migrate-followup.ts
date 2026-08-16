@@ -134,11 +134,11 @@ const MIGRATIONS: string[] = [
     ON x402_payments (payer);
   `,
 
-  // ── 0009: bio vertical — widen agent action space + literature ──
-  // LENITNES[bio] adds two agent actions on top of the crypto trading
+  // ── 0009: science vertical — widen agent action space + literature ──
+  // LENITNES[science] adds two agent actions on top of the crypto trading
   // triplet: 'alert' (flag a validity-threatening change) and
   // 'investigate' (corroborate against literature, then decide). Widen
-  // the CHECK so saveAgentScore can persist bio verdicts. Also add a
+  // the CHECK so saveAgentScore can persist science verdicts. Also add a
   // `literature` JSONB column for the corroborating refs the rubric v6
   // agent returns (title/doi/year/source). Older rows keep
   // literature=NULL. The CHECK must be dropped + re-added; guarded by
@@ -179,6 +179,17 @@ const MIGRATIONS: string[] = [
   CREATE INDEX IF NOT EXISTS idx_signals_evaluation_mode ON signals(evaluation_mode);
   CREATE INDEX IF NOT EXISTS idx_signal_outcomes_match_status
     ON signal_outcomes(event_match_status) WHERE event_kind IS NOT NULL;
+  `,
+
+  // ── 0012: canonical public science domain ──
+  // Convert monitors created under the prototype `bio` label and
+  // tighten the domain constraint. API handlers still accept bio as
+  // a compatibility alias for old bookmarks and integrations.
+  `
+  ALTER TABLE monitors DROP CONSTRAINT IF EXISTS monitors_domain_check;
+  UPDATE monitors SET domain = 'science' WHERE domain = 'bio';
+  ALTER TABLE monitors ADD CONSTRAINT monitors_domain_check
+    CHECK (domain IN ('code', 'science'));
   `,
 ];
 

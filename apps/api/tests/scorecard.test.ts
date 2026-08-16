@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
-import { bio, overall, recentCalls } from '../src/services/scorecard.js';
+import { science, overall, recentCalls } from '../src/services/scorecard.js';
 import type { ScorecardOverall } from '../src/services/scorecard.js';
 
 const { mockQuery } = vi.hoisted(() => ({ mockQuery: vi.fn() }));
@@ -229,7 +229,7 @@ describe('scorecard.overall — with signals + trades', () => {
   });
 });
 
-describe('scorecard.bio — action-scoped cohorts', () => {
+describe('scorecard.science — action-scoped cohorts', () => {
   beforeEach(() => {
     mockQuery.mockReset();
     mockQuery
@@ -261,7 +261,7 @@ describe('scorecard.bio — action-scoped cohorts', () => {
       .mockResolvedValueOnce({
         rows: [
           {
-            signal_id: 'bio-live-1',
+            signal_id: 'science-live-1',
             detected_at: '2026-08-16T10:00:00.000Z',
             monitor_url: 'https://github.com/afni/afni',
             evaluation_mode: 'live',
@@ -282,14 +282,14 @@ describe('scorecard.bio — action-scoped cohorts', () => {
   });
 
   it('counts only alert actions and keeps replay metrics separate', async () => {
-    const result = await bio(1, 10);
+    const result = await science(1, 10);
     expect(result.totalAlerts).toBe(2);
     expect(result.confirmedEvents).toBe(1);
     expect(result.precision).toBe(0.5);
     expect(result.cohorts.live.totalInvestigations).toBe(3);
     expect(result.cohorts.replay.confirmedEvents).toBe(1);
     expect(result.alerts[0]).toMatchObject({
-      signalId: 'bio-live-1',
+      signalId: 'science-live-1',
       evaluationMode: 'live',
       eventMatchStatus: 'confirmed',
       eventSourceUrl: 'https://example.test/event/1',
@@ -297,7 +297,7 @@ describe('scorecard.bio — action-scoped cohorts', () => {
   });
 
   it('uses pagination parameters for the alert listing query', async () => {
-    await bio(3, 10);
+    await science(3, 10);
     expect(mockQuery).toHaveBeenCalledWith(expect.stringContaining('LIMIT $1 OFFSET $2'), [10, 20]);
   });
 });

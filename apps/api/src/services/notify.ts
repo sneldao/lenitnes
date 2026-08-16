@@ -221,9 +221,9 @@ export interface BroadcastSignalInput {
     /** True when the agent minted a dedicated HCS topic for this signal. */
     dedicated_topic?: boolean;
   };
-  /** Vertical tag — 'bio' renders the integrity-alert layout. */
+  /** Vertical tag — 'science' renders the integrity-alert layout. */
   domain?: MonitorDomain;
-  /** Corroborating literature rows (bio vertical). */
+  /** Corroborating literature rows (science vertical). */
   literature?: LiteratureRef[];
   tradeReceipt: {
     chain: string;
@@ -246,7 +246,7 @@ export interface BroadcastSignalInput {
  * since repeat readers already know the schedule.
  */
 export function formatSignalBroadcastMessage(input: BroadcastSignalInput): string {
-  if (input.domain === 'bio') return formatBioSignalBroadcastMessage(input);
+  if (input.domain === 'science') return formatScienceSignalBroadcastMessage(input);
   const lines: string[] = [];
   const asset = (input.tradeReceipt?.pair ?? 'watchlist').replace(/USD$/i, '').toUpperCase();
   const action = input.agentScore.recommended_action.toUpperCase();
@@ -337,11 +337,11 @@ export function formatSignalBroadcastMessage(input: BroadcastSignalInput): strin
 }
 
 /**
- * Bio-vertical broadcast: an integrity alert, not a trade. No pair,
+ * Science-vertical broadcast: an integrity alert, not a trade. No pair,
  * no venue, no price-outcome schedule — the verdict is checked
  * against the scientific record (correction / retraction / disclosure).
  */
-function formatBioSignalBroadcastMessage(input: BroadcastSignalInput): string {
+function formatScienceSignalBroadcastMessage(input: BroadcastSignalInput): string {
   const lines: string[] = [];
   const action = input.agentScore.recommended_action.toUpperCase();
   const conviction = input.agentScore.conviction;
@@ -349,7 +349,7 @@ function formatBioSignalBroadcastMessage(input: BroadcastSignalInput): string {
   const repo = monitorRepoFromUrl(input.monitorUrl);
   const detector = input.primaryDetector ? ` · ${input.primaryDetector}` : '';
 
-  lines.push(`🔬 LENITNES[bio] · ${action} · ${conviction}/100 (${band})`);
+  lines.push(`🔬 LENITNES[research] · ${action} · ${conviction}/100 (${band})`);
   lines.push(`📍 ${repo}${detector} · ${formatUtcShort(input.detectedAt)}`);
   lines.push('');
   lines.push(`💭 ${input.agentScore.thesis}`);
@@ -392,7 +392,7 @@ function formatBioSignalBroadcastMessage(input: BroadcastSignalInput): string {
 
   lines.push(`⏱ Verdict: scored against correction / retraction record`);
   lines.push(`🔗 ${config.webOrigin}/signals/${input.signalId}`);
-  lines.push(`📊 ${config.webOrigin}/scorecard?domain=bio`);
+  lines.push(`📊 ${config.webOrigin}/scorecard?domain=science`);
 
   return lines.join('\n');
 }

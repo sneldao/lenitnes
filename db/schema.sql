@@ -248,16 +248,18 @@ CREATE INDEX IF NOT EXISTS idx_failed_proofs_pending
   ON failed_proofs(next_retry) WHERE resolved_at IS NULL;
 
 -- Multi-vertical support (re:AGENT pivot, migration 008) ──────
--- monitors.domain: 'code' (crypto sentinel, default) | 'bio'
--- (scientific-software integrity sentinel). See docs/RAGENT_PIVOT.md.
+-- monitors.domain: 'code' (crypto sentinel, default) | 'science'
+-- (scientific-software integrity sentinel). `bio` was the internal
+-- prototype label; migration 011 canonicalizes existing rows.
 ALTER TABLE monitors ADD COLUMN IF NOT EXISTS domain TEXT NOT NULL DEFAULT 'code';
 ALTER TABLE monitors DROP CONSTRAINT IF EXISTS monitors_domain_check;
+UPDATE monitors SET domain = 'science' WHERE domain = 'bio';
 ALTER TABLE monitors ADD CONSTRAINT monitors_domain_check
-    CHECK (domain IN ('code', 'bio'));
+    CHECK (domain IN ('code', 'science'));
 
--- Bio outcomes are discrete, dated events in the scientific record
+-- Science outcomes are discrete, dated events in the scientific record
 -- (retraction / correction / disclosure / release) instead of price
--- moves. Price columns stay NULL for bio rows; event columns stay
+-- moves. Price columns stay NULL for science rows; event columns stay
 -- NULL for code rows.
 ALTER TABLE signal_outcomes ADD COLUMN IF NOT EXISTS event_kind   TEXT;
 ALTER TABLE signal_outcomes ADD COLUMN IF NOT EXISTS event_at     TIMESTAMPTZ;

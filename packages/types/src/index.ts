@@ -18,13 +18,18 @@ export type MonitorStatus = 'active' | 'paused' | 'triggered';
 
 /**
  * Vertical tag (re:AGENT pivot — see docs/RAGENT_PIVOT.md).
+ *
+ * INTERNAL WIRE VALUE — the public URL labels are `markets` (→ code) and
+ * `research` (→ science); route handlers resolve aliases via
+ * resolveDomainParam (API) / normalizeDomainParam (web).
+ *
  * 'code' = crypto consensus sentinel (price outcomes), the original.
- * 'bio'  = scientific-software integrity sentinel (retraction/correction
- *          event outcomes). Drives rubric choice, detectors, outcome
- *          oracle, scorecard metrics, Telegram format, UI badge.
+ * 'science' = scientific-software integrity sentinel (retraction/correction
+ *             event outcomes). Drives rubric key, detectors, outcome
+ *             oracle, scorecard metrics, Telegram format, UI badge.
  * Single source of truth: `monitors.domain` (migration 008).
  */
-export type MonitorDomain = 'code' | 'bio';
+export type MonitorDomain = 'code' | 'science';
 
 export interface Monitor {
   id: string;
@@ -181,7 +186,7 @@ export interface AgentScore {
    */
   proof_action: 'standard' | 'dedicated_topic';
   /**
-   * Bio vertical (v6): literature the agent cited when scoring —
+   * Science vertical (v6): literature the agent cited when scoring —
    * Firecrawl/Paperclip hits. Rendered as "affected literature" rows
    * on the signal page. Absent for code-vertical scores.
    */
@@ -244,7 +249,7 @@ export interface AgentInput {
    */
   detector_track_record?: string;
   /**
-   * Bio vertical (v6): literature hits for the repo/commits under
+   * Science vertical (v6): literature hits for the repo/commits under
    * review — titles, DOIs, abstracts. The agent cites affected
    * claims from here. Built by services/literature.ts.
    */
@@ -309,7 +314,7 @@ export interface SignalOutcome {
   price_after: string;
   pct_change: string;
   direction: 'up' | 'down' | 'flat';
-  /** Bio vertical (migration 008): discrete dated ground-truth event. */
+  /** Science vertical (migration 008/011): discrete dated ground-truth event. */
   event_kind?: 'retraction' | 'correction' | 'disclosure' | 'release' | null;
   event_at?: string | null;
   event_source?: string | null;

@@ -5,6 +5,11 @@
 // proof URLs and the seed:demo output, but the UI never sees the raw
 // shape. New code must consume the exported types (Signal, Monitor,
 // Scorecard, etc.) and never type-cast snake_case fields directly.
+//
+// Domain values on the wire are the INTERNAL vocabulary ('code' |
+// 'science'); the display labels '[markets]' / '[research]' come from
+// `@/lib/domain`. URL params accept markets|research plus legacy
+// code|science|bio aliases.
 
 import type { Monitor as ApiMonitor, MonitorStatus, OrderStatus } from '@lenitnes/types';
 
@@ -118,7 +123,7 @@ export interface AgentScore {
    * signal. Only granted at conviction ≥ 90.
    */
   proofAction: 'standard' | 'dedicated_topic';
-  /** [bio] — corroborating literature rows cited by the rubric v6 agent. */
+  /** [science] — corroborating literature rows cited by the rubric v6 agent. */
   literature?: LiteratureRef[];
 }
 
@@ -141,7 +146,7 @@ export interface Monitor {
   lastSeenCommitHash: string | null;
   assetMapping: AssetMapping;
   createdAt: string;
-  domain?: 'code' | 'bio';
+  domain?: 'code' | 'science';
 }
 
 export interface Order {
@@ -197,8 +202,8 @@ export interface ScorecardRecentCall {
   detectedAt: string;
   monitorUrl: string;
   detectorTypes: string[];
-  /** The vertical whose grading authority judged this call: 'code' | 'bio'. */
-  domain: 'code' | 'bio';
+  /** The vertical whose grading authority judged this call: 'code' | 'science'. */
+  domain: 'code' | 'science';
   conviction: number | null;
   thesis: string | null;
   recommendedAction: 'long' | 'short' | 'none' | 'alert' | 'investigate' | null;
@@ -261,9 +266,9 @@ export interface ScorecardResponse {
   generatedAt: string;
 }
 
-// [bio] vertical — event-based integrity metrics. No price windows;
+// [science] vertical — event-based integrity metrics. No price windows;
 // an alert is judged against the dated scientific record.
-export interface ScorecardBioAlert {
+export interface ScorecardScienceAlert {
   signalId: string;
   detectedAt: string;
   monitorUrl: string;
@@ -280,7 +285,7 @@ export interface ScorecardBioAlert {
   leadDays: number | null;
 }
 
-export interface ScorecardBioCohort {
+export interface ScorecardScienceCohort {
   totalSignals: number;
   totalAlerts: number;
   totalInvestigations: number;
@@ -291,14 +296,14 @@ export interface ScorecardBioCohort {
   maxLeadDays: number | null;
 }
 
-export interface ScorecardBioResponse {
+export interface ScorecardScienceResponse {
   totalAlerts: number;
   confirmedEvents: number;
   precision: number | null;
   avgLeadDays: number | null;
   maxLeadDays: number | null;
-  cohorts: { live: ScorecardBioCohort; replay: ScorecardBioCohort };
-  alerts: ScorecardBioAlert[];
+  cohorts: { live: ScorecardScienceCohort; replay: ScorecardScienceCohort };
+  alerts: ScorecardScienceAlert[];
   page: number;
   pageSize: number;
   totalPages: number;
@@ -633,9 +638,9 @@ export const api = {
     }>(`/dlq?limit=${limit}`),
 
   getScorecard: () => reqCamel<ScorecardResponse>(`/scorecard`),
-  getScorecardBio: (page = 1, pageSize = 20) =>
-    reqCamel<ScorecardBioResponse>(
-      `/scorecard?domain=bio&page=${encodeURIComponent(page)}&pageSize=${encodeURIComponent(pageSize)}`,
+  getScorecardScience: (page = 1, pageSize = 20) =>
+    reqCamel<ScorecardScienceResponse>(
+      `/scorecard?domain=research&page=${encodeURIComponent(page)}&pageSize=${encodeURIComponent(pageSize)}`,
     ),
   getScorecardRecent: (limit?: number) =>
     reqCamel<ScorecardRecentCall[]>(`/scorecard/recent${limit ? `?limit=${limit}` : ''}`),

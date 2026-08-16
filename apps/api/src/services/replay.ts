@@ -58,7 +58,7 @@ export interface ReplayInput {
   from: string;
   to: string;
   asset: string;
-  /** Vertical: 'code' (crypto, default) or 'bio' (scientific software). */
+  /** Vertical: 'code' (crypto, default) or 'science' (scientific software). */
   domain?: MonitorDomain;
   /** Optional override — defaults to MOCK_AGENT from env so tests are deterministic. */
   mock?: boolean;
@@ -80,7 +80,7 @@ export interface ReplayCommitVerdict {
     label: string;
   }>;
   agentScore: AgentScore;
-  /** A paper trade would have been placed on this commit (bio: alert instead). */
+  /** A paper trade would have been placed on this commit (science: alert instead). */
   wouldHaveTraded: {
     chain: Chain;
     side: AgentAction;
@@ -98,8 +98,8 @@ export interface ReplayCommitVerdict {
     /** T+7d directional verdict when matured. */
     correctT7d: boolean | null;
   };
-  /** Bio vertical: the dated ground-truth event this alert scores against. */
-  bioOutcome?: {
+  /** Science vertical: the dated ground-truth event this alert scores against. */
+  scienceOutcome?: {
     event_kind: 'retraction' | 'correction' | 'disclosure' | 'release';
     event_at: string;
     event_source: string;
@@ -199,7 +199,7 @@ export const HALO2_REPLAY: ReplayCommitVerdict = {
   },
 };
 
-/** Canonical LENITNES[bio] example — the science founding case study.
+/** Canonical LENITNES[science] example — the science founding case study.
  *
  * In May 2015 AFNI silently corrected a 15-year-old edge-effect bug in
  * 3dClustSim's cluster-size thresholding (commit 2baf5710, 2015-05-12).
@@ -209,9 +209,9 @@ export const HALO2_REPLAY: ReplayCommitVerdict = {
  * rates far beyond the nominal 5%, invalidating large swaths of
  * published task-fMRI results. The fix commit is a textbook
  * method_fix signal: validity-relevant, under-documented, in a tool
- * thousands of papers depended on. LENITNES[bio] claims this pattern —
+ * thousands of papers depended on. LENITNES[science] claims this pattern —
  * a quiet statistical-method correction in widely-used scientific
- * software — is exactly what the bio detectors + v6 rubric fire on,
+ * software — is exactly what the science detectors + v6 rubric fire on,
  * 413 days before the community-wide exposure.
  *
  * Real artifacts (GitHub API, verified 2026-08-15):
@@ -270,13 +270,13 @@ export const CLUSTSIM_REPLAY: ReplayCommitVerdict = {
     created_at: '2015-05-12T15:10:00.000Z',
   },
   wouldHaveTraded: {
-    // Bio vertical: no trade — the commitment is the HCS-anchored alert.
+    // Science vertical: no trade — the commitment is the HCS-anchored alert.
     chain: 'hedera',
     side: 'alert',
     pair: '—',
     paper: true,
   },
-  bioOutcome: {
+  scienceOutcome: {
     event_kind: 'disclosure',
     event_at: '2016-06-28T00:00:00.000Z',
     event_source: 'doi:10.1073/pnas.1602413113',
@@ -399,10 +399,10 @@ export async function replay(input: ReplayInput): Promise<{
 
   const sequenceLog = input.sequenceLog ?? [];
 
-  // Bio vertical: one literature lookup per replay (repo-level), folded
+  // Science vertical: one literature lookup per replay (repo-level), folded
   // into every batch's agent input as corroboration context.
   let literatureContext = '';
-  if (domain === 'bio') {
+  if (domain === 'science') {
     try {
       const commitLines = commits
         .map((c) => c.message.split('\n')[0])
@@ -424,7 +424,7 @@ export async function replay(input: ReplayInput): Promise<{
   }
 
   const conditionText =
-    domain === 'bio'
+    domain === 'science'
       ? 'Any commit fixing or silently changing statistical methods, analysis pipelines, or results-bearing code in scientific software.'
       : 'Any commit referencing a consensus-critical change, emergency patch, or security vulnerability fix.';
 
@@ -509,7 +509,7 @@ export async function replay(input: ReplayInput): Promise<{
       );
 
       const priceOutcome =
-        domain === 'bio' || !input.asset
+        domain === 'science' || !input.asset
           ? undefined
           : await fetchPriceOutcome(input.asset, f.day, agentScore.recommended_action, priceSeries);
 
@@ -525,7 +525,7 @@ export async function replay(input: ReplayInput): Promise<{
         })),
         agentScore,
         wouldHaveTraded:
-          domain === 'bio'
+          domain === 'science'
             ? {
                 chain: 'hedera',
                 side: agentScore.recommended_action,
@@ -700,8 +700,8 @@ export function describeReplay(input: {
     repo: input.repo,
     from: input.from ?? ninetyDaysAgo.toISOString(),
     to: input.to ?? now.toISOString(),
-    // Bio replays have no priced asset — outcomes are discrete events.
-    asset: input.asset ?? (domain === 'bio' ? '' : 'zcash'),
+    // Science replays have no priced asset — outcomes are discrete events.
+    asset: input.asset ?? (domain === 'science' ? '' : 'zcash'),
     domain,
   };
 }

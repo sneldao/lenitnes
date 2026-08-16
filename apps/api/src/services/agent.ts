@@ -25,10 +25,10 @@ import { logger } from '../logger.js';
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const RUBRIC_PATHS: Record<MonitorDomain, string> = {
   code: path.resolve(__dirname, 'agent/rubric-v5.md'),
-  bio: path.resolve(__dirname, 'agent/rubric-v6.md'),
+  science: path.resolve(__dirname, 'agent/rubric-v6.md'),
 };
 
-// v6 (2026-08-15, bio vertical): scientific-integrity rubric. Conviction
+// v6 (2026-08-15, science vertical): scientific-integrity rubric. Conviction
 // now measures threat-to-published-results rather than trade direction;
 // action space is alert|investigate|none and affected claims must cite
 // DOIs from the literature context. v5 remains the code-vertical rubric.
@@ -41,7 +41,7 @@ const RUBRIC_PATHS: Record<MonitorDomain, string> = {
 // sources (security advisories, protocol releases) and perps-native
 // funding/OI structure. The `detector_track_record` field is optional,
 // so v4 prompts/transcripts still parse (non-breaking for replay).
-const RUBRIC_VERSIONS: Record<MonitorDomain, string> = { code: 'v5', bio: 'v6' };
+const RUBRIC_VERSIONS: Record<MonitorDomain, string> = { code: 'v5', science: 'v6' };
 const EXPECTED_OUTPUT_TOKENS = 700;
 
 /**
@@ -304,8 +304,8 @@ function mockScore(input: AgentInput): AgentScore {
   const domain: MonitorDomain = input.domain ?? 'code';
   let recommended_action: AgentAction;
   let subject: string;
-  if (domain === 'bio') {
-    // Bio vertical has no asset to trade: alert above the gate,
+  if (domain === 'science') {
+    // Science vertical has no asset to trade: alert above the gate,
     // investigate on moderate evidence, none on noise.
     recommended_action = topScore >= 70 ? 'alert' : topScore >= 40 ? 'investigate' : 'none';
     subject = input.condition_summary ?? 'scientific-software signal';

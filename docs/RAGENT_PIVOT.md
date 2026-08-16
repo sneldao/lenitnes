@@ -1,8 +1,8 @@
 # LENITNES — re:AGENT Hackathon Pivot (Aug 15–16, Founders Inc. SF)
 
 > **Status:** Track A entry. One engine, one brand, two verticals:
-> **LENITNES[code]** — the existing crypto sentinel (live today).
-> **LENITNES[bio]** — the re:AGENT build: a sentinel for scientific
+> **LENITNES[markets]** — the existing crypto sentinel (live today).
+> **LENITNES[research]** — the re:AGENT build: a sentinel for scientific
 > software integrity. Same pipeline, same proof chain, new domain.
 
 > **Build status (Sat 2026-08-15, late evening):** Deployed and live.
@@ -22,7 +22,7 @@
 > stored and wired, but currently rejected by the GXL BioMedRxiv API
 > ("Invalid API key") — ask organizers to activate/reissue; Firecrawl
 > remains the working literature source in the meantime; (2) visual QA
-> of new web pages (`/case-study/clustsim`, `/scorecard?domain=bio`,
+> of new web pages (`/case-study/clustsim`, `/scorecard?domain=research`,
 > `/scan` toggle); (3) demo video + pitch rehearsal; (4) first
 > above-threshold bio broadcast (needs conviction ≥ 70).
 
@@ -69,7 +69,7 @@
 > **Status update (Sun 2026-08-16, later):** Nav consolidated to 3
 > primary tabs + 5 under "More" (Calibration merged into Scorecard as
 > collapsible deep-dive sections; both case studies behind one
-> `/case-studies` hub with a [code]/[bio] toggle; `/calibration` is now
+> `/case-studies` hub with a [markets]/[research] toggle; `/calibration` is now
 > a 307 redirect). Fixed Nav dropdown transparency bug (`bg-panel/98`
 > isn't a real Tailwind class → `bg-panel/95`). Monitors page rebuilt
 > as a dense tile grid with one-at-a-time expand (progressive
@@ -132,9 +132,9 @@ everywhere — web badges, API `domain` values, Telegram headers, HCS
 dispatches:
 
 ```
-LENITNES[code]   domain='code'   crypto consensus repos → price outcomes
+LENITNES[markets]   domain='code'   crypto consensus repos → price outcomes
                                  (live; halo2/ZEC founding case study)
-LENITNES[bio]    domain='bio'    scientific software repos → scientific-
+LENITNES[research]    domain='science'    scientific software repos → scientific-
                                  record outcomes (retractions, corrections,
                                  dated disclosures). The re:AGENT entry.
                                  Later also drives biotech equity signals.
@@ -146,9 +146,9 @@ LENITNES[<x>]    reserved        [fin], [geo]… only when a repo corpus +
 Rules that keep the scheme from drifting:
 
 1. **Tag = field watched, never output type.** Biotech equity trading
-   stays inside `[bio]` (its outcome oracle gains an `equity` mode
+   stays inside `[research]` (its outcome oracle gains an `equity` mode
    later); we don't fork verticals per trade venue.
-2. **Badges are mono text** (`[code]`, `[bio]`), no per-vertical emoji,
+2. **Badges are mono text** (`[markets]`, `[research]`), no per-vertical emoji,
    no sub-brands, no "powered by" suffixes.
 3. **`monitors.domain` is the single source of truth** — every surface
    (rubric, detectors, outcomes, scorecard metrics, Telegram format,
@@ -196,10 +196,10 @@ science" with built-in evaluation — the event's explicit theme
 - **nextstrain/ncov** (1,364★), **nextstrain/mpox**,
   **Opentrons/opentrons** (default branch `edge`),
   **choderalab/openmmtools** — all verified, all seeded in
-  `db/seed/watchlist_bio.sql`.
+  `db/seed/watchlist_science.sql`.
 - **Boltz** (sponsor): resolved to `jwohlwend/boltz` (4,163★, branch
   `main`, active — recent precision/inference fixes in 2026). Seeded in
-  `db/seed/watchlist_bio.sql` on 2026-08-16; the sentinel watches the
+  `db/seed/watchlist_science.sql` on 2026-08-16; the sentinel watches the
   sponsor's own scientific software for validity-threatening commits.
 - **Arc Institute** (co-host): `ArcInstitute/cell-eval` (151★, `main`,
   perturbation-prediction evaluation suite) — seeded 2026-08-16.
@@ -237,10 +237,10 @@ science" with built-in evaluation — the event's explicit theme
 ## Architecture mapping — what changes, what doesn't
 
 ```
-                        LENITNES[code] (today)    LENITNES[bio] (pivot)
+                        LENITNES[markets] (today)    LENITNES[research] (pivot)
 Watch   monitors.url    crypto repos              science repos
-        monitors.domain 'code' (default)          'bio'  (migration 008)
-Detect  10 typed detectors              reuse as-is; + 2 bio detectors
+        monitors.domain 'code' (default)          'science' (migration 011; originally 'bio' in migration 008)
+Detect  10 typed detectors              reuse as-is; + 2 science detectors
 Corroborate  CMC market context         literature.ts (Firecrawl/Paperclip)
 Score   rubric-v5 (trade conviction)    rubric-v6 (scientific-risk conviction)
         action ∈ long|short|none        action ∈ alert|investigate|none
@@ -248,7 +248,7 @@ Gate    conviction ≥ 70/80              same thresholds
 Commit  HCS notarization                same — alerts are the commitment
 Track   price T+1h/1d/7d                discrete events: retraction/correction/
         (signal_outcomes.pct_change)    disclosure + date (event_* columns)
-Replay  /backtest/replay?repo=…         same endpoint, domain=bio
+Replay  /backtest/replay?repo=…         same endpoint, domain=research
 ```
 
 ### Migration 008 (applied, validated against fresh PG14)
@@ -256,7 +256,7 @@ Replay  /backtest/replay?repo=…         same endpoint, domain=bio
 ```sql
 -- db/migrations/008_science_domain.sql
 ALTER TABLE monitors ADD COLUMN IF NOT EXISTS domain TEXT NOT NULL DEFAULT 'code';
-ALTER TABLE monitors ADD CONSTRAINT monitors_domain_check CHECK (domain IN ('code','bio'));
+ALTER TABLE monitors ADD CONSTRAINT monitors_domain_check CHECK (domain IN ('code','science'));
 
 ALTER TABLE signal_outcomes ADD COLUMN IF NOT EXISTS event_kind   TEXT;  -- retraction|correction|disclosure|release
 ALTER TABLE signal_outcomes ADD COLUMN IF NOT EXISTS event_at     TIMESTAMPTZ;
@@ -264,7 +264,7 @@ ALTER TABLE signal_outcomes ADD COLUMN IF NOT EXISTS event_source TEXT;  -- retr
 ALTER TABLE signal_outcomes ADD COLUMN IF NOT EXISTS lead_days    INTEGER;
 ```
 
-A bio call is **CORRECT** if `event_at > detected_at` and the event kind
+A science call is **CORRECT** if `event_at > detected_at` and the event kind
 matches the alert class (method_fix alert → later retraction/correction
 citing software error). Cleaner, less noisy than price — and exactly the
 "reliable evaluation" the event asks for.
@@ -283,7 +283,7 @@ pile-ons.
 Applies to BOTH verticals. The current site talks too much.
 
 1. **Badges, not sentences.** Every call renders as one scannable line:
-   `[bio] ALERT 88 · afni/afni · ✅ confirmed`. Domain, action,
+   `[research] ALERT 88 · afni/afni · ✅ confirmed`. Domain, action,
    conviction, outcome — readable in under a second.
 2. **One page, one question.** Scorecard = _is the agent right?_
    Signal = _what did it see and why?_ Case study = _prove it on a
@@ -300,11 +300,11 @@ Applies to BOTH verticals. The current site talks too much.
 
 - Hero headline: **"The agent that would have shorted halo2 — and would
   have flagged the 3dClustSim bug."** One sentence of sub-copy.
-- Two case-study buttons with badges: `[code]` halo2 · `[bio]` clustsim.
-- Recent calls: mono domain-badge prefix per row; bio rows show
+- Two case-study buttons with badges: `[markets]` halo2 · `[research]` clustsim.
+- Recent calls: mono domain-badge prefix per row; science rows show
   `ALERT`/`INVESTIGATE`, code rows show LONG/SHORT.
-- Track-record strip: two compact number tiles — `[code]` hit ratio,
-  `[bio]` precision + median lead time. Numbers only.
+- Track-record strip: two compact number tiles — `[markets]` hit ratio,
+  `[research]` precision + median lead time. Numbers only.
 
 ### 2. Bio case study (`apps/web/src/app/case-study/clustsim/page.tsx`)
 
@@ -315,17 +315,17 @@ Clone of `halo2/page.tsx`, new constants:
 - Impact chart instead of price chart: affected-fMRI-literature growth
   (Eklund's ~40k-studies figure), agent alert date vs community
   discovery date marked.
-- Replay from `/backtest/replay?repo=afni/afni&from=2015-04-01&to=2015-07-01&domain=bio`.
+- Replay from `/backtest/replay?repo=afni/afni&from=2015-04-01&to=2015-07-01&domain=research`.
 - Verdict card: `ALERT · conviction 88 — statistical-method fix in
 cluster-size thresholding; published results using 3dClustSim p-values
 at risk. Outcome: CONFIRMED (PNAS 2016).`
 
 ### 3. Scorecard (`scorecard.ts` route + page)
 
-- `?domain=bio|code` tabs (default combined). `scorecard.overall()`
+- `?domain=research|markets` tabs (default combined). `scorecard.overall()`
   gains a domain filter via `monitors.domain`.
 - Per-vertical metric vocabulary: code keeps Sharpe/drawdown/P&L;
-  bio shows **lead time** (median days alert → confirmed event) and
+  science shows **lead time** (median days alert → confirmed event) and
   **precision** (confirmed / total). Per-detector chart reused.
 - Recent rows: badge + outcome pill (✅ CONFIRMED / ❌ UNCONFIRMED /
   ⏳ PENDING).
@@ -348,7 +348,7 @@ at risk. Outcome: CONFIRMED (PNAS 2016).`
 
 ### 6. Methodology (`/methodology`)
 
-- Bio detectors added to the grid with real afni commit examples.
+- Science detectors added to the grid with real afni commit examples.
 - New sections: "Ground truth" (Retraction Watch / WithdrarXiv / dated
   disclosure events; why event scoring is stricter than price scoring)
   and "Literature corroboration" (Firecrawl + Paperclip in the evidence
@@ -357,16 +357,16 @@ at risk. Outcome: CONFIRMED (PNAS 2016).`
 ### 7. Calibration
 
 - Reused unchanged with the domain filter; the weekend sample is small,
-  so show the responsiveness sweep over the bio watchlist
+  so show the responsiveness sweep over the science watchlist
   (`GET /backtest/responsiveness`) — it already ranks repos by
   historical signal→outcome coupling.
 
 ### 8. Telegram (`telegram-messages.ts` / `notify.ts`)
 
-Compact bio format (3 lines max before the thesis):
+Compact science format (3 lines max before the thesis):
 
 ```
-LENITNES[bio] · ALERT 88 · afni/afni · method_fix
+LENITNES[research] · ALERT 88 · afni/afni · method_fix
 ✅ confirmed +412d — Eklund et al., PNAS 2016 (cluster failure)
 🔗 lenitnes.persidian.com/signals/<id>
 ```
@@ -374,7 +374,7 @@ LENITNES[bio] · ALERT 88 · afni/afni · method_fix
 - `formatSingleVerdictMessage` + digest gain a domain branch; code
   vertical keeps today's format unchanged.
 - `VerdictBroadcastItem.recommendedAction` widens with `alert |
-investigate`; bio items carry `leadTimeDays` + `confirmed` instead of
+investigate`; science items carry `leadTimeDays` + `confirmed` instead of
   `pctChange`.
 - Triggers unchanged (on-signal ≥ gate, on-outcome-resolution).
   `fetchAssetCohortStats` → `fetchDomainCohortStats(domain, kind)`.
@@ -395,8 +395,8 @@ same gates, better tuned.
 
 ### 2. Biotech trading signals (when stocks enter the treasury)
 
-The bio watchlist seeds an **equities signal source**, staying inside
-the `[bio]` vertical — same repos, same alerts, second outcome oracle:
+The science watchlist seeds an **equities signal source**, staying inside
+the `[research]` vertical — same repos, same alerts, second outcome oracle:
 
 - Pathogen-surveillance spikes → vaccine/diagnostics exposure.
 - Open-science biotech commits → research-direction signals ahead of
@@ -416,24 +416,24 @@ outcomes.
 File                                             Action    Purpose
 ────                                             ──────    ───────
 db/migrations/008_science_domain.sql             [done]    monitors.domain, signal_outcomes event cols
-db/migrations/009_agent_scores_bio.sql           [done]    agent_scores CHECK +alert/investigate, literature JSONB
-db/seed/watchlist_bio.sql                        [done]    afni, nextstrain x2, opentrons, openmmtools, boltz
+db/migrations/009_agent_scores_science.sql           [done]    agent_scores CHECK +alert/investigate, literature JSONB
+db/seed/watchlist_science.sql                        [done]    afni, nextstrain x2, opentrons, openmmtools, boltz
 packages/types/src/index.ts                      [done]    MonitorDomain, domain on Monitor, AgentAction +alert/investigate, SignalType +method_fix/results_rewrite, LiteratureRef, event fields
-apps/api/src/services/agent/rubric-v6.md         [done]    bio conviction rubric
+apps/api/src/services/agent/rubric-v6.md         [done]    science conviction rubric
 apps/api/src/services/agent.ts                   [done]    rubric by domain; literature_context input; literature persisted/fetched
 apps/api/src/services/literature.ts              [done]    Firecrawl research index adapter (keyless) + Paperclip stub
 apps/api/src/services/detectors/method-fix.ts    [done]    stats/analysis-code fix detector (verified: fires on afni 2baf5710)
 apps/api/src/services/detectors/results-rewrite.ts [done]  results/figures/data edit detector
-apps/api/src/services/detectors/registry.ts      [done]    bio detectors registered, domain-gated
-apps/api/src/services/scorecard.ts + route       [done]    ?domain=bio → bio() event metrics (precision, lead time)
-apps/api/src/services/replay.ts + routes/backtest [done]   domain param; bio skips price outcomes; /backtest/replay/clustsim
-apps/api/src/services/notify.ts                  [done]    bio broadcast branch (🔬 LENITNES[bio], literature rows, event verdict)
-apps/web/src/app/page.tsx                        [done]    dual-vertical hero + [code]/[bio] badges + clustsim CTA
-apps/web/src/app/case-study/clustsim/page.tsx    [done]    bio founding case study (lead-time visual, ground truth, literature)
-apps/web/src/app/scorecard/page.tsx              [done]    [code]/[bio] tabs; bio metrics + alerts table
-apps/web/src/app/scan/page.tsx                   [done]    [code]/[bio] toggle, bio presets, bioOutcome rows
-apps/web/src/app/methodology/MethodologyClient   [done]    [bio] integrity-detectors section
-apps/web/src/components/Nav.tsx                  [done]    Case study [code] / [bio] links
+apps/api/src/services/detectors/registry.ts      [done]    science detectors registered, domain-gated
+apps/api/src/services/scorecard.ts + route       [done]    ?domain=research → science() event metrics (precision, lead time)
+apps/api/src/services/replay.ts + routes/backtest [done]   domain param; science skips price outcomes; /backtest/replay/clustsim
+apps/api/src/services/notify.ts                  [done]    science broadcast branch (🔬 LENITNES[research], literature rows, event verdict)
+apps/web/src/app/page.tsx                        [done]    dual-vertical hero + [markets]/[research] badges + clustsim CTA
+apps/web/src/app/case-study/clustsim/page.tsx    [done]    science founding case study (lead-time visual, ground truth, literature)
+apps/web/src/app/scorecard/page.tsx              [done]    [markets]/[research] tabs; science metrics + alerts table
+apps/web/src/app/scan/page.tsx                   [done]    [markets]/[research] toggle, science presets, scienceOutcome rows
+apps/web/src/app/methodology/MethodologyClient   [done]    [research] integrity-detectors section
+apps/web/src/components/Nav.tsx                  [done]    Case study [markets] / [research] links
 apps/api/src/db/migrate-followup.ts              [done]    0009 migration entry
 docs/RAGENT_PIVOT.md                             [this]
 ```
@@ -443,23 +443,23 @@ paths. No changes to treasury, trading venues, x402, or proofs.
 
 ## Weekend timeline
 
-| When            | Block                                                                           | Status                                                |
-| --------------- | ------------------------------------------------------------------------------- | ----------------------------------------------------- |
-| Sat 10:25–12:10 | Register Track A; ask organizers for Paperclip key; confirm Boltz repo location | key + repo still open                                 |
-| Sat 13:00–15:30 | Migration 008 + bio watchlist + rubric v6 + domain wiring in types/agent/replay | ✅                                                    |
-| Sat 15:30–18:30 | Two bio detectors + literature.ts (Firecrawl first) + event-outcome scoring     | ✅                                                    |
-| Sat 19:15–22:00 | afni replay end-to-end → case-study page → scorecard tabs                       | ✅ (mock + live: credits unblocked via Qwen chain)    |
-| Sat 22:00–23:00 | Telegram bio format; freeze scope                                               | ✅ format done, first live send pending               |
-| Sun 9:00–10:45  | Landing hero, methodology sections, README paragraph, submit by 10:45           | ✅ hero/methodology/README done — submit prep remains |
+| When            | Block                                                                               | Status                                                |
+| --------------- | ----------------------------------------------------------------------------------- | ----------------------------------------------------- |
+| Sat 10:25–12:10 | Register Track A; ask organizers for Paperclip key; confirm Boltz repo location     | key + repo still open                                 |
+| Sat 13:00–15:30 | Migration 008 + science watchlist + rubric v6 + domain wiring in types/agent/replay | ✅                                                    |
+| Sat 15:30–18:30 | Two science detectors + literature.ts (Firecrawl first) + event-outcome scoring     | ✅                                                    |
+| Sat 19:15–22:00 | afni replay end-to-end → case-study page → scorecard tabs                           | ✅ (mock + live: credits unblocked via Qwen chain)    |
+| Sat 22:00–23:00 | Telegram science format; freeze scope                                               | ✅ format done, first live send pending               |
+| Sun 9:00–10:45  | Landing hero, methodology sections, README paragraph, submit by 10:45               | ✅ hero/methodology/README done — submit prep remains |
 
 ## Exit criteria
 
 - [x] `afni/afni` 2015 Q2 replay flags `2baf5710` (detector verified live; curated `CLUSTSIM_REPLAY` constant carries conviction 88 / alert)
 - [x] Alert HCS-notarized and visible at `/signals/<id>` with literature rows (literature column + AgentReasoningCard section)
 - [x] `/case-study/clustsim` renders replay verdict + timeline + outcome
-- [x] `/scorecard?domain=bio` returns precision + lead-time metrics
-- [x] Bio-formatted Telegram branch implemented (notify.ts); first live send at event
-- [x] Bio watchlist (5 repos) seeded with `domain='bio'`, validated on fresh PG14
+- [x] `/scorecard?domain=research` returns precision + lead-time metrics
+- [x] Science-formatted Telegram branch implemented (notify.ts); first live send at event
+- [x] Science watchlist (5 repos) seeded with `domain='science'`, validated on fresh PG14
 - [x] Code vertical unchanged and green (`typecheck` + 262 tests + `next build` 13/13)
 
 ## Risks

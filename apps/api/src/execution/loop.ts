@@ -629,9 +629,9 @@ export async function executeCheck(monitor: Monitor): Promise<{
           buildDetectorTrackRecordContext(detectorTypes),
         ]);
 
-      // Bio vertical: corroborate with the literature before scoring.
+      // Science vertical: corroborate with the literature before scoring.
       let literatureContext: string | undefined;
-      if (monitor.domain === 'bio') {
+      if (monitor.domain === 'science') {
         try {
           const { searchLiterature, formatLiteratureContext } =
             await import('../services/literature.js');
@@ -820,7 +820,7 @@ export async function executeCheck(monitor: Monitor): Promise<{
   //   - the signal is a heartbeat
   let tradeReceipt: TradeReceipt | null = null;
   let orderId: string | null = null;
-  if (agentScore && !gate2Blocked && !isHeartbeat && signalId && monitor.domain !== 'bio') {
+  if (agentScore && !gate2Blocked && !isHeartbeat && signalId && monitor.domain !== 'science') {
     // Trade execution is encapsulated in treasury.executeAgentTrade
     // (DRY) — the single entry point shared with the narrative-
     // synthesis scan. Resolves the token, applies the risk gate,
@@ -831,10 +831,10 @@ export async function executeCheck(monitor: Monitor): Promise<{
   }
 
   // ── 7) Public broadcast ────────────────────────────────────────
-  // Bio alerts fail closed: without a successful HCS signal anchor,
+  // Science alerts fail closed: without a successful HCS signal anchor,
   // the judgment is retained internally but never presented as a
   // committed public alert. Code calls still require a trade receipt.
-  const canBroadcast = monitor.domain === 'bio' ? hcsAnchored : Boolean(tradeReceipt);
+  const canBroadcast = monitor.domain === 'science' ? hcsAnchored : Boolean(tradeReceipt);
   if (agentScore && !gate2Blocked && !isHeartbeat && signalId && canBroadcast) {
     // The proof data (ipfs_cid / hedera_tx_id / arb_tx_hash) is
     // written to the signal row by the post-commit step. Pull it

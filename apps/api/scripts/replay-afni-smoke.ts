@@ -4,7 +4,7 @@ const input = describeReplay({
   repo: 'afni/afni',
   from: '2015-05-01T00:00:00Z',
   to: '2015-05-14T00:00:00Z',
-  domain: 'bio',
+  domain: 'science',
 });
 const { verdicts, flaggedBatches } = await replay({ ...input, mock: true });
 console.log('flaggedBatches:', flaggedBatches);

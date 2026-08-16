@@ -3,30 +3,26 @@
 import { useQuery } from '@tanstack/react-query';
 import Link from 'next/link';
 import { ArrowRight } from 'lucide-react';
-import {
-  api,
-  type ScorecardBioResponse,
-  type ScorecardResponse,
-  type ScorecardRecentCall,
-} from '@/lib/api';
+import { api, type ScorecardRecentCall } from '@/lib/api';
 import { qk, REFETCH } from '@/lib/queryKeys';
 import { timeAgo, convictionColor } from '@/lib/format';
 import { cn } from '@/lib/utils';
 
 import { ProofFlow } from '@/components/ProofFlow';
+import { domainLabel } from '@/lib/domain';
 
 export default function LandingPage() {
   return (
     <div className="space-y-8 sm:space-y-12">
       <Hero />
-      <TrackRecordStrip />
+      <Portals />
       <HowItWorksStrip />
       <RecentCalls />
     </div>
   );
 }
 
-// ── Hero: the live agent as the visual lede ──────────────────
+// ── Hero: the instrument, not a vertical. The cards below do the choosing. ──
 
 function Hero() {
   const { data: recent } = useQuery<ScorecardRecentCall[]>({
@@ -47,69 +43,19 @@ function Hero() {
           <span className="relative inline-flex h-2.5 w-2.5 rounded-full bg-signal" />
         </span>
         <span className="font-mono text-[11px] uppercase tracking-wider text-slate-400">
-          {latest ? `last scored ${timeAgo(latest.detectedAt)}` : 'monitoring live'}
+          {latest ? `last judged ${timeAgo(latest.detectedAt)}` : 'monitoring live'}
         </span>
       </div>
 
-      <h1 className="font-display text-4xl font-semibold leading-[1.1] tracking-tight text-slate-100 sm:text-5xl">
-        Every call <em className="not-italic text-accent">committed</em> — before the outcome.
+      <h1 className="mx-auto max-w-3xl font-display text-4xl font-semibold leading-[1.1] tracking-tight text-slate-100 sm:text-5xl">
+        Every judgment <em className="not-italic text-accent">committed</em> — before the outcome is
+        knowable.
       </h1>
 
-      {/* Vertical tags — instances of one instrument, not the identity */}
-      <div className="mt-4 flex flex-wrap items-center justify-center gap-2 font-mono text-[11px]">
-        <span className="rounded border border-accent/40 bg-accent/10 px-2 py-0.5 uppercase tracking-widest text-accent">
-          [code]
-        </span>
-        <span className="text-slate-600">·</span>
-        <span className="rounded border border-signal/40 bg-signal/10 px-2 py-0.5 uppercase tracking-widest text-signal">
-          [bio]
-        </span>
-        <span className="text-slate-600">·</span>
-        <span
-          className="t-tt-wrap rounded border border-edge/40 px-2 py-0.5 uppercase tracking-widest text-slate-500"
-          tabIndex={0}
-        >
-          [next]
-          <span className="t-tt t-tt--wide">
-            The instrument is vertical-agnostic. Any repo ecosystem, any ground truth.
-          </span>
-        </span>
-      </div>
-
       <p className="mx-auto mt-4 max-w-xl text-sm leading-relaxed text-slate-400">
-        One engine, many ground truths.{' '}
-        <span className="font-mono text-xs text-slate-300">[code]</span> scores repositories against
-        price; <span className="font-mono text-xs text-slate-300">[bio]</span> scores scientific
-        software against the record. Public alerts are HCS-anchored before the outcome; replays are
-        labeled separately — then both are graded in public, losses included.
-      </p>
-
-      <div className="mt-6 flex flex-wrap items-center justify-center gap-3">
-        <Link
-          href="/scorecard"
-          className="btn group inline-flex items-center gap-2 px-5 py-2.5 text-xs uppercase tracking-wider"
-        >
-          Live scorecard
-          <ArrowRight className="h-3.5 w-3.5 transition-transform group-hover:translate-x-0.5" />
-        </Link>
-        <Link
-          href="/case-studies"
-          className="btn-ghost inline-flex items-center gap-2 px-5 py-2.5 text-xs uppercase tracking-wider"
-        >
-          Case studies
-        </Link>
-        <Link
-          href="/science"
-          className="btn-ghost inline-flex items-center gap-2 px-5 py-2.5 text-xs uppercase tracking-wider"
-        >
-          Science arm
-        </Link>
-      </div>
-
-      {/* Proof points — specific, small, honest */}
-      <p className="mt-4 font-mono text-[10px] uppercase tracking-wider text-slate-600">
-        proof on file: halo2 leak <span className="text-accent/70">[code]</span> · 3dClustSim fix{' '}
-        <span className="text-signal/70">[bio]</span> — both caught on replay
+        LENITNES watches software change, commits what it appears to mean while the verdict is still
+        open, and grades itself in public against the oracle that matters for each field — price, or
+        the published record.
       </p>
 
       {/* Live activity preview — 3 most recent scores */}
@@ -138,68 +84,89 @@ function Hero() {
   );
 }
 
-// ── Track record: instrument-level first, vertical stats scoped ───
+// ── The chooser: two products, one engine ─────────────────────
 
-function TrackRecordStrip() {
-  const { data } = useQuery<ScorecardResponse>({
-    queryKey: qk.scorecard(),
-    queryFn: () => api.getScorecard(),
-    refetchInterval: REFETCH.medium,
-  });
-  const { data: bio } = useQuery<ScorecardBioResponse>({
-    queryKey: qk.scorecardBio(),
-    queryFn: () => api.getScorecardBio(),
-    refetchInterval: REFETCH.medium,
-  });
-
-  const proof = data?.proofCoverage;
-
-  // These are explicitly scoped application metrics, not a blended score.
-  const stats: { label: string; value: string; caveat?: string }[] = [
-    { label: '[code] signals scored', value: data?.totalSignals?.toString() ?? '—' },
-    {
-      label: '[code] HCS-proofed',
-      value: proof ? `${proof.withHederaHcs}/${proof.totalSignals}` : '—',
-      caveat: 'before market outcome',
-    },
-    { label: '[science] alerts', value: bio?.totalAlerts?.toString() ?? '—' },
-    {
-      label: '[science] confirmed',
-      value: bio?.confirmedEvents?.toString() ?? '—',
-      caveat: 'adjudicated events only',
-    },
-  ];
-
+function Portals() {
   return (
-    <section className="text-center">
-      <div className="grid grid-cols-4 gap-2 rounded-xl border border-edge/40 bg-panel/40 p-3 sm:gap-4 sm:p-4">
-        {stats.map((s) => (
-          <div key={s.label}>
-            <div className="font-display text-2xl font-light text-slate-100 sm:text-3xl">
-              {s.value}
-            </div>
-            <div className="mt-1 font-mono text-[9px] uppercase tracking-wider text-slate-500 sm:text-[10px]">
-              {s.label}
-            </div>
-            {s.caveat && (
-              <div className="mt-0.5 font-mono text-[9px] text-slate-600">{s.caveat}</div>
-            )}
-          </div>
-        ))}
-      </div>
-      <p className="mt-2 text-[11px] text-slate-600">
-        Season 1 · [code] vs market price · closed 15 Aug 2026:{' '}
-        <span className="font-mono text-slate-500">
-          {data ? `${data.totalTrades} trades` : '—'} ·{' '}
-          {data
-            ? `${data.cumulativePnlUsd >= 0 ? '+' : '−'}$${Math.abs(data.cumulativePnlUsd).toFixed(0)}`
-            : '—'}{' '}
-          · sharpe {data?.sharpe?.toFixed(2) ?? '—'}
-        </span>{' '}
-        — recomputed live, losses included.{' '}
-        <Link href="/scorecard" className="text-accent hover:underline">
-          what we learned →
+    <section className="grid gap-4 lg:grid-cols-2" aria-label="Two verticals">
+      {/* ── Markets ── */}
+      <div className="card flex flex-col gap-4 border-accent/20 p-5 transition-colors hover:border-accent/40 sm:p-6">
+        <div className="flex items-center gap-2">
+          <span className="rounded border border-accent/40 bg-accent/10 px-2 py-0.5 font-mono text-[10px] uppercase tracking-widest text-accent">
+            [markets]
+          </span>
+          <span className="font-mono text-[10px] uppercase tracking-wider text-slate-500">
+            price oracle
+          </span>
+        </div>
+        <div>
+          <h2 className="font-display text-2xl font-semibold text-slate-100">LENITNES Markets</h2>
+          <p className="mt-1 text-sm leading-relaxed text-slate-400">
+            Consensus-critical software → market risk. Theses are committed on-chain before the move
+            and graded against what price actually did — Season 1 is closed, and the losses are in
+            the record.
+          </p>
+        </div>
+        <div className="flex flex-wrap gap-x-4 gap-y-1 font-mono text-[11px] text-slate-500">
+          <Link href="/scorecard?domain=markets" className="hover:text-accent">
+            scorecard ↗
+          </Link>
+          <Link href="/portfolio" className="hover:text-accent">
+            portfolio ↗
+          </Link>
+          <Link href="/calibration" className="hover:text-accent">
+            calibration ↗
+          </Link>
+        </div>
+        <Link
+          href="/markets"
+          className="btn group mt-2 inline-flex items-center gap-2 self-start px-5 py-2.5 text-xs uppercase tracking-wider"
+        >
+          Open Markets
+          <ArrowRight className="h-3.5 w-3.5 transition-transform group-hover:translate-x-0.5" />
         </Link>
+      </div>
+
+      {/* ── Research ── */}
+      <div className="card flex flex-col gap-4 border-signal/40 p-6 transition-colors hover:border-signal/60 sm:p-6">
+        <div className="flex items-center gap-2">
+          <span className="rounded border border-signal/40 bg-signal/10 px-2 py-0.5 font-mono text-[10px] uppercase tracking-widest text-signal">
+            [research]
+          </span>
+          <span className="font-mono text-[10px] uppercase tracking-wider text-slate-500">
+            record oracle
+          </span>
+        </div>
+        <div>
+          <h2 className="font-display text-2xl font-semibold text-slate-100">LENITNES Research</h2>
+          <p className="mt-1 text-sm leading-relaxed text-slate-400">
+            Scientific software → integrity of the published record. Alerts are committed to HCS
+            before the record moves and graded only against explicitly adjudicated events.
+          </p>
+        </div>
+        <div className="flex flex-wrap gap-x-4 gap-y-1 font-mono text-[11px] text-slate-500">
+          <Link href="/scorecard?domain=research" className="hover:text-signal">
+            scorecard ↗
+          </Link>
+          <Link href="/scan?domain=research" className="hover:text-signal">
+            scan ↗
+          </Link>
+          <Link href="/case-study/clustsim" className="hover:text-signal">
+            clustsim replay ↗
+          </Link>
+        </div>
+        <Link
+          href="/research"
+          className="btn mt-auto inline-flex items-center gap-2 self-start bg-signal/15 px-5 py-2.5 text-xs uppercase tracking-wider text-signal hover:bg-signal/25"
+        >
+          Open Research
+          <ArrowRight className="h-3.5 w-3.5 transition-transform group-hover:translate-x-0.5" />
+        </Link>
+      </div>
+
+      <p className="font-mono text-[10px] uppercase tracking-wider text-slate-600 lg:col-span-2">
+        same engine · same proof chain · separate oracles, separate scorecards —{' '}
+        <span className="text-slate-500">replays never count as live results</span>
       </p>
     </section>
   );
@@ -235,7 +202,7 @@ function RecentCalls() {
     return (
       <section>
         <h2 className="mb-4 text-center font-display text-xl font-semibold text-slate-100 sm:text-2xl">
-          Recent calls, <span className="italic">with the receipts.</span>
+          Recent judgments, <span className="italic">with the receipts.</span>
         </h2>
         <div className="space-y-2">
           {[...Array(3)].map((_, i) => (
@@ -263,11 +230,12 @@ function RecentCalls() {
   return (
     <section>
       <h2 className="mb-4 text-center font-display text-xl font-semibold text-slate-100 sm:text-2xl">
-        Recent calls, <span className="italic">with the receipts.</span>
+        Recent judgments, <span className="italic">with the receipts.</span>
       </h2>
       <ol className="space-y-0">
         {data.map((call, i) => {
           const isHit = call.outcomes.t1d != null && call.outcomes.t1d > 0;
+          const label = domainLabel(call.domain);
           return (
             <li
               key={call.signalId}
@@ -285,12 +253,8 @@ function RecentCalls() {
                   {call.thesis ?? 'No thesis recorded'}
                 </Link>
                 <div className="mt-0.5 flex items-center gap-2 font-mono text-[10px] text-slate-600">
-                  <span
-                    className={
-                      (call.domain ?? 'code') === 'bio' ? 'text-signal/70' : 'text-accent/70'
-                    }
-                  >
-                    [{call.domain ?? 'code'}]
+                  <span className={label === 'research' ? 'text-signal/70' : 'text-accent/70'}>
+                    [{label}]
                   </span>
                   <span>{new Date(call.detectedAt).toISOString().slice(0, 10)}</span>
                   {call.detectorTypes.length > 0 && (

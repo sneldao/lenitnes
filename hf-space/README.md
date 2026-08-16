@@ -1,5 +1,5 @@
 ---
-title: LENITNES — Scientific Software Integrity Sentinel
+title: LENITNES — Software-Change Judgments, Committed Before the Outcome
 emoji: 🔬
 colorFrom: blue
 colorTo: green
@@ -9,7 +9,7 @@ license: mit
 short_description: Live mirror of the LENITNES integrity sentinel dashboard
 ---
 
-# 🔬 LENITNES[science] — Scientific Software Integrity Sentinel
+# 🔬 LENITNES — Software-Change Judgments, Committed Before the Outcome
 
 A pre-registration machine for software-change judgments: LENITNES watches
 repositories, detects commits that may invalidate published results, scores
@@ -17,25 +17,27 @@ each one with a versioned rubric, and notarizes every verdict on **Hedera HCS
 before the outcome is knowable** — then grades itself in public, losses
 included.
 
-Two applications run the same proof/evaluation loop:
+Two applications run the same proof/evaluation loop, separated by the oracle
+they answer to:
 
-- **`[code]`** — crypto repos scored against market price (Season 1, closed)
-- **`[bio]`** — scientific software scored against explicitly adjudicated
+- **`[markets]`** — crypto repos scored against market price (Season 1,
+  closed; record is public, losses included)
+- **`[research]`** — scientific software scored against explicitly adjudicated
   published-record events (alert-only; no trading)
 
-This Space opens the science-first production surface. If the frame does not load,
-open it directly: <https://lenitnes.persidian.com/science>
+This Space opens the research-first production surface. If the frame does not
+load, open it directly: <https://lenitnes.persidian.com/research>
 
-The science arm is alert-only: it does not trade. Historical replays and prospective
-live alerts are kept in separate scorecard cohorts.
+The research application is alert-only: it does not trade. Historical replays
+and prospective live alerts are kept in separate scorecard cohorts.
 
 ## How it works
 
 1. **DETECT** — monitors watch GitHub repos for meaningful commits
-2. **SCORE** — LLM rubric (v6 [bio] / v5 [code]) scores severity and impact
-3. **COMMIT** — public science alerts are notarized on Hedera HCS before the outcome is known
+2. **SCORE** — LLM rubric (v6 [research] / v4 [markets]) scores severity and impact
+3. **COMMIT** — public alerts are notarized on Hedera HCS before the outcome is known
 4. **GRADE** — outcomes are validated against external ground truth (market
-   price for [code], dated retractions/corrections for [bio])
+   price for [markets], dated retractions/corrections for [research])
 
 ## Sponsor integrations
 

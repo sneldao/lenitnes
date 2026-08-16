@@ -12,6 +12,7 @@ import {
   type SweepTierFilter,
 } from '../services/responsiveness-sweep.js';
 import { computeTierDrift } from '../services/domain/repo-tier-policy.js';
+import { resolveDomainParam } from '../services/domain/domains.js';
 import { getForwardPaperLog } from '../services/domain/forward-paper.service.js';
 import { cacheGet, cacheSet } from '../middleware/cache.js';
 import { config } from '../config.js';
@@ -39,13 +40,16 @@ backtestRouter.post('/process', async (_req: Request, res: Response) => {
   res.json({ ok: true, ...result });
 });
 
-// GET /backtest/replay?repo=zcash/halo2&from=...&to=...&asset=zcash&domain=code|bio
+// GET /backtest/replay?repo=zcash/halo2&from=...&to=...&asset=zcash&domain=markets|research
+// (code|science are the internal wire values; bio remains a legacy alias)
 backtestRouter.get('/replay', async (req: Request, res: Response) => {
   const repo = String(req.query.repo ?? 'zcash/halo2');
   const from = req.query.from ? String(req.query.from) : undefined;
   const to = req.query.to ? String(req.query.to) : undefined;
   const asset = req.query.asset ? String(req.query.asset) : undefined;
-  const domain: MonitorDomain = req.query.domain === 'bio' ? 'bio' : 'code';
+  // Public labels (markets/research) and legacy aliases (code/science/bio)
+  // all resolve to the canonical internal domain. See resolveDomainParam.
+  const domain: MonitorDomain = resolveDomainParam(req.query.domain);
 
   const adminKey = req.header('x-admin-key') ?? '';
   const live = config.admin.apiKey !== '' && adminKey === config.admin.apiKey;
@@ -206,10 +210,10 @@ backtestRouter.get('/replay/halo2', async (_req: Request, res: Response) => {
   res.json({ repo: 'zcash/halo2', verdicts: [HALO2_REPLAY] });
 });
 
-// GET /backtest/replay/clustsim — the canonical LENITNES[bio] example.
+// GET /backtest/replay/clustsim — the canonical LENITNES[science] example.
 // Real commit (afni/afni 2baf5710, 2015-05-12) scored against a
 // related historical disclosure (Eklund et al. PNAS 2016, +413d lead),
 // not presented as causal confirmation.
 backtestRouter.get('/replay/clustsim', async (_req: Request, res: Response) => {
-  res.json({ repo: 'afni/afni', domain: 'bio', verdicts: [CLUSTSIM_REPLAY] });
+  res.json({ repo: 'afni/afni', domain: 'science', verdicts: [CLUSTSIM_REPLAY] });
 });

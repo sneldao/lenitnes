@@ -19,7 +19,7 @@ import {
 import {
   api,
   type ScorecardResponse,
-  type ScorecardBioResponse,
+  type ScorecardScienceResponse,
   type PortfolioResponse,
   type ResponsivenessResponse,
   type ResponsivenessCompareResponse,
@@ -43,6 +43,7 @@ import { CollapsibleSection } from '@/components/ui/collapsible-section';
 import { useShowMore, ShowMoreButton } from '@/components/ui/show-more';
 import { JudgmentCountdown } from '@/components/JudgmentCountdown';
 import { PnlSparkline } from '@/components/ui/pnl-sparkline';
+import { normalizeDomainParam } from '@/lib/domain';
 
 function fmtPct(n: number | null): string {
   if (n == null) return '—';
@@ -67,9 +68,9 @@ function InstrumentStrip() {
     queryFn: () => api.getScorecard(),
     refetchInterval: REFETCH.medium,
   });
-  const { data: bio } = useQuery<ScorecardBioResponse>({
-    queryKey: qk.scorecardBio(),
-    queryFn: () => api.getScorecardBio(),
+  const { data: science } = useQuery<ScorecardScienceResponse>({
+    queryKey: qk.scorecardScience(),
+    queryFn: () => api.getScorecardScience(),
     refetchInterval: REFETCH.medium,
   });
 
@@ -80,11 +81,11 @@ function InstrumentStrip() {
       label: 'verdicts notarized · HCS',
       value: proof ? `${proof.withHederaHcs}/${proof.totalSignals}` : '—',
     },
-    { label: '[code] trades executed', value: code?.totalTrades?.toString() ?? '—' },
-    { label: '[bio] alerts committed', value: bio?.totalAlerts?.toString() ?? '—' },
+    { label: '[markets] trades executed', value: code?.totalTrades?.toString() ?? '—' },
+    { label: '[research] alerts committed', value: science?.totalAlerts?.toString() ?? '—' },
     {
-      label: '[bio] record events graded',
-      value: bio?.confirmedEvents?.toString() ?? '—',
+      label: '[research] record events graded',
+      value: science?.confirmedEvents?.toString() ?? '—',
     },
   ];
 
@@ -101,13 +102,13 @@ function InstrumentStrip() {
 }
 
 export default function ScorecardPage() {
-  const [domain, setDomain] = useState<'code' | 'bio'>('code');
+  const [domain, setDomain] = useState<'code' | 'science'>('code');
 
-  // Read ?domain=bio after mount to avoid SSR/client hydration mismatch.
+  // Read ?domain= after mount. Public labels (markets|research) and legacy
+  // aliases (code|science|bio) all resolve via normalizeDomainParam.
   useEffect(() => {
-    if (new URLSearchParams(window.location.search).get('domain') === 'bio') {
-      setDomain('bio');
-    }
+    const requestedDomain = new URLSearchParams(window.location.search).get('domain');
+    setDomain(normalizeDomainParam(requestedDomain));
   }, []);
 
   return (
@@ -115,7 +116,7 @@ export default function ScorecardPage() {
       <InstrumentStrip />
       {/* Domain tabs — badge style, mono text, no emoji */}
       <div className="flex items-center gap-2 pt-2" role="tablist" aria-label="Scorecard domain">
-        {(['code', 'bio'] as const).map((d) => (
+        {(['code', 'science'] as const).map((d) => (
           <button
             key={d}
             role="tab"
@@ -127,23 +128,23 @@ export default function ScorecardPage() {
                 : 'border-edge/40 text-slate-500 hover:border-edge hover:text-slate-300'
             }`}
           >
-            [{d}]
+            [{d === 'science' ? 'research' : 'markets'}]
           </button>
         ))}
       </div>
-      {domain === 'bio' ? <BioScorecard /> : <CodeScorecard />}
+      {domain === 'science' ? <ScienceScorecard /> : <CodeScorecard />}
     </div>
   );
 }
 
-// ── [bio] vertical: event-based integrity scorecard ──────────
+// ── [science] vertical: event-based integrity scorecard ──────────
 
-function BioScorecard() {
+function ScienceScorecard() {
   const [page, setPage] = useState(1);
   const pageSize = 20;
-  const { data, isLoading, isError } = useQuery<ScorecardBioResponse>({
-    queryKey: qk.scorecardBio(page, pageSize),
-    queryFn: () => api.getScorecardBio(page, pageSize),
+  const { data, isLoading, isError } = useQuery<ScorecardScienceResponse>({
+    queryKey: qk.scorecardScience(page, pageSize),
+    queryFn: () => api.getScorecardScience(page, pageSize),
     refetchInterval: REFETCH.medium,
   });
 
@@ -159,8 +160,9 @@ function BioScorecard() {
   return (
     <div className="space-y-8">
       <header>
+        {' '}
         <p className="mb-2 font-mono text-[10px] uppercase tracking-widest text-signal">
-          lenitnes[bio] · scientific software integrity
+          lenitnes[research] · scientific software integrity
         </p>
         <h1 className="font-display text-3xl font-semibold text-slate-100 sm:text-4xl">
           Did the alert precede the record?
@@ -442,7 +444,7 @@ function CodeScorecard() {
       <header className="flex flex-wrap items-end justify-between gap-4">
         <div>
           <p className="mb-2 font-mono text-[10px] uppercase tracking-widest text-accent">
-            lenitnes[code] · public track record · updated live
+            lenitnes[markets] · public track record · updated live
           </p>
           <h1 className="font-display text-3xl font-semibold text-slate-100 sm:text-4xl">
             Was the agent right?
@@ -538,7 +540,7 @@ function CodeScorecard() {
                   <li>· Venue-aware PnL: notional books compute percent × notional</li>
                   <li>· Rubric v6: detector track records feed every score</li>
                   <li>· Notional capped $20–$500/trade; live venue gated behind calibration</li>
-                  <li>· New oracle: [bio] scores against dated events, not price noise</li>
+                  <li>· New oracle: [research] scores against dated events, not price noise</li>
                 </ul>
               </div>
             </div>

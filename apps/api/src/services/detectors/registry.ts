@@ -24,7 +24,7 @@ const detectors: SignalDetector[] = [
   supplyChainRiskDetector,
   newsSignalDetector,
   mlDetector,
-  // LENITNES[bio] — scientific-software integrity detectors (domain-gated)
+  // LENITNES[science] — scientific-software integrity detectors (domain-gated)
   methodFixDetector,
   resultsRewriteDetector,
 ];
@@ -33,10 +33,10 @@ export async function runDetectors(input: DetectorInput): Promise<SignalClassifi
   const domain = input.domain ?? 'code';
   const results: SignalClassification[] = [];
   for (const detector of detectors) {
-    // Domain gating: bio vertical runs only bio-tagged detectors;
+    // Domain gating: science vertical runs only science-tagged detectors;
     // code vertical runs all legacy detectors (untagged or code-tagged).
-    if (domain === 'bio') {
-      if (!detector.domains?.includes('bio')) continue;
+    if (domain === 'science') {
+      if (!detector.domains?.includes('science')) continue;
     } else if (detector.domains && !detector.domains.includes('code')) {
       continue;
     }

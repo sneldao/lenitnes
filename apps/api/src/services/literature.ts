@@ -1,7 +1,7 @@
 // ─────────────────────────────────────────────────────────────
-// Literature corroboration for the LENITNES[bio] vertical.
+// Literature corroboration for the LENITNES[science] vertical.
 //
-// When a bio detector fires on a scientific-software repo, the agent
+// When a science detector fires on a scientific-software repo, the agent
 // needs to reason about *which published results* the change threatens.
 // This module queries a research-paper index and returns structured
 // hits that are folded into the agent prompt as `literature_context`.
@@ -167,7 +167,7 @@ async function searchPaperclip(query: string, k: number): Promise<LiteratureRef[
       {
         protocolVersion: '2024-11-05',
         capabilities: {},
-        clientInfo: { name: 'lenitnes-bio', version: '1.0' },
+        clientInfo: { name: 'lenitnes-science', version: '1.0' },
       },
       null,
       1,

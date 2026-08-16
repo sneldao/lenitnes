@@ -149,7 +149,7 @@ adminRouter.get('/risk-check', requireAdmin, async (req, res) => {
 });
 
 // POST /admin/science/events
-// Record or adjudicate a scientific-record event for a bio alert.
+// Record or adjudicate a scientific-record event for a science alert.
 // Events default to `candidate`; only `confirmed` matches contribute
 // to the public live precision metric.
 adminRouter.post('/science/events', requireAdmin, async (req, res) => {
@@ -187,11 +187,11 @@ adminRouter.post('/science/events', requireAdmin, async (req, res) => {
       `SELECT s.detected_at
          FROM signals s
          JOIN monitors m ON m.id = s.monitor_id
-        WHERE s.id = $1 AND m.domain = 'bio' AND s.is_heartbeat = false`,
+        WHERE s.id = $1 AND m.domain = 'science' AND s.is_heartbeat = false`,
       [signalId],
     );
     if (!signals[0]) {
-      res.status(404).json({ error: 'bio_signal_not_found' });
+      res.status(404).json({ error: 'science_signal_not_found' });
       return;
     }
     const detectedAt = new Date(signals[0].detected_at);

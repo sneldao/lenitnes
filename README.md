@@ -5,25 +5,27 @@
 ## The loop
 
 1. **DETECT** — typed commit detectors gate every signal; news is corroboration only, never the primary signal.
-2. **SCORE** — an LLM grades the signal against a versioned rubric (v4 `[code]` / v6 `[bio]`) and emits conviction (0–100), thesis, and a recommended action.
+2. **SCORE** — an LLM grades the signal against a versioned rubric (v4 `[markets]` / v6 `[research]`) and emits conviction (0–100), thesis, and a recommended action.
 3. **COMMIT** — above-threshold calls are executed (a trade, an alert — depending on the vertical) and every verdict is timestamped on Hedera HCS.
-4. **GRADE** — outcomes are scored against the vertical's grading authority: market price for `[code]`, the dated scientific record for `[bio]`.
+4. **GRADE** — outcomes are scored against the vertical's grading authority: market price for `[markets]`, the dated scientific record for `[research]`.
 
 What varies by vertical is only four slots — the watched corpus, the rubric, the grading authority, and the action a high-conviction call triggers. The loop, the notarization, and the public grading discipline are invariant.
 
 ## Verticals — instances of one instrument
 
-The tag names the _field being watched_, never the output type:
+The tag names the _grading oracle_, not the input — both verticals watch software commits:
 
-| Vertical              | Corpus                          | Grading authority                   | Action on conviction          | Status                         |
-| --------------------- | ------------------------------- | ----------------------------------- | ----------------------------- | ------------------------------ |
-| `LENITNES[code]`      | consensus-critical crypto repos | market price (T+1h/1d/7d)           | trade (paper → live venues)   | Season 1 closed, record public |
-| `LENITNES[bio]`       | scientific software repos       | adjudicated published-record events | integrity alert, HCS-anchored | prospective cohort maturing    |
-| enterprise / `[next]` | a customer's own repos          | internal audit                      | leak-scan report              | capability demo (`/scan`)      |
+| Vertical             | Corpus                          | Grading authority                   | Action on conviction          | Status                         |
+| -------------------- | ------------------------------- | ----------------------------------- | ----------------------------- | ------------------------------ |
+| `LENITNES[markets]`  | consensus-critical crypto repos | market price (T+1h/1d/7d)           | trade (paper → live venues)   | Season 1 closed, record public |
+| `LENITNES[research]` | scientific software repos       | adjudicated published-record events | integrity alert, HCS-anchored | prospective cohort maturing    |
+| enterprise           | a customer's own repos          | internal audit                      | leak-scan report              | capability demo (`/scan`)      |
+
+**Public vocabulary:** the tags on every surface are `[markets]` and `[research]` — they name the grading oracle, not the watched input (both verticals read code). URL params accept `?domain=markets|research` plus the legacy `code|science|bio` aliases; the API wire and database keep the internal values `code|science`, so no stored record or old link ever changes meaning.
 
 Markets were chosen as Season 1's grader _because_ they are the hardest oracle: price cannot be spun, arrives in hours, and punishes errors in dollars. That season exists to prove the grading discipline works before the same instrument is aimed at the scientific record, where ground truth matters more but arrives slower.
 
-**The epistemic distinction, said once:** the founding case studies (halo2 `[code]`, 3dClustSim `[bio]`) are replays — the engine graded against history whose outcome was already known. The live scorecard commits verdicts against futures it cannot see. Replays calibrate the instrument; live scoring is the record. In `[bio]`, only explicitly adjudicated event matches count toward live precision; a related disclosure is not automatically proof of causation.
+**The epistemic distinction, said once:** the founding case studies (halo2 `[markets]`, 3dClustSim `[research]`) are replays — the engine graded against history whose outcome was already known. The live scorecard commits verdicts against futures it cannot see. Replays calibrate the instrument; live scoring is the record. In `[research]`, only explicitly adjudicated event matches count toward live precision; a related disclosure is not automatically proof of causation.
 
 ## One engine, two audiences
 
@@ -34,7 +36,7 @@ The unit of proof is the **call**, not the trade: a directional thesis, committe
 
 LENITNES is part of the [Persidian](https://persidian.com) portfolio — sentinels for different business rhythms: money in (Sikizana), messages out (Nuncio), theses tested (Lenitnes), data trusted (DataBard).
 
-## The ZEC moment — `[code]` founding case
+## The ZEC moment — `[markets]` founding case
 
 In late May 2026, a four-year-old soundness bug in Zcash's `halo2_gadgets` crate was discovered — a missing constraint that could have let an attacker mint counterfeit ZEC inside the Orchard shielded pool. The emergency soft fork landed in Zebra 4.5.3 on 2 June; the formal public disclosure came 4-5 June. **ZEC dropped ~50% in 48 hours.** We replayed the agent against the public commits: it would have flagged **95/100**, four-detector consensus, paper-trade **SHORT ZEC** at ~$600, 2-3 days before the formal disclosure. [Read the replay →](https://lenitnes.persidian.com/case-study/halo2)
 
@@ -42,12 +44,12 @@ In late May 2026, a four-year-old soundness bug in Zcash's `halo2_gadgets` crate
 
 Public surfaces — no signup, no auth:
 
-- **[`/scorecard`](https://lenitnes.persidian.com/scorecard)** — live track record: vertical-specific scorecards (`[code]` Season 1 market metrics; `[bio]` record events), per-detector outcomes, recent calls.
+- **[`/scorecard`](https://lenitnes.persidian.com/scorecard)** — live track record: vertical-specific scorecards (`[markets]` Season 1 market metrics; `[research]` record events), per-detector outcomes, recent calls.
 - **[`/calibration`](https://lenitnes.persidian.com/calibration)** — is higher conviction actually predictive? Includes a 90-day replay sweep showing which watchlist repos' commit signals historically co-moved with price.
 - **[`/methodology`](https://lenitnes.persidian.com/methodology)** — all detectors with examples (both verticals), how the agent scores, every safety gate.
 - **[`/portfolio`](https://lenitnes.persidian.com/portfolio)** — open + closed positions with entry price, unrealized P&L, TP/SL levels.
-- **[`/case-study/halo2`](https://lenitnes.persidian.com/case-study/halo2)** — the `[code]` founding case study.
-- **[`/case-study/clustsim`](https://lenitnes.persidian.com/case-study/clustsim)** — the `[bio]` founding case study.
+- **[`/case-study/halo2`](https://lenitnes.persidian.com/case-study/halo2)** — the `[markets]` founding case study.
+- **[`/case-study/clustsim`](https://lenitnes.persidian.com/case-study/clustsim)** — the `[research]` founding case study.
 - **[`/signals/:id`](https://lenitnes.persidian.com/signals/)** — every committed signal with the full proof chain and a "was the agent right?" verdict card.
 - **[`/scan`](https://lenitnes.persidian.com/scan)** — point the production engine at any public repo (crypto _or_ scientific) and see what its commit history signaled, day by day.
 
@@ -55,31 +57,31 @@ Public surfaces — no signup, no auth:
 
 Operational specifics behind each loop stage:
 
-1. **Watch** — curated repos. `[code]`: consensus-critical crypto (Zcash, Bitcoin, Ethereum, Solana, Arbitrum, Sui). `[bio]`: scientific software (AFNI, Nextstrain, Opentrons, OpenMMTools). Polling is free: the GitHub API feeds commit diffs directly; news is corroboration only, never the primary signal.
-2. **Detect** — typed commit detectors are the signal gate, domain-scoped: `[code]` runs the consensus/security set (`emergency_patch`, `security_critical_patch`, `silent_merge`, …); `[bio]` runs `method_fix` and `results_rewrite`.
-3. **Score** — an LLM agent evaluates the signal against a versioned rubric (v4 for `[code]`, v6 for `[bio]`). Bio scoring corroborates against the literature (Firecrawl research index, Paperclip when available) and emits `alert`/`investigate`/`none` plus a list of affected claims. Outputs conviction (0–100), thesis, action, confidence band.
-4. **Gate** — conviction ≥ 70 (A-tier repos) to trade or commit a science alert; unknown/B-tier code repos trade at a stricter ≥ 80 until the responsiveness sweep confirms them. Sub-threshold scores persist as the public reasoning archive but produce no trade or broadcast. Bio broadcasts fail closed if HCS anchoring fails.
-5. **Commit** — `[code]`: open a tracked position in the recommended direction (gated behind a double kill switch, paper fallback). `[bio]`: no trade — the commitment is the HCS-anchored alert itself. Public bio alerts are broadcast only after the HCS anchor succeeds.
-6. **Track** — `[code]`: price snapshots at T+1h/1d/7d drive "call CORRECT/WRONG" verdicts. `[bio]`: each alert is graded against a dated event in the scientific record (retraction/correction/disclosure) with a lead-time in days. Drives the scorecard (`?domain=bio` for the integrity card).
+1. **Watch** — curated repos. `[markets]`: consensus-critical crypto (Zcash, Bitcoin, Ethereum, Solana, Arbitrum, Sui). `[research]`: scientific software (AFNI, Nextstrain, Opentrons, OpenMMTools). Polling is free: the GitHub API feeds commit diffs directly; news is corroboration only, never the primary signal.
+2. **Detect** — typed commit detectors are the signal gate, domain-scoped: `[markets]` runs the consensus/security set (`emergency_patch`, `security_critical_patch`, `silent_merge`, …); `[research]` runs `method_fix` and `results_rewrite`.
+3. **Score** — an LLM agent evaluates the signal against a versioned rubric (v4 for `[markets]`, v6 for `[research]`). Research scoring corroborates against the literature (Firecrawl research index, Paperclip when available) and emits `alert`/`investigate`/`none` plus a list of affected claims. Outputs conviction (0–100), thesis, action, confidence band.
+4. **Gate** — conviction ≥ 70 (A-tier repos) to trade or commit a science alert; unknown/B-tier code repos trade at a stricter ≥ 80 until the responsiveness sweep confirms them. Sub-threshold scores persist as the public reasoning archive but produce no trade or broadcast. Science broadcasts fail closed if HCS anchoring fails.
+5. **Commit** — `[markets]`: open a tracked position in the recommended direction (gated behind a double kill switch, paper fallback). `[research]`: no trade — the commitment is the HCS-anchored alert itself. Public research alerts are broadcast only after the HCS anchor succeeds.
+6. **Track** — `[markets]`: price snapshots at T+1h/1d/7d drive "call CORRECT/WRONG" verdicts. `[research]`: each alert is graded against a dated event in the scientific record (retraction/correction/disclosure) with a lead-time in days. Drives the scorecard (`?domain=research` for the integrity card).
 7. **Replay** — the same engine runs over any repo's history (`/backtest/replay`) for case studies and leak-scans. `GET /backtest/responsiveness` sweeps the commit-level watchlist and ranks repos by historical commit→price responsiveness.
 
 No human input in detection or scoring; scientific event matching is explicitly adjudicated before it counts as a confirmed outcome. See [`docs/AGENT_ARCHITECTURE.md`](./docs/AGENT_ARCHITECTURE.md) for the full design decisions, [`docs/RUNBOOK.md`](./docs/RUNBOOK.md) for the operator runbook, and [`docs/CALIBRATION.md`](./docs/CALIBRATION.md) for the per-knob empirical rationale.
 
 ## Stack
 
-| Layer          | Choice                                                                                             |
-| -------------- | -------------------------------------------------------------------------------------------------- |
-| API            | Express 5 + TypeScript (Node 20, ESM)                                                              |
-| DB             | PostgreSQL 14                                                                                      |
-| Agent          | Qwen3.8 chain: HF free endpoint (keyless) → TokenRouter fallback · rubric v4 `[code]` / v6 `[bio]` |
-| Market data    | CoinMarketCap Pro via spot price hub · CoinGecko historical (+ x402 fallback)                      |
-| News + macro   | SoSoValue On-Chain Finance API                                                                     |
-| Notarize       | Hedera HCS + Arbitrum SignalRegistry                                                               |
-| Trading (AMM)  | PancakeSwap V2 on BSC                                                                              |
-| Trading (CLOB) | SoDEX orderbook on ValueChain                                                                      |
-| Broadcast      | Telegram public channel                                                                            |
-| Frontend       | Next.js 16 + Tailwind                                                                              |
-| **Payments**   | **x402-over-Hedera (`exact-hedera` scheme) — pay-per-signal in HBAR**                              |
+| Layer          | Choice                                                                                                     |
+| -------------- | ---------------------------------------------------------------------------------------------------------- |
+| API            | Express 5 + TypeScript (Node 20, ESM)                                                                      |
+| DB             | PostgreSQL 14                                                                                              |
+| Agent          | Qwen3.8 chain: HF free endpoint (keyless) → TokenRouter fallback · rubric v4 `[markets]` / v6 `[research]` |
+| Market data    | CoinMarketCap Pro via spot price hub · CoinGecko historical (+ x402 fallback)                              |
+| News + macro   | SoSoValue On-Chain Finance API                                                                             |
+| Notarize       | Hedera HCS + Arbitrum SignalRegistry                                                                       |
+| Trading (AMM)  | PancakeSwap V2 on BSC                                                                                      |
+| Trading (CLOB) | SoDEX orderbook on ValueChain                                                                              |
+| Broadcast      | Telegram public channel                                                                                    |
+| Frontend       | Next.js 16 + Tailwind                                                                                      |
+| **Payments**   | **x402-over-Hedera (`exact-hedera` scheme) — pay-per-signal in HBAR**                                      |
 
 ## x402-over-Hedera — pay-per-signal autonomous commerce
 
@@ -110,9 +112,9 @@ psql -d lenitnes -f db/schema.sql
 psql -d lenitnes -f db/migrations/003_pivot.sql
 psql -d lenitnes -f db/migrations/004_signal_asset.sql
 psql -d lenitnes -f db/migrations/008_science_domain.sql
-psql -d lenitnes -f db/migrations/009_agent_scores_bio.sql
+psql -d lenitnes -f db/migrations/009_agent_scores_science.sql
 psql -d lenitnes -f db/seed/watchlist.sql
-psql -d lenitnes -f db/seed/watchlist_bio.sql
+psql -d lenitnes -f db/seed/watchlist_science.sql
 psql -d lenitnes -f db/seed/treasury_wallets.sql
 
 # 4. Run
@@ -131,7 +133,7 @@ Visit `http://localhost:3000/scorecard` to see the track record.
 - [`DEPLOYMENT.md`](./DEPLOYMENT.md) — testnet deploy guide (Arbitrum + BSC)
 - [`openapi.yaml`](./openapi.yaml) — full REST API spec (30 paths)
 - [`docs/HACKATHON_CUT.md`](./docs/HACKATHON_CUT.md) — BNB Hack + Lepton Agents Hackathon notes
-- [`docs/RAGENT_PIVOT.md`](./docs/RAGENT_PIVOT.md) — re:AGENT Hackathon (Aug 15–16): LENITNES[bio] vertical, Track A
+- [`docs/RAGENT_PIVOT.md`](./docs/RAGENT_PIVOT.md) — re:AGENT Hackathon (Aug 15–16): LENITNES[research] vertical, Track A
 
 ## License
 

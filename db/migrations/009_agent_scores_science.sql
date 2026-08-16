@@ -1,6 +1,6 @@
--- 009_agent_scores_bio.sql
+-- 009_agent_scores_science.sql
 --
--- LENITNES[bio] — widen the agent action space and persist literature.
+-- LENITNES[science] — widen the agent action space and persist literature.
 -- Rubric v6 emits 'alert' / 'investigate' (integrity actions) instead of
 -- trade sides, and cites corroborating literature rows. Both are stored on
 -- agent_scores.

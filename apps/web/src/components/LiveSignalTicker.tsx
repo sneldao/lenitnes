@@ -5,6 +5,7 @@ import Link from 'next/link';
 import { api, type ScorecardRecentCall } from '@/lib/api';
 import { qk, REFETCH } from '@/lib/queryKeys';
 import { repoLabel, timeAgo } from '@/lib/format';
+import { domainLabel } from '@/lib/domain';
 import { cn } from '@/lib/utils';
 
 // Honest by construction: every item is a real scored signal fetched from the
@@ -39,6 +40,16 @@ export function LiveSignalTicker() {
                 href={`/signals/${call.signalId}`}
                 className="group inline-flex items-center gap-2 transition-colors hover:text-accent"
               >
+                <span
+                  className={cn(
+                    'rounded px-1 py-px text-[9px] uppercase tracking-wider',
+                    domainLabel(call.domain) === 'research'
+                      ? 'bg-signal/10 text-signal'
+                      : 'bg-accent/10 text-accent',
+                  )}
+                >
+                  [{domainLabel(call.domain)}]
+                </span>
                 <span className="font-bold text-slate-200 group-hover:text-accent">
                   {repoLabel(call.monitorUrl)}
                 </span>

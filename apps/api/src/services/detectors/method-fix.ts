@@ -2,7 +2,7 @@ import type { SignalClassification } from '@lenitnes/types';
 import type { DetectorInput, SignalDetector } from './types.js';
 import { commitScore, containsKeyword } from './types.js';
 
-// ── method_fix — LENITNES[bio] ─────────────────────────────────
+// ── method_fix — LENITNES[science] ─────────────────────────────────
 // A commit that fixes, corrects, or revises a statistical method,
 // analysis pipeline, or numerical procedure in scientific software.
 // These are the quiet patches that historically precede retractions
@@ -66,7 +66,7 @@ export const methodFixDetector: SignalDetector = {
   label: 'Method Fix',
   description:
     'Commit correcting a statistical method or numerical procedure — a known precursor to retractions/corrections of published results',
-  domains: ['bio'],
+  domains: ['science'],
 
   detect(input: DetectorInput): SignalClassification | null {
     const { commits, result } = input;

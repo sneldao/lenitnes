@@ -120,7 +120,7 @@ export function CommandPalette() {
       id: 'nav-casestudy',
       category: 'Navigation',
       title: 'Case Studies',
-      subtitle: 'halo2 [code] · 3dClustSim [bio] deep dives',
+      subtitle: 'halo2 [markets] · 3dClustSim [research] deep dives',
       href: '/case-studies',
       icon: FileCode2,
     },

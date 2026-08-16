@@ -1,4 +1,4 @@
-// Live end-to-end bio replay: real LLM (rubric v6) + Firecrawl literature.
+// Live end-to-end science replay: real LLM (rubric v6) + Firecrawl literature.
 // Run: npx tsx scripts/replay-afni-live.ts
 import { describeReplay, replay } from '../src/services/replay.js';
 
@@ -6,7 +6,7 @@ const input = describeReplay({
   repo: 'afni/afni',
   from: '2015-05-01T00:00:00Z',
   to: '2015-05-14T00:00:00Z',
-  domain: 'bio',
+  domain: 'science',
 });
 
 const { verdicts, flaggedBatches } = await replay({ ...input, mock: false });

@@ -90,9 +90,9 @@ if [ "$SKIP_MIGRATE" != "1" ]; then
   psql < db/schema.sql
   for f in db/migrations/*.sql; do psql < "$f"; done
   psql < db/seed/positions.sql
-  # Bio watchlist is idempotent (ON CONFLICT DO NOTHING); keep it in sync
+  # Science watchlist is idempotent (ON CONFLICT DO NOTHING); keep it in sync
   # with the code watchlist seed so fresh deploys get both verticals.
-  psql < db/seed/watchlist_bio.sql
+  psql < db/seed/watchlist_science.sql
 fi
 
 echo "→ recreate api worker web"

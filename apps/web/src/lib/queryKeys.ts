@@ -7,8 +7,8 @@
 
 export const qk = {
   scorecard: () => ['scorecard', 'summary'] as const,
-  scorecardBio: (page?: number, pageSize?: number) =>
-    ['scorecard', 'bio', page ?? 1, pageSize ?? 20] as const,
+  scorecardScience: (page?: number, pageSize?: number) =>
+    ['scorecard', 'science', page ?? 1, pageSize ?? 20] as const,
   scorecardRecent: (limit?: number) => ['scorecard', 'recent', limit ?? 'default'] as const,
   responsiveness: () => ['backtest', 'responsiveness'] as const,
   responsivenessCompare: () => ['backtest', 'responsiveness', 'compare'] as const,

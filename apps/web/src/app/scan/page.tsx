@@ -28,6 +28,7 @@ import { CONSENSUS_WATCHLIST, findWatchlistEntry, type RepoTier } from '@lenitne
 import { api, type RepoTiersResponse } from '@/lib/api';
 import { qk, REFETCH } from '@/lib/queryKeys';
 import { tierBadgeClass } from '@/lib/format';
+import { normalizeDomainParam } from '@/lib/domain';
 import { ProofInspectorModal, type ProofPayload } from '@/components/ProofInspectorModal';
 import { GitDiffInspector } from '@/components/GitDiffInspector';
 import { exportScanDataAsJson, exportScanDataAsCsv } from '@/lib/exportBacktestData';
@@ -53,7 +54,7 @@ interface ScanVerdict {
     t7dPct: number | null;
     correct: boolean | null;
   };
-  bioOutcome?: {
+  scienceOutcome?: {
     event_kind: string;
     event_at: string;
     event_source: string;
@@ -67,7 +68,7 @@ interface ScanResponse {
   from: string;
   to: string;
   asset: string;
-  domain?: 'code' | 'bio';
+  domain?: 'code' | 'science';
   mode: 'mock' | 'live';
   verdicts: ScanVerdict[];
 }
@@ -98,9 +99,9 @@ const FEATURED_REPOS: Array<{
   },
 ];
 
-// [bio] presets — scientific software integrity scans. No asset; outcomes
+// [science] presets — scientific software integrity scans. No asset; outcomes
 // are dated events in the scientific record, not price moves.
-const BIO_FEATURED_REPOS: Array<{
+const SCIENCE_FEATURED_REPOS: Array<{
   repo: string;
   description: string;
   from?: string;
@@ -125,7 +126,7 @@ const BIO_FEATURED_REPOS: Array<{
 
 export default function ScanPage() {
   const [scanMode, setScanMode] = useState<'single' | 'compare'>('single');
-  const [domain, setDomain] = useState<'code' | 'bio'>('code');
+  const [domain, setDomain] = useState<'code' | 'science'>('code');
   const [repoInput, setRepoInput] = useState('');
   const [assetInput, setAssetInput] = useState('');
   const [compareRepoInput, setCompareRepoInput] = useState('');
@@ -134,23 +135,25 @@ export default function ScanPage() {
   const [submitted, setSubmitted] = useState<{
     repo: string;
     asset: string;
-    domain: 'code' | 'bio';
+    domain: 'code' | 'science';
     from?: string;
     to?: string;
   } | null>(null);
   const [submittedCompare, setSubmittedCompare] = useState<{
     repo: string;
     asset: string;
-    domain: 'code' | 'bio';
+    domain: 'code' | 'science';
   } | null>(null);
 
   const [activeProof, setActiveProof] = useState<ProofPayload | null>(null);
   const inputEl = useRef<HTMLInputElement | null>(null);
 
-  // Pressing '/' anywhere focuses the primary repo input
+  // Public domain labels markets|research and legacy bio|science aliases
+  // all resolve via normalizeDomainParam.
   useEffect(() => {
-    if (new URLSearchParams(window.location.search).get('domain') === 'bio') {
-      setDomain('bio');
+    const requestedDomain = new URLSearchParams(window.location.search).get('domain');
+    if (normalizeDomainParam(requestedDomain) === 'science') {
+      setDomain('science');
       setScanMode('single');
     }
   }, []);
@@ -194,7 +197,7 @@ export default function ScanPage() {
     queryFn: async () => {
       const params = new URLSearchParams({ repo: submitted!.repo });
       if (submitted!.asset) params.set('asset', submitted!.asset);
-      if (submitted!.domain === 'bio') params.set('domain', 'bio');
+      if (submitted!.domain === 'science') params.set('domain', 'research');
       if (submitted!.from) params.set('from', submitted!.from);
       if (submitted!.to) params.set('to', submitted!.to);
       const res = await fetch(`${API}/backtest/replay?${params}`);
@@ -211,7 +214,7 @@ export default function ScanPage() {
     queryFn: async () => {
       const params = new URLSearchParams({ repo: submittedCompare!.repo });
       if (submittedCompare!.asset) params.set('asset', submittedCompare!.asset);
-      if (submittedCompare!.domain === 'bio') params.set('domain', 'bio');
+      if (submittedCompare!.domain === 'science') params.set('domain', 'research');
       const res = await fetch(`${API}/backtest/replay?${params}`);
       if (!res.ok) throw new Error(`API ${res.status}`);
       return res.json();
@@ -230,7 +233,7 @@ export default function ScanPage() {
     const fromWatchlist = findWatchlistEntry(cleaned);
     setSubmitted({
       repo: cleaned,
-      asset: domain === 'bio' ? '' : (asset.trim() || fromWatchlist?.asset || '').toLowerCase(),
+      asset: domain === 'science' ? '' : (asset.trim() || fromWatchlist?.asset || '').toLowerCase(),
       domain,
       from: range?.from,
       to: range?.to,
@@ -270,12 +273,12 @@ export default function ScanPage() {
           <div className="flex items-center gap-2">
             {/* Vertical toggle — badge style, mono text */}
             <div className="flex items-center gap-1 rounded-xl border border-edge/40 bg-panel/60 p-1 font-mono text-[11px]">
-              {(['code', 'bio'] as const).map((d) => (
+              {(['code', 'science'] as const).map((d) => (
                 <button
                   key={d}
                   onClick={() => {
                     setDomain(d);
-                    if (d === 'bio') setScanMode('single');
+                    if (d === 'science') setScanMode('single');
                   }}
                   className={`rounded-lg px-2.5 py-1 uppercase tracking-wider transition-colors cursor-pointer ${
                     domain === d
@@ -283,7 +286,7 @@ export default function ScanPage() {
                       : 'text-slate-400 hover:text-slate-200'
                   }`}
                 >
-                  [{d}]
+                  [{d === 'science' ? 'research' : 'markets'}]
                 </button>
               ))}
             </div>
@@ -320,14 +323,14 @@ export default function ScanPage() {
 
         <h1 className="font-display text-3xl font-semibold text-slate-100 sm:text-4xl">
           {scanMode === 'single'
-            ? domain === 'bio'
+            ? domain === 'science'
               ? 'Research-integrity scan'
               : 'Leak-scan'
             : 'Repository Signal Comparison'}
         </h1>
         <p className="max-w-2xl text-sm leading-relaxed text-slate-400">
           {scanMode === 'single'
-            ? domain === 'bio'
+            ? domain === 'science'
               ? 'Any scientific software repo — method fixes and silent result-bearing changes, scored against the published record.'
               : "Audit any public GitHub repo's last 90 days of commits."
             : 'Signal frequency, replay tiers, and price responsiveness across two repos.'}
@@ -364,8 +367,10 @@ export default function ScanPage() {
             <input
               value={assetInput}
               onChange={(e) => setAssetInput(e.target.value)}
-              placeholder={domain === 'bio' ? 'no asset · event outcomes' : 'asset 1 (optional)'}
-              disabled={domain === 'bio'}
+              placeholder={
+                domain === 'science' ? 'no asset · event outcomes' : 'asset 1 (optional)'
+              }
+              disabled={domain === 'science'}
               className="rounded-xl border border-edge/60 bg-ink-light/80 px-4 py-3 text-sm text-slate-200 placeholder:text-slate-500 focus:border-accent/50 focus:outline-none transition-colors sm:w-36 disabled:opacity-40"
             />
           </div>
@@ -404,8 +409,8 @@ export default function ScanPage() {
         {/* Presets */}
         <div className="flex flex-wrap items-center gap-2 text-xs text-slate-500">
           <span className="font-mono text-[11px] text-slate-400">Presets:</span>
-          {domain === 'bio'
-            ? BIO_FEATURED_REPOS.map((ex) => (
+          {domain === 'science'
+            ? SCIENCE_FEATURED_REPOS.map((ex) => (
                 <button
                   key={ex.repo}
                   onClick={() => {
@@ -418,7 +423,7 @@ export default function ScanPage() {
                 >
                   <span>{ex.repo}</span>
                   <span className="rounded px-1 text-[9px] uppercase text-signal border border-signal/30 bg-signal/10">
-                    bio
+                    research
                   </span>
                 </button>
               ))
@@ -707,14 +712,14 @@ function VerdictCard({
 }: {
   v: ScanVerdict;
   repo: string;
-  domain: 'code' | 'bio';
+  domain: 'code' | 'science';
   onInspectProof: (payload: ProofPayload) => void;
 }) {
   const [detailsOpen, setDetailsOpen] = useState(false);
   const [shareOpen, setShareOpen] = useState(false);
   const action = v.agentScore.recommended_action;
   const ActionIcon =
-    domain === 'bio'
+    domain === 'science'
       ? action === 'alert'
         ? ShieldCheck
         : Minus
@@ -723,8 +728,8 @@ function VerdictCard({
         : action === 'long'
           ? TrendingUp
           : Minus;
-  const outcome = domain === 'bio' ? undefined : v.priceOutcome;
-  const bioOutcome = domain === 'bio' ? v.bioOutcome : undefined;
+  const outcome = domain === 'science' ? undefined : v.priceOutcome;
+  const scienceOutcome = domain === 'science' ? v.scienceOutcome : undefined;
 
   return (
     <div className="rounded-xl border border-edge/60 bg-panel p-4 space-y-3">
@@ -836,14 +841,14 @@ function VerdictCard({
         </div>
       )}
 
-      {bioOutcome && (
+      {scienceOutcome && (
         <div className="flex flex-wrap items-center gap-3 border-t border-edge/30 pt-2.5 font-mono text-[11px] text-slate-400">
           <span className="rounded bg-signal/15 px-1.5 py-0.5 text-[10px] uppercase text-signal">
-            {bioOutcome.confirmed ? 'related record' : 'candidate event'}
+            {scienceOutcome.confirmed ? 'related record' : 'candidate event'}
           </span>
-          <span>{bioOutcome.event_kind}</span>
-          <span>+{bioOutcome.lead_days}d</span>
-          <span className="truncate text-slate-600">{bioOutcome.event_source}</span>
+          <span>{scienceOutcome.event_kind}</span>
+          <span>+{scienceOutcome.lead_days}d</span>
+          <span className="truncate text-slate-600">{scienceOutcome.event_source}</span>
         </div>
       )}
       {outcome && (outcome.t1dPct != null || outcome.t7dPct != null) && (

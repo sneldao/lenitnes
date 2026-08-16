@@ -24,7 +24,7 @@ function CaseStudyLoader({ label }: { label: string }) {
 }
 
 export default function CaseStudiesPage() {
-  const [study, setStudy] = useState<'code' | 'bio'>('code');
+  const [study, setStudy] = useState<'code' | 'science'>('code');
 
   return (
     <div className="space-y-8">
@@ -47,8 +47,8 @@ export default function CaseStudiesPage() {
         <div className="flex items-center gap-2" role="tablist" aria-label="Case study">
           {(
             [
-              ['code', 'halo2 [code]'],
-              ['bio', '3dClustSim [bio]'],
+              ['code', 'halo2 · [markets]'],
+              ['science', '3dClustSim · [research]'],
             ] as const
           ).map(([key, label]) => (
             <button

@@ -7,9 +7,10 @@ import { Activity, ChevronDown, Clock, ExternalLink, GitBranch, Shield } from 'l
 import { api, type Monitor } from '@/lib/api';
 import { qk, REFETCH } from '@/lib/queryKeys';
 import { urlType, repoLabel, timeAgo, freqLabel, assetTicker, statusDotColor } from '@/lib/format';
+import { domainLabel } from '@/lib/domain';
 import { PageLoader, PageError } from '@/components/ui/page-states';
 
-type DomainFilter = 'all' | 'code' | 'bio';
+type DomainFilter = 'all' | 'code' | 'science';
 
 // System monitors (thesis synthesis, scanners) aren't GitHub repos —
 // they get their own quiet section instead of mixing into repo tiles.
@@ -17,20 +18,22 @@ function isSystemMonitor(m: Monitor): boolean {
   return urlType(m.url) === 'other';
 }
 
-function monitorDomain(mons: Monitor[]): 'code' | 'bio' {
-  return mons.some((m) => m.domain === 'bio') ? 'bio' : 'code';
+function monitorDomain(mons: Monitor[]): 'code' | 'science' {
+  return mons.some((m) => m.domain === 'science') ? 'science' : 'code';
 }
 
-function DomainTag({ domain }: { domain: 'code' | 'bio' }) {
+function DomainTag({ domain }: { domain: 'code' | 'science' }) {
+  // Public labels: markets (price oracle) / research (record oracle).
+  const label = domainLabel(domain);
   return (
     <span
       className={`rounded border px-1 py-px font-mono text-[9px] uppercase tracking-wider ${
-        domain === 'bio'
+        domain === 'science'
           ? 'border-signal/30 bg-signal/10 text-signal'
           : 'border-accent/30 bg-accent/10 text-accent'
       }`}
     >
-      [{domain}]
+      [{label}]
     </span>
   );
 }
@@ -64,11 +67,11 @@ export default function MonitorsPage() {
   const repos = [...grouped.entries()].filter(([_, mons]) => !isSystemMonitor(mons[0]));
   const system = [...grouped.entries()].filter(([_, mons]) => isSystemMonitor(mons[0]));
 
-  // Puzzle order: bio first, then code; alphabetical within each domain.
+  // Puzzle order: science first, then code; alphabetical within each domain.
   repos.sort((a, b) => {
     const da = monitorDomain(a[1]);
     const db = monitorDomain(b[1]);
-    if (da !== db) return da === 'bio' ? -1 : 1;
+    if (da !== db) return da === 'science' ? -1 : 1;
     return a[0].localeCompare(b[0]);
   });
 
@@ -88,7 +91,7 @@ export default function MonitorsPage() {
           </p>
         </div>
         <div className="flex items-center gap-1" role="tablist" aria-label="Filter by domain">
-          {(['all', 'code', 'bio'] as const).map((f) => (
+          {(['all', 'code', 'science'] as const).map((f) => (
             <button
               key={f}
               role="tab"
@@ -100,7 +103,9 @@ export default function MonitorsPage() {
                   : 'border-edge/40 text-slate-500 hover:border-edge hover:text-slate-300'
               }`}
             >
-              {f === 'all' ? `all ${repos.length}` : `[${f}]`}
+              {f === 'all'
+                ? `all ${repos.length}`
+                : `[${f === 'science' ? 'research' : 'markets'}]`}
             </button>
           ))}
         </div>

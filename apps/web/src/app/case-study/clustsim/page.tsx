@@ -40,7 +40,7 @@ interface ClustsimVerdict {
     hcs_dispatch?: string;
     literature?: LiteratureRef[];
   };
-  bioOutcome?: {
+  scienceOutcome?: {
     event_kind: string;
     event_at: string;
     event_source: string;
@@ -67,7 +67,7 @@ const TIMELINE = [
   { date: 'Afterward', event: 'Cluster-inference results across task-fMRI called into question' },
   {
     date: 'Aug 2026',
-    event: 'Replayed through LENITNES[bio]: the pipeline flags the fix as an integrity alert',
+    event: 'Replayed through LENITNES[research]: the pipeline flags the fix as an integrity alert',
   },
 ];
 
@@ -103,7 +103,7 @@ export default function ClustsimCaseStudyPage() {
   }
 
   const verdict = data.verdicts[0];
-  const outcome = verdict.bioOutcome;
+  const outcome = verdict.scienceOutcome;
   const leadDays = outcome?.lead_days ?? 0;
   const literature = verdict.agentScore.literature ?? [];
 
@@ -113,7 +113,7 @@ export default function ClustsimCaseStudyPage() {
       <header className="reveal in-view">
         <div className="mb-2 flex items-center gap-2">
           <span className="rounded border border-accent/40 bg-accent/10 px-1.5 py-0.5 font-mono text-[10px] uppercase tracking-widest text-accent">
-            [bio]
+            [research]
           </span>
           <p className="font-mono text-[10px] uppercase tracking-widest text-slate-500">
             founding case study
@@ -144,7 +144,7 @@ export default function ClustsimCaseStudyPage() {
           </a>{' '}
           quietly fixed an edge-effect bug in 3dClustSim. A year later, Eklund et al. showed those
           methods inflated fMRI false positives far beyond 5%. That fix commit is exactly the
-          pattern LENITNES[bio] watches for. This page is a{' '}
+          pattern LENITNES[research] watches for. This page is a{' '}
           <strong className="text-slate-300">replay</strong>: the system was built in 2026 and run
           against the historical commit to prove the detection pipeline end-to-end. A live monitor
           now watches afni/afni for anything similar.
@@ -330,10 +330,10 @@ export default function ClustsimCaseStudyPage() {
 
       <div className="flex flex-wrap items-center justify-between gap-3 border-t border-edge/30 pt-6">
         <Link
-          href="/scorecard?domain=bio"
+          href="/scorecard?domain=research"
           className="inline-flex items-center gap-1.5 text-sm text-slate-400 transition-colors hover:text-slate-100"
         >
-          See the [bio] scorecard
+          See the [research] scorecard
           <ArrowUpRight className="h-3.5 w-3.5" />
         </Link>
         <Link

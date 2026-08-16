@@ -97,7 +97,7 @@ describe('admin — science event adjudication', () => {
       .post('/admin/science/events')
       .set('X-Admin-Key', 'test-admin-key-12345')
       .send({
-        signalId: 'bio-signal-1',
+        signalId: 'science-signal-1',
         eventKind: 'correction',
         eventAt: '2026-08-20T00:00:00.000Z',
         eventSource: 'curated-ledger',
@@ -106,7 +106,7 @@ describe('admin — science event adjudication', () => {
     expect(res.status).toBe(200);
     expect(res.body).toMatchObject({
       ok: true,
-      signalId: 'bio-signal-1',
+      signalId: 'science-signal-1',
       eventMatchStatus: 'candidate',
       leadDays: 4,
     });
@@ -124,7 +124,7 @@ describe('admin — science event adjudication', () => {
       .post('/admin/science/events')
       .set('X-Admin-Key', 'test-admin-key-12345')
       .send({
-        signalId: 'bio-signal-1',
+        signalId: 'science-signal-1',
         eventKind: 'disclosure',
         eventAt: '2026-08-19T00:00:00.000Z',
         eventSource: 'curated-ledger',

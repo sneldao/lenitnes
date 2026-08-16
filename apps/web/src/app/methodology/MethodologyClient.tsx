@@ -46,7 +46,7 @@ export function MethodologyClient() {
           </span>
           <DomainTooltip term="rubric-v5">
             <span className="rounded bg-accent/10 px-2 py-0.5 font-mono text-[10px] text-accent">
-              v5 [code] · v6 [science]
+              v5 [markets] · v6 [research]
             </span>
           </DomainTooltip>
         </div>
@@ -54,9 +54,9 @@ export function MethodologyClient() {
           How LENITNES turns commits into accountable judgments
         </h1>
         <p className="max-w-2xl text-sm leading-relaxed text-slate-400">
-          One proof-chained loop, two applications: [code] produces market theses with trade safety
-          gates; [science] produces alert-only integrity judgments graded against adjudicated record
-          events.
+          One proof-chained loop, two applications: [markets] produces market theses with trade
+          safety gates; [research] produces alert-only integrity judgments graded against
+          adjudicated record events.
         </p>
       </header>
 
@@ -75,7 +75,7 @@ export function MethodologyClient() {
             number="02"
             icon={Brain}
             title="LLM Scoring"
-            subtitle="v5 [code] · v6 [science] · Conviction 0–100"
+            subtitle="v5 [markets] · v6 [research] · Conviction 0–100"
             active={activeTab === 'scoring'}
             onClick={() => setActiveTab(activeTab === 'scoring' ? 'all' : 'scoring')}
           />
@@ -267,12 +267,12 @@ export function MethodologyClient() {
             </div>
           </CollapsibleSection>
 
-          {/* [bio] Integrity Detectors */}
+          {/* [science] Integrity Detectors */}
           <CollapsibleSection
             title={
               <span className="flex items-center gap-2 font-display text-base font-semibold text-slate-200">
                 <FlaskConical className="h-4 w-4 text-signal" />
-                <span className="font-mono text-signal">[bio]</span> Integrity Detectors
+                <span className="font-mono text-signal">[research]</span> Integrity Detectors
               </span>
             }
             aside={<span className="font-mono text-xs text-slate-400">scientific software</span>}
@@ -391,7 +391,7 @@ export function MethodologyClient() {
                 <div>
                   <div className="text-sm font-medium text-slate-200">LLM Evaluation Model</div>
                   <div className="text-xs text-slate-500">
-                    v5 [code] / v6 [science] · conviction 0–100 + structured action thesis
+                    v5 [markets] / v6 [research] · conviction 0–100 + structured action thesis
                   </div>
                 </div>
               </div>

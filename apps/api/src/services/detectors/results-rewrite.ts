@@ -2,7 +2,7 @@ import type { SignalClassification } from '@lenitnes/types';
 import type { DetectorInput, SignalDetector } from './types.js';
 import { commitScore, containsKeyword } from './types.js';
 
-// ── results_rewrite — LENITNES[bio] ─────────────────────────────
+// ── results_rewrite — LENITNES[science] ─────────────────────────────
 // A commit that silently rewrites outputs, figures, tables, or data
 // underlying published results — without an accompanying issue, PR
 // discussion, or changelog entry explaining the change. Silent
@@ -49,7 +49,7 @@ export const resultsRewriteDetector: SignalDetector = {
   label: 'Results Rewrite',
   description:
     'Silent rewrite of results-bearing artifacts (figures, tables, data) with no public discussion trail',
-  domains: ['bio'],
+  domains: ['science'],
 
   detect(input: DetectorInput): SignalClassification | null {
     const { commits, result } = input;

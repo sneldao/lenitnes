@@ -227,7 +227,7 @@ export function AgentReasoningCard({
         </blockquote>
       </div>
 
-      {/* Literature — corroborating sources cited by the agent (bio) */}
+      {/* Literature — corroborating sources cited by the agent (science) */}
       {agentScore.literature && agentScore.literature.length > 0 && (
         <div className="mx-5 mt-3 rounded-xl border border-edge/30 bg-ink-light/20 px-4 py-3">
           <p className="mb-2 flex items-center gap-1.5 font-mono text-[10px] uppercase tracking-widest text-slate-500">
