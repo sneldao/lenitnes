@@ -136,11 +136,9 @@ export default function ClustsimCaseStudyPage() {
           >
             AFNI
           </a>{' '}
-          quietly corrected an edge-effect bug in 3dClustSim — the routine that sets cluster-size
-          thresholds for a huge share of published task-fMRI studies. A year later, Eklund et al.
-          showed those parametric methods inflated false-positive rates far beyond the nominal 5%.
-          The fix commit is exactly the pattern LENITNES[bio] watches for: a validity-threatening
-          change, under-documented, in code the scientific record depends on.
+          quietly fixed an edge-effect bug in 3dClustSim. A year later, Eklund et al. showed those
+          methods inflated fMRI false positives far beyond 5%. That fix commit is exactly the
+          pattern LENITNES[bio] watches for.
         </p>
       </header>
 
@@ -205,7 +203,7 @@ export default function ClustsimCaseStudyPage() {
       <section className="card reveal reveal-delay-1 in-view">
         <h2 className="section-title mb-4 flex items-center gap-2">
           <FlaskConical className="h-3.5 w-3.5 text-accent" />
-          Detector consensus — why the score was high
+          Detector consensus
         </h2>
         <ul className="space-y-3">
           {verdict.detectorClassifications.map((c) => (
@@ -244,7 +242,7 @@ export default function ClustsimCaseStudyPage() {
         <section className="card reveal reveal-delay-2 in-view border-signal/30">
           <h2 className="section-title mb-4 flex items-center gap-2">
             <CalendarClock className="h-3.5 w-3.5 text-signal" />
-            Ground truth — how the alert scored
+            Ground truth
           </h2>
           <div className="grid gap-3 sm:grid-cols-3">
             <div className="rounded-xl border border-edge/30 bg-ink-light/30 p-4">
@@ -284,9 +282,8 @@ export default function ClustsimCaseStudyPage() {
             </div>
           </div>
           <p className="mt-4 text-xs leading-relaxed text-slate-500">
-            Unlike the [code] vertical, there is no price to mark to market. A [bio] alert is graded
-            against a dated event in the scientific record — here, the peer-reviewed disclosure that
-            the method the commit quietly corrected was indeed inflating false positives.
+            No price to mark to market — a [bio] alert is graded against a dated event in the
+            scientific record.
           </p>
         </section>
       )}

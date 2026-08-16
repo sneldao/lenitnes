@@ -64,10 +64,9 @@ function Hero() {
 
       <p className="mx-auto mt-4 max-w-xl text-sm leading-relaxed text-slate-400">
         One engine, two verticals. <span className="font-mono text-xs text-slate-300">[code]</span>{' '}
-        watches consensus-critical crypto repos and scores against price.{' '}
-        <span className="font-mono text-xs text-slate-300">[bio]</span> watches scientific software
-        and scores against the record — retractions, corrections, disclosures. Every call committed
-        on-chain before the outcome.
+        scores crypto repos against price;{' '}
+        <span className="font-mono text-xs text-slate-300">[bio]</span> scores scientific software
+        against the record. Every call committed on-chain before the outcome.
       </p>
 
       <div className="mt-6 flex flex-wrap items-center justify-center gap-3">
@@ -148,9 +147,7 @@ function TrackRecordStrip() {
           </div>
         ))}
       </div>
-      <p className="mt-2 text-[11px] text-slate-600">
-        Recomputed live — the system cannot misremember its own performance.
-      </p>
+      <p className="mt-2 text-[11px] text-slate-600">Recomputed live from the ledger.</p>
     </section>
   );
 }
@@ -165,8 +162,7 @@ function HowItWorksStrip() {
         <ProofFlow />
       </div>
       <p className="mt-3 text-[11px] text-slate-600">
-        Every step timestamped on <span className="text-signal">Hedera HCS</span> before the market
-        moves.
+        Every step timestamped on <span className="text-signal">Hedera HCS</span>.
       </p>
     </section>
   );
@@ -198,8 +194,7 @@ function RecentCalls() {
     return (
       <div className="text-center">
         <p className="text-sm text-slate-400">
-          The agent is reading commits across the watchlist right now — the first scored signal
-          lands here the moment it clears the rubric.
+          Scanning the watchlist — the first scored signal lands here.
         </p>
         <Link
           href="/case-study/halo2"

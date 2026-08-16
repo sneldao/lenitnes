@@ -156,9 +156,7 @@ export function MethodologyClient() {
               04. Verification
             </button>
           </div>
-          <span className="hidden px-2 text-[10px] text-slate-500 sm:inline">
-            Click any pillar to focus view
-          </span>
+          <span className="hidden px-2 text-[10px] text-slate-500 sm:inline" />
         </div>
       </div>
 

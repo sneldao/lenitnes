@@ -210,7 +210,7 @@ export default function Halo2CaseStudyPage() {
       <section className="card reveal reveal-delay-1 in-view">
         <h2 className="section-title mb-4 flex items-center gap-2">
           <Zap className="h-3.5 w-3.5 text-accent" />
-          Detector consensus — why the score was high
+          Detector consensus
         </h2>
         <ul className="space-y-3">
           {verdict.detectorClassifications.map((c) => (
