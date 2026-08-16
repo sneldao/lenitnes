@@ -89,3 +89,30 @@ infrastructure once a real yes justifies it, not before.
 - [ ] `org_id` tenancy on `monitors` + private delivery channel
 - [ ] Pricing/packaging decided
 - [ ] First paid engagement
+
+## UI/UX polish backlog (post-hackathon)
+
+Findings from the design-repo review (pbakaus/impeccable + vercel-labs/agent-skills,
+Aug 2026). Applied so far: progressive disclosure caps, calibration-into-scorecard
+merge, case-study hub, nav opacity fix, retry buttons on error states, hydration-safe
+scorecard domain tab. Deferred:
+
+1. **SSR / streaming refactor.** Every page is `'use client'` polling via react-query.
+   Converting data fetches to server components + Suspense streaming (vercel
+   `async-suspense-boundaries`, `server-parallel-fetching`) would cut client JS and
+   first-paint time. Medium effort, no visual change.
+2. **Route-level code splitting beyond case-studies.** `signals/[id]` pulls
+   GitDiffInspector + AgentReasoningCard + ProofChain eagerly; `next/dynamic` on the
+   heavy inspector would slim the initial chunk (vercel `bundle-dynamic-imports`).
+3. **Spacing scale audit.** Pages mix `space-y-6 / 8 / 10` freely. Standardize on one
+   vertical rhythm (impeccable `layout`: consistent spacing scale, deliberate rhythm).
+4. **Error-state differentiation.** `PageError` now has a retry button, but every page
+   shows the same generic message. Distinguish timeout vs HTTP 5xx vs empty, and wire
+   retry to react-query `refetch()` instead of a full page reload (impeccable `clarify`).
+5. **Visual QA pass at real viewports.** Desktop + 375px mobile screenshots of every
+   page; check table overflow, touch targets ≥44px, focus order (impeccable `polish`/`audit`).
+6. **Motion polish.** krehel/emilkowalski-style pass: consistent easing on the tile
+   expand, skeleton shimmer on monitors/intelligence loading, reduced-motion audit of
+   the ping/pulse dots.
+7. **Security housekeeping.** Rotate PROPR_API_KEY (was printed to a terminal once);
+   rotate TokenRouter key after the hackathon.

@@ -47,11 +47,11 @@ function Hero() {
       </div>
 
       <h1 className="font-display text-4xl font-semibold leading-[1.1] tracking-tight text-slate-100 sm:text-5xl">
-        The agent that <em className="not-italic text-accent">would have shorted</em> halo2.
+        Every call <em className="not-italic text-accent">committed</em> — before the outcome.
       </h1>
 
-      {/* Vertical tags — the badge row */}
-      <div className="mt-4 flex items-center justify-center gap-2 font-mono text-[11px]">
+      {/* Vertical tags — instances of one instrument, not the identity */}
+      <div className="mt-4 flex flex-wrap items-center justify-center gap-2 font-mono text-[11px]">
         <span className="rounded border border-accent/40 bg-accent/10 px-2 py-0.5 uppercase tracking-widest text-accent">
           [code]
         </span>
@@ -59,13 +59,24 @@ function Hero() {
         <span className="rounded border border-signal/40 bg-signal/10 px-2 py-0.5 uppercase tracking-widest text-signal">
           [bio]
         </span>
+        <span className="text-slate-600">·</span>
+        <span
+          className="t-tt-wrap rounded border border-edge/40 px-2 py-0.5 uppercase tracking-widest text-slate-500"
+          tabIndex={0}
+        >
+          [next]
+          <span className="t-tt t-tt--wide">
+            The instrument is vertical-agnostic. Any repo ecosystem, any ground truth.
+          </span>
+        </span>
       </div>
 
       <p className="mx-auto mt-4 max-w-xl text-sm leading-relaxed text-slate-400">
-        One engine, two verticals. <span className="font-mono text-xs text-slate-300">[code]</span>{' '}
-        scores crypto repos against price;{' '}
-        <span className="font-mono text-xs text-slate-300">[bio]</span> scores scientific software
-        against the record. Every call committed on-chain before the outcome.
+        One engine, many ground truths.{' '}
+        <span className="font-mono text-xs text-slate-300">[code]</span> scores repositories against
+        price; <span className="font-mono text-xs text-slate-300">[bio]</span> scores scientific
+        software against the record. Every verdict is notarized on Hedera HCS before the world can
+        react — then graded in public, losses included.
       </p>
 
       <div className="mt-6 flex flex-wrap items-center justify-center gap-3">
@@ -77,18 +88,18 @@ function Hero() {
           <ArrowRight className="h-3.5 w-3.5 transition-transform group-hover:translate-x-0.5" />
         </Link>
         <Link
-          href="/case-study/halo2"
+          href="/case-studies"
           className="btn-ghost inline-flex items-center gap-2 px-5 py-2.5 text-xs uppercase tracking-wider"
         >
-          halo2 <span className="font-mono text-[10px] opacity-60">[code]</span>
-        </Link>
-        <Link
-          href="/case-study/clustsim"
-          className="btn-ghost inline-flex items-center gap-2 px-5 py-2.5 text-xs uppercase tracking-wider"
-        >
-          3dClustSim <span className="font-mono text-[10px] opacity-60">[bio]</span>
+          Case studies
         </Link>
       </div>
+
+      {/* Proof points — specific, small, honest */}
+      <p className="mt-4 font-mono text-[10px] uppercase tracking-wider text-slate-600">
+        proof on file: halo2 leak <span className="text-accent/70">[code]</span> · 3dClustSim fix{' '}
+        <span className="text-signal/70">[bio]</span> — both caught on replay
+      </p>
 
       {/* Live activity preview — 3 most recent scores */}
       {scoredCount > 0 && (
