@@ -107,10 +107,10 @@ science" with built-in evaluation — the event's explicit theme
   **Opentrons/opentrons** (default branch `edge`),
   **choderalab/openmmtools** — all verified, all seeded in
   `db/seed/watchlist_bio.sql`.
-- **Boltz** (sponsor): `jost-lab/boltz` did not resolve via GitHub API
-  on 2026-08-15 — confirm the repo at the event; a Boltz replay
-  ("detected Boltz-2 features in commits before the announcement")
-  would be judge catnip if findable.
+- **Boltz** (sponsor): resolved to `jwohlwend/boltz` (4,163★, branch
+  `main`, active — recent precision/inference fixes in 2026). Seeded in
+  `db/seed/watchlist_bio.sql` on 2026-08-16; the sentinel watches the
+  sponsor's own scientific software for validity-threatening commits.
 
 ### Tool integrations (host-tool credit)
 
@@ -128,6 +128,11 @@ science" with built-in evaluation — the event's explicit theme
   fallback (`qwen/qwen3.8-max-free`). Override via `HF_QWEN_BASE_URL` /
   `HF_QWEN_MODEL` / `TOKENROUTER_*` (or keep `MOCK_AGENT=1` for
   deterministic replays).
+- **Anthropic** (co-host) — `agent.ts` carries a ready-but-dormant Claude
+  branch: set `ANTHROPIC_API_KEY` (from hackathon credits) and Claude
+  becomes top-priority scorer via the Messages API (raw fetch, no SDK
+  dependency), with the keyless HF endpoint as fallback. No other code
+  changes needed.
 
 ## Architecture mapping — what changes, what doesn't
 
@@ -312,7 +317,7 @@ File                                             Action    Purpose
 ────                                             ──────    ───────
 db/migrations/008_science_domain.sql             [done]    monitors.domain, signal_outcomes event cols
 db/migrations/009_agent_scores_bio.sql           [done]    agent_scores CHECK +alert/investigate, literature JSONB
-db/seed/watchlist_bio.sql                        [done]    afni, nextstrain x2, opentrons, openmmtools
+db/seed/watchlist_bio.sql                        [done]    afni, nextstrain x2, opentrons, openmmtools, boltz
 packages/types/src/index.ts                      [done]    MonitorDomain, domain on Monitor, AgentAction +alert/investigate, SignalType +method_fix/results_rewrite, LiteratureRef, event fields
 apps/api/src/services/agent/rubric-v6.md         [done]    bio conviction rubric
 apps/api/src/services/agent.ts                   [done]    rubric by domain; literature_context input; literature persisted/fetched
