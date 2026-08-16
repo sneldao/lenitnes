@@ -309,6 +309,9 @@ describe('agent.buildAgentEnvFromConfig', () => {
     delete process.env.TOKENROUTER_API_KEY;
     delete process.env.TOKENROUTER_BASE_URL;
     delete process.env.TOKENROUTER_MODEL;
+    delete process.env.ANTHROPIC_API_KEY;
+    delete process.env.ANTHROPIC_BASE_URL;
+    delete process.env.ANTHROPIC_MODEL;
     delete process.env.AGENT_PROVIDER;
     delete process.env.MOCK_AGENT;
     delete process.env.DAILY_AGENT_BUDGET_USD;
@@ -346,6 +349,18 @@ describe('agent.buildAgentEnvFromConfig', () => {
     expect(env.baseUrl).toBe('https://api.tokenrouter.com/v1');
     expect(env.model).toBe('qwen/qwen3.8-max-free');
     expect(env.fallback?.model).toBe('Qwen/Qwen3.8-27B');
+  });
+
+  it('ANTHROPIC_API_KEY takes top priority over both free endpoints', () => {
+    process.env.ANTHROPIC_API_KEY = 'sk-ant-test';
+    process.env.TOKENROUTER_API_KEY = 'sk-test';
+    const env = buildAgentEnvFromConfig();
+    expect(env.kind).toBe('anthropic');
+    expect(env.baseUrl).toBe('https://api.anthropic.com');
+    expect(env.model).toBe('claude-sonnet-4-5');
+    // Fallback drops to the keyless HF endpoint.
+    expect(env.fallback?.baseUrl).toContain('endpoints.huggingface.cloud');
+    expect(env.fallback?.kind).toBeUndefined();
   });
 
   it('respects MOCK_AGENT=1', () => {

@@ -6,6 +6,7 @@
 -- Default branches verified against the GitHub API on 2026-08-15:
 --   afni/afni=master  nextstrain/ncov=master  nextstrain/mpox=master
 --   Opentrons/opentrons=edge  choderalab/openmmtools=main
+--   jwohlwend/boltz=main (Boltz sponsor anchor, verified 2026-08-16)
 --
 -- See docs/RAGENT_PIVOT.md → "Verified anchors" and "Signal classes".
 -- asset_mapping is '{}' on purpose: bio outcomes are discrete dated
@@ -56,6 +57,15 @@ VALUES
   (
     'https://github.com/choderalab/openmmtools/commits/main',
     'Any commit indicating new sampling/free-energy methods, fixes to statistical estimators, or changes to simulation protocol correctness.',
+    3600, false, true, 15,
+    '{}'::jsonb, 'bio'
+  ),
+  -- Boltz (hackathon sponsor): biomolecular interaction prediction.
+  -- Precision/inference fixes in a structure-prediction model change
+  -- what downstream results mean — the sentinel's core thesis.
+  (
+    'https://github.com/jwohlwend/boltz/commits/main',
+    'Any commit indicating fixes to model inference precision, training or sampling correctness, or changes affecting reproducibility of predicted structures.',
     3600, false, true, 15,
     '{}'::jsonb, 'bio'
   )

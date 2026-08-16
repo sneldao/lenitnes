@@ -44,7 +44,20 @@ const RUBRIC_PATHS: Record<MonitorDomain, string> = {
 const RUBRIC_VERSIONS: Record<MonitorDomain, string> = { code: 'v5', bio: 'v6' };
 const EXPECTED_OUTPUT_TOKENS = 700;
 
+/**
+ * A single LLM endpoint in the provider chain.
+ * kind 'openai' (default) = OpenAI-compatible chat completions;
+ * kind 'anthropic' = Anthropic Messages API (raw fetch, no SDK dep).
+ */
+export interface AgentProviderRef {
+  kind?: 'openai' | 'anthropic';
+  apiKey: string;
+  baseUrl: string;
+  model: string;
+}
+
 export interface AgentEnv {
+  kind?: 'openai' | 'anthropic';
   apiKey: string;
   baseUrl: string;
   model: string;
@@ -54,9 +67,9 @@ export interface AgentEnv {
   outputCostPer1M: number;
   /**
    * Optional fallback provider tried once when the primary call fails
-   * (rate limits, outages, empty responses). Same AgentEnv shape.
+   * (rate limits, outages, empty responses).
    */
-  fallback?: Pick<AgentEnv, 'apiKey' | 'baseUrl' | 'model'>;
+  fallback?: AgentProviderRef;
 }
 
 export class AgentBudgetExceededError extends Error {
@@ -323,6 +336,73 @@ function mockScore(input: AgentInput): AgentScore {
   };
 }
 
+/**
+ * One completion call against a provider. OpenAI-compatible endpoints
+ * go through the OpenAI SDK; Anthropic uses the Messages API directly
+ * (raw fetch — no SDK dependency, no lockfile churn).
+ */
+async function callProvider(
+  provider: Pick<AgentEnv, 'apiKey' | 'baseUrl' | 'model'> & {
+    kind?: 'openai' | 'anthropic';
+  },
+  systemPrompt: string,
+  convo: Array<{ role: 'system' | 'user' | 'assistant'; content: string }>,
+  temperature: number,
+): Promise<{ content: string | null; promptTokens: number; completionTokens: number }> {
+  const turns = convo.filter((m) => m.role !== 'system');
+
+  if (provider.kind === 'anthropic') {
+    const res = await fetch(`${provider.baseUrl.replace(/\/$/, '')}/v1/messages`, {
+      method: 'POST',
+      headers: {
+        'content-type': 'application/json',
+        'x-api-key': provider.apiKey,
+        'anthropic-version': '2023-06-01',
+      },
+      body: JSON.stringify({
+        model: provider.model,
+        max_tokens: 4096,
+        temperature,
+        system: systemPrompt,
+        messages: turns.map((m) => ({ role: m.role, content: m.content })),
+      }),
+    });
+    if (!res.ok) {
+      const body = await res.text().catch(() => '');
+      throw new AgentScoreError(`Anthropic API ${res.status}: ${body.slice(0, 200)}`);
+    }
+    const data = (await res.json()) as {
+      content?: Array<{ type: string; text?: string }>;
+      usage?: { input_tokens?: number; output_tokens?: number };
+    };
+    const text = (data.content ?? [])
+      .filter((b) => b.type === 'text' && typeof b.text === 'string')
+      .map((b) => b.text as string)
+      .join('');
+    return {
+      content: text || null,
+      promptTokens: data.usage?.input_tokens ?? 0,
+      completionTokens: data.usage?.output_tokens ?? 0,
+    };
+  }
+
+  const client = new OpenAI({ apiKey: provider.apiKey, baseURL: provider.baseUrl });
+  // reasoning_effort='none' is understood by the Qwen3.8 endpoints (the
+  // openai v4 SDK types predate it, hence the cast).
+  const response = await client.chat.completions.create({
+    model: provider.model,
+    messages: convo,
+    temperature,
+    max_tokens: 4096,
+    reasoning_effort: 'none',
+  } as unknown as OpenAI.Chat.ChatCompletionCreateParamsNonStreaming);
+  return {
+    content: response.choices[0]?.message?.content ?? null,
+    promptTokens: response.usage?.prompt_tokens ?? 0,
+    completionTokens: response.usage?.completion_tokens ?? 0,
+  };
+}
+
 export async function score(input: AgentInput, env: AgentEnv): Promise<AgentScore> {
   const domain: MonitorDomain = input.domain ?? 'code';
   const rubricVersion = RUBRIC_VERSIONS[domain];
@@ -349,7 +429,6 @@ export async function score(input: AgentInput, env: AgentEnv): Promise<AgentScor
     throw new AgentBudgetExceededError(dailySpendUsd, env.dailyBudgetUsd, estimatedUsd);
   }
 
-  const client = new OpenAI({ apiKey: env.apiKey, baseURL: env.baseUrl });
   const temperature = Number(process.env.AGENT_TEMPERATURE ?? 0);
   const messages: Array<{ role: 'system' | 'user' | 'assistant'; content: string }> = [
     { role: 'system', content: rubric },
@@ -359,45 +438,24 @@ export async function score(input: AgentInput, env: AgentEnv): Promise<AgentScor
   // Provider chain: try primary, then env.fallback once on transport
   // failures (rate limits, outages, empty responses). Each provider
   // gets one corrective retry on malformed JSON output.
-  const providers: Array<Pick<AgentEnv, 'apiKey' | 'baseUrl' | 'model'>> = [
-    { apiKey: env.apiKey, baseUrl: env.baseUrl, model: env.model },
+  const providers: Array<AgentProviderRef> = [
+    { kind: env.kind, apiKey: env.apiKey, baseUrl: env.baseUrl, model: env.model },
   ];
   if (env.fallback) providers.push(env.fallback);
-
-  // Both Qwen3.8 endpoints think by default; the scoring rubric wants a
-  // clean JSON answer, so disable the reasoning trace and cap output.
-  // (reasoning_effort passes through as an extra body field.)
-  const createParams = {
-    messages,
-    temperature,
-    max_tokens: 4096,
-    reasoning_effort: 'none',
-  };
 
   let parsed: ReturnType<typeof parseAgentResponse> | null = null;
   let message = '';
   let usedModel = env.model;
   let lastErr: unknown = null;
   for (const provider of providers) {
-    const provClient =
-      provider === providers[0]
-        ? client
-        : new OpenAI({ apiKey: provider.apiKey, baseURL: provider.baseUrl });
     usedModel = provider.model;
     const convo = messages.slice(0, 2);
     for (let attempt = 0; attempt < 2 && !parsed; attempt++) {
       let content: string | null | undefined;
       try {
-        const response = await provClient.chat.completions.create({
-          model: provider.model,
-          ...createParams,
-          messages: convo,
-        } as OpenAI.Chat.ChatCompletionCreateParamsNonStreaming);
-
-        content = response.choices[0]?.message?.content;
-        if (response.usage) {
-          recordCost(env, response.usage.prompt_tokens ?? 0, response.usage.completion_tokens ?? 0);
-        }
+        const result = await callProvider(provider, rubric, convo, temperature);
+        content = result.content;
+        recordCost(env, result.promptTokens, result.completionTokens);
       } catch (err) {
         lastErr = err;
         logger.warn(
@@ -716,20 +774,35 @@ export function buildAgentEnvFromConfig(): AgentEnv {
     baseUrl: process.env.TOKENROUTER_BASE_URL ?? 'https://api.tokenrouter.com/v1',
     model: process.env.TOKENROUTER_MODEL ?? 'qwen/qwen3.8-max-free',
   };
+  const anthropicKey = process.env.ANTHROPIC_API_KEY ?? '';
+  const anthropic: AgentProviderRef | undefined = anthropicKey
+    ? {
+        kind: 'anthropic',
+        apiKey: anthropicKey,
+        baseUrl: process.env.ANTHROPIC_BASE_URL ?? 'https://api.anthropic.com',
+        model: process.env.ANTHROPIC_MODEL ?? 'claude-sonnet-4-5',
+      }
+    : undefined;
+
+  const base = {
+    mock: process.env.MOCK_AGENT === '1',
+    dailyBudgetUsd: Number(process.env.DAILY_AGENT_BUDGET_USD ?? 20),
+    // Free-tier endpoints by default; costs tracked for honesty, not billing.
+    inputCostPer1M: Number(process.env.AGENT_INPUT_COST_PER_1M_USD ?? 0.15),
+    outputCostPer1M: Number(process.env.AGENT_OUTPUT_COST_PER_1M_USD ?? 0.6),
+  };
+
+  // Anthropic (hackathon co-host credits) is top priority when its key
+  // is present — highest-quality scoring; HF stays as the keyless fallback.
+  if (anthropic) {
+    return { ...anthropic, ...base, fallback: { ...hf } };
+  }
   const preferTokenRouter =
     process.env.AGENT_PROVIDER === 'tokenrouter' && tokenRouter.apiKey !== '';
   const primary = preferTokenRouter ? tokenRouter : hf;
   const backup = preferTokenRouter ? hf : tokenRouter.apiKey ? tokenRouter : undefined;
 
-  return {
-    ...primary,
-    mock: process.env.MOCK_AGENT === '1',
-    dailyBudgetUsd: Number(process.env.DAILY_AGENT_BUDGET_USD ?? 20),
-    // Both endpoints are free-tier; costs tracked for honesty, not billing.
-    inputCostPer1M: Number(process.env.AGENT_INPUT_COST_PER_1M_USD ?? 0.15),
-    outputCostPer1M: Number(process.env.AGENT_OUTPUT_COST_PER_1M_USD ?? 0.6),
-    fallback: backup,
-  };
+  return { ...primary, ...base, fallback: backup };
 }
 
 /**
