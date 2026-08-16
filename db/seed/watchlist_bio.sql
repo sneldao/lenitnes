@@ -7,6 +7,8 @@
 --   afni/afni=master  nextstrain/ncov=master  nextstrain/mpox=master
 --   Opentrons/opentrons=edge  choderalab/openmmtools=main
 --   jwohlwend/boltz=main (Boltz sponsor anchor, verified 2026-08-16)
+--   ArcInstitute/cell-eval=main (Arc co-host, verified 2026-08-16)
+--   Biohub/esm=main (CZ Biohub co-host, verified 2026-08-16)
 --
 -- See docs/RAGENT_PIVOT.md → "Verified anchors" and "Signal classes".
 -- asset_mapping is '{}' on purpose: bio outcomes are discrete dated
@@ -66,6 +68,24 @@ VALUES
   (
     'https://github.com/jwohlwend/boltz/commits/main',
     'Any commit indicating fixes to model inference precision, training or sampling correctness, or changes affecting reproducibility of predicted structures.',
+    3600, false, true, 15,
+    '{}'::jsonb, 'bio'
+  ),
+  -- Arc Institute (hackathon co-host): evaluation suite for perturbation-
+  -- prediction models. Changes to scoring/evaluation logic in a model-
+  -- validation tool alter what downstream results are deemed reliable.
+  (
+    'https://github.com/ArcInstitute/cell-eval/commits/main',
+    'Any commit indicating fixes to evaluation metrics, scoring or benchmarking logic, ground-truth handling, or changes affecting the validity of perturbation-prediction results.',
+    3600, false, true, 15,
+    '{}'::jsonb, 'bio'
+  ),
+  -- CZ Biohub (hackathon co-host): protein language-model / structure
+  -- research codebase. Fixes to model weights, tokenization, or indexing
+  -- in structure notebooks change the reproducibility of predictions.
+  (
+    'https://github.com/Biohub/esm/commits/main',
+    'Any commit indicating fixes to model weights, tokenization, structure prediction, or indexing bugs that affect reproducibility of scientific results.',
     3600, false, true, 15,
     '{}'::jsonb, 'bio'
   )

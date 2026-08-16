@@ -160,6 +160,10 @@ science" with built-in evaluation — the event's explicit theme
   `main`, active — recent precision/inference fixes in 2026). Seeded in
   `db/seed/watchlist_bio.sql` on 2026-08-16; the sentinel watches the
   sponsor's own scientific software for validity-threatening commits.
+- **Arc Institute** (co-host): `ArcInstitute/cell-eval` (151★, `main`,
+  perturbation-prediction evaluation suite) — seeded 2026-08-16.
+- **CZ Biohub** (co-host): `Biohub/esm` (2,904★, `main`, protein
+  language-model / structure research code) — seeded 2026-08-16.
 
 ### Tool integrations (host-tool credit)
 
