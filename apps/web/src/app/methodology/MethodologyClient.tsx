@@ -54,9 +54,8 @@ export function MethodologyClient() {
           How LENITNES turns commits into trades
         </h1>
         <p className="max-w-2xl text-sm leading-relaxed text-slate-400">
-          Autonomous proof-chained trading engine: watching GitHub commits on consensus
-          infrastructure, scoring signal strength via LLM rubric, and executing paper/live trades
-          gated by 7 safety checks.
+          Autonomous proof-chained trading: watch GitHub commits, score via versioned LLM rubric,
+          execute trades gated by 7 safety checks.
         </p>
       </header>
 
@@ -237,8 +236,8 @@ export function MethodologyClient() {
           >
             <div className="space-y-3">
               <p className="text-xs text-slate-400">
-                Fast classification pass before the LLM — each detector returns a score (0–100) +
-                confidence. News is corroboration only; it never triggers trades on its own.
+                Heuristic pass before the LLM — each detector scores 0–100 with confidence; a commit
+                can trip several. News only corroborates.
               </p>
               <div className="grid gap-2.5 sm:grid-cols-2">
                 {DETECTORS.map((d) => (
@@ -261,8 +260,8 @@ export function MethodologyClient() {
                 ))}
               </div>
               <p className="text-xs text-slate-500">
-                Not binary — a commit can trip several detectors. The agent aggregates detector
-                scores, diff evidence, 7-day price context, and past outcomes to form a verdict.
+                The agent aggregates detector scores, diff evidence, 7-day price context, and past
+                outcomes into one verdict.
               </p>
             </div>
           </CollapsibleSection>
@@ -280,11 +279,10 @@ export function MethodologyClient() {
           >
             <div className="space-y-3">
               <p className="text-xs text-slate-400">
-                Same pipeline, different oracle. For scientific-software repos the agent emits{' '}
+                Same pipeline, different oracle: the agent emits{' '}
                 <span className="font-mono text-[10px] uppercase text-slate-300">alert</span> /{' '}
                 <span className="font-mono text-[10px] uppercase text-slate-300">investigate</span>{' '}
-                instead of a trade side, and grades each call against the dated scientific record
-                (retraction / correction / disclosure), not a price.
+                instead of a trade side, graded against the dated scientific record, not a price.
               </p>
               <div className="grid gap-2.5 sm:grid-cols-2">
                 <div className="rounded-lg border border-edge/30 bg-ink-light/40 p-3 transition-colors duration-quick hover:border-edge/50">
@@ -314,9 +312,8 @@ export function MethodologyClient() {
               </div>
               <p className="flex items-start gap-1.5 text-xs text-slate-500">
                 <BookOpen className="mt-0.5 h-3 w-3 shrink-0 text-signal" />
-                The agent corroborates against the literature (Firecrawl research index, Paperclip
-                when available) and cites DOIs in its dispatch. Each alert is scored by lead-time to
-                a ground-truth event.
+                Alerts cite corroborating DOIs and are scored by lead-time to the ground-truth
+                event.
               </p>
             </div>
           </CollapsibleSection>
@@ -338,9 +335,8 @@ export function MethodologyClient() {
           >
             <div className="space-y-3">
               <p className="text-xs text-slate-400">
-                Related repos form causal chains — a circuit fix in halo2, an emergency fork in
-                zebra, a protocol release in zcash. The agent sees upstream events in the same
-                sector (7d window) before scoring each commit batch.
+                Repos form causal chains; the agent sees upstream events in the same sector (7d
+                window) before scoring each commit batch.
               </p>
               <div className="space-y-3">
                 {SECTOR_GRAPHS.map((sector) => (
@@ -427,9 +423,8 @@ export function MethodologyClient() {
                   Why a versioned rubric?
                 </p>
                 <p className="mt-1 leading-relaxed">
-                  When prompt or model parameters evolve, the rubric version increments and
-                  performance is sliced accordingly. Rubric v4 requires commit SHA citations in
-                  theses and hard-caps news-only signals.
+                  Rubric changes bump the version so performance slices stay comparable. v4 requires
+                  commit SHA citations and hard-caps news-only signals.
                 </p>
               </div>
 
@@ -450,8 +445,7 @@ export function MethodologyClient() {
           >
             <div className="space-y-4">
               <p className="text-xs text-slate-400">
-                A 90-day replay sweep tiers every repo A/B/C before earning live agent spend —
-                A-tier indicates commit signals historically co-moved with market price.
+                A 90-day replay sweep tiers every repo A/B/C before it earns live agent spend.
               </p>
 
               <div className="flex flex-wrap items-center gap-3">
@@ -512,8 +506,8 @@ export function MethodologyClient() {
           >
             <div className="space-y-4">
               <p className="text-xs text-slate-400">
-                Failing any gate downgrades the signal to paper trading — the signal still records
-                and notarizes, but no on-chain funds are committed.
+                Failing any gate downgrades to paper trading — recorded and notarized, but no
+                on-chain funds committed.
               </p>
               <div className="space-y-3">
                 {SAFETY_GATES.map((g, i) => (
@@ -567,9 +561,9 @@ export function MethodologyClient() {
               <div className="flex items-center gap-3 rounded-xl border border-warn/20 bg-warn/[0.04] p-3.5 text-xs text-slate-300">
                 <AlertTriangle className="h-4 w-4 shrink-0 text-warn" />
                 <p>
-                  <strong className="text-warn">Paper First Strategy:</strong> Every trade starts in
-                  paper mode. Live execution flips on only after calibration shows conviction
-                  correlates with positive outcome yield (target: n ≥ 30 closed positions).
+                  <strong className="text-warn">Paper First Strategy:</strong> Every trade starts on
+                  paper; live execution unlocks once calibration proves conviction correlates with
+                  outcomes (n ≥ 30 closed).
                 </p>
               </div>
             </div>
@@ -614,12 +608,7 @@ export function MethodologyClient() {
                 ))}
               </div>
               <p className="text-xs text-slate-500">
-                Three independent cryptographic authorities — impossible to rewrite historical
-                calls. Visible on every signal page, linked from the{' '}
-                <Link href="/scorecard" className="link-underline text-accent">
-                  public scorecard
-                </Link>
-                .
+                Three independent cryptographic authorities — historical calls can't be rewritten.
               </p>
             </div>
           </CollapsibleSection>

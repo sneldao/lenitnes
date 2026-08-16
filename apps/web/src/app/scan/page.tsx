@@ -83,23 +83,21 @@ const FEATURED_REPOS: Array<{
     repo: 'zcash/halo2',
     asset: 'zec',
     tier: 'A',
-    description:
-      'Zero-knowledge proof circuit library. Evaluates consensus-critical crypto path refactors.',
+    description: 'Zero-knowledge proof circuits. Consensus-critical path refactors.',
     sampleSignal: 'Emergency halo2 circuit patch (T+7d +14.2%)',
   },
   {
     repo: 'ZcashFoundation/zebra',
     asset: 'zec',
     tier: 'A',
-    description: 'Independent Rust consensus node for Zcash. Monitors release branch commits.',
+    description: 'Independent Rust consensus node for Zcash.',
     sampleSignal: 'Zebra protocol upgrade release (T+1d +4.8%)',
   },
   {
     repo: 'MystenLabs/sui',
     asset: 'sui',
     tier: 'B',
-    description:
-      'Sui network core repository. Classifies Move engine updates and RPC modifications.',
+    description: 'Sui network core. Move engine updates and RPC changes.',
     sampleSignal: 'Move VM execution engine patch (T+7d +8.1%)',
   },
 ];
@@ -115,8 +113,7 @@ const BIO_FEATURED_REPOS: Array<{
 }> = [
   {
     repo: 'afni/afni',
-    description:
-      'fMRI analysis suite. Watches statistical-method fixes that can invalidate published results.',
+    description: 'fMRI analysis suite. Statistical fixes that can invalidate published results.',
     sampleSignal: '3dClustSim edge-effect fix — 413d before “Cluster failure”',
     from: '2015-04-01T00:00:00Z',
     to: '2015-07-01T00:00:00Z',
@@ -124,13 +121,12 @@ const BIO_FEATURED_REPOS: Array<{
   {
     repo: 'nextstrain/ncov',
     description:
-      'SARS-CoV-2 phylogenetics pipeline. Watches schema/ancestry changes behind published trees.',
+      'SARS-CoV-2 phylogenetics pipeline. Schema/ancestry changes behind published trees.',
     sampleSignal: 'Nextclade schema rewrite alert',
   },
   {
     repo: 'choderalab/openmmtools',
-    description:
-      'Molecular simulation toolkit. Watches silent sampler/integrator parameter changes.',
+    description: 'Molecular simulation toolkit. Silent sampler/integrator parameter changes.',
     sampleSignal: 'Sampler state correction alert',
   },
 ];
@@ -333,9 +329,9 @@ export default function ScanPage() {
         <p className="max-w-2xl text-sm leading-relaxed text-slate-400">
           {scanMode === 'single'
             ? domain === 'bio'
-              ? 'Point the production engine at any scientific software repo — method fixes and silent result-bearing changes, scored against the published record.'
-              : 'Point the production engine at any public GitHub repository to audit its last 90 days of commits.'
-            : 'Compare commit signal frequency, replay tiers, and price outcome responsiveness side-by-side between two repos.'}
+              ? 'Any scientific software repo — method fixes and silent result-bearing changes, scored against the published record.'
+              : "Audit any public GitHub repo's last 90 days of commits."
+            : 'Signal frequency, replay tiers, and price responsiveness across two repos.'}
         </p>
       </div>
 
@@ -619,8 +615,7 @@ export default function ScanPage() {
               <GitCommit className="mx-auto h-8 w-8 text-slate-500" />
               <p className="text-sm font-medium text-slate-200">Clean 90-Day Quarter</p>
               <p className="max-w-md mx-auto text-xs text-slate-500">
-                No commit tripped the 9 typed leak detectors on the last 90 days of commits for{' '}
-                {data.repo}.
+                No detector hits across the last 90 days of {data.repo}.
               </p>
             </div>
           ) : (
@@ -662,7 +657,7 @@ export default function ScanPage() {
                 </div>
                 <h3 className="text-sm font-semibold text-slate-200">Commit Ingestion</h3>
                 <p className="text-xs leading-relaxed text-slate-400">
-                  Pulls 90 days of commit diffs, tree changes, and metadata across consensus paths.
+                  90 days of commit diffs, tree changes, and metadata.
                 </p>
               </div>
 
@@ -675,8 +670,7 @@ export default function ScanPage() {
                 </div>
                 <h3 className="text-sm font-semibold text-slate-200">9 Detector Pass</h3>
                 <p className="text-xs leading-relaxed text-slate-400">
-                  Evaluates emergency patches, security critical functions, lockfile shifts, and
-                  CODEOWNERS churn.
+                  Emergency patches, security-critical paths, lockfile shifts, CODEOWNERS churn.
                 </p>
               </div>
 
@@ -689,60 +683,9 @@ export default function ScanPage() {
                 </div>
                 <h3 className="text-sm font-semibold text-slate-200">Price Replay & Tiering</h3>
                 <p className="text-xs leading-relaxed text-slate-400">
-                  Cross-references commit signals with T+1d and T+7d market price shifts to tier
-                  repos (A/B/C).
+                  Signals matched against T+1d/T+7d price moves to tier repos A/B/C.
                 </p>
               </div>
-            </div>
-          </section>
-
-          {/* Featured Sample Scan Cards */}
-          <section className="space-y-4">
-            <div className="flex items-center justify-between">
-              <div>
-                <span className="font-mono text-[10px] uppercase tracking-widest text-accent">
-                  sample replays
-                </span>
-                <h2 className="font-display text-xl font-semibold text-slate-100">
-                  Featured Consensus Replays
-                </h2>
-              </div>
-            </div>
-
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-              {FEATURED_REPOS.map((item) => (
-                <div
-                  key={item.repo}
-                  onClick={() => {
-                    setRepoInput(item.repo);
-                    setAssetInput(item.asset);
-                    runSingle(item.repo, item.asset);
-                  }}
-                  className="group rounded-xl border border-edge/40 bg-panel/60 p-4 transition-all duration-quick hover:border-accent/50 hover:bg-panel cursor-pointer flex flex-col justify-between"
-                >
-                  <div className="space-y-2">
-                    <div className="flex items-center justify-between">
-                      <span className="font-mono text-xs font-semibold text-slate-200 group-hover:text-accent">
-                        {item.repo}
-                      </span>
-                      <span
-                        className={`rounded px-1.5 py-0.5 font-mono text-[10px] uppercase ${tierBadgeClass(item.tier)}`}
-                      >
-                        {item.tier}-tier
-                      </span>
-                    </div>
-                    <p className="text-xs text-slate-400 leading-relaxed">{item.description}</p>
-                  </div>
-                  <div className="mt-4 pt-3 border-t border-edge/30 flex items-center justify-between text-xs">
-                    <span className="font-mono text-[10px] text-slate-500 truncate max-w-[180px]">
-                      {item.sampleSignal}
-                    </span>
-                    <span className="font-mono text-[11px] text-accent flex items-center gap-1 group-hover:translate-x-0.5 transition-transform">
-                      Scan <ArrowRight className="h-3 w-3" />
-                    </span>
-                  </div>
-                </div>
-              ))}
             </div>
           </section>
         </div>
