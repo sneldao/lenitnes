@@ -15,12 +15,10 @@ const PRIMARY_LINKS = [
 
 const MORE_LINKS = [
   { href: '/portfolio', label: 'Portfolio' },
-  { href: '/calibration', label: 'Calibration' },
   { href: '/reasoning', label: 'Reasoning' },
   { href: '/intelligence', label: 'Intelligence' },
   { href: '/monitors', label: 'Watchlist' },
-  { href: '/case-study/halo2', label: 'Case study [code]' },
-  { href: '/case-study/clustsim', label: 'Case study [bio]' },
+  { href: '/case-studies', label: 'Case studies' },
 ];
 
 export function Nav() {

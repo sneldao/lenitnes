@@ -13,12 +13,17 @@ import {
   Sparkles,
   Shield,
   Radar,
+  GitBranch,
+  AlertTriangle,
 } from 'lucide-react';
 import {
   api,
   type ScorecardResponse,
   type ScorecardBioResponse,
   type PortfolioResponse,
+  type ResponsivenessResponse,
+  type ResponsivenessCompareResponse,
+  type ForwardPaperResponse,
 } from '@/lib/api';
 import { qk, REFETCH } from '@/lib/queryKeys';
 import {
@@ -28,10 +33,14 @@ import {
   formatDate,
   shortUrl,
   formatDetectorType,
+  tierBadgeClass,
+  formatNullableRatio,
 } from '@/lib/format';
 import { StatCard } from '@/components/ui/stat-card';
 import { OutcomePill } from '@/components/ui/outcome-pill';
 import { PageLoader, PageError } from '@/components/ui/page-states';
+import { CollapsibleSection } from '@/components/ui/collapsible-section';
+import { useShowMore, ShowMoreButton } from '@/components/ui/show-more';
 import { JudgmentCountdown } from '@/components/JudgmentCountdown';
 import { PnlSparkline } from '@/components/ui/pnl-sparkline';
 
@@ -253,6 +262,37 @@ function CodeScorecard() {
     }
     return [...map.entries()].sort((a, b) => b[1].pnl - a[1].pnl);
   }, [portfolio]);
+
+  // ── Calibration deep-dive data (long-form view, collapsed by default) ──
+  const {
+    data: responsiveness,
+    isLoading: respLoading,
+    isError: respError,
+  } = useQuery<ResponsivenessResponse>({
+    queryKey: qk.responsiveness(),
+    queryFn: () => api.getResponsiveness(),
+    staleTime: REFETCH.backtest,
+    refetchInterval: REFETCH.backtest,
+  });
+
+  const { data: compare } = useQuery<ResponsivenessCompareResponse>({
+    queryKey: qk.responsivenessCompare(),
+    queryFn: () => api.getResponsivenessCompare(),
+    staleTime: REFETCH.backtest,
+    refetchInterval: REFETCH.backtest,
+  });
+
+  const { data: forwardPaper } = useQuery<ForwardPaperResponse>({
+    queryKey: qk.forwardPaper(7),
+    queryFn: () => api.getForwardPaper(7),
+    staleTime: REFETCH.medium,
+    refetchInterval: REFETCH.medium,
+  });
+
+  const FORWARD_VISIBLE = 5;
+  const forwardMore = useShowMore(forwardPaper?.entries.length ?? 0, FORWARD_VISIBLE);
+  const liveByRepo = new Map(compare?.live?.profiles?.map((p) => [p.repo.toLowerCase(), p]) ?? []);
+  const driftByRepo = new Map(compare?.drift?.map((d) => [d.repo.toLowerCase(), d]) ?? []);
 
   // ── Progressive disclosure state ──
   const [showAllDetectors, setShowAllDetectors] = useState(false);
@@ -746,6 +786,271 @@ function CodeScorecard() {
               )}
             </section>
           )}
+
+          {/* ── Calibration deep-dive (collapsed by default — the long-form tables) ── */}
+          <div className="space-y-3">
+            <CollapsibleSection
+              title={
+                <>
+                  <GitBranch className="h-3.5 w-3.5 text-accent" />
+                  Repo responsiveness · 90-day replay
+                </>
+              }
+              aside={
+                responsiveness ? (
+                  <span className="font-mono text-[10px] text-slate-500">
+                    {responsiveness.profiles.length} repos
+                  </span>
+                ) : undefined
+              }
+            >
+              <p className="mb-3 text-xs leading-relaxed text-slate-500">
+                Same detectors + mock agent as{' '}
+                <Link href="/scan" className="link-underline text-accent">
+                  leak-scan
+                </Link>
+                , replayed over each commit-level watchlist repo. The live column shows cached
+                admin-sweep results — mock A without live A keeps the elevated 80 trade floor in
+                production.
+              </p>
+              {respLoading && (
+                <p className="font-mono text-xs text-slate-500">
+                  Running replay sweep in background (typically 2–4 min on first load)...
+                </p>
+              )}
+              {respError && (
+                <p className="text-xs text-danger">Failed to load responsiveness profiles.</p>
+              )}
+              {responsiveness && responsiveness.profiles.length > 0 && (
+                <>
+                  <div className="overflow-x-auto">
+                    <table className="w-full font-mono text-xs">
+                      <thead>
+                        <tr className="border-b border-edge/30 text-left text-slate-500">
+                          <th className="py-2 pr-3 font-normal">Tier</th>
+                          <th className="py-2 pr-3 font-normal">Repo</th>
+                          <th className="px-3 py-2 text-right font-normal">Flagged days</th>
+                          <th className="px-3 py-2 text-right font-normal">Trade-grade</th>
+                          <th className="px-3 py-2 text-right font-normal">Hit T+1d</th>
+                          <th className="px-3 py-2 text-right font-normal">Hit T+7d</th>
+                          <th className="px-3 py-2 text-right font-normal">Live T+7d</th>
+                          <th className="px-3 py-2 text-right font-normal">Live tier</th>
+                          <th className="px-3 py-2 text-right font-normal">Avg dir T+1d</th>
+                          <th className="py-2 pl-3 text-right font-normal">Avg dir T+7d</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {[...responsiveness.profiles]
+                          .sort(
+                            (a, b) =>
+                              (b.avgDirectionalT7d ?? -999) - (a.avgDirectionalT7d ?? -999) ||
+                              b.flaggedBatches - a.flaggedBatches,
+                          )
+                          .map((row) => (
+                            <tr key={row.repo} className="border-b border-edge/20 last:border-0">
+                              <td className="py-2 pr-3">
+                                <span
+                                  className={`rounded px-1.5 py-0.5 font-mono text-[10px] uppercase ${tierBadgeClass(row.tier)}`}
+                                  title={row.tierReason}
+                                >
+                                  {row.tier ?? '—'}
+                                </span>
+                                {driftByRepo.get(row.repo.toLowerCase())?.diverged && (
+                                  <span
+                                    className="ml-1 rounded bg-warn/15 px-1 py-0.5 font-mono text-[9px] uppercase text-warn"
+                                    title="Mock vs live tier mismatch"
+                                  >
+                                    drift
+                                  </span>
+                                )}
+                              </td>
+                              <td className="py-2 pr-3 text-slate-300">
+                                <span className="text-slate-500">{row.asset.toUpperCase()}</span>{' '}
+                                {row.repo}
+                              </td>
+                              <td className="px-3 py-2 text-right text-slate-400">
+                                {row.flaggedBatches}
+                              </td>
+                              <td className="px-3 py-2 text-right text-slate-400">
+                                {row.tradeGradeCalls}
+                              </td>
+                              <td className="px-3 py-2 text-right text-slate-200">
+                                {formatNullableRatio(row.hitRateT1d)}
+                              </td>
+                              <td className="px-3 py-2 text-right font-semibold text-slate-200">
+                                {formatNullableRatio(row.hitRateT7d)}
+                              </td>
+                              <td className="px-3 py-2 text-right text-slate-300">
+                                {formatNullableRatio(
+                                  liveByRepo.get(row.repo.toLowerCase())?.hitRateT7d ?? null,
+                                )}
+                              </td>
+                              <td className="px-3 py-2 text-right">
+                                {liveByRepo.get(row.repo.toLowerCase())?.tier ? (
+                                  <span
+                                    className={`rounded px-1.5 py-0.5 font-mono text-[10px] uppercase ${tierBadgeClass(
+                                      liveByRepo.get(row.repo.toLowerCase())?.tier,
+                                    )}`}
+                                  >
+                                    {liveByRepo.get(row.repo.toLowerCase())?.tier}
+                                  </span>
+                                ) : (
+                                  <span className="text-slate-600">—</span>
+                                )}
+                              </td>
+                              <td
+                                className={`px-3 py-2 text-right ${pctTone(row.avgDirectionalT1d)}`}
+                              >
+                                {fmtPct(row.avgDirectionalT1d)}
+                              </td>
+                              <td
+                                className={`py-2 pl-3 text-right font-semibold ${pctTone(row.avgDirectionalT7d)}`}
+                              >
+                                {fmtPct(row.avgDirectionalT7d)}
+                              </td>
+                            </tr>
+                          ))}
+                      </tbody>
+                    </table>
+                  </div>
+                  <p className="mt-3 font-mono text-[10px] text-slate-600">
+                    window {responsiveness.from.slice(0, 10)} → {responsiveness.to.slice(0, 10)} ·
+                    mock sweep · live compare{' '}
+                    {compare?.live ? 'cached' : (compare?.liveStatus ?? 'pending')} · mock A
+                    requires live A for full spend
+                  </p>
+                </>
+              )}
+            </CollapsibleSection>
+
+            {forwardPaper && forwardPaper.entries.length > 0 && (
+              <CollapsibleSection
+                title={
+                  <>
+                    <Activity className="h-3.5 w-3.5 text-accent" />
+                    Forward paper log · 7d
+                  </>
+                }
+                aside={
+                  <span className="font-mono text-[10px] text-slate-500">
+                    {forwardPaper.entries.length} entries
+                  </span>
+                }
+              >
+                <p className="mb-3 text-xs text-slate-500">
+                  Live agent scores on production monitors — paper only while{' '}
+                  <code className="text-slate-400">TRADING_ENABLED=false</code>.{' '}
+                  {forwardPaper.liveConfirmedCount} on live-confirmed A-tier repos.
+                </p>
+                <div className="mb-3 flex flex-wrap gap-4 font-mono text-xs text-slate-400">
+                  <span>live scores: {forwardPaper.liveAgentCount}</span>
+                  <span>trade-grade: {forwardPaper.tradeGradeCount}</span>
+                  <span>T+1d hit: {formatNullableRatio(forwardPaper.hitRateT1d)}</span>
+                  <span>avg dir T+1d: {fmtPct(forwardPaper.avgDirectionalT1d)}</span>
+                </div>
+                <div className="overflow-x-auto">
+                  <table className="w-full font-mono text-xs">
+                    <thead>
+                      <tr className="border-b border-edge/30 text-left text-slate-500">
+                        <th className="py-2 pr-3 font-normal">When</th>
+                        <th className="py-2 pr-3 font-normal">Repo</th>
+                        <th className="px-3 py-2 text-right font-normal">Conv</th>
+                        <th className="px-3 py-2 text-right font-normal">Action</th>
+                        <th className="px-3 py-2 text-right font-normal">T+1d</th>
+                        <th className="py-2 pl-3 font-normal">Tier policy</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {forwardPaper.entries.slice(0, forwardMore.shown).map((e) => (
+                        <tr key={e.signalId} className="border-b border-edge/20 last:border-0">
+                          <td className="py-2 pr-3 text-slate-500">{e.detectedAt.slice(0, 10)}</td>
+                          <td className="py-2 pr-3 text-slate-300">{e.repo}</td>
+                          <td className="px-3 py-2 text-right text-slate-200">{e.conviction}</td>
+                          <td className="px-3 py-2 text-right text-slate-400">
+                            {e.recommendedAction}
+                          </td>
+                          <td
+                            className={`px-3 py-2 text-right ${
+                              e.hitT1d === true
+                                ? 'text-signal'
+                                : e.hitT1d === false
+                                  ? 'text-danger'
+                                  : 'text-slate-600'
+                            }`}
+                          >
+                            {e.matured ? (e.hitT1d ? 'hit' : 'miss') : 'pending'}
+                          </td>
+                          <td className="py-2 pl-3 text-[10px] text-slate-500">
+                            {e.tierPolicy ?? '—'}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+                <ShowMoreButton
+                  total={forwardPaper.entries.length}
+                  initial={FORWARD_VISIBLE}
+                  expanded={forwardMore.expanded}
+                  onToggle={forwardMore.toggle}
+                  noun="entries"
+                />
+              </CollapsibleSection>
+            )}
+
+            <CollapsibleSection
+              title={
+                <>
+                  <TrendingUp className="h-3.5 w-3.5 text-accent" />
+                  What we&apos;re learning
+                </>
+              }
+            >
+              <ul className="space-y-2 text-sm text-slate-400">
+                <li className="flex gap-2">
+                  <span className="shrink-0 font-mono text-[11px] text-slate-600">
+                    May–Jun 2026
+                  </span>
+                  <span>
+                    First cohort (5 trades) at 70+ floor: ~0% win rate, avg T+1h ≈ −0.5% —
+                    consistent with firing on commits already priced in.
+                  </span>
+                </li>
+                <li className="flex gap-2">
+                  <span className="shrink-0 font-mono text-[11px] text-slate-600">2026-06-26</span>
+                  <span>
+                    Trade floor set at <strong className="text-slate-200">70</strong> with a{' '}
+                    <strong className="text-slate-200">30-min settling delay</strong> so the agent
+                    only sees commits past the immediate news pop. Rubric v5 (Aug 2026) adds the
+                    learning loop: each detector&apos;s 90-day track record now feeds every
+                    conviction score.
+                  </span>
+                </li>
+                <li className="flex gap-2">
+                  <span className="shrink-0 font-mono text-[11px] text-slate-600">
+                    Next ~30 trades
+                  </span>
+                  <span>
+                    If higher conviction doesn&apos;t visibly outperform lower conviction, the
+                    rubric needs more than a threshold bump.
+                  </span>
+                </li>
+              </ul>
+              <div className="mt-4 rounded-xl border border-warn/20 bg-warn/[0.04] p-4">
+                <div className="flex items-start gap-2.5">
+                  <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-warn" />
+                  <div className="space-y-1">
+                    <p className="text-sm font-semibold text-warn">Provisional, not proof</p>
+                    <p className="text-xs leading-relaxed text-slate-400">
+                      A calibration call with n &lt; 30 closed positions per band is observational,
+                      not evidence. The bar to flip live trading on is meaningful sample size AND
+                      visible separation between bands.
+                    </p>
+                  </div>
+                </div>
+              </div>
+            </CollapsibleSection>
+          </div>
 
           {/* ── Recent calls — tight rows, whole row clickable, filtered by window ── */}
           {(() => {

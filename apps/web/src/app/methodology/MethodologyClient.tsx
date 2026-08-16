@@ -451,10 +451,10 @@ export function MethodologyClient() {
 
               <div className="flex flex-wrap items-center gap-3">
                 <Link
-                  href="/calibration"
+                  href="/scorecard"
                   className="inline-flex items-center gap-2 rounded-xl border border-accent/30 bg-accent/[0.04] px-4 py-2.5 text-xs text-accent transition-colors hover:border-accent/50"
                 >
-                  View Live Tier Table on Calibration
+                  View Live Tier Table on Scorecard
                   <ArrowRight className="h-3.5 w-3.5" />
                 </Link>
                 <Link
@@ -638,7 +638,7 @@ export function MethodologyClient() {
             Public Scorecard
           </Link>
           <span>·</span>
-          <Link href="/calibration" className="link-underline text-accent">
+          <Link href="/scorecard" className="link-underline text-accent">
             Calibration Loop
           </Link>
         </div>
