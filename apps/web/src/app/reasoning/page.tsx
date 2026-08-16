@@ -10,10 +10,14 @@ import { cn } from '@/lib/utils';
 import { formatDate, shortUrl, timeAgo } from '@/lib/format';
 import { domainLabel, normalizeDomainParam } from '@/lib/domain';
 import { PageLoader, PageError } from '@/components/ui/page-states';
+import { ShowMoreButton, useShowMore } from '@/components/ui/show-more';
 
 type FeedFilter = 'all' | 'traded' | 'passed';
-// Internal wire values; the page renders them as [markets] / [research].
 type VerticalFilter = 'all' | 'code' | 'science';
+
+// Progressive disclosure: the archive answers one question at a glance
+// (the most recent window), then reveals the rest on explicit request.
+const REASONING_VISIBLE = 10;
 
 // ─────────────────────────────────────────────────────────────
 // Public reasoning archive — every scored call the agent made,
@@ -48,6 +52,7 @@ export default function ReasoningPage() {
   const passedCount = (data?.count ?? 0) - tradedCount;
   const marketsCount = data?.items.filter((i) => i.domain === 'code').length ?? 0;
   const researchCount = data?.items.filter((i) => i.domain === 'science').length ?? 0;
+  const more = useShowMore(items.length, REASONING_VISIBLE);
 
   if (isLoading) return <PageLoader label="Loading reasoning archive…" />;
   if (isError || !data)
@@ -127,10 +132,22 @@ export default function ReasoningPage() {
         </div>
       ) : (
         <ul className="space-y-3">
-          {items.map((item, i) => (
+          {items.slice(0, more.shown).map((item, i) => (
             <ReasoningRow key={item.signalId} item={item} index={i} />
           ))}
         </ul>
+      )}
+
+      {more.needsToggle && (
+        <div className="flex justify-center">
+          <ShowMoreButton
+            total={items.length}
+            initial={REASONING_VISIBLE}
+            expanded={more.expanded}
+            onToggle={more.toggle}
+            noun="judgments"
+          />
+        </div>
       )}
 
       <p className="text-center font-mono text-[10px] text-slate-600">
