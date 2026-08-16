@@ -119,6 +119,23 @@ export default function PortfolioPage() {
     );
   }, [data, prices]);
 
+  // Per-venue realized P&L — answers "which platform made/lost money?" at a
+  // glance. Hooks must run before any early return below (Rules of Hooks).
+  const venueBreakdown = useMemo(() => {
+    const map = new Map<string, { pnl: number; n: number }>();
+    for (const p of data?.closed ?? []) {
+      const key = p.venue ?? 'paper';
+      const cur = map.get(key) ?? { pnl: 0, n: 0 };
+      cur.pnl += p.pnlUsd;
+      cur.n += 1;
+      map.set(key, cur);
+    }
+    return [...map.entries()].sort((a, b) => b[1].pnl - a[1].pnl);
+  }, [data]);
+
+  const openMore = useShowMore(liveOpen.length, OPEN_VISIBLE);
+  const closedMore = useShowMore(data?.closed?.length ?? 0, CLOSED_VISIBLE);
+
   if (isLoading) {
     return (
       <div className="animate-fade-in space-y-8">
@@ -161,22 +178,6 @@ export default function PortfolioPage() {
         ? 'negative'
         : undefined;
   const realizedTone = summary.realizedPnlUsd >= 0 ? 'positive' : 'negative';
-
-  // Per-venue realized P&L — answers "which platform made/lost money?" at a glance.
-  const venueBreakdown = useMemo(() => {
-    const map = new Map<string, { pnl: number; n: number }>();
-    for (const p of closedPositions) {
-      const key = p.venue ?? 'paper';
-      const cur = map.get(key) ?? { pnl: 0, n: 0 };
-      cur.pnl += p.pnlUsd;
-      cur.n += 1;
-      map.set(key, cur);
-    }
-    return [...map.entries()].sort((a, b) => b[1].pnl - a[1].pnl);
-  }, [closedPositions]);
-
-  const openMore = useShowMore(liveOpen.length, OPEN_VISIBLE);
-  const closedMore = useShowMore(closedPositions.length, CLOSED_VISIBLE);
 
   return (
     <div className="animate-fade-in space-y-8">
