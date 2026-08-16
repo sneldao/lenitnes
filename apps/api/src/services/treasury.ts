@@ -772,7 +772,15 @@ export async function closePositionById(
     // Shorts profit when price falls.
     const sign = row.direction === 'short' ? -1 : 1;
     pnlPct = sign * ((exitPriceUsd - entryPriceUsd) / entryPriceUsd) * 100;
-    pnlUsd = sign * (exitPriceUsd - entryPriceUsd) * entryAmount;
+    // entry_amount semantics are venue-specific: spot/paper store
+    // asset QUANTITY, propr perps store USD NOTIONAL. Price-delta
+    // times notional inflates PnL by the asset's price multiple —
+    // that units mix-up produced the bogus -$283k season-1 figure.
+    // Notional books compute PnL as notional x percent change.
+    pnlUsd =
+      row.venue === 'propr'
+        ? entryAmount * (pnlPct / 100)
+        : sign * (exitPriceUsd - entryPriceUsd) * entryAmount;
   }
 
   await query(

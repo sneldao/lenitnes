@@ -232,8 +232,15 @@ export async function getOpenPositions(): Promise<OpenPosition[]> {
     if (currentPrice != null && entryPrice != null && entryAmount > 0) {
       // Shorts profit when price falls.
       const sign = r.direction === 'short' ? -1 : 1;
-      unrealizedPnlUsd = sign * (currentPrice - entryPrice) * entryAmount;
-      unrealizedPnlPct = sign * ((currentPrice - entryPrice) / entryPrice) * 100;
+      const pct = sign * ((currentPrice - entryPrice) / entryPrice) * 100;
+      // entry_amount semantics are venue-specific: spot/paper store
+      // asset QUANTITY, propr perps store USD NOTIONAL (same units
+      // fix as in closePositionById — see treasury.ts).
+      unrealizedPnlUsd =
+        r.venue === 'propr'
+          ? entryAmount * (pct / 100)
+          : sign * (currentPrice - entryPrice) * entryAmount;
+      unrealizedPnlPct = pct;
     }
     return {
       id: r.id,
@@ -337,11 +344,18 @@ export async function getPortfolioSummary(): Promise<PortfolioSummary> {
   let currentValueUsd = 0;
   let unrealizedPnlUsd = 0;
   for (const p of openPositions) {
-    if (p.entry_price_usd != null) {
-      totalInvestedUsd += p.entry_price_usd * p.entry_amount;
-    }
-    if (p.current_price_usd != null) {
-      currentValueUsd += p.current_price_usd * p.entry_amount;
+    if (p.venue === 'propr') {
+      // Notional book: invested IS the USD notional; current value
+      // is notional plus unrealized PnL.
+      totalInvestedUsd += p.entry_amount;
+      currentValueUsd += p.entry_amount + (p.unrealized_pnl_usd ?? 0);
+    } else {
+      if (p.entry_price_usd != null) {
+        totalInvestedUsd += p.entry_price_usd * p.entry_amount;
+      }
+      if (p.current_price_usd != null) {
+        currentValueUsd += p.current_price_usd * p.entry_amount;
+      }
     }
     if (p.unrealized_pnl_usd != null) {
       unrealizedPnlUsd += p.unrealized_pnl_usd;

@@ -77,28 +77,24 @@ const FEATURED_REPOS: Array<{
   asset: string;
   tier: 'A' | 'B' | 'C';
   description: string;
-  sampleSignal: string;
 }> = [
   {
     repo: 'zcash/halo2',
     asset: 'zec',
     tier: 'A',
     description: 'Zero-knowledge proof circuits. Consensus-critical path refactors.',
-    sampleSignal: 'Emergency halo2 circuit patch (T+7d +14.2%)',
   },
   {
     repo: 'ZcashFoundation/zebra',
     asset: 'zec',
     tier: 'A',
     description: 'Independent Rust consensus node for Zcash.',
-    sampleSignal: 'Zebra protocol upgrade release (T+1d +4.8%)',
   },
   {
     repo: 'MystenLabs/sui',
     asset: 'sui',
     tier: 'B',
     description: 'Sui network core. Move engine updates and RPC changes.',
-    sampleSignal: 'Move VM execution engine patch (T+7d +8.1%)',
   },
 ];
 
@@ -107,14 +103,12 @@ const FEATURED_REPOS: Array<{
 const BIO_FEATURED_REPOS: Array<{
   repo: string;
   description: string;
-  sampleSignal: string;
   from?: string;
   to?: string;
 }> = [
   {
     repo: 'afni/afni',
     description: 'fMRI analysis suite. Statistical fixes that can invalidate published results.',
-    sampleSignal: '3dClustSim edge-effect fix — 413d before “Cluster failure”',
     from: '2015-04-01T00:00:00Z',
     to: '2015-07-01T00:00:00Z',
   },
@@ -122,12 +116,10 @@ const BIO_FEATURED_REPOS: Array<{
     repo: 'nextstrain/ncov',
     description:
       'SARS-CoV-2 phylogenetics pipeline. Schema/ancestry changes behind published trees.',
-    sampleSignal: 'Nextclade schema rewrite alert',
   },
   {
     repo: 'choderalab/openmmtools',
     description: 'Molecular simulation toolkit. Silent sampler/integrator parameter changes.',
-    sampleSignal: 'Sampler state correction alert',
   },
 ];
 

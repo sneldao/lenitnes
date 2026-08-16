@@ -147,7 +147,12 @@ function TrackRecordStrip() {
           </div>
         ))}
       </div>
-      <p className="mt-2 text-[11px] text-slate-600">Recomputed live from the ledger.</p>
+      <p className="mt-2 text-[11px] text-slate-600">
+        Season 1 record · closed 15 Aug 2026 — recomputed live, losses included.{' '}
+        <Link href="/scorecard" className="text-accent hover:underline">
+          what we learned →
+        </Link>
+      </p>
     </section>
   );
 }

@@ -313,6 +313,46 @@ function CodeScorecard() {
         </div>
       ) : (
         <>
+          {/* ── Season 1 framing — the record is real, the losses are the lesson ── */}
+          <section className="card reveal in-view border-warn/25 bg-panel/60">
+            <div className="flex flex-wrap items-center gap-2">
+              <span className="badge bg-warn/15 text-[10px] uppercase tracking-wider text-warn">
+                Season 1 · closed
+              </span>
+              <span className="font-mono text-[10px] text-slate-500">
+                live run, Jun–Aug 2026 · record is final
+              </span>
+            </div>
+            <p className="mt-3 max-w-3xl text-sm leading-relaxed text-slate-300">
+              The agent traded live and lost. We publish the whole record — HCS-anchored, immutable,
+              losses included. That is the evaluation, not a press release.
+            </p>
+            <div className="mt-4 grid gap-3 sm:grid-cols-2">
+              <div className="rounded-lg border border-danger/25 bg-danger/[0.04] p-3">
+                <p className="font-mono text-[10px] uppercase tracking-wider text-danger">
+                  Why it failed
+                </p>
+                <ul className="mt-2 space-y-1.5 text-xs leading-relaxed text-slate-400">
+                  <li>· 6 live perp shorts on ZEC ran into a +9% rally: −$283k</li>
+                  <li>· Inverted calibration: conviction 80–89 hit 25.6%, 90–100 hit 0%</li>
+                  <li>· Sizing bug: notional scaled by quantity, no bankroll cap</li>
+                  <li>· T+1d price is a noisy oracle for commit-driven theses</li>
+                </ul>
+              </div>
+              <div className="rounded-lg border border-signal/25 bg-signal/[0.04] p-3">
+                <p className="font-mono text-[10px] uppercase tracking-wider text-signal">
+                  What Season 2 changes
+                </p>
+                <ul className="mt-2 space-y-1.5 text-xs leading-relaxed text-slate-400">
+                  <li>· Rubric v6: detector track records feed every score</li>
+                  <li>· USD-notional cap on sizing, live venue gated behind calibration</li>
+                  <li>· Paper-first until conviction proves predictive (n ≥ 30)</li>
+                  <li>· New oracle: [bio] scores against dated events, not price noise</li>
+                </ul>
+              </div>
+            </div>
+          </section>
+
           {/* ── Hero: the answer, big ── */}
           <section className="card reveal in-view border-accent/20 bg-panel/80">
             <div className="grid gap-8 sm:grid-cols-[auto_1fr] sm:items-center">
