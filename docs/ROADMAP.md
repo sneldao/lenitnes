@@ -204,7 +204,7 @@ shows pattern hit rates.
 
 ### Status
 
-- [ ] P0 evidence tables + HCS chain commitment
+- [x] P0 evidence tables + HCS chain commitment (migration 013 + chain runner, 2026-08-17)
 - [ ] P1 same-event chains surfaced on /signals + archive
 - [ ] P2 chain-graded rubric v7
 - [ ] P3 downstream-consumer radar (curated seed: AFNI, OpenMM, halo2)

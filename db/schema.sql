@@ -275,3 +275,59 @@ CREATE INDEX IF NOT EXISTS idx_monitors_domain ON monitors(domain);
 CREATE INDEX IF NOT EXISTS idx_signal_outcomes_event
     ON signal_outcomes(event_kind, event_at)
     WHERE event_kind IS NOT NULL;
+
+-- Evidence paths (P0 of chained analysis — mirrors migration 013) --
+CREATE TABLE IF NOT EXISTS evidence_nodes (
+  id           BIGSERIAL PRIMARY KEY,
+  node_type    TEXT NOT NULL CHECK (node_type IN
+                 ('commit', 'advisory', 'pr', 'release', 'paper', 'macro', 'signal')),
+  source_repo  TEXT,
+  source_ref   TEXT,
+  source_url   TEXT,
+  detected_at  TIMESTAMPTZ NOT NULL,
+  payload      JSONB NOT NULL DEFAULT '{}'::jsonb,
+  created_at   TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+CREATE UNIQUE INDEX IF NOT EXISTS uq_evidence_nodes_identity
+  ON evidence_nodes(node_type, source_repo, source_ref)
+  WHERE source_ref IS NOT NULL;
+
+CREATE TABLE IF NOT EXISTS evidence_links (
+  id            BIGSERIAL PRIMARY KEY,
+  kind          TEXT NOT NULL CHECK (kind IN
+                  ('same_sha', 'backport', 'releases_fix', 'corroborates',
+                   'contradicts', 'same_root', 'supersedes',
+                   'paper_depends_on', 'mechanism_shared', 'sector_upstream')),
+  from_node_id  BIGINT NOT NULL REFERENCES evidence_nodes(id) ON DELETE CASCADE,
+  to_node_id    BIGINT NOT NULL REFERENCES evidence_nodes(id) ON DELETE CASCADE,
+  provenance    TEXT NOT NULL DEFAULT 'auto'
+                  CHECK (provenance IN ('auto', 'curated', 'retrospective')),
+  detected_at   TIMESTAMPTZ NOT NULL DEFAULT now(),
+  payload       JSONB NOT NULL DEFAULT '{}'::jsonb,
+  UNIQUE (from_node_id, to_node_id, kind)
+);
+
+CREATE TABLE IF NOT EXISTS signal_paths (
+  id           BIGSERIAL PRIMARY KEY,
+  signal_id    UUID NOT NULL REFERENCES signals(id) ON DELETE CASCADE,
+  path_hash    TEXT NOT NULL,
+  node_ids     BIGINT[] NOT NULL DEFAULT '{}',
+  edge_ids     BIGINT[] NOT NULL DEFAULT '{}',
+  assembled_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  UNIQUE (signal_id)
+);
+
+CREATE TABLE IF NOT EXISTS path_commitments (
+  id           BIGSERIAL PRIMARY KEY,
+  signal_id    UUID NOT NULL REFERENCES signals(id) ON DELETE CASCADE,
+  path_hash    TEXT NOT NULL,
+  hedera_tx_id TEXT,
+  committed_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  UNIQUE (signal_id)
+);
+
+CREATE INDEX IF NOT EXISTS idx_evidence_nodes_detected ON evidence_nodes(detected_at DESC);
+CREATE INDEX IF NOT EXISTS idx_evidence_links_from ON evidence_links(from_node_id);
+CREATE INDEX IF NOT EXISTS idx_evidence_links_to ON evidence_links(to_node_id);
+CREATE INDEX IF NOT EXISTS idx_signal_paths_signal ON signal_paths(signal_id);
+CREATE INDEX IF NOT EXISTS idx_path_commitments_signal ON path_commitments(signal_id);

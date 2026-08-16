@@ -579,6 +579,23 @@ export async function executeCheck(monitor: Monitor): Promise<{
     }
   }
 
+  // ── 4e) Evidence-path assembly (P0 chained analysis, best-effort) ──
+  // Assemble the auto-edges for this committed signal and pre-register
+  // the path hash. Runs for every real signal regardless of scoring — a
+  // sub-threshold call still has a path. The hash rides the agent
+  // dispatch HCS write (step 5b) so the chain is anchored WITH the
+  // verdict, never after it.
+  let signalPathHash: string | null = null;
+  if (!isHeartbeat && signalId) {
+    try {
+      const { assembleSignalPath } = await import('../services/domain/evidence-chain.js');
+      const path = await assembleSignalPath(signalId);
+      signalPathHash = path.pathHash || null;
+    } catch (err) {
+      logger.warn({ err, signalId }, 'evidence chain assembly failed (non-blocking)');
+    }
+  }
+
   // ── 5) Agent conviction gating (Gate 2) ─────────────────────────
   // If detectors fired, the agent scores the signal against a versioned
   // rubric. Sub-threshold scores are persisted (agent reasoning archive)
@@ -759,6 +776,7 @@ export async function executeCheck(monitor: Monitor): Promise<{
               rubricVersion: agentScore.rubric_version,
               dispatch: agentScore.hcs_dispatch,
               dedicatedTopic: true,
+              ...(signalPathHash ? { pathHash: signalPathHash } : {}),
             },
             { topicId, memo: `LENITNES dedicated dispatch · ${signalId.slice(0, 8)}` },
           );
@@ -786,7 +804,7 @@ export async function executeCheck(monitor: Monitor): Promise<{
       // signal regardless of proof_action. References the dedicated
       // topic ID if one was created so a single subscriber sees
       // the full picture.
-      await proof.writeHcsMessage(
+      const dispatchRes = await proof.writeHcsMessage(
         {
           kind: 'agent_dispatch',
           signalId,
@@ -796,9 +814,21 @@ export async function executeCheck(monitor: Monitor): Promise<{
           rubricVersion: agentScore.rubric_version,
           dispatch: agentScore.hcs_dispatch,
           dedicatedTopicRef: dedicatedTopicId,
+          ...(signalPathHash ? { pathHash: signalPathHash } : {}),
         },
         { memo: `LENITNES dispatch · ${signalId.slice(0, 8)}` },
       );
+      // The path hash rode the dispatch — record the HCS anchor on the
+      // path commitment so the chain is provably pre-registered with
+      // the verdict. Best-effort; a missing anchor never blocks.
+      if (signalPathHash && dispatchRes?.hederaTxId) {
+        try {
+          const { recordPathHcsAnchor } = await import('../services/domain/evidence-chain.js');
+          await recordPathHcsAnchor(signalId, dispatchRes.hederaTxId);
+        } catch (err) {
+          logger.warn({ err, signalId }, 'path HCS anchor record failed (non-blocking)');
+        }
+      }
     } catch (err) {
       // Dispatch-anchor failure is non-fatal — the timestamp HCS
       // write from step 4 still gives us a proof anchor. The
