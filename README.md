@@ -1,24 +1,40 @@
 # LENITNES
 
-**An autonomous AI agent that reads public commits and infers what they mean before the outcome is priced in — then commits every call on-chain and grades itself against ground truth.** Every signal is timestamped on Hedera HCS; the public scorecard recomputes from the same tables the calls are written to, so the system cannot misremember its own performance.
+**A pre-registration machine for software-change judgments.** LENITNES watches repositories, detects commits that may invalidate published results, scores each one with a versioned rubric, and notarizes every verdict on Hedera HCS _before_ the outcome is knowable — then grades itself in public, losses included. The scorecard recomputes from the same tables the calls are written to, so the system cannot misremember its own performance.
 
-One engine, two verticals — the tag names the _field being watched_, never the output type:
+## The loop
 
-- **`LENITNES[code]`** — consensus-critical crypto repos → price outcomes (live today; founding case: the halo2/ZEC short).
-- **`LENITNES[bio]`** — scientific software repos → scientific-record outcomes (retractions, corrections, dated disclosures). Founding case: the AFNI 3dClustSim fix flagged 413 days before the "Cluster failure" paper. See [`docs/RAGENT_PIVOT.md`](./docs/RAGENT_PIVOT.md).
+1. **DETECT** — typed commit detectors gate every signal; news is corroboration only, never the primary signal.
+2. **SCORE** — an LLM grades the signal against a versioned rubric (v4 `[code]` / v6 `[bio]`) and emits conviction (0–100), thesis, and a recommended action.
+3. **COMMIT** — above-threshold calls are executed (a trade, an alert — depending on the vertical) and every verdict is timestamped on Hedera HCS.
+4. **GRADE** — outcomes are scored against the vertical's grading authority: market price for `[code]`, the dated scientific record for `[bio]`.
 
-No users, no per-monitor staking, no SaaS dashboard. The agent runs continuously; its calls become a public track record.
+What varies by vertical is only four slots — the watched corpus, the rubric, the grading authority, and the action a high-conviction call triggers. The loop, the notarization, and the public grading discipline are invariant.
+
+## Verticals — instances of one instrument
+
+The tag names the _field being watched_, never the output type:
+
+| Vertical              | Corpus                          | Grading authority                                              | Action on conviction          | Status                         |
+| --------------------- | ------------------------------- | -------------------------------------------------------------- | ----------------------------- | ------------------------------ |
+| `LENITNES[code]`      | consensus-critical crypto repos | market price (T+1h/1d/7d)                                      | trade (paper → live venues)   | Season 1 closed, record public |
+| `LENITNES[bio]`       | scientific software repos       | published record (retractions, corrections, dated disclosures) | integrity alert, HCS-anchored | Season 2 running               |
+| enterprise / `[next]` | a customer's own repos          | internal audit                                                 | leak-scan report              | capability demo (`/scan`)      |
+
+Markets were chosen as Season 1's grader _because_ they are the hardest oracle: price cannot be spun, arrives in hours, and punishes errors in dollars. That season exists to prove the grading discipline works before the same instrument is aimed at the scientific record, where ground truth matters more but arrives slower.
+
+**The epistemic distinction, said once:** the founding case studies (halo2 `[code]`, 3dClustSim `[bio]`) are replays — the engine graded against history whose outcome was already known. The live scorecard commits verdicts against futures it cannot see. Replays calibrate the instrument; live scoring is the record.
 
 ## One engine, two audiences
 
-The unit of proof is the **call**, not the trade: a directional thesis, committed on-chain before the outcome, scored against what the price actually did. That makes the same engine serve two audiences:
+The unit of proof is the **call**, not the trade: a directional thesis, committed on-chain before the outcome, scored against what the grading authority actually recorded. That makes the same engine serve two audiences:
 
-1. **Public (this site)** — the autonomous agent trades its own theses in public. The track record is the product.
-2. **Enterprise (the direction)** — the same nine detectors + versioned rubric, pointed at _your_ repos: what is your commit history telling the market before you announce it? `GET /backtest/replay?repo=owner/repo` runs the real engine over any public repo's history — the leak-scan demo. The public track record is the sales proof; the leak-scan is the product. This is a demo today, not a product — see [`docs/ROADMAP.md`](./docs/ROADMAP.md) for what's missing.
+1. **Public (this site)** — the autonomous agent runs its theses in public. The track record is the product.
+2. **Enterprise (the direction)** — the same detectors + versioned rubric, pointed at _your_ repos: what is your commit history telling the world before you announce it? `GET /backtest/replay?repo=owner/repo` runs the real engine over any public repo's history — the leak-scan demo. The public track record is the sales proof; the leak-scan is the product. This is a demo today, not a product — see [`docs/ROADMAP.md`](./docs/ROADMAP.md) for what's missing.
 
 LENITNES is part of the [Persidian](https://persidian.com) portfolio — sentinels for different business rhythms: money in (Sikizana), messages out (Nuncio), theses tested (Lenitnes), data trusted (DataBard).
 
-## The ZEC moment
+## The ZEC moment — `[code]` founding case
 
 In late May 2026, a four-year-old soundness bug in Zcash's `halo2_gadgets` crate was discovered — a missing constraint that could have let an attacker mint counterfeit ZEC inside the Orchard shielded pool. The emergency soft fork landed in Zebra 4.5.3 on 2 June; the formal public disclosure came 4-5 June. **ZEC dropped ~50% in 48 hours.** We replayed the agent against the public commits: it would have flagged **95/100**, four-detector consensus, paper-trade **SHORT ZEC** at ~$600, 2-3 days before the formal disclosure. [Read the replay →](https://lenitnes.persidian.com/case-study/halo2)
 
@@ -26,7 +42,7 @@ In late May 2026, a four-year-old soundness bug in Zcash's `halo2_gadgets` crate
 
 Public surfaces — no signup, no auth:
 
-- **[`/scorecard`](https://lenitnes.persidian.com/scorecard)** — live track record. Hit ratio, Sharpe, drawdown, per-detector outcomes, recent calls.
+- **[`/scorecard`](https://lenitnes.persidian.com/scorecard)** — live track record: vertical-specific scorecards (`[code]` Season 1 market metrics; `[bio]` record events), per-detector outcomes, recent calls.
 - **[`/calibration`](https://lenitnes.persidian.com/calibration)** — is higher conviction actually predictive? Includes a 90-day replay sweep showing which watchlist repos' commit signals historically co-moved with price.
 - **[`/methodology`](https://lenitnes.persidian.com/methodology)** — all detectors with examples (both verticals), how the agent scores, every safety gate.
 - **[`/portfolio`](https://lenitnes.persidian.com/portfolio)** — open + closed positions with entry price, unrealized P&L, TP/SL levels.
@@ -35,7 +51,9 @@ Public surfaces — no signup, no auth:
 - **[`/signals/:id`](https://lenitnes.persidian.com/signals/)** — every committed signal with the full proof chain and a "was the agent right?" verdict card.
 - **[`/scan`](https://lenitnes.persidian.com/scan)** — point the production engine at any public repo (crypto _or_ scientific) and see what its commit history signaled, day by day.
 
-## How it works
+## The pipeline in detail
+
+Operational specifics behind each loop stage:
 
 1. **Watch** — curated repos. `[code]`: consensus-critical crypto (Zcash, Bitcoin, Ethereum, Solana, Arbitrum, Sui). `[bio]`: scientific software (AFNI, Nextstrain, Opentrons, OpenMMTools). Polling is free: the GitHub API feeds commit diffs directly; news is corroboration only, never the primary signal.
 2. **Detect** — typed commit detectors are the signal gate, domain-scoped: `[code]` runs the consensus/security set (`emergency_patch`, `security_critical_patch`, `silent_merge`, …); `[bio]` runs `method_fix` and `results_rewrite`.

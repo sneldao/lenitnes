@@ -11,10 +11,17 @@ short_description: Live mirror of the LENITNES integrity sentinel dashboard
 
 # 🔬 LENITNES — Scientific Software Integrity Sentinel
 
-An autonomous agent that monitors scientific software repositories, detects
-commits that may invalidate published results, scores them with a versioned
-rubric, and notarizes every verdict on **Hedera HCS before the outcome is
-known**.
+A pre-registration machine for software-change judgments: LENITNES watches
+repositories, detects commits that may invalidate published results, scores
+each one with a versioned rubric, and notarizes every verdict on **Hedera HCS
+before the outcome is knowable** — then grades itself in public, losses
+included.
+
+Two live verticals run the same loop:
+
+- **`[code]`** — crypto repos scored against market price (Season 1, closed)
+- **`[bio]`** — scientific software scored against the published record
+  (retractions, corrections)
 
 This Space embeds the live production dashboard. If the frame does not load,
 open it directly: <https://lenitnes.persidian.com>

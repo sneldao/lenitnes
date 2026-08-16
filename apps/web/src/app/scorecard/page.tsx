@@ -57,6 +57,49 @@ function pctTone(n: number | null): string {
   return 'text-slate-400';
 }
 
+// ── Instrument-level aggregate: one line above the vertical tabs.
+// The loop, notarization, and grading discipline are the same in every
+// vertical — the numbers here say so without leaking one vertical's
+// vocabulary (trades, PnL) into the identity of the instrument.
+function InstrumentStrip() {
+  const { data: code } = useQuery<ScorecardResponse>({
+    queryKey: qk.scorecard(),
+    queryFn: () => api.getScorecard(),
+    refetchInterval: REFETCH.medium,
+  });
+  const { data: bio } = useQuery<ScorecardBioResponse>({
+    queryKey: qk.scorecardBio(),
+    queryFn: () => api.getScorecardBio(),
+    refetchInterval: REFETCH.medium,
+  });
+
+  const proof = code?.proofCoverage;
+  const items: { label: string; value: string }[] = [
+    { label: 'signals scored', value: code?.totalSignals?.toString() ?? '—' },
+    {
+      label: 'verdicts notarized · HCS',
+      value: proof ? `${proof.withHederaHcs}/${proof.totalSignals}` : '—',
+    },
+    { label: '[code] trades executed', value: code?.totalTrades?.toString() ?? '—' },
+    { label: '[bio] alerts committed', value: bio?.totalAlerts?.toString() ?? '—' },
+    {
+      label: '[bio] record events graded',
+      value: bio?.confirmedEvents?.toString() ?? '—',
+    },
+  ];
+
+  return (
+    <div className="flex flex-wrap items-center justify-center gap-x-5 gap-y-1 rounded-lg border border-edge/30 bg-panel/30 px-4 py-2.5 font-mono text-[10px] uppercase tracking-wider text-slate-500">
+      {items.map((it, i) => (
+        <span key={it.label} className="inline-flex items-center gap-1.5">
+          {i > 0 && <span className="text-slate-700">·</span>}
+          <span className="text-slate-200">{it.value}</span> {it.label}
+        </span>
+      ))}
+    </div>
+  );
+}
+
 export default function ScorecardPage() {
   const [domain, setDomain] = useState<'code' | 'bio'>('code');
 
@@ -69,6 +112,7 @@ export default function ScorecardPage() {
 
   return (
     <div className="space-y-8">
+      <InstrumentStrip />
       {/* Domain tabs — badge style, mono text, no emoji */}
       <div className="flex items-center gap-2 pt-2" role="tablist" aria-label="Scorecard domain">
         {(['code', 'bio'] as const).map((d) => (
@@ -116,6 +160,11 @@ function BioScorecard() {
         <h1 className="font-display text-3xl font-semibold text-slate-100 sm:text-4xl">
           Did the alert precede the record?
         </h1>
+        <p className="mt-2 max-w-2xl text-xs leading-relaxed text-slate-500">
+          Graded today against dated retractions, corrections, and disclosures — mostly via replay
+          of known history. The live arm commits verdicts before the record moves; the numbers below
+          grow as those mature.
+        </p>
       </header>
 
       <section className="grid grid-cols-2 gap-3 sm:grid-cols-4">

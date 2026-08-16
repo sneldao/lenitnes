@@ -144,6 +144,7 @@ describe('scorecard.overall — with signals + trades', () => {
             signal_id: 'sig-1',
             detected_at: '2026-06-17T20:00:00.000Z',
             monitor_url: 'https://github.com/zcash/halo2',
+            domain: 'code',
             conviction: 85,
             thesis: 'Critical soundness fix',
             recommended_action: 'long',
@@ -223,6 +224,7 @@ describe('scorecard.overall — with signals + trades', () => {
       tradeTxHash: '0xpapabc',
       outcomes: { t1h: 0.5, t1d: 2.1, t7d: 5.3 },
       detectorTypes: ['emergency_patch', 'security_critical_patch'],
+      domain: 'code',
     });
   });
 });

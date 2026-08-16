@@ -127,7 +127,7 @@ function Hero() {
   );
 }
 
-// ── Track record: 4 compact stats in one row ─────────────────
+// ── Track record: instrument-level first, vertical stats scoped ───
 
 function TrackRecordStrip() {
   const { data } = useQuery<ScorecardResponse>({
@@ -136,11 +136,22 @@ function TrackRecordStrip() {
     refetchInterval: REFETCH.medium,
   });
 
-  const stats = [
-    { label: 'Signals', value: data?.totalSignals?.toString() ?? '—' },
-    { label: 'Trades', value: data?.totalTrades?.toString() ?? '—' },
-    { label: 'Hit ratio', value: data ? `${(data.hitRatio * 100).toFixed(0)}%` : '—' },
-    { label: 'Sharpe', value: data?.sharpe?.toFixed(2) ?? '—' },
+  const proof = data?.proofCoverage;
+
+  // Instrument-level metrics — the loop works the same in every vertical.
+  const stats: { label: string; value: string; caveat?: string }[] = [
+    { label: 'Signals scored', value: data?.totalSignals?.toString() ?? '—' },
+    {
+      label: 'Verdicts notarized',
+      value: proof ? `${proof.withHederaHcs}/${proof.totalSignals}` : '—',
+      caveat: 'Hedera HCS · before outcome',
+    },
+    { label: 'Outcomes graded', value: data ? `${data.outcomesSummary.closed}` : '—' },
+    {
+      label: 'Hit ratio',
+      value: data ? `${(data.hitRatio * 100).toFixed(0)}%` : '—',
+      caveat: 'Season 1 · T+1d',
+    },
   ];
 
   return (
@@ -154,11 +165,22 @@ function TrackRecordStrip() {
             <div className="mt-1 font-mono text-[9px] uppercase tracking-wider text-slate-500 sm:text-[10px]">
               {s.label}
             </div>
+            {s.caveat && (
+              <div className="mt-0.5 font-mono text-[9px] text-slate-600">{s.caveat}</div>
+            )}
           </div>
         ))}
       </div>
       <p className="mt-2 text-[11px] text-slate-600">
-        Season 1 record · closed 15 Aug 2026 — recomputed live, losses included.{' '}
+        Season 1 · [code] vs market price · closed 15 Aug 2026:{' '}
+        <span className="font-mono text-slate-500">
+          {data ? `${data.totalTrades} trades` : '—'} ·{' '}
+          {data
+            ? `${data.cumulativePnlUsd >= 0 ? '+' : '−'}$${Math.abs(data.cumulativePnlUsd).toFixed(0)}`
+            : '—'}{' '}
+          · sharpe {data?.sharpe?.toFixed(2) ?? '—'}
+        </span>{' '}
+        — recomputed live, losses included.{' '}
         <Link href="/scorecard" className="text-accent hover:underline">
           what we learned →
         </Link>
@@ -246,6 +268,13 @@ function RecentCalls() {
                   {call.thesis ?? 'No thesis recorded'}
                 </Link>
                 <div className="mt-0.5 flex items-center gap-2 font-mono text-[10px] text-slate-600">
+                  <span
+                    className={
+                      (call.domain ?? 'code') === 'bio' ? 'text-signal/70' : 'text-accent/70'
+                    }
+                  >
+                    [{call.domain ?? 'code'}]
+                  </span>
                   <span>{new Date(call.detectedAt).toISOString().slice(0, 10)}</span>
                   {call.detectorTypes.length > 0 && (
                     <span className="truncate">{call.detectorTypes.join(', ')}</span>
@@ -264,11 +293,11 @@ function RecentCalls() {
                     {call.conviction}
                   </div>
                 )}
-                {call.outcomes.t1d != null && (
+                {call.outcomes.t1d != null && (call.domain ?? 'code') === 'code' && (
                   <div
                     className={cn('font-mono text-[10px]', isHit ? 'text-signal' : 'text-danger')}
                   >
-                    T+1d {isHit ? '+' : ''}
+                    T+1d price {isHit ? '+' : ''}
                     {call.outcomes.t1d.toFixed(2)}%
                   </div>
                 )}

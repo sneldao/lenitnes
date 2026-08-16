@@ -33,6 +33,17 @@ export default function CaseStudiesPage() {
         <h1 className="font-display text-3xl font-semibold text-slate-100 sm:text-4xl">
           Two verdicts, one instrument
         </h1>
+        <p className="max-w-2xl text-sm leading-relaxed text-slate-400">
+          Both cases are replays: the engine ran against commit history whose outcome was already
+          known. Replays grade the instrument against history — the live scorecard commits verdicts
+          against futures it cannot see.{' '}
+          <span className="font-mono text-xs text-slate-500">
+            live record:{' '}
+            <a href="/scorecard" className="text-accent hover:underline">
+              /scorecard
+            </a>
+          </span>
+        </p>
         <div className="flex items-center gap-2" role="tablist" aria-label="Case study">
           {(
             [

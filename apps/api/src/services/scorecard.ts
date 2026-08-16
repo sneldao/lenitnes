@@ -19,6 +19,8 @@ export interface RecentCall {
   detectedAt: string;
   monitorUrl: string;
   detectorTypes: string[];
+  /** The vertical whose grading authority judged this call: 'code' | 'bio'. */
+  domain: 'code' | 'bio';
   conviction: number | null;
   thesis: string | null;
   recommendedAction: 'long' | 'short' | 'none' | null;
@@ -137,6 +139,7 @@ interface RecentRow {
   signal_id: string;
   detected_at: string;
   monitor_url: string;
+  domain: 'code' | 'bio';
   conviction: number | null;
   thesis: string | null;
   recommended_action: 'long' | 'short' | 'none' | null;
@@ -597,6 +600,7 @@ async function recentCallsQuery(limit: number): Promise<RecentCall[]> {
        s.id AS signal_id,
        s.detected_at,
        m.url AS monitor_url,
+       m.domain AS domain,
        ag.conviction,
        ag.thesis,
        ag.recommended_action,
@@ -635,6 +639,7 @@ async function recentCallsQuery(limit: number): Promise<RecentCall[]> {
     detectedAt: r.detected_at,
     monitorUrl: r.monitor_url,
     detectorTypes: r.detector_types ?? [],
+    domain: r.domain === 'bio' ? 'bio' : 'code',
     conviction: r.conviction,
     thesis: r.thesis,
     recommendedAction: r.recommended_action,

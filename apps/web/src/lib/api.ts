@@ -197,6 +197,8 @@ export interface ScorecardRecentCall {
   detectedAt: string;
   monitorUrl: string;
   detectorTypes: string[];
+  /** The vertical whose grading authority judged this call: 'code' | 'bio'. */
+  domain: 'code' | 'bio';
   conviction: number | null;
   thesis: string | null;
   recommendedAction: 'long' | 'short' | 'none' | null;
