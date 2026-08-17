@@ -479,10 +479,10 @@ commits tell the market?"). Nothing may fork detector or scoring
 logic for one audience — the engine identity IS the product claim.
 
 **6. Evidence paths — the chain as a first-class object (2026-08-17,
-plan).** Single-commit calls are rare jackpots; the durable signal
-surface is chained, medium-strength evidence. Planned additive
-model (migration 013, Postgres — the corpus is ~25 repos, so no
-graph DB; the value is the annotation policy):
+P0 implemented; P1+ planned).** Single-commit calls are rare
+jackpots; the durable signal surface is chained, medium-strength
+evidence. The additive Postgres model is live in migration 013 — the
+corpus is ~25 repos, so no graph DB; the value is the annotation policy:
 
 - `evidence_nodes` — node_type: commit | advisory | pr | release |
   paper | macro | signal; source, detected_at, payload
@@ -490,7 +490,8 @@ graph DB; the value is the annotation policy):
   `releases_fix`, `corroborates`, `contradicts`, `same_root`,
   `supersedes`, `paper_depends_on`, `mechanism_shared`;
   provenance: auto | curated | retrospective
-- `signal_paths` — the ordered path a call was scored against
+- `signal_paths` — the ordered path recorded for a call (P0 records
+  it; P2 will allow chain-aware scoring against it)
 - `path_commitments` — hash(path) anchored on HCS with the call:
   the chain is pre-registered exactly like the verdict
 
@@ -499,10 +500,20 @@ conviction over the path = primary node evidence × corroboration
 edges × contradiction dampeners × historical pattern priors —
 composition owned by the rubric file, never by ad-hoc code.
 
+The promotion gate is empirical: compare single-node and chained
+cohorts by path length, edge type, conviction delta, vertical, and
+matured outcome. Do not promote v7 into trading or public grading until
+roughly 30–50 mature chained calls exist and the improvement survives
+those cohort splits.
+
 **Honesty invariant:** only pre-outcome edges may feed a chain.
+Automatic edges must point from evidence detected at or before the
+target signal; a later peer cannot corroborate an earlier call.
 Edges discovered after the outcome ("this paper also depended on
 it") are labeled `retrospective` and excluded from calibration —
 chaining must stay pre-registration discipline, not hindsight
-fitting. The chain runner reruns deterministically from the same
-tables the call was written to, preserving the recompute-from-
-tables proof invariant.
+fitting. P0 is deliberately not chain-aware scoring: first validate
+path construction and expose it in the UI, then run rubric v7 in
+shadow mode. The chain runner reruns deterministically from the same
+tables the call was written to, preserving the recompute-from-tables
+proof invariant.

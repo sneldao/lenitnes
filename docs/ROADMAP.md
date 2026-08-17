@@ -7,6 +7,7 @@
 > Updated 2026-08-16 with the security/performance hardening pass and
 > the vertical-scoped Telegram digest.
 > Updated 2026-08-17 with the chained-analysis evolution plan.
+> Updated 2026-08-17 with the P0 deployment validation and P1 sequencing.
 
 ## Where things stand
 
@@ -166,27 +167,46 @@ Only edges derivable from **pre-outcome** evidence may feed a chain:
 
 ### Phases — build order
 
-**P0 — Evidence tables + chain commitment.** Migration 013
-(`evidence_nodes`, `evidence_links`, `signal_paths`, `path_commitments`);
-the chain runner assembles auto-edges for every committed signal and
-anchors the path hash on HCS alongside the call. No scoring change;
-replay stays byte-compatible.
+**P0 — Evidence tables + chain commitment.** ✅ Deployed in migration
+013 and the P0 chain runner. The runner assembles auto-edges for every
+committed signal and anchors the path hash on HCS alongside the call.
+No scoring change; replay remains byte-compatible. The production
+schema and compiled runner are live; path counts begin at zero and
+populate with the next committed signals.
 
-**P1 — Same-event chains visible.** `/signals/[id]` renders the path
-("one event, three repos") instead of an isolated verdict; the reasoning
-archive shows chain membership. Ships the halo2-shaped case as a
-connected object, not a coincidence.
+P0 hardening is a gate before P1: automatic edges must only point from
+evidence detected at or before the target signal, and the next live
+signal must be verified end-to-end (`signal node → path → hash → HCS
+commitment`). Add diagnostics for single-node versus chained paths,
+edge types, and HCS-anchored commitments.
 
-**P2 — Chain-graded rubric (v7).** The rubric .md gains a chain section:
-composition formula (primary node, corroboration edges, contradiction
-dampeners, pattern priors), chain citations alongside commit citations,
-conviction bands per path length. Same file-swap versioning, same
-calibration machinery.
+**P1 — Same-event chains visible.** Add a read-only path endpoint and
+render an **Evidence path** section on `/signals/[id]`, preserving the
+answer → story → forensics hierarchy. A single-node call should say
+"one decisive event"; a connected call should show the nodes, edge
+labels, timestamps, why each relationship was accepted, path hash, and
+HCS status. The reasoning archive gets chain membership badges and a
+chain filter. This makes the halo2-shaped exception and the normal
+multi-signal case legible without implying every judgment needs an
+artificially complex graph.
+
+**P2 — Chain-graded rubric (v7), shadow first.** Run the existing
+rubric and chain rubric side by side while v7 remains non-authoritative.
+Store v7 shadow conviction, delta, explanation, path length, and edge
+mix; do not let shadow output trade or alter the live public record.
+Promote only after a mature chained cohort (target: 30–50 calls,
+reported separately by edge type and vertical). The rubric section
+should remain interpretable: primary evidence + corroboration quality
+
+- temporal coherence + sector relevance − contradiction and weak-link
+  penalties. Same file-swap versioning, same calibration machinery.
 
 **P3 — Downstream-consumer radar.** Curated paper↔library mapping;
 a `results_rewrite` / `method_fix` in a library with mapped papers
 emits "N published results affected" — the reproducibility surface of
-a field, not a single repo. This is the `[research]` vertical's real
+a field, not a single repo. Seed with AFNI/3dClustSim, OpenMM
+barostat-minimization, and halo2 consumers before attempting broad
+autonomous discovery. This is the `[research]` vertical's real
 product direction, graded against the record.
 
 **P4 — Cross-vertical chains.** A `[research]` path that reaches a
@@ -204,7 +224,8 @@ shows pattern hit rates.
 
 ### Status
 
-- [x] P0 evidence tables + HCS chain commitment (migration 013 + chain runner, 2026-08-17)
+- [x] P0 evidence tables + HCS chain commitment (migration 013 + runner deployed, 2026-08-17)
+- [ ] P0 hardening/validation: future-peer guard, next-signal smoke test, chain diagnostics
 - [ ] P1 same-event chains surfaced on /signals + archive
 - [ ] P2 chain-graded rubric v7
 - [ ] P3 downstream-consumer radar (curated seed: AFNI, OpenMM, halo2)
