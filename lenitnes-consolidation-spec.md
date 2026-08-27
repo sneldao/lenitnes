@@ -2,8 +2,8 @@
 
 ## 1. The single source of confusion
 
-LENITNES's real thesis is compelling — *commit before the outcome is knowable,
-grade yourself in public* — but the UX spends its surface area on abstraction
+LENITNES's real thesis is compelling — _commit before the outcome is knowable,
+grade yourself in public_ — but the UX spends its surface area on abstraction
 (oracles, HCS, "the loop") instead of making that contract visible on every
 screen. The page reads as **a feed of absences** ("No thesis recorded" ×5)
 which teaches the wrong mental model: that nothing happens here.
@@ -12,13 +12,13 @@ which teaches the wrong mental model: that nothing happens here.
 
 The tagline is already the right IA. Today it's a slogan; make it the structure.
 
-| Before                              | After                                  |
-| ----------------------------------- | -------------------------------------- |
-| `Markets \| Research \| How it works \| More` | `Timeline · Record · Methods` + oracle toggle |
-| Two duplicate feeds (Live signals + Recent judgments) | **One unified timeline**, oracle-toggled |
-| "No thesis recorded" placeholder ×N  | **State-aware copy** matching the real status |
-| Abstract loop diagram detached from cards | **Stage badge** on every card maps 1:1 to the loop |
-| Parallel scorecards (Markets/Research) | **One Record view**, oracle-toggled tabs inside |
+| Before                                                | After                                              |
+| ----------------------------------------------------- | -------------------------------------------------- |
+| `Markets \| Research \| How it works \| More`         | `Timeline · Record · Methods` + oracle toggle      |
+| Two duplicate feeds (Live signals + Recent judgments) | **One unified timeline**, oracle-toggled           |
+| "No thesis recorded" placeholder ×N                   | **State-aware copy** matching the real status      |
+| Abstract loop diagram detached from cards             | **Stage badge** on every card maps 1:1 to the loop |
+| Parallel scorecards (Markets/Research)                | **One Record view**, oracle-toggled tabs inside    |
 
 ### One canonical object
 
@@ -46,39 +46,47 @@ spotted    alert       opens,    the oracle
 
 ## 4. State-aware copy taxonomy (kills "No thesis recorded")
 
-This is the highest-leverage change. Every entry gets copy that says *why* it's
-in its current state and *what's happening*, not a shrug.
+This is the highest-leverage change. Every entry gets copy that says _why_ it's
+in its current state and _what's happening_, not a shrug.
 
 ### Markets (price oracle)
 
-| Stage badge         | Copy (headline)                          | Meaning                                          |
-| ------------------- | ---------------------------------------- | ------------------------------------------------ |
-| `Detect — watching` | Change detected — no call committed       | Software changed; window open; thesis not yet in |
-| `Commit — pending`  | Notarizing thesis to Hedera HCS…          | Thesis committed locally; proof chain in flight  |
-| `Commit — failed`   | Notarization failed — retry               | HCS write failed; **visible, not silent**         |
-| `Track — window open`| Thesis committed · verdict pending        | On-chain; price hasn't moved to adjudicate yet     |
-| `Track — verdict soon`| Price moving — verdict window closing    | Oracle condition approaching                      |
-| `Score — graded`    | Graded against price · [result]           | Outcome knowable; scored in public                |
-| `Score — season closed`| Season closed · losses in the record    | Window sealed; replay, not live                  |
+| Stage badge             | Copy (headline)                       | Meaning                                          |
+| ----------------------- | ------------------------------------- | ------------------------------------------------ |
+| `Detect — watching`     | Change detected — no call committed   | Software changed; window open; thesis not yet in |
+| `Commit — pending`      | Notarizing thesis to Hedera HCS…      | Thesis committed locally; proof chain in flight  |
+| `Commit — failed`       | Notarization failed — retry           | HCS write failed; **visible, not silent**        |
+| `Track — window open`   | Thesis committed · verdict pending    | On-chain; price hasn't moved to adjudicate yet   |
+| `Track — verdict soon`  | Price moving — verdict window closing | Oracle condition approaching                     |
+| `Score — graded`        | Graded against price · [result]       | Outcome knowable; scored in public               |
+| `Score — season closed` | Season closed · losses in the record  | Window sealed; replay, not live                  |
 
 ### Research (record oracle)
 
-| Stage badge         | Copy (headline)                          | Meaning                                          |
-| ------------------- | ---------------------------------------- | ------------------------------------------------ |
-| `Detect — scanning` | Scanning — no signal yet                  | Software under watch; no integrity signal         |
-| `Detect — flagged` | Change flagged — alert not yet committed   | Potential integrity issue detected              |
-| `Commit — pending` | Notarizing alert to HCS…                  | Alert committed locally; proof chain in flight  |
-| `Commit — failed`  | Notarization failed — retry              | HCS write failed; visible, not silent             |
-| `Track — record open`| Alert committed · record not yet moved   | On-chain; published record hasn't adjudicated     |
-| `Track — adjudicating`| Record moving — awaiting adjudication   | Adjudication event in process                     |
-| `Score — graded`   | Graded against the record · [result]     | Adjudicated; scored in public                     |
+| Stage badge             | Copy (headline)                               | Meaning                                        |
+| ----------------------- | --------------------------------------------- | ---------------------------------------------- |
+| `Detect — scanning`     | Scanning — no signal yet                      | Software under watch; no integrity signal      |
+| `Detect — flagged`      | Change flagged — alert not yet committed      | Potential integrity issue detected             |
+| `Commit — pending`      | Notarizing alert to HCS…                      | Alert committed locally; proof chain in flight |
+| `Commit — failed`       | Notarization failed — retry                   | HCS write failed; visible, not silent          |
+| `Track — record open`   | Alert committed · record not yet moved        | On-chain; published record hasn't adjudicated  |
+| `Track — adjudicating`  | Record moving — awaiting adjudication         | Adjudication event in process                  |
+| `Score — graded`        | Graded against the record · [result]          | Adjudicated; scored in public                  |
+| `Score — season closed` | Season closed · [result] alerts in the record | Adjudication window sealed; replay, not live   |
+
+Research _does_ seal: the record oracle adjudicates per published-record
+window (e.g. a paper's correction/retraction horizon), so the asymmetry with
+Markets is only in what "closed" means — price windows close on time, record
+windows close on adjudication events. Both oracles therefore expose the same
+seven stages.
 
 ## 5. Adaptive & adaptable UX
 
 **Adaptive** (reshapes to data/state):
+
 - **Signal-density adaptation** — when the window is full of absences, collapse
-  empties into one honest summary line (*"14 changes tracked · 0 committed
-  theses"*) and promote change-detection as primary content. Absences never
+  empties into one honest summary line (_"14 changes tracked · 0 committed
+  theses"_) and promote change-detection as primary content. Absences never
   own the page.
 - **State-aware empty copy** (§4) — the message matches the actual state.
 - **Failure made visible** — `Commit — failed` is a real, actionable state
@@ -86,6 +94,7 @@ in its current state and *what's happening*, not a shrug.
   public grading; the UI must be at least as honest about its own failures.
 
 **Adaptable** (reshapes to user):
+
 - First visit → loop legend inline + first-encounter tooltips on jargon.
 - Return visit → dense view by default, preference sticks.
 
@@ -101,23 +110,23 @@ what's pending     →  (medium, badge + copy)
 what's absent      →  (collapsed, with a reason + "see why" path)
 ```
 
-Absence never owns the page. It's a quiet secondary line *inside* the
+Absence never owns the page. It's a quiet secondary line _inside_ the
 expandable, with a reason and a path to understand it.
 
 ## 7. Motion wiring (transitions.dev primitives)
 
-| Product move                          | Primitive          | Why                                |
-| ------------------------------------- | ------------------ | ---------------------------------- |
-| Markets ↔ Research ↔ All toggle       | Sliding tabs       | Shared spine stays anchored        |
-| Card expand → thesis/receipt/score    | Accordion          | Progressive disclosure, no JS height math |
-| Status copy changing                  | Text states swap   | User *registers* the state changed  |
-| Confidence / score updating           | Number pop-in      | "Alive" without a spinner          |
-| Proof-pending (HCS notarization)      | Skeleton reveal    | Finite, verifiable → skeleton, not spinner |
-| Notarization failure                  | Error state shake  | Visible + actionable, not silent   |
-| New committed judgment lands          | Notification badge | Live signal on Timeline nav        |
-| Jargon on first encounter             | Tooltip            | Adaptable onboarding, no clutter   |
+| Product move                       | Primitive          | Why                                        |
+| ---------------------------------- | ------------------ | ------------------------------------------ |
+| Markets ↔ Research ↔ All toggle    | Sliding tabs       | Shared spine stays anchored                |
+| Card expand → thesis/receipt/score | Accordion          | Progressive disclosure, no JS height math  |
+| Status copy changing               | Text states swap   | User _registers_ the state changed         |
+| Confidence / score updating        | Number pop-in      | "Alive" without a spinner                  |
+| Proof-pending (HCS notarization)   | Skeleton reveal    | Finite, verifiable → skeleton, not spinner |
+| Notarization failure               | Error state shake  | Visible + actionable, not silent           |
+| New committed judgment lands       | Notification badge | Live signal on Timeline nav                |
+| Jargon on first encounter          | Tooltip            | Adaptable onboarding, no clutter           |
 
-All primitives ship `prefers-reduced-motion` guards. The *state* adaptation
+All primitives ship `prefers-reduced-motion` guards. The _state_ adaptation
 (copy, layout, density) does the heavy lifting; motion makes it feel
 intentional.
 
@@ -130,4 +139,3 @@ homepage from "a feed of absences" into "an honest live record." Everything
 else layers on top of that spine.
 
 See `lenitnes-timeline-prototype.html` for the working implementation.
-

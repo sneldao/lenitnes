@@ -9,9 +9,8 @@
   Implements: oracle-toggled sliding tabs · state-aware copy (kills "No thesis
   recorded") · accordion progressive-disclosure cards with stage badges ·
   skeleton-reveal for proof-pending · text-state-swap for live status ·
+  number pop-in for confidence · notification badge on new commits ·
   error-state-shake for notarization failure · adaptive empty-window summary.
-  Number pop-in and notification-badge primitives are spec'd in the motion
-  table but not wired here.
   All transitions from transitions.dev, each with a prefers-reduced-motion guard.
   Open this file directly in a browser — no build step, no dependencies.
 -->
@@ -171,6 +170,7 @@ body {
 .stage-badge[data-stage='commit'] { background: rgba(124,110,240,0.12); color: var(--commit); } .stage-badge[data-stage='commit'] .dot { background: var(--commit); }
 .stage-badge[data-stage='track'] { background: rgba(240,160,78,0.12); color: var(--track); } .stage-badge[data-stage='track'] .dot { background: var(--track); }
 .stage-badge[data-stage='score'] { background: rgba(78,192,160,0.12); color: var(--score); } .stage-badge[data-stage='score'] .dot { background: var(--score); }
+.stage-badge[data-stage='seasonclosed'] { background: rgba(78,192,160,0.08); color: var(--text-dim); border: 1px solid rgba(78,192,160,0.25); } .stage-badge[data-stage='seasonclosed'] .dot { background: var(--score); opacity: 0.5; }
 .stage-badge[data-stage='failed'] { background: rgba(240,110,110,0.12); color: var(--error); } .stage-badge[data-stage='failed'] .dot { background: var(--error); }
 .oracle-tag { font-size: 10px; font-weight: 600; letter-spacing: 0.08em; text-transform: uppercase; }
 .oracle-tag[data-o='markets'] { color: var(--markets); }
@@ -212,7 +212,7 @@ body {
 <nav class="nav">
   <span class="nav-brand">LENITNES</span>
   <div class="nav-links">
-    <a class="nav-link active">Timeline</a>
+    <a class="nav-link active" id="navTimeline">Timeline<span class="badge-dot" id="navBadge" hidden></span></a>
     <a class="nav-link">Record</a>
     <a class="nav-link">Methods</a>
   </div>
@@ -224,15 +224,15 @@ body {
     <div class="loop-legend" id="loopLegend"></div>
   </div>
   <div class="controls">
-    <div class="t-tabs" role="tablist" id="oracleTabs">
+    <div class="t-tabs" role="tablist" id="oracleTabs" aria-label="Filter timeline by oracle">
       <span class="t-tabs-pill" aria-hidden="true"></span>
-      <button class="t-tab" role="tab" aria-selected="true" data-oracle="all">All</button>
-      <button class="t-tab" role="tab" aria-selected="false" data-oracle="markets">Markets</button>
-      <button class="t-tab" role="tab" aria-selected="false" data-oracle="research">Research</button>
+      <button class="t-tab" id="tab-all" role="tab" aria-selected="true" aria-controls="timeline" data-oracle="all">All</button>
+      <button class="t-tab" id="tab-markets" role="tab" aria-selected="false" aria-controls="timeline" tabindex="-1" data-oracle="markets">Markets</button>
+      <button class="t-tab" id="tab-research" role="tab" aria-selected="false" aria-controls="timeline" tabindex="-1" data-oracle="research">Research</button>
     </div>
   </div>
   <div id="emptySummary"></div>
-  <div id="timeline"></div>
+  <div id="timeline" role="tabpanel" aria-labelledby="tab-all" tabindex="-1"></div>
 </div>
 <div class="demo-bar">
   <span>Demo:</span>
@@ -257,6 +257,12 @@ const entries = [
     change: 'protocol_upgrade, silent_merge',
     thesis: 'Silent merge suggests internal divergence → volatility incoming',
     hcs: '0.0.4827188', result: null },
+  { id: 7, oracle: 'markets', stage: 'seasonclosed', repo: 'ethereum/go-ethereum',
+    time: '3d ago', confidence: 0.66,
+    headline: 'Season closed · losses in the record',
+    change: 'consensus_change',
+    thesis: 'Consensus change precedes fee spike → short-term bearish',
+    hcs: '0.0.4810052', result: 'miss', score: '-2.1σ' },
   { id: 3, oracle: 'markets', stage: 'commit', repo: 'bitcoin/bitcoin',
     time: '7h ago', confidence: 0.55,
     headline: 'Notarizing thesis to Hedera HCS…',
@@ -270,6 +276,18 @@ const entries = [
     time: '17h ago', confidence: null,
     headline: 'Change flagged — alert not yet committed',
     change: 'clustsim replay artifact detected', thesis: null, hcs: null, result: null },
+  { id: 8, oracle: 'research', stage: 'track', repo: 'papers',
+    time: '2d ago', confidence: 0.58,
+    headline: 'Record moving — awaiting adjudication',
+    change: 'citation_graph break detected',
+    thesis: 'Citation graph break suggests post-hoc reference rewrite',
+    hcs: '0.0.4812340', result: null },
+  { id: 9, oracle: 'research', stage: 'seasonclosed', repo: 'papers',
+    time: '6d ago', confidence: 0.62,
+    headline: 'Season closed · overturned alerts in the record',
+    change: 'funding_disclosure change',
+    thesis: 'Undisclosed funding change implies integrity risk',
+    hcs: '0.0.4805117', result: 'overturned', score: '-1.4σ' },
   { id: 6, oracle: 'markets', stage: 'failed', repo: 'bitcoin/bitcoin',
     time: '8h ago', confidence: 0.48,
     headline: 'Notarization failed — retry',
@@ -289,7 +307,8 @@ function renderLoopLegend() {
 }
 function stageLabel(stage) {
   const map = { detect: 'Detect — watching', commit: 'Commit — pending',
-    track: 'Track — window open', score: 'Score — graded', failed: 'Commit — failed' };
+    track: 'Track — window open', score: 'Score — graded',
+    seasonclosed: 'Score — season closed', failed: 'Commit — failed' };
   return { text: map[stage] || 'Detect — watching', stage: stage === 'failed' ? 'failed' : stage };
 }
 function renderTimeline() {
@@ -304,16 +323,23 @@ function renderTimeline() {
     el.querySelector('.t-acc-head').setAttribute('aria-expanded', 'true');
     el.querySelector('.t-acc-panel').inert = false;
   });
+  // Number pop-in for confidence values that just changed.
+  document.querySelectorAll('#timeline .confidence[data-pop]').forEach(el => {
+    popNumber(el, el.textContent);
+  });
+  entries.forEach(e => { delete e.justUpdated; });
   renderEmptySummary(f);
 }
 function renderEmptySummary(f) {
   const detected = f.filter(e => e.stage === 'detect').length;
-  const committed = f.filter(e => ['commit','track','score'].includes(e.stage)).length;
+  const committed = f.filter(e => ['commit','track','score','seasonclosed'].includes(e.stage)).length;
   const el = document.getElementById('emptySummary');
-  if (detected > 0 && detected >= committed) {
-    el.innerHTML = `<div class="empty-summary"><span class="pulse-dot"></span><span><strong>${f.length} changes tracked</strong> in this window · ${detected} detecting · ${committed} committed theses · verdicts pending</span></div>`;
-  } else if (f.length === 0) {
+  if (f.length === 0) {
     el.innerHTML = `<div class="empty-summary"><span class="pulse-dot"></span><span>No changes tracked in this window — scanning.</span></div>`;
+  } else if (detected > 0) {
+    // Adaptive: absences never own the page — every detect card is summarized
+    // in this one honest tally line instead of standing alone as a blank.
+    el.innerHTML = `<div class="empty-summary"><span class="pulse-dot"></span><span><strong>${f.length} changes tracked</strong> in this window · ${detected} detecting · ${committed} committed theses · verdicts pending</span></div>`;
   } else { el.innerHTML = ''; }
 }
 function detailRow(label, value) {
@@ -322,7 +348,7 @@ function detailRow(label, value) {
 function cardHTML(e) {
   const sl = stageLabel(e.stage);
   const noun = e.oracle === 'markets' ? 'thesis' : 'alert';
-  const conf = e.confidence != null ? `<span class="confidence">conf ${(e.confidence*100).toFixed(0)}%</span>` : '';
+  const conf = e.confidence != null ? `<span class="confidence"${e.justUpdated ? ' data-pop' : ''}>conf ${(e.confidence*100).toFixed(0)}%</span>` : '';
   const tags = e.change ? e.change.split(', ').map(t => `<span class="tag">${t}</span>`).join('') : '';
   let detail = detailRow('Change', `<div class="tags">${tags}</div>`);
   if (e.pending) {
@@ -379,12 +405,29 @@ function wireTabs() {
     }
   }
   const active = () => tabs.find(t => t.getAttribute('aria-selected') === 'true') || tabs[0];
-  tabs.forEach(tab => tab.addEventListener('click', () => {
-    tabs.forEach(t => t.setAttribute('aria-selected', t === tab ? 'true' : 'false'));
+  function select(tab) {
+    tabs.forEach(t => {
+      const on = t === tab;
+      t.setAttribute('aria-selected', String(on));
+      t.tabIndex = on ? 0 : -1; // roving tabindex
+    });
+    document.getElementById('timeline').setAttribute('aria-labelledby', tab.id);
     moveTo(tab, true);
     activeOracle = tab.dataset.oracle;
     renderTimeline();
-  }));
+  }
+  tabs.forEach(tab => tab.addEventListener('click', () => select(tab)));
+  // WAI-ARIA tabs pattern: arrow keys move selection, Home/End jump to ends.
+  bar.addEventListener('keydown', ev => {
+    const i = tabs.indexOf(document.activeElement);
+    if (i === -1) return;
+    let next = null;
+    if (ev.key === 'ArrowRight') next = tabs[(i + 1) % tabs.length];
+    else if (ev.key === 'ArrowLeft') next = tabs[(i - 1 + tabs.length) % tabs.length];
+    else if (ev.key === 'Home') next = tabs[0];
+    else if (ev.key === 'End') next = tabs[tabs.length - 1];
+    if (next) { ev.preventDefault(); next.focus(); select(next); }
+  });
   requestAnimationFrame(() => moveTo(active(), false));
   window.addEventListener('resize', () => moveTo(active(), false));
 }
@@ -392,12 +435,29 @@ function wireTabs() {
 <script>
 // ═══ DEMO — simulate lifecycle transitions to see adaptive UX ═══
 function findEntry(id) { return entries.find(e => e.id === id); }
+// Number pop-in: re-render an element's text as per-character digits that
+// stagger-pop in ("alive" without a spinner).
+function popNumber(el, text) {
+  el.textContent = '';
+  const g = document.createElement('span');
+  g.className = 't-digit-group is-animating';
+  [...text].forEach((ch, i) => {
+    const d = document.createElement('span');
+    d.className = 't-digit';
+    if (i < 2) d.dataset.stagger = String(i + 1);
+    d.textContent = ch;
+    g.appendChild(d);
+  });
+  el.appendChild(g);
+}
+function showNavBadge() { document.getElementById('navBadge').hidden = false; }
 function simulateCommit() {
   const e = entries.find(e => e.stage === 'detect');
   if (!e) return alert('No detect-stage entry to advance.');
-  e.stage = 'commit'; e.pending = true; e.confidence = 0.52;
+  e.stage = 'commit'; e.pending = true; e.confidence = 0.52; e.justUpdated = true;
   e.headline = e.oracle === 'markets' ? 'Notarizing thesis to Hedera HCS…' : 'Notarizing alert to HCS…';
   renderTimeline();
+  showNavBadge(); // a new committed judgment lands — live signal on Timeline nav
 }
 function simulateNotarize() {
   // Complete the most recent pending notarization so the demo chain
