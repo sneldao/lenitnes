@@ -1,0 +1,449 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>LENITNES — Unified Timeline (prototype)</title>
+<!--
+  Consolidated LENITNES prototype.
+  Implements: oracle-toggled sliding tabs · state-aware copy (kills "No thesis
+  recorded") · accordion progressive-disclosure cards with stage badges ·
+  skeleton-reveal for proof-pending · text-state-swap for live status · number
+  pop-in for confidence · error-state-shake for notarization failure · adaptive
+  empty-window summary.
+  All transitions from transitions.dev, each with a prefers-reduced-motion guard.
+  Open this file directly in a browser — no build step, no dependencies.
+-->
+<style>
+/* ════════════════════════════════════════════════════════════════════
+   Motion tokens — _root.css (transitions.dev universal install block)
+   ════════════════════════════════════════════════════════════════════ */
+:root {
+  --ease-smooth-out: cubic-bezier(0.22, 1, 0.36, 1);
+  --ease-in-out: ease-in-out;
+  --ease-out: ease-out;
+  --ease-bounce: cubic-bezier(0.34, 1.36, 0.64, 1);
+  /* Tabs sliding */
+  --tabs-dur: 250ms;
+  --tabs-ease: cubic-bezier(0.22, 1, 0.36, 1);
+  --tabs-text-muted: rgba(220, 220, 235, 0.8);
+  --tabs-text-active: #f5f5fa;
+  --tabs-bar-bg: #1c1c28;
+  --tabs-pill-bg: #2a2a3e;
+  /* Text states swap */
+  --text-swap-dur: 150ms;
+  --text-swap-translate-y: 4px;
+  --text-swap-blur: 2px;
+  --text-swap-ease: ease-in-out;
+  /* Skeleton */
+  --pulse-dur: 1000ms;
+  --pulse-count: 1;
+  --pulse-min: 0.5;
+  --reveal-dur: 400ms;
+  --reveal-blur: 2px;
+  --reveal-ease: ease-in-out;
+  /* Number pop-in */
+  --digit-dur: 500ms;
+  --digit-distance: 8px;
+  --digit-stagger: 70ms;
+  --digit-blur: 2px;
+  --digit-ease: cubic-bezier(0.34, 1.45, 0.64, 1);
+  --digit-dir-x: 0;
+  --digit-dir-y: 1;
+  /* Accordion */
+  --acc-expand: 250ms;
+  --acc-collapse: 250ms;
+  --acc-chevron: 250ms;
+  --acc-ease: cubic-bezier(0.22, 1, 0.36, 1);
+  /* Error shake */
+  --shake-distance: 6px;
+  --shake-overshoot: 4px;
+  --shake-dur-a: 80ms;
+  --shake-dur-b: 60ms;
+  --shake-ease: cubic-bezier(0.22, 1, 0.36, 1);
+  --revert-hold: 3000ms;
+  --revert-dur: 280ms;
+}
+</style>
+<style>
+/* ═══ App shell + theme ═══ */
+:root {
+  --bg: #0e0e16; --bg-elev: #15151f; --bg-card: #1a1a28;
+  --border: #26263a; --border-soft: #1e1e30;
+  --text: #e8e8f0; --text-muted: #8888a0; --text-dim: #5a5a72;
+  --accent: #7c6ef0; --accent-soft: rgba(124, 110, 240, 0.15);
+  --markets: #f0a04e; --research: #4ec0f0;
+  --detect: #8888a0; --commit: #7c6ef0; --track: #f0a04e; --score: #4ec0a0;
+  --error: #f06e6e; --radius: 12px; --radius-sm: 8px;
+}
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body {
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
+  background: var(--bg); color: var(--text); line-height: 1.5;
+  -webkit-font-smoothing: antialiased; padding: 0 0 80px;
+}
+
+/* ═══ Tabs sliding (16) ═══ */
+.t-tabs { position: relative; display: inline-flex; align-items: center; gap: 3px; padding: 3px; border-radius: 48px; background: var(--tabs-bar-bg); }
+.t-tab { position: relative; appearance: none; border: 0; background: transparent; height: 30px; padding: 4px 14px; font-size: 13px; font-weight: 500; color: var(--tabs-text-muted); cursor: pointer; border-radius: 48px; z-index: 1; transition: color var(--tabs-dur) var(--tabs-ease); }
+.t-tab:not([aria-selected='true']):hover, .t-tab[aria-selected='true'] { color: var(--tabs-text-active); }
+.t-tabs-pill { position: absolute; top: 3px; left: 0; height: 30px; width: 0; background: var(--tabs-pill-bg); border-radius: 48px; transform: translateX(0); transition: transform var(--tabs-dur) var(--tabs-ease), width var(--tabs-dur) var(--tabs-ease); will-change: transform, width; z-index: 0; pointer-events: none; }
+@media (prefers-reduced-motion: reduce) { .t-tabs-pill, .t-tab { transition: none !important; } }
+
+/* ═══ Accordion (21) ═══ */
+.t-acc-panel { display: grid; grid-template-rows: 0fr; transition: grid-template-rows var(--acc-collapse) var(--acc-ease); }
+.t-acc[data-open='true'] .t-acc-panel { grid-template-rows: 1fr; transition: grid-template-rows var(--acc-expand) var(--acc-ease); }
+.t-acc-panel-inner { overflow: hidden; opacity: 0; filter: blur(2px); transition: opacity var(--acc-collapse) var(--acc-ease), filter var(--acc-collapse) var(--acc-ease); }
+.t-acc[data-open='true'] .t-acc-panel-inner { opacity: 1; filter: blur(0); transition: opacity var(--acc-expand) var(--acc-ease), filter var(--acc-expand) var(--acc-ease); }
+.t-acc-chevron { display: inline-flex; transform: scaleY(1); transform-origin: center; transition: transform var(--acc-chevron) var(--acc-ease); }
+.t-acc-chevron path { vector-effect: non-scaling-stroke; fill: none; stroke: currentColor; stroke-width: 1.6; stroke-linecap: round; stroke-linejoin: round; }
+.t-acc[data-open='true'] .t-acc-chevron { transform: scaleY(-1); }
+@media (prefers-reduced-motion: reduce) { .t-acc-panel, .t-acc-panel-inner, .t-acc-chevron { transition: none !important; } }
+
+/* ═══ Text states swap (04) ═══ */
+.t-text-swap { display: inline-block; transform: translateY(0); filter: blur(0); opacity: 1; transition: transform var(--text-swap-dur) var(--text-swap-ease), filter var(--text-swap-dur) var(--text-swap-ease), opacity var(--text-swap-dur) var(--text-swap-ease); will-change: transform, filter, opacity; }
+.t-text-swap.is-exit { transform: translateY(calc(var(--text-swap-translate-y) * -1)); filter: blur(var(--text-swap-blur)); opacity: 0; }
+.t-text-swap.is-enter-start { transform: translateY(var(--text-swap-translate-y)); filter: blur(var(--text-swap-blur)); opacity: 0; transition: none; }
+@media (prefers-reduced-motion: reduce) { .t-text-swap { transition: none !important; } }
+
+/* ═══ Skeleton reveal (14) ═══ */
+.t-skel { position: relative; }
+.t-skel-skeleton, .t-skel-content { position: absolute; inset: 0; }
+.t-skel-skeleton { z-index: 1; opacity: 1; filter: blur(0); transition: opacity var(--reveal-dur) var(--reveal-ease), filter var(--reveal-dur) var(--reveal-ease); }
+.t-skel-content { z-index: 2; opacity: 0; filter: blur(var(--reveal-blur)); transition: opacity var(--reveal-dur) var(--reveal-ease), filter var(--reveal-dur) var(--reveal-ease); }
+.t-skel.is-revealed .t-skel-skeleton { opacity: 0; filter: blur(var(--reveal-blur)); }
+.t-skel.is-revealed .t-skel-content { opacity: 1; filter: blur(0); }
+.t-skel.is-resetting .t-skel-skeleton, .t-skel.is-resetting .t-skel-content { transition: none !important; }
+.t-skel-skeleton.is-pulsing > * { animation: t-skel-pulse var(--pulse-dur) ease-in-out var(--pulse-count); }
+@keyframes t-skel-pulse { 0%, 100% { opacity: 1; } 50% { opacity: var(--pulse-min); } }
+@media (prefers-reduced-motion: reduce) { .t-skel-skeleton, .t-skel-content { transition: none !important; } .t-skel-skeleton.is-pulsing > * { animation: none !important; } }
+
+/* ═══ Number pop-in (02) ═══ */
+@keyframes t-digit-pop-in { 0% { transform: translate(calc(var(--digit-distance) * var(--digit-dir-x)), calc(var(--digit-distance) * var(--digit-dir-y))); opacity: 0; filter: blur(var(--digit-blur)); } 100% { transform: translate(0, 0); opacity: 1; filter: blur(0); } }
+.t-digit-group { display: inline-flex; align-items: baseline; }
+.t-digit { display: inline-block; will-change: transform, opacity, filter; }
+.t-digit-group.is-animating .t-digit { animation: t-digit-pop-in var(--digit-dur) var(--digit-ease) both; }
+.t-digit-group.is-animating .t-digit[data-stagger='1'] { animation-delay: var(--digit-stagger); }
+.t-digit-group.is-animating .t-digit[data-stagger='2'] { animation-delay: calc(var(--digit-stagger) * 2); }
+@media (prefers-reduced-motion: reduce) { .t-digit-group .t-digit { animation: none !important; } }
+
+/* ═══ Error state shake (12) — card variant ═══ */
+@keyframes t-card-shake { 0% { transform: translateX(0); } 28.57% { transform: translateX(var(--shake-distance)); } 57.14% { transform: translateX(calc(var(--shake-distance) * -1)); } 78.57% { transform: translateX(var(--shake-overshoot)); } 100% { transform: translateX(0); } }
+.card-fail { animation: t-card-shake calc(var(--shake-dur-a) * 2 + var(--shake-dur-b) * 2) var(--shake-ease); }
+@media (prefers-reduced-motion: reduce) { .card-fail { animation: none !important; } }
+<style>
+/* ═══ App styles — nav, hero, legend, controls ═══ */
+.app { max-width: 760px; margin: 0 auto; padding: 0 20px; }
+.nav { display: flex; align-items: center; justify-content: space-between; padding: 18px 20px; max-width: 760px; margin: 0 auto; border-bottom: 1px solid var(--border-soft); }
+.nav-brand { font-size: 13px; font-weight: 700; letter-spacing: 0.18em; color: var(--text); }
+.nav-links { display: flex; gap: 22px; font-size: 13px; }
+.nav-link { color: var(--text-muted); text-decoration: none; cursor: pointer; transition: color 150ms ease; }
+.nav-link:hover, .nav-link.active { color: var(--text); }
+.nav-link .badge-dot { display: inline-block; width: 6px; height: 6px; border-radius: 50%; background: var(--commit); margin-left: 5px; vertical-align: middle; box-shadow: 0 0 6px var(--commit); }
+.hero { padding: 52px 0 28px; text-align: center; }
+.hero h1 { font-size: 22px; font-weight: 600; color: var(--text); margin-bottom: 10px; letter-spacing: -0.01em; }
+.hero p { font-size: 14px; color: var(--text-muted); max-width: 520px; margin: 0 auto; line-height: 1.6; }
+.loop-legend { display: flex; align-items: center; justify-content: center; gap: 0; margin: 24px auto 0; padding: 10px 16px; background: var(--bg-elev); border: 1px solid var(--border-soft); border-radius: var(--radius-sm); width: fit-content; font-size: 11px; letter-spacing: 0.06em; text-transform: uppercase; }
+.loop-step { display: flex; align-items: center; gap: 6px; padding: 0 12px; color: var(--text-dim); }
+.loop-step .dot { width: 7px; height: 7px; border-radius: 50%; }
+.loop-step[data-s='detect'] .dot { background: var(--detect); }
+.loop-step[data-s='commit'] .dot { background: var(--commit); }
+.loop-step[data-s='track'] .dot { background: var(--track); }
+.loop-step[data-s='score'] .dot { background: var(--score); }
+.loop-arrow { color: var(--text-dim); font-size: 10px; }
+.controls { display: flex; align-items: center; justify-content: space-between; margin: 32px 0 20px; flex-wrap: wrap; gap: 12px; }
+.empty-summary { padding: 16px 20px; background: var(--bg-elev); border: 1px solid var(--border-soft); border-radius: var(--radius); margin-bottom: 10px; font-size: 13px; color: var(--text-muted); display: flex; align-items: center; gap: 10px; }
+.empty-summary .pulse-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--detect); flex-shrink: 0; box-shadow: 0 0 8px var(--detect); }
+.empty-summary strong { color: var(--text); font-weight: 600; }
+</style>
+</style>
+</head>
+<style>
+/* ═══ App styles — card, stage badge, oracle ═══ */
+.card { background: var(--bg-card); border: 1px solid var(--border); border-radius: var(--radius); margin-bottom: 10px; overflow: hidden; transition: border-color 200ms ease; }
+.card:hover { border-color: var(--accent); }
+.card.is-failed { border-color: var(--error); }
+.card-head { display: flex; align-items: flex-start; gap: 14px; padding: 16px 18px; cursor: pointer; user-select: none; width: 100%; text-align: left; background: none; border: 0; color: inherit; font: inherit; }
+.card-head:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; border-radius: var(--radius); }
+.stage-badge { display: inline-flex; align-items: center; gap: 6px; padding: 4px 10px; border-radius: 48px; font-size: 10px; font-weight: 600; letter-spacing: 0.05em; text-transform: uppercase; white-space: nowrap; flex-shrink: 0; margin-top: 2px; }
+.stage-badge .dot { width: 6px; height: 6px; border-radius: 50%; }
+.stage-badge[data-stage='detect'] { background: rgba(136,136,160,0.12); color: var(--detect); } .stage-badge[data-stage='detect'] .dot { background: var(--detect); }
+.stage-badge[data-stage='commit'] { background: rgba(124,110,240,0.12); color: var(--commit); } .stage-badge[data-stage='commit'] .dot { background: var(--commit); }
+.stage-badge[data-stage='track'] { background: rgba(240,160,78,0.12); color: var(--track); } .stage-badge[data-stage='track'] .dot { background: var(--track); }
+.stage-badge[data-stage='score'] { background: rgba(78,192,160,0.12); color: var(--score); } .stage-badge[data-stage='score'] .dot { background: var(--score); }
+.stage-badge[data-stage='failed'] { background: rgba(240,110,110,0.12); color: var(--error); } .stage-badge[data-stage='failed'] .dot { background: var(--error); }
+.oracle-tag { font-size: 10px; font-weight: 600; letter-spacing: 0.08em; text-transform: uppercase; }
+.oracle-tag[data-o='markets'] { color: var(--markets); }
+.oracle-tag[data-o='research'] { color: var(--research); }
+.card-body { flex: 1; min-width: 0; }
+.card-headline { font-size: 14px; font-weight: 500; color: var(--text); margin-bottom: 4px; line-height: 1.4; }
+.card-meta { display: flex; align-items: center; gap: 10px; font-size: 12px; color: var(--text-dim); }
+.card-meta .sep { color: var(--border); }
+.confidence { font-size: 12px; color: var(--text-muted); font-weight: 500; }
+.card-chevron { color: var(--text-dim); flex-shrink: 0; margin-top: 2px; }
+</style>
+<style>
+/* ═══ App styles — detail, skeleton, retry, demo bar ═══ */
+.card-detail { padding: 0 18px 16px 18px; }
+.detail-row { display: flex; gap: 10px; padding: 10px 0; border-top: 1px solid var(--border-soft); font-size: 13px; }
+.detail-label { color: var(--text-dim); font-size: 11px; text-transform: uppercase; letter-spacing: 0.06em; min-width: 90px; flex-shrink: 0; padding-top: 2px; }
+.detail-value { color: var(--text); flex: 1; word-break: break-word; }
+.detail-value.mono { font-family: ui-monospace, 'SF Mono', Menlo, monospace; font-size: 12px; color: var(--text-muted); }
+.detail-value .result-pos { color: var(--score); font-weight: 600; }
+.detail-value .result-neg { color: var(--error); font-weight: 600; }
+.tags { display: flex; flex-wrap: wrap; gap: 6px; }
+.tag { font-size: 11px; padding: 2px 8px; border-radius: 48px; background: var(--bg-elev); border: 1px solid var(--border-soft); color: var(--text-muted); }
+.skel-bar { height: 14px; border-radius: 4px; background: var(--border); }
+.skel-bar.short { width: 60%; } .skel-bar.med { width: 80%; }
+.proof-pending { display: flex; align-items: center; gap: 8px; color: var(--commit); font-size: 12px; }
+.proof-pending .spinner { width: 12px; height: 12px; border: 2px solid rgba(124,110,240,0.3); border-top-color: var(--commit); border-radius: 50%; animation: spin 0.8s linear infinite; }
+@keyframes spin { to { transform: rotate(360deg); } }
+@media (prefers-reduced-motion: reduce) { .proof-pending .spinner { animation: none !important; } }
+.retry-btn { margin-top: 8px; padding: 5px 14px; font-size: 12px; font-weight: 500; color: var(--error); background: rgba(240,110,110,0.1); border: 1px solid rgba(240,110,110,0.25); border-radius: 6px; cursor: pointer; transition: background 150ms ease; }
+.retry-btn:hover { background: rgba(240,110,110,0.18); }
+.hcs-receipt { display: flex; align-items: center; gap: 6px; font-size: 11px; color: var(--score); }
+.hcs-receipt svg { width: 12px; height: 12px; }
+.demo-bar { position: fixed; bottom: 0; left: 0; right: 0; background: var(--bg-elev); border-top: 1px solid var(--border); padding: 10px 20px; display: flex; align-items: center; justify-content: center; gap: 10px; flex-wrap: wrap; font-size: 12px; z-index: 100; }
+.demo-bar span { color: var(--text-dim); }
+.demo-btn { padding: 5px 12px; font-size: 12px; color: var(--text); background: var(--bg-card); border: 1px solid var(--border); border-radius: 6px; cursor: pointer; transition: border-color 150ms ease; }
+.demo-btn:hover { border-color: var(--accent); }
+</style>
+<body>
+<nav class="nav">
+  <span class="nav-brand">LENITNES</span>
+  <div class="nav-links">
+    <a class="nav-link active">Timeline</a>
+    <a class="nav-link">Record</a>
+    <a class="nav-link">Methods</a>
+  </div>
+</nav>
+<div class="app">
+  <div class="hero">
+    <h1>Every judgment committed — before the outcome is knowable.</h1>
+    <p>LENITNES watches software change, commits what it appears to mean while the verdict is still open, and grades itself in public against the oracle that matters — price, or the published record.</p>
+    <div class="loop-legend" id="loopLegend"></div>
+  </div>
+  <div class="controls">
+    <div class="t-tabs" role="tablist" id="oracleTabs">
+      <span class="t-tabs-pill" aria-hidden="true"></span>
+      <button class="t-tab" role="tab" aria-selected="true" data-oracle="all">All</button>
+      <button class="t-tab" role="tab" aria-selected="false" data-oracle="markets">Markets</button>
+      <button class="t-tab" role="tab" aria-selected="false" data-oracle="research">Research</button>
+    </div>
+  </div>
+  <div id="emptySummary"></div>
+  <div id="timeline"></div>
+</div>
+<div class="demo-bar">
+  <span>Demo:</span>
+  <button class="demo-btn" onclick="simulateCommit()">Commit a thesis (Detect → Commit)</button>
+  <button class="demo-btn" onclick="simulateNotarize()">Notarize to HCS (Commit → Track)</button>
+  <button class="demo-btn" onclick="simulateFail()">Fail notarization (error shake)</button>
+  <button class="demo-btn" onclick="simulateScore()">Grade (Track → Score)</button>
+  <button class="demo-btn" onclick="swapStatus()">Swap status text</button>
+</div>
+<script>
+// ═══ DATA — unified timeline with lifecycle stages & state-aware copy ═══
+const entries = [
+  { id: 1, oracle: 'markets', stage: 'score', repo: 'bitcoin/bitcoin',
+    time: '5h ago', confidence: 0.74,
+    headline: 'Graded against price · bearish call missed',
+    change: 'dependency_rotation, protocol_upgrade',
+    thesis: 'Upgrade window compresses liquidity → short-term bearish',
+    hcs: '0.0.4827192', result: 'miss', score: '-1.2σ' },
+  { id: 2, oracle: 'markets', stage: 'track', repo: 'bitcoin/bitcoin',
+    time: '7h ago', confidence: 0.61,
+    headline: 'Thesis committed · verdict pending',
+    change: 'protocol_upgrade, silent_merge',
+    thesis: 'Silent merge suggests internal divergence → volatility incoming',
+    hcs: '0.0.4827188', result: null },
+  { id: 3, oracle: 'markets', stage: 'commit', repo: 'bitcoin/bitcoin',
+    time: '7h ago', confidence: 0.55,
+    headline: 'Notarizing thesis to Hedera HCS…',
+    change: 'protocol_upgrade',
+    thesis: 'Pending notarization', hcs: null, result: null, pending: true },
+  { id: 4, oracle: 'research', stage: 'detect', repo: 'signals',
+    time: '17h ago', confidence: null,
+    headline: 'Scanning — no signal yet',
+    change: 'pr_activity spike detected', thesis: null, hcs: null, result: null },
+  { id: 5, oracle: 'research', stage: 'detect', repo: 'signals',
+    time: '17h ago', confidence: null,
+    headline: 'Change flagged — alert not yet committed',
+    change: 'clustsim replay artifact detected', thesis: null, hcs: null, result: null },
+  { id: 6, oracle: 'markets', stage: 'failed', repo: 'bitcoin/bitcoin',
+    time: '8h ago', confidence: 0.48,
+    headline: 'Notarization failed — retry',
+    change: 'silent_merge',
+    thesis: 'Merge pattern diverges from declared intent → integrity risk',
+    hcs: null, result: null, failed: true },
+];
+let activeOracle = 'all';
+<script>
+// ═══ RENDER — loop legend, timeline cards, adaptive summary ═══
+function renderLoopLegend() {
+  const steps = [['detect','Detect'],['commit','Commit'],['track','Track'],['score','Score']];
+  document.getElementById('loopLegend').innerHTML = steps.map((s, i) => {
+    const arrow = i < steps.length - 1 ? '<span class="loop-arrow">→</span>' : '';
+    return `<span class="loop-step" data-s="${s[0]}"><span class="dot"></span>${s[1]}</span>${arrow}`;
+  }).join('');
+}
+function stageLabel(stage) {
+  const map = { detect: 'Detect — watching', commit: 'Commit — pending',
+    track: 'Track — window open', score: 'Score — graded', failed: 'Commit — failed' };
+  return { text: map[stage] || 'Detect — watching', stage: stage === 'failed' ? 'failed' : stage };
+}
+function renderTimeline() {
+  const f = activeOracle === 'all' ? entries : entries.filter(e => e.oracle === activeOracle);
+  document.getElementById('timeline').innerHTML = f.map(cardHTML).join('');
+  wireAccordions();
+  renderEmptySummary(f);
+}
+function renderEmptySummary(f) {
+  const detected = f.filter(e => e.stage === 'detect').length;
+  const committed = f.filter(e => ['commit','track','score'].includes(e.stage)).length;
+  const el = document.getElementById('emptySummary');
+  if (detected > 0 && detected >= committed) {
+    el.innerHTML = `<div class="empty-summary"><span class="pulse-dot"></span><span><strong>${f.length} changes tracked</strong> in this window · ${detected} detecting · ${committed} committed theses · verdicts pending</span></div>`;
+  } else if (f.length === 0) {
+    el.innerHTML = `<div class="empty-summary"><span class="pulse-dot"></span><span>No changes tracked in this window — scanning.</span></div>`;
+  } else { el.innerHTML = ''; }
+}
+function detailRow(label, value) {
+  return `<div class="detail-row"><span class="detail-label">${label}</span><span class="detail-value">${value}</span></div>`;
+}
+function cardHTML(e) {
+  const sl = stageLabel(e.stage);
+  const noun = e.oracle === 'markets' ? 'thesis' : 'alert';
+  const conf = e.confidence != null ? `<span class="confidence">conf ${(e.confidence*100).toFixed(0)}%</span>` : '';
+  const tags = e.change ? e.change.split(', ').map(t => `<span class="tag">${t}</span>`).join('') : '';
+  let detail = detailRow('Change', `<div class="tags">${tags}</div>`);
+  if (e.pending) {
+    detail += detailRow('Proof', `<div class="proof-pending"><span class="spinner"></span>Notarizing ${noun} to Hedera HCS…<div class="t-skel" style="position:relative;height:14px;margin-top:6px"><div class="t-skel-skeleton is-pulsing"><div class="skel-bar med"></div></div></div></div>`);
+  } else if (e.failed) {
+    detail += detailRow('Proof', `<span style="color:var(--error)">Notarization failed</span><button class="retry-btn" onclick="retryNotarization(${e.id})">Retry</button>`);
+  } else if (e.hcs) {
+    detail += detailRow('Proof', `<div class="hcs-receipt"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 8.5L6.5 12L13 4"/></svg> Notarized · HCS <span class="detail-value mono" style="display:inline">${e.hcs}</span></div>`);
+  }
+  if (e.thesis && !e.pending) detail += detailRow(noun === 'thesis' ? 'Thesis' : 'Alert', e.thesis);
+  if (e.result) detail += detailRow('Score', `<span class="${e.result==='hit'?'result-pos':'result-neg'}">${e.score}</span>`);
+  return `<div class="t-acc card ${e.failed?'is-failed':''}" data-open="false" id="card-${e.id}">
+    <button class="card-head t-acc-head" aria-expanded="false">
+      <span class="stage-badge" data-stage="${sl.stage}"><span class="dot"></span>${sl.text}</span>
+      <span class="card-body"><div class="card-headline">${e.headline}</div>
+      <div class="card-meta"><span class="oracle-tag" data-o="${e.oracle}">[${e.oracle}]</span><span>${e.repo}</span><span class="sep">·</span><span>${e.time}</span>${conf?`<span class="sep">·</span>${conf}`:''}</div></span>
+      <span class="t-acc-chevron card-chevron"><svg viewBox="0 0 16 16"><path d="M4 6.5L8 10.5L12 6.5" /></svg></span>
+    </button>
+    <div class="t-acc-panel"><div class="t-acc-panel-inner"><div class="card-detail">${detail}</div></div></div>
+  </div>`;
+}
+</script>
+</script>
+<script>
+// ═══ INTERACTION — accordion, oracle tabs ═══
+function wireAccordions() {
+  document.querySelectorAll('.t-acc').forEach(acc => {
+    const head = acc.querySelector('.t-acc-head');
+    head.onclick = () => {
+      const open = acc.getAttribute('data-open') === 'true';
+      acc.setAttribute('data-open', String(!open));
+      head.setAttribute('aria-expanded', String(!open));
+    };
+  });
+}
+function wireTabs() {
+  const bar = document.getElementById('oracleTabs');
+  const pill = bar.querySelector('.t-tabs-pill');
+  const tabs = [...bar.querySelectorAll('.t-tab')];
+  function moveTo(tab, animate) {
+    if (!animate) {
+      const prev = pill.style.transition;
+      pill.style.transition = 'none';
+      pill.style.transform = `translateX(${tab.offsetLeft}px)`;
+      pill.style.width = `${tab.offsetWidth}px`;
+      void pill.offsetWidth; pill.style.transition = prev;
+    } else {
+      pill.style.transform = `translateX(${tab.offsetLeft}px)`;
+      pill.style.width = `${tab.offsetWidth}px`;
+    }
+  }
+  const active = () => tabs.find(t => t.getAttribute('aria-selected') === 'true') || tabs[0];
+  tabs.forEach(tab => tab.addEventListener('click', () => {
+    tabs.forEach(t => t.setAttribute('aria-selected', t === tab ? 'true' : 'false'));
+    moveTo(tab, true);
+    activeOracle = tab.dataset.oracle;
+    renderTimeline();
+  }));
+  requestAnimationFrame(() => moveTo(active(), false));
+  window.addEventListener('resize', () => moveTo(active(), false));
+}
+</script>
+<script>
+// ═══ DEMO — simulate lifecycle transitions to see adaptive UX ═══
+function findEntry(id) { return entries.find(e => e.id === id); }
+function simulateCommit() {
+  const e = entries.find(e => e.stage === 'detect');
+  if (!e) return alert('No detect-stage entry to advance.');
+  e.stage = 'commit'; e.pending = true; e.confidence = 0.52;
+  e.headline = e.oracle === 'markets' ? 'Notarizing thesis to Hedera HCS…' : 'Notarizing alert to HCS…';
+  renderTimeline();
+}
+function simulateNotarize() {
+  const e = entries.find(e => e.stage === 'commit' && e.pending);
+  if (!e) return alert('No pending notarization to complete.');
+  e.pending = false; e.hcs = '0.0.' + Math.floor(Math.random() * 9999999);
+  e.stage = 'track';
+  e.headline = e.oracle === 'markets' ? 'Thesis committed · verdict pending' : 'Alert committed · record not yet moved';
+  e.thesis = e.oracle === 'markets' ? 'Detected change pattern implies directional price risk' : 'Detected pattern may indicate record integrity issue';
+  renderTimeline();
+}
+function simulateFail() {
+  const e = entries.find(e => e.stage === 'commit');
+  if (!e) { const f = entries.find(e => e.failed); if (f) { shakeCard(f.id); return; } return alert('No commit-stage entry to fail.'); }
+  e.pending = false; e.failed = true; e.stage = 'failed';
+  e.headline = 'Notarization failed — retry';
+  renderTimeline();
+  setTimeout(() => shakeCard(e.id), 50);
+}
+function shakeCard(id) {
+  const card = document.getElementById('card-' + id);
+  if (!card) return;
+  card.classList.remove('card-fail'); void card.offsetWidth; card.classList.add('card-fail');
+}
+function retryNotarization(id) {
+  const e = findEntry(id);
+  e.failed = false; e.stage = 'commit'; e.pending = true;
+  e.headline = 'Notarizing ' + (e.oracle === 'markets' ? 'thesis' : 'alert') + ' to Hedera HCS…';
+  renderTimeline();
+}
+function simulateScore() {
+  const e = entries.find(e => e.stage === 'track');
+  if (!e) return alert('No track-stage entry to grade.');
+  const hit = Math.random() > 0.4;
+  e.stage = 'score'; e.result = hit ? 'hit' : 'miss';
+  e.score = hit ? '+' + (Math.random() * 2).toFixed(1) + 'σ' : '-' + (Math.random() * 2).toFixed(1) + 'σ';
+  e.headline = e.oracle === 'markets' ? 'Graded against price · ' + (hit ? 'call confirmed' : 'bearish call missed') : 'Graded against the record · ' + (hit ? 'alert sustained' : 'alert overturned');
+  renderTimeline();
+}
+function swapStatus() {
+  const e = entries.find(e => e.stage === 'track');
+  if (!e) return alert('No track-stage entry. Run Detect → Commit → Notarize first.');
+  const card = document.getElementById('card-' + e.id);
+  const headline = card.querySelector('.card-headline');
+  const old = headline.textContent;
+  const next = 'Price moving — verdict window closing';
+  const span = document.createElement('span');
+  span.className = 't-text-swap'; span.textContent = old;
+  headline.textContent = ''; headline.appendChild(span);
+  const dur = parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--text-swap-dur')) || 150;
+  span.classList.add('is-exit');
+  setTimeout(() => {
+    span.textContent = next; span.classList.remove('is-exit');
+    span.classList.add('is-enter-start'); void span.offsetHeight;
+    span.classList.remove('is-enter-start'); e.headline = next;
+  }, dur);
+}
+// ═══ INIT ═══
+renderLoopLegend(); renderTimeline(); wireTabs();
+</script>
+</body>
+</html>
