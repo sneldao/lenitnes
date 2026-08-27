@@ -8,9 +8,10 @@
   Consolidated LENITNES prototype.
   Implements: oracle-toggled sliding tabs · state-aware copy (kills "No thesis
   recorded") · accordion progressive-disclosure cards with stage badges ·
-  skeleton-reveal for proof-pending · text-state-swap for live status · number
-  pop-in for confidence · error-state-shake for notarization failure · adaptive
-  empty-window summary.
+  skeleton-reveal for proof-pending · text-state-swap for live status ·
+  error-state-shake for notarization failure · adaptive empty-window summary.
+  Number pop-in and notification-badge primitives are spec'd in the motion
+  table but not wired here.
   All transitions from transitions.dev, each with a prefers-reduced-motion guard.
   Open this file directly in a browser — no build step, no dependencies.
 -->
@@ -156,7 +157,6 @@ body {
 .empty-summary .pulse-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--detect); flex-shrink: 0; box-shadow: 0 0 8px var(--detect); }
 .empty-summary strong { color: var(--text); font-weight: 600; }
 </style>
-</style>
 </head>
 <style>
 /* ═══ App styles — card, stage badge, oracle ═══ */
@@ -278,7 +278,7 @@ const entries = [
     hcs: null, result: null, failed: true },
 ];
 let activeOracle = 'all';
-<script>
+
 // ═══ RENDER — loop legend, timeline cards, adaptive summary ═══
 function renderLoopLegend() {
   const steps = [['detect','Detect'],['commit','Commit'],['track','Track'],['score','Score']];
@@ -294,8 +294,16 @@ function stageLabel(stage) {
 }
 function renderTimeline() {
   const f = activeOracle === 'all' ? entries : entries.filter(e => e.oracle === activeOracle);
+  const openIds = new Set([...document.querySelectorAll('#timeline .t-acc[data-open="true"]')].map(a => a.id));
   document.getElementById('timeline').innerHTML = f.map(cardHTML).join('');
   wireAccordions();
+  openIds.forEach(id => {
+    const el = document.getElementById(id);
+    if (!el || !el.classList.contains('t-acc')) return;
+    el.setAttribute('data-open', 'true');
+    el.querySelector('.t-acc-head').setAttribute('aria-expanded', 'true');
+    el.querySelector('.t-acc-panel').inert = false;
+  });
   renderEmptySummary(f);
 }
 function renderEmptySummary(f) {
@@ -318,7 +326,9 @@ function cardHTML(e) {
   const tags = e.change ? e.change.split(', ').map(t => `<span class="tag">${t}</span>`).join('') : '';
   let detail = detailRow('Change', `<div class="tags">${tags}</div>`);
   if (e.pending) {
-    detail += detailRow('Proof', `<div class="proof-pending"><span class="spinner"></span>Notarizing ${noun} to Hedera HCS…<div class="t-skel" style="position:relative;height:14px;margin-top:6px"><div class="t-skel-skeleton is-pulsing"><div class="skel-bar med"></div></div></div></div>`);
+    // Skeleton-reveal: skeleton layer + (empty) content layer; the receipt is
+    // dropped into .t-skel-content on notarization and crossfaded in.
+    detail += detailRow('Proof', `<div class="proof-pending">Notarizing ${noun} to HCS…</div><div class="t-skel" id="skel-${e.id}" style="position:relative;height:16px;margin-top:6px"><div class="t-skel-skeleton is-pulsing"><div class="skel-bar med"></div></div><div class="t-skel-content"></div></div>`);
   } else if (e.failed) {
     detail += detailRow('Proof', `<span style="color:var(--error)">Notarization failed</span><button class="retry-btn" onclick="retryNotarization(${e.id})">Retry</button>`);
   } else if (e.hcs) {
@@ -337,16 +347,18 @@ function cardHTML(e) {
   </div>`;
 }
 </script>
-</script>
 <script>
 // ═══ INTERACTION — accordion, oracle tabs ═══
 function wireAccordions() {
   document.querySelectorAll('.t-acc').forEach(acc => {
     const head = acc.querySelector('.t-acc-head');
+    const panel = acc.querySelector('.t-acc-panel');
+    panel.inert = acc.getAttribute('data-open') !== 'true';
     head.onclick = () => {
       const open = acc.getAttribute('data-open') === 'true';
       acc.setAttribute('data-open', String(!open));
       head.setAttribute('aria-expanded', String(!open));
+      panel.inert = open;
     };
   });
 }
@@ -388,13 +400,38 @@ function simulateCommit() {
   renderTimeline();
 }
 function simulateNotarize() {
-  const e = entries.find(e => e.stage === 'commit' && e.pending);
-  if (!e) return alert('No pending notarization to complete.');
+  // Complete the most recent pending notarization so the demo chain
+  // (Commit → Notarize) acts on the same entry.
+  const pendings = entries.filter(e => e.stage === 'commit' && e.pending);
+  if (!pendings.length) return alert('No pending notarization to complete.');
+  const e = pendings[pendings.length - 1];
   e.pending = false; e.hcs = '0.0.' + Math.floor(Math.random() * 9999999);
   e.stage = 'track';
   e.headline = e.oracle === 'markets' ? 'Thesis committed · verdict pending' : 'Alert committed · record not yet moved';
   e.thesis = e.oracle === 'markets' ? 'Detected change pattern implies directional price risk' : 'Detected pattern may indicate record integrity issue';
   renderTimeline();
+  revealProof(e.id);
+}
+// Skeleton-reveal: wrap the freshly rendered HCS receipt in a skeleton layer
+// and crossfade to it (finite, verifiable process → skeleton, not spinner).
+function revealProof(id) {
+  const card = document.getElementById('card-' + id);
+  if (!card) return;
+  const receipt = card.querySelector('.hcs-receipt');
+  if (!receipt) return;
+  const wrap = document.createElement('div');
+  wrap.className = 't-skel';
+  wrap.style.cssText = 'position:relative;height:18px';
+  const skel = document.createElement('div');
+  skel.className = 't-skel-skeleton';
+  skel.innerHTML = '<div class="skel-bar med"></div>';
+  const content = document.createElement('div');
+  content.className = 't-skel-content';
+  receipt.parentNode.insertBefore(wrap, receipt);
+  content.appendChild(receipt);
+  wrap.appendChild(content);
+  wrap.appendChild(skel);
+  requestAnimationFrame(() => requestAnimationFrame(() => wrap.classList.add('is-revealed')));
 }
 function simulateFail() {
   const e = entries.find(e => e.stage === 'commit');
@@ -412,7 +449,7 @@ function shakeCard(id) {
 function retryNotarization(id) {
   const e = findEntry(id);
   e.failed = false; e.stage = 'commit'; e.pending = true;
-  e.headline = 'Notarizing ' + (e.oracle === 'markets' ? 'thesis' : 'alert') + ' to Hedera HCS…';
+  e.headline = 'Notarizing ' + (e.oracle === 'markets' ? 'thesis' : 'alert') + ' to HCS…';
   renderTimeline();
 }
 function simulateScore() {
