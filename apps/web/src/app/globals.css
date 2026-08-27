@@ -668,6 +668,54 @@ body {
   top: -4px;
 }
 
+/* ─── Unified timeline (transitions.dev: text-swap 04, error-shake 12) ───
+     Headline copy swaps in with a blur-rise when a signal's derived
+     stage changes; notarization-failure cards shake once on mount to
+     make the failure visible rather than silent. Both read the shared
+     token block; the global prefers-reduced-motion kill-switch covers them. */
+.tl-swap {
+  display: inline-block;
+  animation: tlSwapIn var(--text-swap-dur) var(--text-swap-ease) both;
+}
+@keyframes tlSwapIn {
+  0% {
+    opacity: 0;
+    transform: translateY(calc(var(--text-swap-translate-y) * -1));
+    filter: blur(var(--text-swap-blur));
+  }
+  100% {
+    opacity: 1;
+    transform: translateY(0);
+    filter: blur(0);
+  }
+}
+.tl-shake {
+  animation: tlCardShake calc(var(--shake-dur-a) * 2 + var(--shake-dur-b) * 2) var(--shake-ease);
+}
+@keyframes tlCardShake {
+  0% {
+    transform: translateX(0);
+  }
+  28.57% {
+    transform: translateX(var(--shake-distance));
+  }
+  57.14% {
+    transform: translateX(calc(var(--shake-distance) * -1));
+  }
+  78.57% {
+    transform: translateX(var(--shake-overshoot));
+  }
+  100% {
+    transform: translateX(0);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .tl-swap,
+  .tl-shake {
+    animation: none !important;
+  }
+}
+
 @media print {
   * {
     print-color-adjust: exact;

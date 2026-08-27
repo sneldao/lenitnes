@@ -197,6 +197,13 @@ export interface OutcomePill {
   t7d: number | null;
 }
 
+export interface RecentCallEvent {
+  kind: string;
+  at: string | null;
+  leadDays: number | null;
+  matchStatus: 'unreviewed' | 'candidate' | 'confirmed' | 'rejected' | null;
+}
+
 export interface ScorecardRecentCall {
   signalId: string;
   detectedAt: string;
@@ -209,6 +216,15 @@ export interface ScorecardRecentCall {
   recommendedAction: 'long' | 'short' | 'none' | 'alert' | 'investigate' | null;
   tradeTxHash: string | null;
   outcomes: OutcomePill;
+  /**
+   * HCS proof-chain message id. '0.0.…' prefix = committed, other = failed
+   * write, null = notarization in flight. Timeline stage derivation reads this.
+   */
+  hcsMessageId: string | null;
+  /** Replay signals are labelled so they never read as live results. */
+  evaluationMode: 'live' | 'replay';
+  /** [science] verdict state — null until the record produces an event. */
+  event: RecentCallEvent | null;
 }
 
 export interface ScorecardBySignalType {

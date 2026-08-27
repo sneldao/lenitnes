@@ -14,6 +14,14 @@ export interface RecentCallOutcome {
   t7d: number | null;
 }
 
+/** Latest adjudication-relevant event on a [science] signal's outcome record. */
+export interface RecentCallEvent {
+  kind: string;
+  at: string | null;
+  leadDays: number | null;
+  matchStatus: 'unreviewed' | 'candidate' | 'confirmed' | 'rejected' | null;
+}
+
 export interface RecentCall {
   signalId: string;
   detectedAt: string;
@@ -26,6 +34,17 @@ export interface RecentCall {
   recommendedAction: 'long' | 'short' | 'none' | 'alert' | 'investigate' | null;
   tradeTxHash: string | null;
   outcomes: RecentCallOutcome;
+  /**
+   * HCS message id from the proof chain. Success convention (see
+   * proofCoverageQuery): a successful write stores a 0.0.xxx id; a failed
+   * attempt leaves error JSON in place; null means the write is still in
+   * flight. The unified timeline derives Commit-pending/failed from this.
+   */
+  hcsMessageId: string | null;
+  /** Replay signals are labelled so they never read as live results. */
+  evaluationMode: 'live' | 'replay';
+  /** [science] verdict state — null when the record hasn't produced an event. */
+  event: RecentCallEvent | null;
 }
 
 export interface ScorecardBySignalType {
@@ -146,6 +165,12 @@ interface RecentRow {
   trade_tx_hash: string | null;
   outcomes: RecentCallOutcome;
   detector_types: string[];
+  hedera_hcs_message_id: string | null;
+  evaluation_mode: 'live' | 'replay';
+  event_kind: string | null;
+  event_at: string | null;
+  event_lead_days: number | null;
+  event_match_status: 'unreviewed' | 'candidate' | 'confirmed' | 'rejected' | null;
 }
 
 // ── Public API ─────────────────────────────────────────────
@@ -795,7 +820,13 @@ async function recentCallsQuery(limit: number): Promise<RecentCall[]> {
          FROM signal_classifications sc
          WHERE sc.signal_id = s.id),
          ARRAY[]::text[]
-       ) AS detector_types
+       ) AS detector_types,
+       s.hedera_hcs_message_id,
+       COALESCE(s.evaluation_mode, 'live')::text AS evaluation_mode,
+       ev.event_kind,
+       ev.event_at,
+       ev.lead_days AS event_lead_days,
+       ev.event_match_status
      FROM signals s
      JOIN monitors m ON m.id = s.monitor_id
      LEFT JOIN agent_scores ag ON ag.signal_id = s.id
@@ -804,6 +835,13 @@ async function recentCallsQuery(limit: number): Promise<RecentCall[]> {
        WHERE signal_id = s.id AND status = 'filled'
        ORDER BY placed_at DESC LIMIT 1
      ) o ON true
+     LEFT JOIN LATERAL (
+       SELECT event_kind, event_at, lead_days, event_match_status
+       FROM signal_outcomes
+       WHERE signal_id = s.id AND event_kind IS NOT NULL
+       ORDER BY event_at DESC NULLS LAST, created_at DESC
+       LIMIT 1
+     ) ev ON true
      WHERE s.is_heartbeat = false
      ORDER BY s.detected_at DESC
      LIMIT $1`,
@@ -820,6 +858,17 @@ async function recentCallsQuery(limit: number): Promise<RecentCall[]> {
     recommendedAction: r.recommended_action,
     tradeTxHash: r.trade_tx_hash,
     outcomes: r.outcomes ?? { t1h: null, t1d: null, t7d: null },
+    hcsMessageId: r.hedera_hcs_message_id,
+    evaluationMode: r.evaluation_mode === 'replay' ? 'replay' : 'live',
+    event:
+      r.event_kind != null
+        ? {
+            kind: r.event_kind,
+            at: r.event_at,
+            leadDays: r.event_lead_days,
+            matchStatus: r.event_match_status,
+          }
+        : null,
   }));
 }
 

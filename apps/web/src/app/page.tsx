@@ -5,11 +5,10 @@ import Link from 'next/link';
 import { ArrowRight } from 'lucide-react';
 import { api, type ScorecardRecentCall } from '@/lib/api';
 import { qk, REFETCH } from '@/lib/queryKeys';
-import { timeAgo, convictionColor } from '@/lib/format';
-import { cn } from '@/lib/utils';
+import { timeAgo } from '@/lib/format';
 
 import { ProofFlow } from '@/components/ProofFlow';
-import { domainLabel } from '@/lib/domain';
+import { TimelineFeed } from '@/components/TimelineFeed';
 
 export default function LandingPage() {
   return (
@@ -17,7 +16,7 @@ export default function LandingPage() {
       <Hero />
       <Portals />
       <HowItWorksStrip />
-      <RecentCalls />
+      <TimelineFeed limit={20} />
     </div>
   );
 }
@@ -32,7 +31,6 @@ function Hero() {
   });
 
   const latest = recent?.[0];
-  const scoredCount = recent?.length ?? 0;
 
   return (
     <header className="pt-4 text-center sm:pt-8">
@@ -57,29 +55,6 @@ function Hero() {
         open, and grades itself in public against the oracle that matters for each field — price, or
         the published record.
       </p>
-
-      {/* Live activity preview — 3 most recent scores */}
-      {scoredCount > 0 && (
-        <div className="mx-auto mt-8 max-w-md space-y-1.5">
-          {recent!.slice(0, 3).map((call) => (
-            <Link
-              key={call.signalId}
-              href={`/signals/${call.signalId}`}
-              className="group flex items-center gap-3 rounded-lg border border-edge/30 bg-panel/50 px-3 py-2 transition-all hover:border-accent/30 hover:bg-accent/5"
-            >
-              <span className={cn('font-mono text-sm font-bold', convictionColor(call.conviction))}>
-                {call.conviction ?? '—'}
-              </span>
-              <span className="min-w-0 flex-1 truncate text-xs text-slate-400">
-                {call.thesis ?? 'No thesis recorded'}
-              </span>
-              <span className="shrink-0 font-mono text-[10px] text-slate-600">
-                {timeAgo(call.detectedAt)}
-              </span>
-            </Link>
-          ))}
-        </div>
-      )}
     </header>
   );
 }
@@ -185,108 +160,6 @@ function HowItWorksStrip() {
         Public commitments are timestamped on <span className="text-signal">Hedera HCS</span>; proof
         coverage is shown live.
       </p>
-    </section>
-  );
-}
-
-// ── Recent calls: 5 tight rows ────────────────────────────────
-
-function RecentCalls() {
-  const { data, isLoading } = useQuery({
-    queryKey: qk.scorecardRecent(5),
-    queryFn: () => api.getScorecardRecent(5),
-    refetchInterval: REFETCH.medium,
-  });
-
-  if (isLoading)
-    return (
-      <section>
-        <h2 className="mb-4 text-center font-display text-xl font-semibold text-slate-100 sm:text-2xl">
-          Recent judgments, <span className="italic">with the receipts.</span>
-        </h2>
-        <div className="space-y-2">
-          {[...Array(3)].map((_, i) => (
-            <div key={i} className="h-12 animate-pulse rounded-lg bg-edge/20" />
-          ))}
-        </div>
-      </section>
-    );
-  if (!data || data.length === 0) {
-    return (
-      <div className="text-center">
-        <p className="text-sm text-slate-400">
-          Scanning the watchlist — the first scored signal lands here.
-        </p>
-        <Link
-          href="/case-study/halo2"
-          className="mt-2 inline-block font-mono text-xs text-accent hover:underline"
-        >
-          meanwhile: the halo2 replay →
-        </Link>
-      </div>
-    );
-  }
-
-  return (
-    <section>
-      <h2 className="mb-4 text-center font-display text-xl font-semibold text-slate-100 sm:text-2xl">
-        Recent judgments, <span className="italic">with the receipts.</span>
-      </h2>
-      <ol className="space-y-0">
-        {data.map((call, i) => {
-          const isHit = call.outcomes.t1d != null && call.outcomes.t1d > 0;
-          const label = domainLabel(call.domain);
-          return (
-            <li
-              key={call.signalId}
-              className="animate-signal-enter grid grid-cols-[auto_1fr_auto] items-center gap-3 border-t border-edge/30 py-3 first:border-t-0 sm:gap-4"
-              style={{ animationDelay: `${i * 80}ms` }}
-            >
-              <div className="font-mono text-xs text-slate-600">
-                {String(i + 1).padStart(2, '0')}
-              </div>
-              <div className="min-w-0">
-                <Link
-                  href={`/signals/${call.signalId}`}
-                  className="block truncate text-sm text-slate-100 transition-colors hover:text-accent"
-                >
-                  {call.thesis ?? 'No thesis recorded'}
-                </Link>
-                <div className="mt-0.5 flex items-center gap-2 font-mono text-[10px] text-slate-600">
-                  <span className={label === 'research' ? 'text-signal/70' : 'text-accent/70'}>
-                    [{label}]
-                  </span>
-                  <span>{new Date(call.detectedAt).toISOString().slice(0, 10)}</span>
-                  {call.detectorTypes.length > 0 && (
-                    <span className="truncate">{call.detectorTypes.join(', ')}</span>
-                  )}
-                  {call.tradeTxHash && <span className="text-accent">traded</span>}
-                </div>
-              </div>
-              <div className="shrink-0 text-right">
-                {call.conviction != null && (
-                  <div
-                    className={cn(
-                      'font-display text-lg font-light',
-                      convictionColor(call.conviction),
-                    )}
-                  >
-                    {call.conviction}
-                  </div>
-                )}
-                {call.outcomes.t1d != null && (call.domain ?? 'code') === 'code' && (
-                  <div
-                    className={cn('font-mono text-[10px]', isHit ? 'text-signal' : 'text-danger')}
-                  >
-                    T+1d price {isHit ? '+' : ''}
-                    {call.outcomes.t1d.toFixed(2)}%
-                  </div>
-                )}
-              </div>
-            </li>
-          );
-        })}
-      </ol>
     </section>
   );
 }

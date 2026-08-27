@@ -1179,6 +1179,27 @@ components:
             t1h: { type: number, nullable: true }
             t1d: { type: number, nullable: true }
             t7d: { type: number, nullable: true }
+        hcsMessageId:
+          type: string
+          nullable: true
+          description: >
+            HCS proof-chain message id. '0.0.…' prefix = committed;
+            any other value = failed write; null = in flight.
+        evaluationMode:
+          type: string
+          enum: [live, replay]
+        event:
+          type: object
+          nullable: true
+          description: Latest adjudication-relevant event ([science] verdict state).
+          properties:
+            kind: { type: string }
+            at: { type: string, format: date-time, nullable: true }
+            leadDays: { type: number, nullable: true }
+            matchStatus:
+              type: string
+              enum: [unreviewed, candidate, confirmed, rejected]
+              nullable: true
 
     # ── Monitor ─────────────────────────────────────────────
 
