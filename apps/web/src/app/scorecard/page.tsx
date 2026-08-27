@@ -43,6 +43,7 @@ import { CollapsibleSection } from '@/components/ui/collapsible-section';
 import { useShowMore, ShowMoreButton } from '@/components/ui/show-more';
 import { JudgmentCountdown } from '@/components/JudgmentCountdown';
 import { PnlSparkline } from '@/components/ui/pnl-sparkline';
+import { scienceAlertCopy, stageOf } from '@/lib/stages';
 import { normalizeDomainParam } from '@/lib/domain';
 
 function fmtPct(n: number | null): string {
@@ -258,7 +259,7 @@ function ScienceScorecard() {
                       </div>
                     </div>
                     <p className="order-1 min-w-0 truncate text-sm text-slate-200 transition-colors group-hover:text-accent sm:order-2">
-                      {a.thesis ?? 'No thesis recorded'}
+                      {a.thesis ?? scienceAlertCopy(a)}
                     </p>
                     <div className="order-3 flex items-center gap-2">
                       <span className={`badge text-[9px] uppercase ${statusClass}`}>
@@ -622,7 +623,7 @@ function CodeScorecard() {
                     )}
                   </div>
                   <p className="mt-2 line-clamp-2 text-sm leading-relaxed text-slate-200 transition-colors group-hover:text-accent">
-                    {latestCall.thesis ?? 'No thesis recorded'}
+                    {latestCall.thesis ?? stageOf(latestCall).headline}
                   </p>
                   <div className="mt-3 flex items-center justify-between">
                     <div className="flex items-center gap-2">
@@ -1224,7 +1225,7 @@ function CodeScorecard() {
                               </div>
                             </div>
                             <p className="order-1 min-w-0 truncate text-sm text-slate-200 transition-colors group-hover:text-accent sm:order-2">
-                              {call.thesis ?? 'No thesis recorded'}
+                              {call.thesis ?? stageOf(call).headline}
                             </p>
                             <div className="order-3 flex items-center gap-2">
                               {call.recommendedAction && (

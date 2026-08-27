@@ -38,6 +38,7 @@ import { api } from '@/lib/api';
 import type { ScorecardRecentCall } from '@/lib/api';
 import { qk, REFETCH } from '@/lib/queryKeys';
 import { timeAgo, convictionColor, repoLabel, formatDetectorType } from '@/lib/format';
+import { stageOf } from '@/lib/stages';
 import { OutcomePill } from '@/components/ui/outcome-pill';
 import { StatCard } from '@/components/ui/stat-card';
 
@@ -115,7 +116,7 @@ function ReasoningRow({ call, isNew }: { call: ScorecardRecentCall; isNew: boole
           ))}
         </div>
         <p className="line-clamp-2 text-xs leading-relaxed text-slate-300 group-hover:text-slate-100">
-          {call.thesis ?? 'No thesis recorded'}
+          {call.thesis ?? stageOf(call).headline}
         </p>
         <div className="mt-1 flex items-center gap-2 font-mono text-[10px] text-slate-600">
           <span className="flex items-center gap-1">

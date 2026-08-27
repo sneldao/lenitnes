@@ -111,6 +111,21 @@ export function stageOf(call: ScorecardRecentCall): StageInfo {
 
 export const STAGE_ORDER: Stage[] = ['detect', 'commit', 'failed', 'track', 'score'];
 
+/**
+ * State-aware copy for [science] alert rows that don't carry the full
+ * recent-call shape (the science scorecard table). Verdict state only —
+ * these rows are, by construction, already committed alerts.
+ */
+export function scienceAlertCopy(a: {
+  eventMatchStatus: 'unreviewed' | 'candidate' | 'confirmed' | 'rejected' | null;
+  eventKind: string | null;
+}): string {
+  if (a.eventMatchStatus === 'confirmed') return 'Graded against the record · alert sustained';
+  if (a.eventMatchStatus === 'rejected') return 'Graded against the record · alert overturned';
+  if (a.eventKind) return `Record moving (${a.eventKind}) — awaiting adjudication`;
+  return 'Alert committed · record not yet moved';
+}
+
 export const STAGE_COLORS: Record<Stage, { text: string; bg: string; dot: string }> = {
   detect: { text: 'text-slate-400', bg: 'bg-slate-400/10', dot: 'bg-slate-400' },
   commit: { text: 'text-violet', bg: 'bg-violet/10', dot: 'bg-violet' },
