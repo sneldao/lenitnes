@@ -1,8 +1,10 @@
 # OSS Adoption Signal — leading-indicator trading vertical
 
-> **Status:** Design document. Not yet implemented.
+> **Status:** Research and validation proposal. Not yet implemented.
 > **Written:** 2026-08-28
-> **Purpose:** Extend LENITNES from "commits → price" to "all public repos → aggregate adoption curves → public company price movement."
+> **Purpose:** First validate whether public-repository dependency adoption contains predictive information about public-company price movement. Only after that evidence exists should LENITNES decide whether to build an Alpaca integration or pursue options trading.
+>
+> **Decision gate:** This document describes the upstream stock-signal and adoption-research work first. Alpaca is a possible downstream execution venue, not an assumption or a current dependency. No Alpaca integration, options strategy, brokerage account, or live-trading commitment is implied until the validation results justify it.
 
 ## 1. The thesis
 
@@ -34,6 +36,8 @@ LENITNES[markets] detects signals in crypto consensus repos. LENITNES[research] 
 | **Earnings proxy** | Adoption curve slope in 30/14/7d before earnings call | Beat / miss on revenue guidance |
 
 ## 2. Integration with existing infrastructure
+
+The initial implementation should stay research-first. Reuse LENITNES's evidence, replay, scoring, commitment, and price-outcome machinery, but keep the output as a measured stock signal or alert until the hypothesis has been tested. Brokerage execution belongs to a later decision phase.
 
 ### 2.1 New vertical: `oss-adoption`
 
@@ -322,11 +326,60 @@ The existing rubric v4 (markets) and v6 (research) get an **extension** — v7 (
 4. **Competitive landscape** — are repos migrating *to* a competitor's SDK? (negative signal for the losing company)
 5. **Materiality weighting** — is this package core to the company's revenue or a supporting tool?
 
-## 5. Backtest plan
+## 5. Validation-first plan
+
+The first deliverable is not a trading agent. It is a reproducible study that answers whether adoption changes contain useful, timely information about public-company prices after accounting for obvious confounders. Every result should be labelled as exploratory until there is enough out-of-sample data.
+
+### 5.1 Decision gates
+
+| Gate | Question | Required outcome |
+|---|---|---|
+| **G0 — Data quality** | Can we reliably identify dependency changes, deduplicate repositories, and defend package-to-company mappings? | Auditable dataset with coverage, missingness, and mapping-confidence reports |
+| **G1 — Historical signal** | Do adoption curves show a stable relationship with future price movement? | Pre-specified windows, baselines, and out-of-sample results; no cherry-picked examples |
+| **G2 — Agent usefulness** | Does agent scoring improve selectivity or calibration beyond simple rules? | Separate agent-vs-rule metrics, with conviction calibration and abstention rates |
+| **G3 — Paper viability** | Does a conservative paper strategy survive costs, spreads, liquidity, and delayed execution? | Positive risk-adjusted results over a held-out period; otherwise stop or revise |
+| **G4 — Alpaca participation** | Is an Alpaca submission worth the integration and options-specific work? | Explicit go/no-go decision based on evidence, time remaining, and challenge fit |
+
+**Default decision:** if G1 fails, stop before brokerage work. If G1 passes but G2 or G3 fails, keep the result as research/alert-only and do not promote it to trading. If the signal is promising but the event timeline is too short, build a demo without implying validated alpha.
+
+### 5.2 What must be recorded
+
+- Universe definition and inclusion/exclusion rules
+- Package-to-company mapping provenance and confidence
+- Repository coverage and deduplication method
+- Signal timestamp and information available at that time
+- Baselines: buy-and-hold, market/sector benchmark, and simple momentum rule
+- Pre-registered outcome windows and trading assumptions
+- Transaction-cost, spread, liquidity, and missing-data treatment
+- In-sample versus out-of-sample separation
+- All no-signal and no-trade decisions
+
+### 5.3 Alpaca decision phase — downstream only
+
+If the validation gates pass, evaluate Alpaca as an implementation and hackathon opportunity rather than silently treating it as the next architecture layer.
+
+The decision review should cover:
+
+1. **Strategic fit:** Does Alpaca's paper environment and required options component add a useful demonstration of the validated signal, rather than distracting from it?
+2. **Execution fit:** Can the proposed strategy be expressed safely through Alpaca's Trading API, MCP server, or CLI, including contract discovery, multi-leg orders, fills, exits, and expiration?
+3. **Evidence fit:** Can the submission show a fresh paper account, reproducible trades, committed theses, and transparent P&L without overstating the research results?
+4. **Scope fit:** Is there enough time to build and test the adapter without weakening the core validation?
+5. **Strategy fit:** If options are used, can we define a conservative, limited-risk expression such as a debit spread, and compare option results with the underlying-stock thesis?
+
+Possible outcomes:
+
+- **Go:** validated signal + enough time + reliable Alpaca paper/options path; build a narrow paper-only adapter.
+- **Demo-only:** promising concept but insufficient validation or time; show the architecture and replay, but do not claim predictive performance.
+- **Alert-only:** signal is useful for monitoring but not strong enough for trading.
+- **No-go:** data quality, mapping, predictive relationship, or execution feasibility is inadequate.
+
+### 5.4 Backtest plan
 
 Before building the full pipeline, validate the hypothesis with a backtest:
 
 ### Phase 0: Proof-of-concept (week 1)
+
+Use the versioned 30–50 repository pilot defined in `docs/oss-adoption-corpus.md`. The corpus and package mappings must be frozen before looking at outcomes; controls, failed fetches, unmapped packages, and missing observations remain in the report.
 
 1. Pick 3 companies with large OSS footprints: `GOOGL` (Gemini, Google Cloud), `MSFT` (Azure SDK), `AMZN` (AWS SDK)
 2. Run the existing `/scan` replay engine over a curated set of repos that use these packages
@@ -354,14 +407,46 @@ If Phase 1 confirms the signal:
 4. Calibrate conviction threshold (existing: 70 for A-tier, 80 for unknown)
 5. If conviction > threshold, create an oss_signal row
 
-### Phase 3: Paper trading (week 5-6)
+### Phase 3: Paper trading (week 5-6, only after G0–G2)
 
-1. Enable paper trading for OSS signals
-2. Track P&L alongside the existing `[markets]` P&L
-3. Compare: does OSS signal trading outperform `[markets]` trading?
-4. If yes, add to live trading; if no, refine rubric or abandon
+1. Enable conservative paper trading for OSS signals only if the earlier gates pass.
+2. Track P&L alongside the existing `[markets]` P&L, with costs and benchmark comparisons.
+3. Compare signal quality, abstention, drawdown, and calibration—not only raw return.
+4. Keep the result alert-only if paper evidence is inconclusive.
+5. Do not add live trading as part of this proposal; any live promotion requires a separate risk and operations review.
 
-## 6. Risk factors
+## 6. Downstream Alpaca evaluation
+
+Alpaca is a possible follow-on path after the stock-signal research, not part of the initial implementation. The Alpaca AI Trading Agents Hackathon is attractive because it provides paper trading, an explicit agent requirement, and a natural brokerage demo. However, it also requires options trading, which introduces additional complexity and should not determine the upstream research design.
+
+### 6.1 Recommended participation rule
+
+Participate only if all of the following are true:
+
+- The adoption dataset passes the data-quality review.
+- At least one signal family shows reproducible out-of-sample usefulness against simple baselines.
+- The company/ticker mapping is defensible and the underlying has liquid, observable options.
+- A narrow paper-only options strategy can be specified before implementation.
+- The fresh-account, account-ID, and submission requirements can be met within the event window.
+- Alpaca integration will demonstrate the validated signal rather than manufacture a strategy around an unvalidated hypothesis.
+
+The default downstream strategy, if approved, is a defined-risk debit spread—not naked options or unrestricted autonomous trading. The agent must be able to abstain, and the UI must distinguish research evidence, stock-direction correctness, option-execution results, and paper-only status.
+
+### 6.2 Follow-on implementation boundary
+
+Only after a go decision should we add:
+
+- Alpaca paper-account configuration and secrets
+- Trading API, MCP, or CLI integration
+- Option-contract and quote discovery
+- Defined-risk spread construction
+- Order, fill, expiration, and position persistence
+- Alpaca-specific risk gates and scorecard metrics
+- A dedicated paper-only demo surface
+
+Until then, the existing LENITNES engine should produce research outputs, stock signals, commitments, and price-based evaluation without depending on Alpaca.
+
+## 7. Risk factors
 
 ### 6.1 The signal may be noisy
 
@@ -393,7 +478,7 @@ Companies like OpenAI, Anthropic (if they don't IPO), and Databricks don't have 
 - Use earnings proxies from publicly traded competitors (GOOGL for Google, MSFT for OpenAI)
 - Mark pre-IPO signals as "alert only" (no trade)
 
-## 7. Relationship to existing directions
+## 8. Relationship to existing directions
 
 This doesn't replace `[markets]` or `[research]`. It sits alongside them:
 
@@ -404,12 +489,13 @@ This doesn't replace `[markets]` or `[research]`. It sits alongside them:
 
 The enterprise direction becomes even stronger with OSS adoption data: "We can scan your private repos AND cross-reference them against the public OSS adoption signals that are moving the market."
 
-## 8. Success criteria
+## 9. Success criteria
 
 | Metric | Target | Measurement |
 |---|---|---|
 | Correlation (adoption velocity → T+7d price) | r > 0.3 | Phase 1 backtest |
-| Agent conviction accuracy | ≥ 65% at conviction ≥ 70 | Phase 3 paper trading |
-| P&L improvement vs. baseline | ≥ 10% alpha | Phase 3 paper trading |
+| Agent conviction accuracy | ≥ 65% at conviction ≥ 70 | G2/G3, held-out evaluation |
+| P&L improvement vs. baseline | ≥ 10% alpha after costs | G3 paper evaluation |
+| Alpaca participation decision | Explicit go/demo-only/alert-only/no-go | G4 review |
 | Number of tracked companies | ≥ 20 | Phase 3 |
 | Weekly signal volume | ≥ 3 signals/week | Phase 3 |
