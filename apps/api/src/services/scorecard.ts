@@ -358,6 +358,7 @@ export async function science(page = 1, pageSize = 20): Promise<ScorecardScience
       signal_id: string;
       detected_at: string;
       monitor_url: string;
+      asset: string | null;
       evaluation_mode: ScienceEvaluationMode;
       action: ScienceAction;
       conviction: number | null;
@@ -375,6 +376,7 @@ export async function science(page = 1, pageSize = 20): Promise<ScorecardScience
            s.id AS signal_id,
            s.detected_at,
            m.url AS monitor_url,
+           COALESCE(s.asset, m.asset_mapping->>'coingeckoId') AS asset,
            COALESCE(s.evaluation_mode, 'live')::text AS evaluation_mode,
            ag.recommended_action AS action,
            ag.conviction,
@@ -398,6 +400,7 @@ export async function science(page = 1, pageSize = 20): Promise<ScorecardScience
          a.signal_id,
          a.detected_at,
          a.monitor_url,
+         a.asset,
          a.evaluation_mode,
          a.action,
          a.conviction,
@@ -459,6 +462,7 @@ export async function science(page = 1, pageSize = 20): Promise<ScorecardScience
     signalId: r.signal_id,
     detectedAt: r.detected_at,
     monitorUrl: r.monitor_url,
+    asset: r.asset,
     evaluationMode: r.evaluation_mode === 'replay' ? 'replay' : 'live',
     action: 'alert',
     conviction: r.conviction,

@@ -292,6 +292,7 @@ export interface ScorecardScienceAlert {
   signalId: string;
   detectedAt: string;
   monitorUrl: string;
+  asset: string | null;
   evaluationMode: 'live' | 'replay';
   action: 'alert';
   conviction: number | null;
