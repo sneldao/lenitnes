@@ -6,7 +6,7 @@ import { useState, type MouseEvent } from 'react';
 import { Activity, ChevronDown, Clock, ExternalLink, GitBranch, Shield } from 'lucide-react';
 import { api, type Monitor } from '@/lib/api';
 import { qk, REFETCH } from '@/lib/queryKeys';
-import { urlType, repoLabel, timeAgo, freqLabel, assetTicker, statusDotColor } from '@/lib/format';
+import { urlType, repoLabel, publicMonitorLabel, timeAgo, freqLabel, assetTicker, statusDotColor } from '@/lib/format';
 import { domainLabel } from '@/lib/domain';
 import { PageLoader, PageError } from '@/components/ui/page-states';
 
@@ -59,7 +59,7 @@ export default function MonitorsPage() {
   // Group monitors by repo.
   const grouped = new Map<string, Monitor[]>();
   for (const m of monitors) {
-    const key = repoLabel(m.url);
+    const key = publicMonitorLabel(m.url);
     if (!grouped.has(key)) grouped.set(key, []);
     grouped.get(key)!.push(m);
   }
@@ -281,7 +281,7 @@ export default function MonitorsPage() {
                   <span
                     className={`inline-block h-1.5 w-1.5 rounded-full ${statusDotColor(m.status)}`}
                   />
-                  {name}
+                  {publicMonitorLabel(name)}
                   <span className="text-slate-600">· {freqLabel(m.frequencySeconds)}</span>
                 </span>
               );

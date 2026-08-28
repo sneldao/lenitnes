@@ -37,7 +37,7 @@ import { Badge } from '@/components/ui/badge';
 import { api } from '@/lib/api';
 import type { ScorecardRecentCall } from '@/lib/api';
 import { qk, REFETCH } from '@/lib/queryKeys';
-import { timeAgo, convictionColor, repoLabel, formatDetectorType } from '@/lib/format';
+import { timeAgo, convictionColor, publicSourceLabel, formatDetectorType } from '@/lib/format';
 import { stageOf } from '@/lib/stages';
 import { OutcomePill } from '@/components/ui/outcome-pill';
 import { StatCard } from '@/components/ui/stat-card';
@@ -100,9 +100,16 @@ function ReasoningRow({ call, isNew }: { call: ScorecardRecentCall; isNew: boole
       <div className="min-w-0 flex-1">
         <div className="mb-1 flex flex-wrap items-center gap-1.5">
           <ActionIcon action={call.recommendedAction} />
-          {aboveThreshold ? (
-            <Badge variant="signal" className="text-[9px] py-0 px-1.5">
-              traded
+          {call.tradeTxHash ? (
+            <Badge
+              variant={call.tradeTxHash.startsWith('0xpap') ? 'secondary' : 'signal'}
+              className="px-1.5 py-0 text-[9px]"
+            >
+              {call.tradeTxHash.startsWith('0xpap') ? 'paper' : 'live'}
+            </Badge>
+          ) : aboveThreshold ? (
+            <Badge variant="outline" className="text-[9px] py-0 px-1.5">
+              trade-grade
             </Badge>
           ) : (
             <Badge variant="secondary" className="text-[9px] py-0 px-1.5">
@@ -124,7 +131,13 @@ function ReasoningRow({ call, isNew }: { call: ScorecardRecentCall; isNew: boole
             {timeAgo(call.detectedAt)}
           </span>
           <span>·</span>
-          <span className="truncate">{repoLabel(call.monitorUrl)}</span>
+          <span className="truncate">{displayCallSource(call)}</span>
+          {call.outcomeStatus !== 'pending' && (
+            <>
+              <span>·</span>
+              <span>{call.outcomeStatus}</span>
+            </>
+          )}
         </div>
       </div>
 
@@ -137,6 +150,10 @@ function ReasoningRow({ call, isNew }: { call: ScorecardRecentCall; isNew: boole
 }
 
 // ── Main component ───────────────────────────────────────────
+
+function displayCallSource(call: ScorecardRecentCall): string {
+  return publicSourceLabel(call.monitorUrl, call.asset);
+}
 
 export function AgentActivityPanel() {
   const [collapsed, setCollapsed] = useState(false);

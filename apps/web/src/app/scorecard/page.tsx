@@ -35,6 +35,9 @@ import {
   formatDetectorType,
   tierBadgeClass,
   formatNullableRatio,
+  repoLabel,
+  publicSourceLabel,
+  publicMonitorLabel,
 } from '@/lib/format';
 import { StatCard } from '@/components/ui/stat-card';
 import { OutcomePill } from '@/components/ui/outcome-pill';
@@ -252,10 +255,15 @@ function ScienceScorecard() {
                   >
                     <div className="order-2 min-w-0 font-mono text-[10px] text-slate-600 sm:order-1">
                       <div>{formatDate(a.detectedAt)}</div>
-                      <div className="truncate">
-                        {a.primaryDetector
+                      <div className="truncate">                          {a.primaryDetector
                           ? formatDetectorType(a.primaryDetector)
-                          : shortUrl(a.monitorUrl)}
+                          : a.monitorUrl.startsWith('narrative:')
+                            ? 'narrative synthesis'
+                            : a.monitorUrl.startsWith('synthesis:')
+                              ? 'thesis synthesis'
+                              : a.monitorUrl.startsWith('proactive:')
+                                ? 'proactive scan'
+                                : repoLabel(a.monitorUrl)}
                       </div>
                     </div>
                     <p className="order-1 min-w-0 truncate text-sm text-slate-200 transition-colors group-hover:text-accent sm:order-2">
@@ -278,8 +286,7 @@ function ScienceScorecard() {
                         </span>
                       )}
                     </div>
-                    <div className="order-4 font-mono text-[10px] text-slate-600">
-                      {shortUrl(a.monitorUrl)}
+                    <div className="order-4 font-mono text-[10px] text-slate-600">                          {publicSourceLabel(a.monitorUrl, a.asset)}
                     </div>
                   </Link>
                 </li>
@@ -873,7 +880,7 @@ function CodeScorecard() {
                           : data.byWatchlist.slice(0, WATCHLIST_VISIBLE)
                         ).map((row) => (
                           <tr key={row.monitorId} className="border-b border-edge/20 last:border-0">
-                            <td className="py-2 pr-3 text-slate-300">{shortUrl(row.url)}</td>
+                            <td className="py-2 pr-3 text-slate-300">{publicMonitorLabel(row.url)}</td>
                             <td className="px-2 py-2 text-right text-slate-400">{row.total}</td>
                             <td className="px-2 py-2 text-right text-slate-400">
                               {row.withT1d > 0 ? row.hits : '—'}
@@ -1221,7 +1228,7 @@ function CodeScorecard() {
                                 {call.detectorTypes
                                   .slice(0, 2)
                                   .map(formatDetectorType)
-                                  .join(' · ') || shortUrl(call.monitorUrl)}
+                                  .join(' · ') || publicSourceLabel(call.monitorUrl, call.asset)}
                               </div>
                             </div>
                             <p className="order-1 min-w-0 truncate text-sm text-slate-200 transition-colors group-hover:text-accent sm:order-2">

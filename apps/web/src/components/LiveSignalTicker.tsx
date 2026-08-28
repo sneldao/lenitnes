@@ -4,7 +4,7 @@ import { useQuery } from '@tanstack/react-query';
 import Link from 'next/link';
 import { api, type ScorecardRecentCall } from '@/lib/api';
 import { qk, REFETCH } from '@/lib/queryKeys';
-import { repoLabel, timeAgo } from '@/lib/format';
+import { publicSourceLabel, timeAgo } from '@/lib/format';
 import { domainLabel } from '@/lib/domain';
 import { cn } from '@/lib/utils';
 
@@ -31,9 +31,10 @@ export function LiveSignalTicker() {
           <span className="text-[10px] uppercase tracking-wider">Live signals</span>
         </div>
 
-        <div className="no-scrollbar flex items-center gap-6 overflow-x-auto whitespace-nowrap py-0.5 text-slate-300">
+        <div className="no-scrollbar flex items-center gap-6 overflow-x-auto whitespace-nowrap py-0.5 text-slate-300" aria-label="Recent scored signals">
           {calls.map((call) => {
             const action = call.recommendedAction as string | null;
+            const label = publicSourceLabel(call.monitorUrl, call.asset);
             return (
               <Link
                 key={call.signalId}
@@ -51,7 +52,7 @@ export function LiveSignalTicker() {
                   [{domainLabel(call.domain)}]
                 </span>
                 <span className="font-bold text-slate-200 group-hover:text-accent">
-                  {repoLabel(call.monitorUrl)}
+                  {label}
                 </span>
                 {call.conviction != null && (
                   <span className="rounded bg-accent/10 px-1 py-0.5 text-[9px] font-bold text-accent">
@@ -72,7 +73,7 @@ export function LiveSignalTicker() {
                     {action}
                   </span>
                 )}
-                {call.outcomes.t1d != null && (
+                {call.outcomeStatus !== 'pending' && call.outcomes.t1d != null && (
                   <span
                     className={cn(
                       'font-bold',

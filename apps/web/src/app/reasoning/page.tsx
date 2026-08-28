@@ -7,7 +7,7 @@ import { ArrowUpRight, ChevronDown, Filter } from 'lucide-react';
 import { api, type ReasoningItem } from '@/lib/api';
 import { qk, REFETCH } from '@/lib/queryKeys';
 import { cn } from '@/lib/utils';
-import { formatDate, shortUrl, timeAgo } from '@/lib/format';
+import { formatDate, publicSourceLabel, publicMonitorLabel, timeAgo } from '@/lib/format';
 import { domainLabel, normalizeDomainParam } from '@/lib/domain';
 import { PageLoader, PageError } from '@/components/ui/page-states';
 import { ShowMoreButton, useShowMore } from '@/components/ui/show-more';
@@ -210,8 +210,8 @@ function ReasoningRow({ item, index }: { item: ReasoningItem; index: number }) {
             )}
             <span className="font-mono text-[10px] text-slate-500">
               {item.monitorUrl.startsWith('http')
-                ? shortUrl(item.monitorUrl)
-                : `${item.monitorUrl.split(':')[0]} scanner`}
+                ? publicSourceLabel(item.monitorUrl, item.asset)
+                : publicMonitorLabel(item.monitorUrl)}
             </span>
             {item.detectorTypes.length > 0 && (
               <span className="truncate font-mono text-[10px] text-slate-600">

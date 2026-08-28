@@ -124,6 +124,20 @@ export function urlType(url: string): 'release' | 'commits' | 'other' {
  * Extract a compact "owner/repo" label from a GitHub URL.
  *   https://github.com/zcash/halo2/commits → "zcash/halo2"
  */
+export function publicSourceLabel(url: string, asset?: string | null): string {
+  if (url.startsWith('narrative:')) return `${asset?.toUpperCase() ?? 'market'} · narrative synthesis`;
+  if (url.startsWith('synthesis:')) return `${asset?.toUpperCase() ?? 'market'} · thesis synthesis`;
+  if (url.startsWith('proactive:')) return `${asset?.toUpperCase() ?? 'market'} · proactive scan`;
+  return asset?.toUpperCase() || repoLabel(url);
+}
+
+export function publicMonitorLabel(url: string): string {
+  if (url.startsWith('narrative:')) return 'narrative synthesis';
+  if (url.startsWith('synthesis:')) return 'thesis synthesis';
+  if (url.startsWith('proactive:')) return 'proactive scan';
+  return repoLabel(url);
+}
+
 export function repoLabel(url: string): string {
   try {
     const { hostname, pathname } = new URL(url);

@@ -32,7 +32,7 @@ import { Reveal } from '@/components/ui/reveal';
 import { Tooltip } from '@/components/ui/tooltip';
 import { CollapsibleSection } from '@/components/ui/collapsible-section';
 import { JudgmentCountdown } from '@/components/JudgmentCountdown';
-import { convictionColor, shortUrl } from '@/lib/format';
+import { convictionColor, publicMonitorLabel } from '@/lib/format';
 
 // Public-facing proof explorer for a single signal.
 // Layout contract: ANSWER first (the call, entry→now, verdict),
@@ -191,11 +191,7 @@ export default function SignalDetailPage({ params }: { params: Promise<{ id: str
             <p className="font-mono text-[10px] uppercase tracking-wider text-accent">{proofId}</p>
             <p className="truncate text-xs text-slate-500">
               {new Date(signal.detectedAt).toLocaleString()}
-              {signal.monitor?.url?.startsWith('http')
-                ? ` · ${shortUrl(signal.monitor.url)}`
-                : signal.monitor?.url
-                  ? ` · ${signal.monitor.url.split(':')[0]} scanner`
-                  : ''}
+              {signal.monitor?.url ? ` · ${publicMonitorLabel(signal.monitor.url)}` : ''}
             </p>
           </div>
         </div>
@@ -250,7 +246,7 @@ export default function SignalDetailPage({ params }: { params: Promise<{ id: str
             {signal.conditionSummary ?? 'Signal detected'}
           </p>
           <p className="mt-1 font-mono text-[10px] uppercase tracking-wider text-slate-500">
-            pre-scoring record — archived without agent conviction
+            pre-scoring record — archived without agent conviction; this is not a trade call
           </p>
         </div>
       )}
