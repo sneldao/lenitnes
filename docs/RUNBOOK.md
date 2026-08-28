@@ -351,6 +351,14 @@ the token. To recover:
 
 ## Public timeline verification
 
+The deployment workflow runs these checks automatically via the public URL. Run them manually when investigating a release:
+
+```bash
+bash scripts/public-smoke.sh https://lenitnes.persidian.com
+```
+
+The ticker is labeled `Recent record`, not `Live signals`: it may include observed pre-scoring records as well as judged calls. An `observed` item has no agent conviction and must not be read as a trade recommendation.
+
 The homepage timeline reads from `/api/scorecard/recent`. After an API deploy, verify that each signal appears once and that the response carries canonical asset and outcome fields:
 
 ```bash

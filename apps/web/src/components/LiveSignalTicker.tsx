@@ -8,9 +8,9 @@ import { publicSourceLabel, timeAgo } from '@/lib/format';
 import { domainLabel } from '@/lib/domain';
 import { cn } from '@/lib/utils';
 
-// Honest by construction: every item is a real scored signal fetched from the
-// API — conviction, action, and T+1d outcome exactly as recorded (losses
-// included). No hand-written sample data.
+// Honest by construction: every item is a real signal fetched from the API.
+// The ticker is explicitly a recent-record surface: pre-scoring observations
+// may appear, but are never presented as calls or trades.
 export function LiveSignalTicker() {
   const { data } = useQuery<ScorecardRecentCall[]>({
     queryKey: qk.scorecardRecent(6),
@@ -28,7 +28,7 @@ export function LiveSignalTicker() {
             <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-accent opacity-75" />
             <span className="relative inline-flex h-2 w-2 rounded-full bg-accent" />
           </span>
-          <span className="text-[10px] uppercase tracking-wider">Live signals</span>
+          <span className="text-[10px] uppercase tracking-wider">Recent record</span>
         </div>
 
         <div className="no-scrollbar flex items-center gap-6 overflow-x-auto whitespace-nowrap py-0.5 text-slate-300" aria-label="Recent scored signals">
@@ -54,6 +54,11 @@ export function LiveSignalTicker() {
                 <span className="font-bold text-slate-200 group-hover:text-accent">
                   {label}
                 </span>
+                {call.conviction == null && (
+                  <span className="rounded border border-edge/50 px-1 py-px text-[9px] uppercase text-slate-500">
+                    observed
+                  </span>
+                )}
                 {call.conviction != null && (
                   <span className="rounded bg-accent/10 px-1 py-0.5 text-[9px] font-bold text-accent">
                     {call.conviction}/100
@@ -90,7 +95,7 @@ export function LiveSignalTicker() {
           })}
           {calls.length === 0 && (
             <span className="text-[10px] text-slate-500">
-              watching the watchlist — every scored call publishes here, losses included
+              watching the watchlist — observations and judged calls publish here
             </span>
           )}
         </div>

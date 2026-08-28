@@ -133,3 +133,36 @@ echo
 echo "✓ deployed $OLD → $SHORT"
 ssh $SSH_OPTS "$SSH_HOST" "cd $REMOTE_DIR && sudo docker compose ps --format 'table {{.Name}}\t{{.Status}}' api worker web"
 ssh $SSH_OPTS "$SSH_HOST" "curl -sf http://localhost:8742/health | python3 -m json.tool 2>/dev/null | head -12"
+
+echo "→ public smoke checks"
+BASE_URL="${PUBLIC_BASE_URL:-https://lenitnes.persidian.com}"
+JSON_URL="${BASE_URL%/}/api/scorecard/recent?limit=20"
+HEALTH_URL="${BASE_URL%/}/api/health/ready"
+ssh $SSH_OPTS "$SSH_HOST" "python3 - '$JSON_URL' '$HEALTH_URL'" <<'PY'
+import json
+import sys
+import urllib.request
+
+recent = json.load(urllib.request.urlopen(sys.argv[1], timeout=15))
+health = json.load(urllib.request.urlopen(sys.argv[2], timeout=15))
+if health.get('ok') is not True:
+    raise SystemExit(f'readiness failed: {health}')
+if not isinstance(recent, list):
+    raise SystemExit('recent feed is not an array')
+required = {'signalId', 'detectedAt', 'monitorUrl', 'asset', 'outcomeStatus', 'evaluationMode'}
+allowed = {'pending', 'hit', 'miss', 'flat'}
+ids = [row.get('signalId') for row in recent]
+if any(not x for x in ids):
+    raise SystemExit('feed row missing signalId')
+if len(ids) != len(set(ids)):
+    raise SystemExit('duplicate signal IDs in recent feed')
+for row in recent:
+    missing = required - row.keys()
+    if missing:
+        raise SystemExit(f'missing feed fields: {sorted(missing)}')
+    if row['outcomeStatus'] not in allowed:
+        raise SystemExit(f'unknown outcomeStatus: {row["outcomeStatus"]}')
+    if row['monitorUrl'] in {'portfolio', 'signals'}:
+        raise SystemExit(f'raw fallback label leaked: {row["monitorUrl"]}')
+print(f'✓ public smoke passed: {len(recent)} records, {len(set(ids))} unique IDs')
+PY
