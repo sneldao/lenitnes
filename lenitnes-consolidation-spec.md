@@ -24,8 +24,36 @@ The tagline is already the right IA. Today it's a slogan; make it the structure.
 
 - Markets → a **thesis** (noun of record)
 - Research → an **alert** (noun of record)
+- OSS Adoption → a **signal** (noun of record)
 - Everything else ("judgment", "commit", "verdict") is a **lifecycle stage**
   of that noun, not a separate thing. Retire synonyms from chrome.
+
+### The fourth vertical: OSS Adoption
+
+The consolidation model — one loop, separate oracles — extends naturally to a
+fourth vertical (see [`docs/oss-adoption-trading.md`](docs/oss-adoption-trading.md)):
+
+| Vertical | Oracle | Noun of record | Grading authority |
+| --- | --- | --- | --- |
+| Markets | price oracle | thesis | market price |
+| Research | record oracle | alert | published record |
+| OSS Adoption | stock-price oracle | signal | public company price |
+
+OSS Adoption cards follow the same four-stage lifecycle (Detect → Commit →
+Track → Score) with adapted copy:
+
+| Stage | Copy | Meaning |
+| --- | --- | --- |
+| Detect — scanning | Adoption shift detected | Ecosystem-level dependency change |
+| Commit — pending | Notarizing signal… | Signal committed to HCS |
+| Track — window open | Signal committed · price window open | Awaiting T+1d/T+7d price outcome |
+| Score — graded | Graded against price · [result] | Outcome known |
+
+This doesn't change the existing two feeds — it adds a third toggle to the
+sliding tabs. The navigation already has "More → Intelligence" which gets
+repurposed to surface OSS adoption curves and the signal feed. The scorecard
+gains a fourth tab. The timeline prototype (§8) already supports oracle-toggled
+tabs; adding a third is a data-layer change, not a UX change.
 
 ## 3. The loop, as a stage badge (not a separate diagram)
 

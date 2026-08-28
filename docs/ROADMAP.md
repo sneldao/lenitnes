@@ -232,6 +232,71 @@ shows pattern hit rates.
 - [ ] P4 cross-vertical dual-graded chains
 - [ ] P5 phenomenon-type replay library
 
+## OSS adoption signal — the third oracle (leading-indicator trading)
+
+> See [`docs/oss-adoption-trading.md`](docs/oss-adoption-trading.md) for the
+> full design. This is the scalability extension: if LENITNES can predict
+> stock price movements from aggregate OSS dependency changes across *all
+> public repos* (not just the crypto consensus watchlist), the platform
+> generalizes to every publicly traded company — not just those with public
+> code.
+
+**The thesis:** OSS dependency changes are an un-manipulable, real-time
+sentiment indicator. When N repos coordinately remove `google-gemini` and
+add `@anthropic-ai/sdk`, that is a market signal arriving weeks before
+earnings.
+
+**The extension:** a fourth vertical (`oss` / `adoption`) that runs the
+existing loop (detect → score → commit → track → grade) over a new corpus
+(all public repos) and a new grading oracle (public company stock prices).
+
+### Phases
+
+**Phase 0 — Backtest validation.** Before building the pipeline: run
+`/scan` replay over a curated set of repos that use GOOGL/MSFT/AMZN
+packages. Extract dependency changes. Overlay with stock prices. Answer:
+does the adoption curve predict short-term price movement? (Target: 3
+companies, 12 months of data, T+1d/T+7d windows.)
+
+**Phase 1 — Package registry + weekly aggregation.** New tables:
+`oss_companies`, `oss_packages`, `oss_adoption_curves`. A weekly cron
+parses dependency manifests (`package.json`, `go.mod`, `Cargo.toml`)
+across a curated corpus, maps packages to companies, and builds weekly
+adoption curves per company.
+
+**Phase 2 — Agent scoring.** Wire aggregation results into the existing
+agent pipeline. New detector type `oss_adoption_change`. New rubric
+extension (v7) adds ecosystem-breadth and materiality-weighted scoring.
+
+**Phase 3 — Paper trading.** If conviction scores predict outcomes,
+enable paper trading. Track P&L alongside `[markets]` P&L.
+
+**Phase 4 — UI surface.** New "Intelligence" section: adoption curves
+page, signal feed, earnings overlay. Scorecard gains a fourth tab.
+Timeline gains a third toggle.
+
+### Relationship to existing directions
+
+This doesn't replace `[markets]` or `[research]`. It sits alongside them:
+
+| Vertical | Input | Oracle | Action |
+| --- | --- | --- | --- |
+| `[markets]` | crypto consensus commits | market price | trade |
+| `[research]` | scientific software commits | published record | alert |
+| **OSS adoption** | all public repos (dependency changes) | public company price | trade/alert |
+| **Enterprise** | customer's private repos | internal audit | leak-scan |
+
+The enterprise direction becomes even stronger: "scan your private repos
+AND cross-reference against public OSS adoption signals moving the market."
+
+### Status
+
+- [ ] Phase 0: backtest validation (3 companies, 12 months)
+- [ ] Phase 1: package registry + weekly aggregation tables
+- [ ] Phase 2: agent scoring with v7 rubric
+- [ ] Phase 3: paper trading
+- [ ] Phase 4: UI surface (Intelligence page, scorecard tab)
+
 ## UI/UX polish backlog (post-hackathon)
 
 Findings from the design-repo review (pbakaus/impeccable + vercel-labs/agent-skills,

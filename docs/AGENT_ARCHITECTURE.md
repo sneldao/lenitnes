@@ -473,13 +473,33 @@ judgment link). A quiet day now reads as deliberate silence in
 both verticals, never as a trading journal with the research side
 invisible.
 
-**5. One engine, two audiences.** services/replay.ts runs the SAME
-detectors + rubric over any public repo's commit history
+_OSS adoption signal_ (planned — see `docs/oss-adoption-trading.md`)
+adds a third vertical (`oss`) that tags posts with `LENITNES[adoption]`
+and surfaces adoption curves and public-company trading signals in
+the same digest format.
+
+**5. One engine, one architecture, multiple corpora.** services/replay.ts
+runs the SAME detectors + rubric over any public repo's commit history
 (GET /backtest/replay — mock scoring publicly, live agent reasoning
 with X-Admin-Key). This is simultaneously the case-study generator
 and the enterprise leak-scan demo ("what did your last quarter of
 commits tell the market?"). Nothing may fork detector or scoring
 logic for one audience — the engine identity IS the product claim.
+
+The architecture generalizes to three inputs over the same engine:
+
+| Input | Vertical | Agent scoring | Action |
+| --- | --- | --- | --- |
+| Per-repo commits | `markets` / `research` | per-signal, after detectors fire | trade / alert |
+| Synthetic narrative monitors | `markets` / `research` | same agent, cross-signal context | trade / alert |
+| OSS adoption aggregation | `oss` (planned) | same agent, v7 rubric extension | trade / alert |
+
+OSS adoption runs the same loop — detect (dependency change) → score
+(Qwen3.8 chain, v7 rubric) → commit (HCS notarization) → track
+(weekly price outcomes) → grade (against stock price). The engine is
+identical; the corpus, rubric, and grading oracle differ. The replay
+engine (`/scan`) already runs the full pipeline over any public repo's
+history — the same code that powers the OSS adoption backtest.
 
 **6. Evidence paths — the chain as a first-class object (2026-08-17,
 P0 implemented; P1+ planned).** Single-commit calls are rare
