@@ -349,6 +349,20 @@ the token. To recover:
 
 ---
 
+## Public timeline verification
+
+The homepage timeline reads from `/api/scorecard/recent`. After an API deploy, verify that each signal appears once and that the response carries canonical asset and outcome fields:
+
+```bash
+curl -s 'https://lenitnes.persidian.com/api/scorecard/recent?limit=20' \
+  | jq '[.[].signalId] | group_by(.) | map(select(length > 1))'
+
+curl -s 'https://lenitnes.persidian.com/api/scorecard/recent?limit=1' \
+  | jq '.[0] | {signalId, asset, recommendedAction, conviction, outcomeStatus, tradeTxHash}'
+```
+
+The first command must return `[]`. `outcomeStatus` is `pending` until a market call has a mature T+1d outcome; research calls remain pending until record adjudication. Do not infer an asset from a repository name in the UI: the API owns the `signals.asset` → `monitors.asset_mapping.coingeckoId` fallback.
+
 ## Operator alerts (2026-07-07)
 
 The pipeline died silently once — an invalid `SOSO_VALUE_API_KEY`

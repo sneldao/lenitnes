@@ -14,6 +14,8 @@ export interface RecentCallOutcome {
   t7d: number | null;
 }
 
+export type RecentCallOutcomeStatus = 'pending' | 'hit' | 'miss' | 'flat';
+
 /** Latest adjudication-relevant event on a [science] signal's outcome record. */
 export interface RecentCallEvent {
   kind: string;
@@ -26,6 +28,7 @@ export interface RecentCall {
   signalId: string;
   detectedAt: string;
   monitorUrl: string;
+  asset: string | null;
   detectorTypes: string[];
   /** The vertical whose grading authority judged this call: 'code' | 'science'. */
   domain: 'code' | 'science';
@@ -34,6 +37,7 @@ export interface RecentCall {
   recommendedAction: 'long' | 'short' | 'none' | 'alert' | 'investigate' | null;
   tradeTxHash: string | null;
   outcomes: RecentCallOutcome;
+  outcomeStatus: RecentCallOutcomeStatus;
   /**
    * HCS message id from the proof chain. Success convention (see
    * proofCoverageQuery): a successful write stores a 0.0.xxx id; a failed
@@ -158,6 +162,7 @@ interface RecentRow {
   signal_id: string;
   detected_at: string;
   monitor_url: string;
+  asset: string | null;
   domain: 'code' | 'science';
   conviction: number | null;
   thesis: string | null;
@@ -171,6 +176,7 @@ interface RecentRow {
   event_at: string | null;
   event_lead_days: number | null;
   event_match_status: 'unreviewed' | 'candidate' | 'confirmed' | 'rejected' | null;
+  outcome_status: RecentCallOutcomeStatus;
 }
 
 // ── Public API ─────────────────────────────────────────────
@@ -800,6 +806,7 @@ async function recentCallsQuery(limit: number): Promise<RecentCall[]> {
        s.id AS signal_id,
        s.detected_at,
        m.url AS monitor_url,
+       COALESCE(s.asset, m.asset_mapping->>'coingeckoId') AS asset,
        m.domain AS domain,
        ag.conviction,
        ag.thesis,
@@ -826,10 +833,28 @@ async function recentCallsQuery(limit: number): Promise<RecentCall[]> {
        ev.event_kind,
        ev.event_at,
        ev.lead_days AS event_lead_days,
-       ev.event_match_status
+       ev.event_match_status,
+       CASE
+         WHEN m.domain = 'science' THEN 'pending'
+         WHEN (SELECT MAX(CASE WHEN so.window_seconds = 86400 THEN so.pct_change END)
+               FROM signal_outcomes so WHERE so.signal_id = s.id) IS NULL THEN 'pending'
+         WHEN (SELECT MAX(CASE WHEN so.window_seconds = 86400 THEN so.pct_change END)
+               FROM signal_outcomes so WHERE so.signal_id = s.id) BETWEEN -0.5 AND 0.5 THEN 'flat'
+         WHEN ag.recommended_action = 'short' AND (SELECT MAX(CASE WHEN so.window_seconds = 86400 THEN so.pct_change END)
+               FROM signal_outcomes so WHERE so.signal_id = s.id) < -0.5 THEN 'hit'
+         WHEN ag.recommended_action = 'long' AND (SELECT MAX(CASE WHEN so.window_seconds = 86400 THEN so.pct_change END)
+               FROM signal_outcomes so WHERE so.signal_id = s.id) > 0.5 THEN 'hit'
+         ELSE 'miss'
+       END AS outcome_status
      FROM signals s
      JOIN monitors m ON m.id = s.monitor_id
-     LEFT JOIN agent_scores ag ON ag.signal_id = s.id
+     LEFT JOIN LATERAL (
+       SELECT conviction, thesis, recommended_action
+       FROM agent_scores
+       WHERE signal_id = s.id
+       ORDER BY created_at DESC
+       LIMIT 1
+     ) ag ON true
      LEFT JOIN LATERAL (
        SELECT chain_tx_hash FROM orders
        WHERE signal_id = s.id AND status = 'filled'
@@ -851,6 +876,7 @@ async function recentCallsQuery(limit: number): Promise<RecentCall[]> {
     signalId: r.signal_id,
     detectedAt: r.detected_at,
     monitorUrl: r.monitor_url,
+    asset: r.asset,
     detectorTypes: r.detector_types ?? [],
     domain: r.domain === 'science' ? 'science' : 'code',
     conviction: r.conviction,
@@ -858,6 +884,7 @@ async function recentCallsQuery(limit: number): Promise<RecentCall[]> {
     recommendedAction: r.recommended_action,
     tradeTxHash: r.trade_tx_hash,
     outcomes: r.outcomes ?? { t1h: null, t1d: null, t7d: null },
+    outcomeStatus: r.outcome_status,
     hcsMessageId: r.hedera_hcs_message_id,
     evaluationMode: r.evaluation_mode === 'replay' ? 'replay' : 'live',
     event:

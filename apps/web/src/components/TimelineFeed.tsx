@@ -32,6 +32,10 @@ import { Skeleton } from '@/components/ui/skeleton';
 type OracleFilter = 'all' | 'code' | 'science';
 const VISIBLE_INITIAL = 8;
 
+function freshnessLabel(iso: string): string {
+  return `updated ${timeAgo(iso)}`;
+}
+
 export function TimelineFeed({ limit = 20 }: { limit?: number }) {
   const { data, isLoading, isError } = useQuery({
     queryKey: qk.scorecardRecent(limit),
@@ -67,6 +71,11 @@ export function TimelineFeed({ limit = 20 }: { limit?: number }) {
       <div className="mb-4 flex flex-col items-center gap-3">
         <OracleTabs oracle={oracle} onChange={setOracle} counts={data ?? []} />
         <StageLegend />
+        {data?.[0]?.detectedAt && (
+          <span className="font-mono text-[9px] uppercase tracking-wider text-slate-600">
+            {freshnessLabel(data[0].detectedAt)}
+          </span>
+        )}
       </div>
 
       {isLoading ? (
@@ -74,7 +83,7 @@ export function TimelineFeed({ limit = 20 }: { limit?: number }) {
       ) : items.length === 0 ? (
         <div className="text-center">
           <p className="text-sm text-slate-400">
-            Scanning the watchlist — the first signal lands here.
+            No new calls in this view. Monitoring continues; silence means no threshold was met.
           </p>
           <Link
             href="/case-study/halo2"
@@ -231,6 +240,10 @@ function TimelineCard({ call, index }: { call: ScorecardRecentCall; index: numbe
   const label = domainLabel(call.domain);
   const colors = STAGE_COLORS[stage.stage];
   const noun = call.domain === 'science' ? 'alert' : 'thesis';
+  const source = sourceLabelFromCall(call);
+  const tradeState = call.tradeTxHash ? (call.tradeTxHash.startsWith('0xpap') ? 'PAPER' : 'LIVE') : null;
+  const asset = call.asset ? call.asset.toUpperCase() : null;
+  const action = call.recommendedAction && call.recommendedAction !== 'none' ? call.recommendedAction : null;
 
   return (
     <li
@@ -259,20 +272,28 @@ function TimelineCard({ call, index }: { call: ScorecardRecentCall; index: numbe
               {/* Keyed on the headline so a stage change re-mounts the span →
                   text-state-swap plays and the user registers the change. */}
               <span key={stage.headline} className="tl-swap block text-sm text-slate-100">
+                {asset && <span className="mr-2 font-mono text-accent">{asset}</span>}
+                {action && <span className="mr-2 font-mono uppercase text-slate-300">{action}</span>}
+                {call.conviction != null && (
+                  <span className="mr-2 font-mono text-slate-400">conviction {call.conviction}/100</span>
+                )}
+                {tradeState && <span className="mr-2 font-mono text-warn">{tradeState}</span>}
                 {stage.headline}
               </span>
               <span className="mt-0.5 flex flex-wrap items-center gap-x-2 gap-y-0.5 font-mono text-[10px] text-slate-600">
                 <span className={label === 'research' ? 'text-signal/70' : 'text-accent/70'}>
                   [{label}]
                 </span>
-                <span className="truncate">{shortUrl(call.monitorUrl)}</span>
+                <span className="truncate">{source}</span>
+                <span aria-hidden>·</span>
+                <span className="truncate">{displaySource(call.monitorUrl)}</span>
                 <span aria-hidden>·</span>
                 <span>{timeAgo(call.detectedAt)}</span>
                 {call.evaluationMode === 'replay' && (
                   <span className="rounded border border-edge/60 px-1 text-slate-500">replay</span>
                 )}
-                {call.conviction != null && (
-                  <span className={convictionColor(call.conviction)}>conf {call.conviction}</span>
+                {call.outcomeStatus !== 'pending' && (
+                  <span className="text-slate-500">{call.outcomeStatus}</span>
                 )}
               </span>
             </span>
@@ -287,6 +308,22 @@ function TimelineCard({ call, index }: { call: ScorecardRecentCall; index: numbe
       </Collapsible>
     </li>
   );
+}
+
+// ── Detail rows — committed · pending · absent, each with a reason ──
+
+function sourceLabelFromCall(call: ScorecardRecentCall): string {
+  if (call.monitorUrl === 'narrative:portfolio') return 'narrative synthesis';
+  if (call.monitorUrl === 'synthesis:thesis') return 'thesis synthesis';
+  if (call.monitorUrl === 'proactive:signals') return 'proactive scan';
+  return call.domain === 'science' ? 'research monitor' : 'commit monitor';
+}
+
+function displaySource(url: string): string {
+  if (url.startsWith('narrative:') || url.startsWith('synthesis:') || url.startsWith('proactive:')) {
+    return 'aggregated evidence';
+  }
+  return shortUrl(url);
 }
 
 // ── Detail rows — committed · pending · absent, each with a reason ──
@@ -384,10 +421,10 @@ function CardDetail({
               <OutcomePill label="T+1d" value={call.outcomes.t1d} />
               <OutcomePill label="T+7d" value={call.outcomes.t7d} />
               {call.tradeTxHash && (
-                <span className="font-mono text-[10px] text-accent">
-                  {call.tradeTxHash.startsWith('0xpap') ? 'paper traded' : 'traded'}
-                </span>
-              )}
+                  <span className="font-mono text-[10px] text-accent">
+                    {call.tradeTxHash.startsWith('0xpap') ? 'PAPER' : 'LIVE'} trade
+                  </span>
+                )}
             </span>
           }
         />

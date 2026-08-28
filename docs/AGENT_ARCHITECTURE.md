@@ -382,7 +382,10 @@ surface:
 See [`CALIBRATION.md`](./CALIBRATION.md) for the per-knob
 empirical rationale and the change log.
 
-### Storytelling surfaces
+### Timeline contract and storytelling surfaces
+
+The public homepage timeline is backed by `GET /scorecard/recent`. It returns one row per signal (the latest agent score only), with canonical `asset` resolution (`signals.asset` first, then `monitors.asset_mapping.coingeckoId`) and an explicit `outcomeStatus` (`pending`, `hit`, `miss`, or `flat`) for market calls. Synthetic monitors are rendered as named sources rather than exposing their internal pseudo-URLs. Paper/live trade state and feed freshness are shown in the collapsed timeline row; unknown assets remain unlabeled rather than inferred.
+
 
 Three public pages frame the system for non-technical readers:
 

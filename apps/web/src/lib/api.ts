@@ -204,10 +204,13 @@ export interface RecentCallEvent {
   matchStatus: 'unreviewed' | 'candidate' | 'confirmed' | 'rejected' | null;
 }
 
+export type RecentCallOutcomeStatus = 'pending' | 'hit' | 'miss' | 'flat';
+
 export interface ScorecardRecentCall {
   signalId: string;
   detectedAt: string;
   monitorUrl: string;
+  asset: string | null;
   detectorTypes: string[];
   /** The vertical whose grading authority judged this call: 'code' | 'science'. */
   domain: 'code' | 'science';
@@ -216,6 +219,7 @@ export interface ScorecardRecentCall {
   recommendedAction: 'long' | 'short' | 'none' | 'alert' | 'investigate' | null;
   tradeTxHash: string | null;
   outcomes: OutcomePill;
+  outcomeStatus: RecentCallOutcomeStatus;
   /**
    * HCS proof-chain message id. '0.0.…' prefix = committed, other = failed
    * write, null = notarization in flight. Timeline stage derivation reads this.

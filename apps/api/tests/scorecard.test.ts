@@ -313,10 +313,50 @@ describe('scorecard.recentCalls', () => {
     mockQuery.mockReset();
   });
 
-  it('queries with the requested limit', async () => {
+  it('queries with the requested limit and canonical display fields', async () => {
     mockQuery.mockResolvedValueOnce({ rows: [], rowCount: 0 });
     await recentCalls(5);
-    expect(mockQuery).toHaveBeenCalledWith(expect.stringContaining('LIMIT $1'), [5]);
+    expect(mockQuery).toHaveBeenCalledWith(
+      expect.stringMatching(
+        /COALESCE\(s\.asset, m\.asset_mapping->>'coingeckoId'\).*LEFT JOIN LATERAL[\s\S]*ORDER BY created_at DESC[\s\S]*outcome_status/s,
+      ),
+      [5],
+    );
+  });
+
+  it('maps asset and explicit outcome status from the API row', async () => {
+    mockQuery.mockResolvedValueOnce({
+      rows: [
+        {
+          signal_id: 'sig-1',
+          detected_at: '2026-08-20T10:00:00.000Z',
+          monitor_url: 'https://github.com/bitcoin/bitcoin/releases',
+          asset: 'bitcoin',
+          domain: 'code',
+          conviction: 84,
+          thesis: 'Consensus change',
+          recommended_action: 'long',
+          trade_tx_hash: '0xpap-demo',
+          outcomes: { t1h: null, t1d: 1.2, t7d: null },
+          detector_types: ['protocol_upgrade'],
+          hedera_hcs_message_id: '0.0.123@1.2.3',
+          evaluation_mode: 'live',
+          event_kind: null,
+          event_at: null,
+          event_lead_days: null,
+          event_match_status: null,
+          outcome_status: 'hit',
+        },
+      ],
+      rowCount: 1,
+    });
+
+    const result = await recentCalls(1);
+    expect(result[0]).toMatchObject({
+      asset: 'bitcoin',
+      outcomeStatus: 'hit',
+      tradeTxHash: '0xpap-demo',
+    });
   });
 
   it('defaults to 20 when called without a limit', async () => {
