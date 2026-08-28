@@ -27,7 +27,7 @@ describe('OSS adoption manifest parsing', () => {
   });
 
   it('parses Go modules and ignores comments', () => {
-    const dependencies = parseDependencyManifest('go.mod', 'module example.com/app\\n\\nrequire (\\n  cloud.google.com/go v1.2.3\\n  // ignored.example v1.0.0\\n)');
+    const dependencies = parseDependencyManifest('go.mod', 'module example.com/app\n\nrequire (\n  cloud.google.com/go v1.2.3\n  // ignored.example v1.0.0\n)');
     expect(dependencies).toEqual([{ ecosystem: 'go', packageName: 'cloud.google.com/go', version: 'v1.2.3' }]);
   });
 });
