@@ -16,6 +16,7 @@
     "smoke:hcs": "tsx scripts/smoke-hcs.ts",
     "x402:setup": "tsx scripts/x402-setup-payer.ts",
     "x402:agent": "tsx scripts/x402-agent-payer.ts",
+    "collect:oss-adoption": "tsx scripts/collect-oss-adoption.ts",
     "typecheck": "tsc --noEmit",
     "test": "vitest run"
   },

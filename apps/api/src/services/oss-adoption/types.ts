@@ -49,6 +49,8 @@ export interface RepositoryQuality {
   defaultBranch: string | null;
   manifestsFound: string[];
   commitsExamined: number;
+  /** Number of manifest blobs actually fetched and parsed (≤ commits × manifests). */
+  manifestsExamined?: number;
   eventsExtracted: number;
   error: string | null;
 }

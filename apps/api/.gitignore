@@ -28,3 +28,7 @@ coverage/
 # Worker-specific
 worker-data/
 queues/
+
+# Generated research artifacts (OSS-adoption runs; commit the manifest +
+# quality report into docs/ if a run must be preserved)
+data/
