@@ -216,6 +216,45 @@ reading (MSFT `netAdd` → next-week return r ≈ +0.21, n=47) rests on just 4
 active weeks and should not be treated as evidence. This is an exploratory
 artifact, not a validated predictor.
 
+### Third pilot run + overlay (pilot-v3, 2026-08-29)
+
+Corpus version `2026-08-29-pilot-v3` (24 repos: 3 SDK sources + 19 consumer
+repos + 2 controls). The second-wave consumers were added with a **churn
+filter**: each was verified to have the mapped package in its root
+`package.json` AND to have changed that package's version within the
+observation window (via the commits + contents APIs), so the corpus only
+grows with repos that actually produce adoption signal.
+
+| Metric             | pilot-v2 | pilot-v3                       |
+| ------------------ | -------- | ------------------------------ |
+| Repositories       | 10       | 24 (20/24 completed, 4 failed) |
+| Events extracted   | 3858     | 6970                           |
+| **Mapped events**  | **53**   | **468**                        |
+| AMZN active weeks  | 12/53    | **48/53**                      |
+| GOOGL active weeks | 1/53     | **9/53**                       |
+| MSFT active weeks  | 4/53     | **11/53**                      |
+
+The 4 failures were the two control repos (vercel/next.js, pallets/flask) and
+two GOOGL consumers (openwebdocs/mdn-bcd-collector, firefox-devtools/profiler-server),
+all HTTP 403s late in the run at rate-limit exhaustion (secondary rate limit) —
+recorded as missing observations in the quality report, not silent zeros.
+
+Overlay correlations on n≈52 weekly samples (pilot-v3):
+
+| Ticker | Same-week             | Fwd 1-week            | Fwd 4-week                               |
+| ------ | --------------------- | --------------------- | ---------------------------------------- |
+| AMZN   | `netAdd` r=−0.14      | `upgraded` r=+0.05    | **`upgraded` r=+0.18**, `netAdd` r=+0.10 |
+| GOOGL  | `activeRepos` r=−0.30 | `activeRepos` r=−0.18 | `activeRepos` r=−0.23                    |
+| MSFT   | `netAdd` r=+0.07      | `netAdd` r=+0.12      | `added` r=−0.14                          |
+
+With 48 active AMZN weeks the sample finally has statistical teeth, and the
+readings are still weak (|r| ≤ 0.3) — the honest Phase 0 conclusion is that
+raw weekly adoption counts do not yet demonstrate a tradable lead/lag
+relationship with these tokenized-stock prices. AMZN `upgraded` → 4-week
+forward return (r=+0.18, n=52) and GOOGL's persistently negative
+`activeRepos` correlations are the two patterns worth carrying into Phase 1
+(velocity/acceleration scoring + lag exploration), not into a trade.
+
 > **Note on week alignment:** curve weeks are ISO-Monday bucketed; gap-filling
 > must normalize window edges with `weekStartOf()` or the filled weeks land on
 > the wrong weekday and miss the real active buckets (fixed in the CLIs).

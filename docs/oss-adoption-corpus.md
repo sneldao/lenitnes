@@ -3,7 +3,7 @@
 > **Status:** Initial research specification. No trading or Alpaca execution.
 > **Related proposal:** [`oss-adoption-trading.md`](./oss-adoption-trading.md)
 > **Created:** 2026-08-28
-> **Updated:** 2026-08-29 (first-wave consumer expansion, version `2026-08-29-pilot-v2`)
+> **Updated:** 2026-08-29 (second-wave consumer expansion, version `2026-08-29-pilot-v3`)
 
 ## Purpose
 
@@ -43,7 +43,7 @@ repositories:
     company_targets: [GOOGL]
     role: exposure # exposure | control
     expected_manifests: [package.json]
-    inclusion_reason: "Uses a mapped Google Cloud SDK in production code"
+    inclusion_reason: 'Uses a mapped Google Cloud SDK in production code'
     source_url: https://github.com/owner/repository
     default_branch: main
     mapping_refs: [google-cloud-node]
@@ -51,24 +51,45 @@ repositories:
 
 The actual repository list should be committed only after checking each entry against the rules above. A mapping reference is not evidence that a signal exists; it records the hypothesis being tested.
 
-## Current corpus (version `2026-08-29-pilot-v2`)
+## Current corpus (version `2026-08-29-pilot-v3`)
 
-10 repositories (3 SDK sources + 5 consumer repos + 2 controls):
+24 repositories (3 SDK sources + 19 consumer repos + 2 controls):
 
-| Slug | Role | Company | Verified |
-|---|---|---|---|
-| googleapis/google-cloud-node | exposure (source) | GOOGL | ✅ |
-| Azure/azure-sdk-for-js | exposure (source) | MSFT | ✅ |
-| aws/aws-sdk-js-v3 | exposure (source) | AMZN | ✅ |
-| nocodb/nocodb | exposure (consumer) | MSFT | ✅ @azure/identity in root package.json |
-| promptfoo/promptfoo | exposure (consumer) | MSFT | ✅ @azure/identity in root package.json |
-| wekan/wekan | exposure (consumer) | GOOGL, AMZN | ✅ @google-cloud/storage + @aws-sdk/client-s3 |
-| cypress-io/cypress | exposure (consumer) | AMZN | ✅ @aws-sdk/client-s3 in root package.json |
-| lobehub/lobehub | exposure (consumer) | AMZN | ✅ @aws-sdk/client-s3 in root package.json |
-| vercel/next.js | control | — | ✅ |
-| pallets/flask | control | — | ✅ |
+| Slug                                   | Role                | Company     | Verified                                               |
+| -------------------------------------- | ------------------- | ----------- | ------------------------------------------------------ |
+| googleapis/google-cloud-node           | exposure (source)   | GOOGL       | ✅                                                     |
+| Azure/azure-sdk-for-js                 | exposure (source)   | MSFT        | ✅                                                     |
+| aws/aws-sdk-js-v3                      | exposure (source)   | AMZN        | ✅                                                     |
+| nocodb/nocodb                          | exposure (consumer) | MSFT        | ✅ @azure/identity in root package.json                |
+| promptfoo/promptfoo                    | exposure (consumer) | MSFT        | ✅ @azure/identity in root package.json                |
+| wekan/wekan                            | exposure (consumer) | GOOGL, AMZN | ✅ @google-cloud/storage + @aws-sdk/client-s3          |
+| cypress-io/cypress                     | exposure (consumer) | AMZN        | ✅ @aws-sdk/client-s3 in root package.json             |
+| lobehub/lobehub                        | exposure (consumer) | AMZN        | ✅ @aws-sdk/client-s3 in root package.json             |
+| outline/outline                        | exposure (consumer) | AMZN        | ✅ churn: @aws-sdk/client-s3 + lib-storage + presigned |
+| koodo-reader/koodo-reader              | exposure (consumer) | AMZN        | ✅ churn: @aws-sdk/client-s3                           |
+| Kilo-Org/kilocode                      | exposure (consumer) | AMZN        | ✅ churn: @aws-sdk/client-s3                           |
+| fosrl/pangolin                         | exposure (consumer) | AMZN        | ✅ churn: @aws-sdk/client-s3                           |
+| renovatebot/renovate                   | exposure (consumer) | AMZN        | ✅ churn: @aws-sdk client-\* suite                     |
+| compiler-explorer/compiler-explorer    | exposure (consumer) | AMZN        | ✅ churn: @aws-sdk client-\* suite                     |
+| miurla/morphic                         | exposure (consumer) | AMZN        | ✅ churn: @aws-sdk/client-s3                           |
+| papermark/papermark                    | exposure (consumer) | AMZN        | ✅ churn: @aws-sdk client-{s3,lambda} + cloudfront     |
+| microsoft/azure-devops-mcp             | exposure (consumer) | MSFT        | ✅ churn: @azure/identity + msal-node                  |
+| microsoft/opensource-management-portal | exposure (consumer) | MSFT        | ✅ churn: @azure/{identity,cosmos,keyvault,storage}    |
+| vercel/nft                             | exposure (consumer) | GOOGL       | ✅ churn: @google-cloud/bigquery                       |
+| ducktors/turborepo-remote-cache        | exposure (consumer) | GOOGL       | ✅ churn: @google-cloud/storage                        |
+| openwebdocs/mdn-bcd-collector          | exposure (consumer) | GOOGL       | ✅ churn: @google-cloud/{storage,logging-winston}      |
+| firefox-devtools/profiler-server       | exposure (consumer) | GOOGL       | ✅ churn: @google-cloud/storage                        |
+| vercel/next.js                         | control             | —           | ✅                                                     |
+| pallets/flask                          | control             | —           | ✅                                                     |
 
-Consumer repos were verified via GitHub code search (`filename:package.json path:/ "<package>"`) and confirmed public, non-fork, non-archived, with a permissive license.
+Consumer repos were verified via GitHub code search (`filename:package.json path:/ "<package>"`),
+confirmed public, non-fork, non-archived, with a license recorded. From **pilot-v3** each
+second-wave consumer was additionally confirmed to have **in-window churn**: the mapped SDK
+package changed versions in the root `package.json` within the 12-month observation window
+(verified by fetching that path's commit history and diffing manifest snapshots). The churn
+filter is what separates repos that actually produce adoption signal from static roots — e.g.
+`nocodb/nocodb` kept `@azure/identity` pinned across the window and contributed zero mapped
+events, so it stays as a documented negative-coverage observation rather than being dropped.
 
 ## Package-to-company registry rules
 

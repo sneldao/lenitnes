@@ -1,24 +1,43 @@
 import { describe, expect, it } from 'vitest';
-import { OSS_CORPUS, OSS_CORPUS_VERSION, OSS_PACKAGE_MAPPINGS, validateCorpus } from '../src/services/oss-adoption/corpus.js';
-import { buildQualityReport, normalizeDependencyEvents } from '../src/services/oss-adoption/normalize.js';
-import { diffDependencySnapshots, parseDependencyManifest } from '../src/services/oss-adoption/manifests.js';
+import {
+  OSS_CORPUS,
+  OSS_CORPUS_VERSION,
+  OSS_PACKAGE_MAPPINGS,
+  validateCorpus,
+} from '../src/services/oss-adoption/corpus.js';
+import {
+  buildQualityReport,
+  normalizeDependencyEvents,
+} from '../src/services/oss-adoption/normalize.js';
+import {
+  diffDependencySnapshots,
+  parseDependencyManifest,
+} from '../src/services/oss-adoption/manifests.js';
 
 describe('OSS adoption G0 corpus', () => {
   it('has a valid, deduplicated starter corpus', () => {
-    expect(OSS_CORPUS_VERSION).toBe('2026-08-29-pilot-v2');
+    expect(OSS_CORPUS_VERSION).toBe('2026-08-29-pilot-v3');
     expect(validateCorpus()).toEqual([]);
     expect(new Set(OSS_CORPUS.map((repo) => repo.slug)).size).toBe(OSS_CORPUS.length);
   });
 
   it('does not mark mappings without a public ticker as tradable', () => {
-    expect(OSS_PACKAGE_MAPPINGS.every((mapping) => mapping.tradable === Boolean(mapping.ticker))).toBe(true);
+    expect(
+      OSS_PACKAGE_MAPPINGS.every((mapping) => mapping.tradable === Boolean(mapping.ticker)),
+    ).toBe(true);
   });
 });
 
 describe('OSS adoption manifest parsing', () => {
   it('parses npm dependency sections and diffs additions/removals', () => {
-    const before = parseDependencyManifest('package.json', JSON.stringify({ dependencies: { '@azure/core': '1.0.0', lodash: '4.0.0' } }));
-    const after = parseDependencyManifest('package.json', JSON.stringify({ dependencies: { '@azure/core': '1.1.0', axios: '1.0.0' } }));
+    const before = parseDependencyManifest(
+      'package.json',
+      JSON.stringify({ dependencies: { '@azure/core': '1.0.0', lodash: '4.0.0' } }),
+    );
+    const after = parseDependencyManifest(
+      'package.json',
+      JSON.stringify({ dependencies: { '@azure/core': '1.1.0', axios: '1.0.0' } }),
+    );
     expect(diffDependencySnapshots(before, after)).toEqual([
       expect.objectContaining({ packageName: '@azure/core', change: 'upgraded' }),
       expect.objectContaining({ packageName: 'axios', change: 'added' }),
@@ -27,8 +46,13 @@ describe('OSS adoption manifest parsing', () => {
   });
 
   it('parses Go modules and ignores comments', () => {
-    const dependencies = parseDependencyManifest('go.mod', 'module example.com/app\n\nrequire (\n  cloud.google.com/go v1.2.3\n  // ignored.example v1.0.0\n)');
-    expect(dependencies).toEqual([{ ecosystem: 'go', packageName: 'cloud.google.com/go', version: 'v1.2.3' }]);
+    const dependencies = parseDependencyManifest(
+      'go.mod',
+      'module example.com/app\n\nrequire (\n  cloud.google.com/go v1.2.3\n  // ignored.example v1.0.0\n)',
+    );
+    expect(dependencies).toEqual([
+      { ecosystem: 'go', packageName: 'cloud.google.com/go', version: 'v1.2.3' },
+    ]);
   });
 });
 
@@ -82,15 +106,17 @@ describe('OSS adoption event normalization', () => {
       corpusVersion: OSS_CORPUS_VERSION,
       runStartedAt: '2026-08-28T00:00:00Z',
       runFinishedAt: '2026-08-28T00:01:00Z',
-      repositories: [{
-        slug: 'example/app',
-        status: 'completed',
-        defaultBranch: 'main',
-        manifestsFound: ['go.mod'],
-        commitsExamined: 1,
-        eventsExtracted: events.length,
-        error: null,
-      }],
+      repositories: [
+        {
+          slug: 'example/app',
+          status: 'completed',
+          defaultBranch: 'main',
+          manifestsFound: ['go.mod'],
+          commitsExamined: 1,
+          eventsExtracted: events.length,
+          error: null,
+        },
+      ],
       events,
       duplicateEventsRemoved,
     });

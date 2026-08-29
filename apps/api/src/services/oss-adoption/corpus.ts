@@ -1,14 +1,18 @@
 import type { CorpusRepository, PackageCompanyMapping } from './types.js';
 
 /**
- * Starter entries plus first-wave consumer expansion (2026-08-29).
- * Exposure repos are a mix of SDK sources (which reveal ecosystem changes)
- * and high-signal consumers (which reveal adoption of the mapped packages).
- * The consumer repos were verified via GitHub code search: each has the
- * mapped package in its ROOT package.json (path:/), is public, non-fork,
- * and non-archived. See docs/oss-adoption-corpus.md for the selection rules.
+ * Starter entries plus consumer expansion (2026-08-29). Exposure repos are a
+ * mix of SDK sources (which reveal ecosystem changes) and high-signal
+ * consumers (which reveal adoption of the mapped packages). Every consumer
+ * repo was verified via GitHub code search (root package.json, `path:/`) and
+ * — since pilot-v3 — additionally confirmed to have *in-window churn*: the
+ * mapped SDK package actually changed versions in the root manifest within the
+ * 12-month observation window (fetched via the commits + contents API). This
+ * churn filter is what separates repos that produce adoption signal from
+ * static roots (e.g. nocodb kept @azure/identity pinned across the window).
+ * See docs/oss-adoption-corpus.md for the selection rules.
  */
-export const OSS_CORPUS_VERSION = '2026-08-29-pilot-v2';
+export const OSS_CORPUS_VERSION = '2026-08-29-pilot-v3';
 
 export const OSS_CORPUS: CorpusRepository[] = [
   {
@@ -68,7 +72,8 @@ export const OSS_CORPUS: CorpusRepository[] = [
     companyTargets: ['GOOGL', 'AMZN'],
     role: 'exposure',
     expectedManifests: ['package.json'],
-    inclusionReason: 'Open-source kanban; consumer of @google-cloud/storage and @aws-sdk/client-s3 (dual exposure).',
+    inclusionReason:
+      'Open-source kanban; consumer of @google-cloud/storage and @aws-sdk/client-s3 (dual exposure).',
     sourceUrl: 'https://github.com/wekan/wekan',
     defaultBranch: 'main',
     mappingRefs: ['google-cloud-node', 'aws-sdk-js-v3'],
@@ -93,6 +98,161 @@ export const OSS_CORPUS: CorpusRepository[] = [
     sourceUrl: 'https://github.com/lobehub/lobehub',
     defaultBranch: 'canary',
     mappingRefs: ['aws-sdk-js-v3'],
+  },
+  // ── Second-wave consumer expansion (pilot-v3): verified root-manifest
+  //    presence AND in-window churn (mapped package version actually changed
+  //    in the root package.json within the 12-month observation window). ──
+  // AMZN consumers (AWS SDK churn verified)
+  {
+    slug: 'outline/outline',
+    companyTargets: ['AMZN'],
+    role: 'exposure',
+    expectedManifests: ['package.json'],
+    inclusionReason:
+      'Team knowledge base; verified in-window churn of @aws-sdk/client-s3, lib-storage, s3-presigned-post, s3-request-presigner.',
+    sourceUrl: 'https://github.com/outline/outline',
+    defaultBranch: 'main',
+    mappingRefs: ['aws-sdk-js-v3'],
+  },
+  {
+    slug: 'koodo-reader/koodo-reader',
+    companyTargets: ['AMZN'],
+    role: 'exposure',
+    expectedManifests: ['package.json'],
+    inclusionReason: 'Open-source e-book reader; verified in-window churn of @aws-sdk/client-s3.',
+    sourceUrl: 'https://github.com/koodo-reader/koodo-reader',
+    defaultBranch: 'dev',
+    mappingRefs: ['aws-sdk-js-v3'],
+  },
+  {
+    slug: 'Kilo-Org/kilocode',
+    companyTargets: ['AMZN'],
+    role: 'exposure',
+    expectedManifests: ['package.json'],
+    inclusionReason: 'AI code editor; verified in-window churn of @aws-sdk/client-s3.',
+    sourceUrl: 'https://github.com/Kilo-Org/kilocode',
+    defaultBranch: 'main',
+    mappingRefs: ['aws-sdk-js-v3'],
+  },
+  {
+    slug: 'fosrl/pangolin',
+    companyTargets: ['AMZN'],
+    role: 'exposure',
+    expectedManifests: ['package.json'],
+    inclusionReason:
+      'Self-hosted secure tunnel gateway; verified in-window churn of @aws-sdk/client-s3.',
+    sourceUrl: 'https://github.com/fosrl/pangolin',
+    defaultBranch: 'main',
+    mappingRefs: ['aws-sdk-js-v3'],
+  },
+  {
+    slug: 'renovatebot/renovate',
+    companyTargets: ['AMZN'],
+    role: 'exposure',
+    expectedManifests: ['package.json'],
+    inclusionReason:
+      'Dependency-update bot; verified in-window churn of @aws-sdk/client-{codecommit,ec2,ecr,eks,rds,s3} + credential-providers.',
+    sourceUrl: 'https://github.com/renovatebot/renovate',
+    defaultBranch: 'main',
+    mappingRefs: ['aws-sdk-js-v3'],
+  },
+  {
+    slug: 'compiler-explorer/compiler-explorer',
+    companyTargets: ['AMZN'],
+    role: 'exposure',
+    expectedManifests: ['package.json'],
+    inclusionReason:
+      'Interactive compiler explorer; verified in-window churn of @aws-sdk/client-{dynamodb,ec2,s3,sqs,ssm}.',
+    sourceUrl: 'https://github.com/compiler-explorer/compiler-explorer',
+    defaultBranch: 'main',
+    mappingRefs: ['aws-sdk-js-v3'],
+  },
+  {
+    slug: 'miurla/morphic',
+    companyTargets: ['AMZN'],
+    role: 'exposure',
+    expectedManifests: ['package.json'],
+    inclusionReason: 'AI-powered answer engine; verified in-window churn of @aws-sdk/client-s3.',
+    sourceUrl: 'https://github.com/miurla/morphic',
+    defaultBranch: 'main',
+    mappingRefs: ['aws-sdk-js-v3'],
+  },
+  {
+    slug: 'papermark/papermark',
+    companyTargets: ['AMZN'],
+    role: 'exposure',
+    expectedManifests: ['package.json'],
+    inclusionReason:
+      'Open-source document sharing; verified in-window churn of @aws-sdk/client-{lambda,s3} + cloudfront-signer + lib-storage.',
+    sourceUrl: 'https://github.com/papermark/papermark',
+    defaultBranch: 'main',
+    mappingRefs: ['aws-sdk-js-v3'],
+  },
+  // MSFT consumers (Azure SDK churn verified)
+  {
+    slug: 'microsoft/azure-devops-mcp',
+    companyTargets: ['MSFT'],
+    role: 'exposure',
+    expectedManifests: ['package.json'],
+    inclusionReason:
+      'Microsoft-maintained MCP server; verified in-window churn of @azure/identity + @azure/msal-node.',
+    sourceUrl: 'https://github.com/microsoft/azure-devops-mcp',
+    defaultBranch: 'main',
+    mappingRefs: ['azure-sdk-js'],
+  },
+  {
+    slug: 'microsoft/opensource-management-portal',
+    companyTargets: ['MSFT'],
+    role: 'exposure',
+    expectedManifests: ['package.json'],
+    inclusionReason:
+      'Microsoft open-source management portal; verified in-window churn of @azure/{identity,cosmos,keyvault-secrets,storage-blob,storage-queue,data-tables}.',
+    sourceUrl: 'https://github.com/microsoft/opensource-management-portal',
+    defaultBranch: 'main',
+    mappingRefs: ['azure-sdk-js'],
+  },
+  // GOOGL consumers (Google Cloud SDK churn verified)
+  {
+    slug: 'vercel/nft',
+    companyTargets: ['GOOGL'],
+    role: 'exposure',
+    expectedManifests: ['package.json'],
+    inclusionReason: 'Node file trace bundler; verified in-window churn of @google-cloud/bigquery.',
+    sourceUrl: 'https://github.com/vercel/nft',
+    defaultBranch: 'main',
+    mappingRefs: ['google-cloud-node'],
+  },
+  {
+    slug: 'ducktors/turborepo-remote-cache',
+    companyTargets: ['GOOGL'],
+    role: 'exposure',
+    expectedManifests: ['package.json'],
+    inclusionReason:
+      'Remote cache for Turborepo; verified in-window churn of @google-cloud/storage.',
+    sourceUrl: 'https://github.com/ducktors/turborepo-remote-cache',
+    defaultBranch: 'main',
+    mappingRefs: ['google-cloud-node'],
+  },
+  {
+    slug: 'openwebdocs/mdn-bcd-collector',
+    companyTargets: ['GOOGL'],
+    role: 'exposure',
+    expectedManifests: ['package.json'],
+    inclusionReason:
+      'MDN browser-compat-data collector; verified in-window churn of @google-cloud/{storage,logging-winston}.',
+    sourceUrl: 'https://github.com/openwebdocs/mdn-bcd-collector',
+    defaultBranch: 'main',
+    mappingRefs: ['google-cloud-node'],
+  },
+  {
+    slug: 'firefox-devtools/profiler-server',
+    companyTargets: ['GOOGL'],
+    role: 'exposure',
+    expectedManifests: ['package.json'],
+    inclusionReason: 'Firefox profiler backend; verified in-window churn of @google-cloud/storage.',
+    sourceUrl: 'https://github.com/firefox-devtools/profiler-server',
+    defaultBranch: 'master',
+    mappingRefs: ['google-cloud-node'],
   },
   {
     slug: 'vercel/next.js',
@@ -162,7 +322,8 @@ export function validateCorpus(corpus: CorpusRepository[] = OSS_CORPUS): string[
     if (!/^[\w.-]+\/[\w.-]+$/.test(repo.slug)) errors.push(`invalid repository slug: ${repo.slug}`);
     if (seen.has(repo.slug)) errors.push(`duplicate repository: ${repo.slug}`);
     seen.add(repo.slug);
-    if (!repo.sourceUrl.startsWith('https://github.com/')) errors.push(`non-GitHub source: ${repo.slug}`);
+    if (!repo.sourceUrl.startsWith('https://github.com/'))
+      errors.push(`non-GitHub source: ${repo.slug}`);
     if (!repo.inclusionReason.trim()) errors.push(`missing inclusion reason: ${repo.slug}`);
   }
   return errors;
