@@ -16,7 +16,7 @@ import {
 
 describe('OSS adoption G0 corpus', () => {
   it('has a valid, deduplicated starter corpus', () => {
-    expect(OSS_CORPUS_VERSION).toBe('2026-08-29-pilot-v3');
+    expect(OSS_CORPUS_VERSION).toBe('2026-08-29-pilot-v4');
     expect(validateCorpus()).toEqual([]);
     expect(new Set(OSS_CORPUS.map((repo) => repo.slug)).size).toBe(OSS_CORPUS.length);
   });

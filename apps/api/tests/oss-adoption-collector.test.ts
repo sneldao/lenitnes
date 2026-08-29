@@ -427,7 +427,7 @@ describe('OSS adoption collector', () => {
     });
 
     expect(result.runManifest.runId).toMatch(/^oss-adoption-/);
-    expect(result.runManifest.corpusVersion).toBe('2026-08-29-pilot-v3');
+    expect(result.runManifest.corpusVersion).toBe('2026-08-29-pilot-v4');
     expect(result.runManifest.observationWindow.sinceIso).toBe(since);
     expect(result.runManifest.observationWindow.untilIso).toBe(until);
     expect(result.runManifest.githubTokenConfigured).toBe(false);

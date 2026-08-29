@@ -21,6 +21,7 @@ import {
   weekStartOf,
 } from '../src/services/oss-adoption/curves.js';
 import { scoreCurves } from '../src/services/oss-adoption/scoring.js';
+import type { ScoreMetric } from '../src/services/oss-adoption/scoring.js';
 import { fetchPriceSeriesForEvents } from '../src/services/oss-adoption/prices.js';
 import {
   buildOverlay,
@@ -32,20 +33,51 @@ import type { DependencyEvent } from '../src/services/oss-adoption/types.js';
 interface Args {
   input: string;
   out: string;
+  metric: ScoreMetric;
+  window: number;
 }
+
+const VALID_METRICS: ScoreMetric[] = [
+  'added',
+  'removed',
+  'upgraded',
+  'downgraded',
+  'changed',
+  'netAdd',
+  'activeRepos',
+];
 
 function parseArgs(argv: string[]): Args {
   let input = '';
   let out = 'overlay';
+  let metric: ScoreMetric = 'netAdd';
+  let window = 4;
   for (let i = 0; i < argv.length; i++) {
     const key = argv[i];
     const value = argv[i + 1];
     if (key === '--input' && value) input = value;
     else if (key === '--out' && value) out = value;
-    else if (key === '--help') {
+    else if (key === '--metric' && value) {
+      if (!(VALID_METRICS as readonly string[]).includes(value)) {
+        console.error(`Invalid metric "${value}". Valid: ${VALID_METRICS.join(', ')}`);
+        process.exit(1);
+      }
+      metric = value as ScoreMetric;
+    } else if (key === '--window' && value) {
+      window = Number(value);
+      if (!Number.isFinite(window) || window < 2) {
+        console.error('--window must be a number >= 2');
+        process.exit(1);
+      }
+    } else if (key === '--help') {
       console.log(
-        'Usage: npx tsx scripts/analyze-oss-adoption.ts --input <run.json> [--out <prefix>]',
+        'Usage: npx tsx scripts/analyze-oss-adoption.ts --input <run.json> [--metric <name>] [--window <n>] [--out <prefix>]',
       );
+      console.log(
+        '  --metric   Scored metric (default netAdd). Valid: ' + VALID_METRICS.join(', '),
+      );
+      console.log('  --window   Trailing window in weeks (default 4).');
+      console.log('  --out      Output prefix (default overlay).');
       process.exit(0);
     }
   }
@@ -53,11 +85,11 @@ function parseArgs(argv: string[]): Args {
     console.error('Provide --input <run.json> (a collector run manifest JSON).');
     process.exit(1);
   }
-  return { input, out };
+  return { input, out, metric, window };
 }
 
 async function main(): Promise<void> {
-  const { input, out } = parseArgs(process.argv.slice(2));
+  const { input, out, metric, window } = parseArgs(process.argv.slice(2));
 
   const raw = fs.readFileSync(input, 'utf8');
   const run = JSON.parse(raw) as {
@@ -97,7 +129,8 @@ async function main(): Promise<void> {
   }
 
   // 1b) Phase 1: velocity/acceleration scoring over the gap-filled curves.
-  const scored = scoreCurves(filled, { metric: 'netAdd', window: 4 });
+  console.log(`scoring curves: metric=${metric} window=${window}`);
+  const scored = scoreCurves(filled, { metric, window });
 
   // 2) Tokenized-stock price series per ticker.
   console.log('fetching tokenized-stock price series (CoinGecko)...');
@@ -123,7 +156,7 @@ async function main(): Promise<void> {
         window: { sinceIso, untilIso },
         priceSource:
           'coingecko-tokenized-stocks (amazon-xstock / alphabet-xstock / microsoft-xstock)',
-        note: 'Phase 0/1 overlay. Raw metrics correlate weakly (|r| <= 0.3); Phase 1 velocity/acceleration (4-window trailing slope of netAdd) may strengthen the signal.',
+        note: `Phase 0/1 overlay. Raw metrics correlate weakly (|r| <= 0.3). Velocity/acceleration = ${window}-window trailing slope of ${metric}.`,
         summary,
       },
       null,

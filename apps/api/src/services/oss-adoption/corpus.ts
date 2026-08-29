@@ -12,7 +12,7 @@ import type { CorpusRepository, PackageCompanyMapping } from './types.js';
  * static roots (e.g. nocodb kept @azure/identity pinned across the window).
  * See docs/oss-adoption-corpus.md for the selection rules.
  */
-export const OSS_CORPUS_VERSION = '2026-08-29-pilot-v3';
+export const OSS_CORPUS_VERSION = '2026-08-29-pilot-v4';
 
 export const OSS_CORPUS: CorpusRepository[] = [
   {
@@ -251,6 +251,66 @@ export const OSS_CORPUS: CorpusRepository[] = [
     expectedManifests: ['package.json'],
     inclusionReason: 'Firefox profiler backend; verified in-window churn of @google-cloud/storage.',
     sourceUrl: 'https://github.com/firefox-devtools/profiler-server',
+    defaultBranch: 'master',
+    mappingRefs: ['google-cloud-node'],
+  },
+  // ── Third-wave consumer expansion (pilot-v4): GOOGL density push. ──
+  //   Phase 1 multi-metric scan found GOOGL `changed`-velocity is the only
+  //   forward-reading > 0.2 (fwd1 r=+0.21, fwd2 r=+0.24, n=50-51). These 5
+  //   repos were churn-verified in-window (root package.json + commits API)
+  //   and chosen to densify the sparse GOOGL adoption series.
+  {
+    slug: 'typeorm/typeorm',
+    companyTargets: ['GOOGL'],
+    role: 'exposure',
+    expectedManifests: ['package.json'],
+    inclusionReason:
+      'Most-starred TypeScript ORM; verified in-window churn of @google-cloud/spanner (^8.0.0 → ^5.18.0||^6.0.0||^7.0.0).',
+    sourceUrl: 'https://github.com/typeorm/typeorm',
+    defaultBranch: 'master',
+    mappingRefs: ['google-cloud-node'],
+  },
+  {
+    slug: 'firebase/firebase-tools',
+    companyTargets: ['GOOGL'],
+    role: 'exposure',
+    expectedManifests: ['package.json'],
+    inclusionReason:
+      'Firebase CLI; verified in-window churn of @google-cloud/pubsub (^5.2.0 → ^4.5.0).',
+    sourceUrl: 'https://github.com/firebase/firebase-tools',
+    defaultBranch: 'main',
+    mappingRefs: ['google-cloud-node'],
+  },
+  {
+    slug: 'TryGhost/ActivityPub',
+    companyTargets: ['GOOGL'],
+    role: 'exposure',
+    expectedManifests: ['package.json'],
+    inclusionReason:
+      'Ghost ActivityPub server; verified in-window churn of @google-cloud/{pubsub,storage} (6.0.1/8.0.1 → 5.3.1/7.21.0).',
+    sourceUrl: 'https://github.com/TryGhost/ActivityPub',
+    defaultBranch: 'main',
+    mappingRefs: ['google-cloud-node'],
+  },
+  {
+    slug: 'observablehq/notebook-kit',
+    companyTargets: ['GOOGL'],
+    role: 'exposure',
+    expectedManifests: ['package.json'],
+    inclusionReason:
+      'Observable notebook tooling; verified in-window churn of @google-cloud/bigquery (^8.3.0 → ^8.1.1).',
+    sourceUrl: 'https://github.com/observablehq/notebook-kit',
+    defaultBranch: 'main',
+    mappingRefs: ['google-cloud-node'],
+  },
+  {
+    slug: 'Kesin11/CIAnalyzer',
+    companyTargets: ['GOOGL'],
+    role: 'exposure',
+    expectedManifests: ['package.json'],
+    inclusionReason:
+      'CI log analyzer; verified in-window churn of @google-cloud/{bigquery,storage} (9.0.2/7.22.0 → 7.9.4/7.19.0).',
+    sourceUrl: 'https://github.com/Kesin11/CIAnalyzer',
     defaultBranch: 'master',
     mappingRefs: ['google-cloud-node'],
   },
