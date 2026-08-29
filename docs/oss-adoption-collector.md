@@ -259,16 +259,57 @@ forward return (r=+0.18, n=52) and GOOGL's persistently negative
 > must normalize window edges with `weekStartOf()` or the filled weeks land on
 > the wrong weekday and miss the real active buckets (fixed in the CLIs).
 
+### Phase 1 velocity/acceleration scoring (2026-08-29)
+
+The same 24-repo pilot-v3 corpus gaps-filled curves were scored with a
+4-week trailing least-squares slope on `netAdd` (velocity) and slope of
+velocity (acceleration), then overlaid against tokenized-stock prices.
+Workflow:
+
+```bash
+# The analyze CLI now scores curves before building the overlay:
+npx tsx scripts/analyze-oss-adoption.ts --input /tmp/oss-adoption-v3/oss-adoption-*.json --out /tmp/oss-adoption-v3/phase1-overlay
+
+# Scoring module can also be used standalone:
+npx tsx -e "import {scoreCurves,scoredCurvesToCsv} from '../src/services/oss-adoption/scoring.js'; ..."
+```
+
+Per-ticker velocity/acceleration correlations vs forward returns:
+
+| Ticker | Same-week velocity r | Same-week accel r | Fwd4 velocity r | Fwd4 accel r |
+| ------ | -------------------- | ----------------- | --------------- | ------------ |
+| AMZN   | −0.26 (n=52)         | −0.15 (n=51)      | −0.02 (n=51)    | −0.06 (n=50) |
+| MSFT   | +0.14 (n=47)         | +0.18 (n=47)      | −0.12 (n=47)    | −0.04 (n=47) |
+| GOOGL  | — (constant netAdd)  | —                 | —               | —            |
+
+No metric across any ticker or forward horizon exceeds |r| 0.3. The most
+notable reading is AMZN velocity → same-week return (r=−0.26), a modest
+negative contemporaneous relationship. Velocity does not strengthen the
+forward signal over raw metrics — the honest conclusion is that on this
+corpus, a 4-window slope of `netAdd` does not produce a tradable lead
+relationship.
+
+GOOGL's velocity/acceleration rows are dropped from the summary because
+its `netAdd` is constant across the 53-week window (no consumer repos
+changed their `@google-cloud/*` dependency versions), so Pearson's
+correlation coefficient cannot be computed (no variance).
+
 ### Recommended next steps
 
-- ~~**Expand the corpus** to include 10–20 consumer repos that use the mapped
-  packages.~~ ✅ Done in version `2026-08-29-pilot-v2` (5 consumer repos added).
-- ~~**Run the collection against the expanded corpus** and verify that mapped
-  events are now produced.~~ ✅ Done — 53 mapped events (43 AMZN, 7 MSFT, 3 GOOGL).
-- ~~**Add semver-aware diffing** so version changes are classified correctly.~~ ✅ Done.
-- ~~**Collect weekly curves from the expanded corpus and overlay with stock
-  prices (Phase 0).**~~ ✅ Done — `overlay.csv` + `overlay.summary.json`
+- **Expand the corpus** to include 10–20 consumer repos that use the mapped
+  packages. ✅ Done in version `2026-08-29-pilot-v2` (5 consumer repos added).
+- **Run the collection against the expanded corpus** and verify that mapped
+  events are now produced. ✅ Done — 53 mapped events (43 AMZN, 7 MSFT, 3 GOOGL).
+- **Add semver-aware diffing** so version changes are classified correctly. ✅ Done.
+- **Collect weekly curves from the expanded corpus and overlay with stock
+  prices (Phase 0).** ✅ Done — `overlay.csv` + `overlay.summary.json`
   (correlations are exploratory/weak; see above).
+- **Score velocity/acceleration (Phase 1).** ✅ Done — velocity/acceleration
+  correlations still weak (|r| ≤ 0.3); see Phase 1 results above.
+- **Evaluate next step:** expand the corpus further (more consumer repos,
+  deeper max-pages), or revisit the metric definition (e.g. `adoption_rate =
+netAdd / totalTracking` if cumulative tracking state is added), before
+  moving to G2 agent scoring.
 
 ## Validation boundary
 
@@ -276,13 +317,13 @@ The dataset may be used for exploratory curves and pre-registered tests only
 after the quality report is reviewed. The gates are unchanged from the corpus
 document:
 
-| Gate                       | Description                                                | Status                    |
-| -------------------------- | ---------------------------------------------------------- | ------------------------- |
-| **G0 — Data quality**      | Reliable identification, deduplication, auditable mappings | ✅ Validated              |
-| **G1 — Historical signal** | Adoption curves vs stock-price outcomes                    | ⏳ Corpus needs expansion |
-| **G2 — Agent usefulness**  | Agent scoring improves selectivity                         | Pending                   |
-| **G3 — Paper viability**   | Conservative paper strategy                                | Pending                   |
-| **G4 — Alpaca decision**   | Go/no-go for brokerage integration                         | Pending                   |
+| Gate                       | Description                                                | Status                               |
+| -------------------------- | ---------------------------------------------------------- | ------------------------------------ | --- | ---------------------------------- |
+| **G0 — Data quality**      | Reliable identification, deduplication, auditable mappings | ✅ Validated                         |
+| **G1 — Historical signal** | Adoption curves vs stock-price outcomes                    | ⏳ Curves built; correlations weak ( | r   | ≤ 0.3) — corpus/signal work needed |
+| **G2 — Agent usefulness**  | Agent scoring improves selectivity                         | Pending                              |
+| **G3 — Paper viability**   | Conservative paper strategy                                | Pending                              |
+| **G4 — Alpaca decision**   | Go/no-go for brokerage integration                         | Pending                              |
 
 Until G4 is a positive decision, Alpaca remains downstream context — not a
 dependency of the collector or the research dataset.
