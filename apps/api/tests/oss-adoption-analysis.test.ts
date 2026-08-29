@@ -204,6 +204,6 @@ describe('pearson / summarizeOverlay', () => {
     );
     const csv = overlayToCsv(rows);
     expect(csv.split('\n')[0]).toContain('weekStart,companyTicker');
-    expect(csv).toContain('2026-04-20,AMZN,1,0,0,0,0,1,1,106');
+    expect(csv).toContain('2026-04-20,AMZN,1,0,0,0,0,1,1,,,106');
   });
 });

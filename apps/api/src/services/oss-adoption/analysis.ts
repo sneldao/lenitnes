@@ -106,6 +106,10 @@ export interface OverlayRow {
   changed: number;
   netAdd: number;
   activeRepos: number;
+  /** Trailing-window slope of the scored metric (Phase 1); null when unscored. */
+  velocity: number | null;
+  /** Trailing-window slope of velocity; null when unscored or not enough history. */
+  acceleration: number | null;
   weekClose: number | null;
   weekReturn: number | null;
   fwd1Return: number | null;
@@ -143,6 +147,8 @@ export function buildOverlay(
 
     for (const c of tickerCurves) {
       const weekReturn = returns.get(c.weekStart) ?? null;
+      // Scored curves carry optional velocity/acceleration (Phase 1).
+      const cv = c as { velocity?: number | null; acceleration?: number | null };
       rows.push({
         weekStart: c.weekStart,
         companyTicker: c.companyTicker,
@@ -153,6 +159,8 @@ export function buildOverlay(
         changed: c.changed,
         netAdd: c.netAdd,
         activeRepos: c.activeRepos,
+        velocity: cv.velocity ?? null,
+        acceleration: cv.acceleration ?? null,
         weekClose: closes.get(c.weekStart) ?? null,
         weekReturn,
         fwd1Return: cumulativeForwardReturn(closes, c.weekStart, forwardWeeks[0] ?? 1),
@@ -209,9 +217,16 @@ export interface OverlaySummary {
 
 /** Per-ticker correlations of each adoption metric vs each return column. */
 export function summarizeOverlay(rows: OverlayRow[]): OverlaySummary[] {
-  const METRICS: Array<
-    keyof Pick<OverlayRow, 'added' | 'removed' | 'upgraded' | 'changed' | 'netAdd' | 'activeRepos'>
-  > = ['added', 'removed', 'upgraded', 'changed', 'netAdd', 'activeRepos'];
+  const METRICS: ReadonlyArray<string> = [
+    'added',
+    'removed',
+    'upgraded',
+    'changed',
+    'netAdd',
+    'activeRepos',
+    'velocity',
+    'acceleration',
+  ];
 
   const tickers = [...new Set(rows.map((r) => r.companyTicker))].sort();
   return tickers.map((ticker) => {
@@ -221,7 +236,7 @@ export function summarizeOverlay(rows: OverlayRow[]): OverlaySummary[] {
         const xs: number[] = [];
         const ys: number[] = [];
         for (const r of tickerRows) {
-          const x = r[metric];
+          const x = (r as any)[metric];
           const y = col(r);
           if (typeof x === 'number' && y != null && Number.isFinite(y)) {
             xs.push(x);
@@ -260,6 +275,8 @@ export function overlayToCsv(rows: OverlayRow[]): string {
     'changed',
     'netAdd',
     'activeRepos',
+    'velocity',
+    'acceleration',
     'weekClose',
     'weekReturn',
     'fwd1Return',
@@ -278,6 +295,8 @@ export function overlayToCsv(rows: OverlayRow[]): string {
       r.changed,
       r.netAdd,
       r.activeRepos,
+      fmt(r.velocity),
+      fmt(r.acceleration),
       r.weekClose == null ? '' : Number(r.weekClose.toFixed(2)),
       fmt(r.weekReturn),
       fmt(r.fwd1Return),

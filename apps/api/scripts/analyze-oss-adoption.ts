@@ -1,11 +1,12 @@
 #!/usr/bin/env node
 /**
- * OSS adoption — Phase 0 overlay: adoption curves vs tokenized-stock prices.
+ * OSS adoption — Phase 0/1 overlay: adoption curves + velocity/acceleration
+ * vs tokenized-stock prices.
  *
- * Reads a collected run JSON, builds weekly adoption curves, fetches
- * CoinGecko tokenized-stock prices for the mapped tickers, aligns them,
- * and writes:
- *   <out>/overlay.csv            — weekly adoption + price return table
+ * Reads a collected run JSON, builds weekly adoption curves, scores them
+ * (velocity/acceleration, Phase 1), fetches CoinGecko tokenized-stock prices
+ * for the mapped tickers, aligns everything, and writes:
+ *   <out>/overlay.csv            — weekly adoption + velocity + price return table
  *   <out>/overlay.summary.json   — per-ticker Pearson correlations
  *
  * Usage:
@@ -19,6 +20,7 @@ import {
   fillWeeklyGaps,
   weekStartOf,
 } from '../src/services/oss-adoption/curves.js';
+import { scoreCurves } from '../src/services/oss-adoption/scoring.js';
 import { fetchPriceSeriesForEvents } from '../src/services/oss-adoption/prices.js';
 import {
   buildOverlay,
@@ -94,6 +96,9 @@ async function main(): Promise<void> {
     );
   }
 
+  // 1b) Phase 1: velocity/acceleration scoring over the gap-filled curves.
+  const scored = scoreCurves(filled, { metric: 'netAdd', window: 4 });
+
   // 2) Tokenized-stock price series per ticker.
   console.log('fetching tokenized-stock price series (CoinGecko)...');
   const priceSeries = await fetchPriceSeriesForEvents(events, fromDate, toDate);
@@ -104,8 +109,8 @@ async function main(): Promise<void> {
     );
   }
 
-  // 3) Overlay + correlations.
-  const rows = buildOverlay(filled, priceByTicker);
+  // 3) Overlay + correlations (Phase 0 raw metrics + Phase 1 velocity/acceleration).
+  const rows = buildOverlay(scored, priceByTicker);
   const summary = summarizeOverlay(rows);
 
   fs.mkdirSync(path.dirname(path.resolve(out)), { recursive: true });
@@ -118,7 +123,7 @@ async function main(): Promise<void> {
         window: { sinceIso, untilIso },
         priceSource:
           'coingecko-tokenized-stocks (amazon-xstock / alphabet-xstock / microsoft-xstock)',
-        note: 'Exploratory Phase 0 overlay. 53 weeks per ticker but very few active (12/1/4) → low statistical power; report r as a signal, not proof.',
+        note: 'Phase 0/1 overlay. Raw metrics correlate weakly (|r| <= 0.3); Phase 1 velocity/acceleration (4-window trailing slope of netAdd) may strengthen the signal.',
         summary,
       },
       null,
