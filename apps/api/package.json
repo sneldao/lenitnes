@@ -18,6 +18,7 @@
     "x402:agent": "tsx scripts/x402-agent-payer.ts",
     "collect:oss-adoption": "tsx scripts/collect-oss-adoption.ts",
     "curves:oss-adoption": "tsx scripts/build-oss-adoption-curves.ts",
+    "overlay:oss-adoption": "tsx scripts/analyze-oss-adoption.ts",
     "typecheck": "tsc --noEmit",
     "test": "vitest run"
   },

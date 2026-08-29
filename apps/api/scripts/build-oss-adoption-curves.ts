@@ -20,6 +20,7 @@ import {
   buildWeeklyCurves,
   curvesToCsv,
   fillWeeklyGaps,
+  weekStartOf,
 } from '../src/services/oss-adoption/curves.js';
 import { collectAdoptionHistory } from '../src/services/oss-adoption/collector.js';
 import type { DependencyEvent } from '../src/services/oss-adoption/types.js';
@@ -110,8 +111,10 @@ async function main(): Promise<void> {
   const tickers = [...new Set(curves.map((c) => c.companyTicker))].sort();
   let filled: typeof curves = [];
   if (windowSince && windowUntil) {
-    const fromWeek = curves.length > 0 ? curves[0].weekStart : windowSince.slice(0, 10);
-    const toWeek = windowUntil.slice(0, 10);
+    // Curve weeks are ISO-Monday aligned; normalize the window edges so
+    // gap-filling emits whole weeks and lines up with real curve buckets.
+    const fromWeek = weekStartOf(windowSince.slice(0, 10)) || windowSince.slice(0, 10);
+    const toWeek = weekStartOf(windowUntil.slice(0, 10)) || windowUntil.slice(0, 10);
     for (const ticker of tickers) {
       filled = filled.concat(
         fillWeeklyGaps(

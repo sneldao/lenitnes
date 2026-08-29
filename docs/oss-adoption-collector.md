@@ -17,6 +17,7 @@ events from it), so packages added before the window are not mislabeled as
 added.
 
 **Contract** (from `oss-adoption-corpus.md`):
+
 - A failed fetch is a missing observation, never silent zero adoption.
 - Truncated history and rate limits are recorded as warnings.
 - The quality report is the auditable artifact of every run.
@@ -57,12 +58,12 @@ GITHUB_TOKEN=ghp_xxx npm run collect:oss-adoption
 
 ### Arguments
 
-| Argument | Default | Description |
-|---|---|---|
-| `--since` | now − 12 months | UTC start of the observation window |
-| `--until` | now | UTC end of the observation window |
-| `--max-pages` | 3 | Pages of 100 commits per manifest path (cap) |
-| `--out` | `data/oss-adoption/` | Output directory for the run JSON file |
+| Argument      | Default              | Description                                  |
+| ------------- | -------------------- | -------------------------------------------- |
+| `--since`     | now − 12 months      | UTC start of the observation window          |
+| `--until`     | now                  | UTC end of the observation window            |
+| `--max-pages` | 3                    | Pages of 100 commits per manifest path (cap) |
+| `--out`       | `data/oss-adoption/` | Output directory for the run JSON file       |
 
 ## Output format
 
@@ -71,28 +72,35 @@ top-level keys:
 
 ```json
 {
-  "runManifest": { /* run metadata, observation window, per-repo summary */ },
-  "events": [ /* normalized DependencyEvent[] */ ],
-  "qualityReport": { /* OssQualityReport from the G0 contract */ }
+  "runManifest": {
+    /* run metadata, observation window, per-repo summary */
+  },
+  "events": [
+    /* normalized DependencyEvent[] */
+  ],
+  "qualityReport": {
+    /* OssQualityReport from the G0 contract */
+  }
 }
 ```
 
 ### Run manifest fields
 
-| Field | Description |
-|---|---|
-| `runId` | Unique run identifier (`oss-adoption-<timestamp>`) |
-| `corpusVersion` | Frozen corpus version string |
-| `observationWindow` | `{ sinceIso, untilIso }` — the explicit UTC window |
-| `runStartedAt` / `runFinishedAt` | Wall-clock timestamps |
-| `githubTokenConfigured` | Whether a token was provided |
-| `rateLimit` | Snapshot of `x-ratelimit-*` headers from the last API call |
-| `repositories` | Per-repo records (status, commits, manifests, events, errors) |
-| `warnings` | All run-level warnings (truncation, branch mismatch, archived repos) |
+| Field                            | Description                                                          |
+| -------------------------------- | -------------------------------------------------------------------- |
+| `runId`                          | Unique run identifier (`oss-adoption-<timestamp>`)                   |
+| `corpusVersion`                  | Frozen corpus version string                                         |
+| `observationWindow`              | `{ sinceIso, untilIso }` — the explicit UTC window                   |
+| `runStartedAt` / `runFinishedAt` | Wall-clock timestamps                                                |
+| `githubTokenConfigured`          | Whether a token was provided                                         |
+| `rateLimit`                      | Snapshot of `x-ratelimit-*` headers from the last API call           |
+| `repositories`                   | Per-repo records (status, commits, manifests, events, errors)        |
+| `warnings`                       | All run-level warnings (truncation, branch mismatch, archived repos) |
 
 ### Quality report (OssQualityReport)
 
 Includes the aggregated counts from the G0 contract:
+
 - `repositoriesRequested`, `repositoriesCompleted`, `repositoriesFailed`
 - `commitsExamined`, `eventsExtracted`
 - `duplicateEventsRemoved`, `mappedEvents`, `unmappedEvents`
@@ -115,24 +123,24 @@ is large and can be omitted).
 
 ### Results
 
-| Metric | Value |
-|---|---|
-| Repositories completed | 5/5 (0 failed) |
-| Commits examined | 316 |
-| Events extracted | 1710 |
-| Mapped events | **0** |
-| Unmapped events | 1710 |
-| Duplicate events removed | 0 |
-| Rate limit consumed | ~2151 of 5000 |
+| Metric                   | Value          |
+| ------------------------ | -------------- |
+| Repositories completed   | 5/5 (0 failed) |
+| Commits examined         | 316            |
+| Events extracted         | 1710           |
+| Mapped events            | **0**          |
+| Unmapped events          | 1710           |
+| Duplicate events removed | 0              |
+| Rate limit consumed      | ~2151 of 5000  |
 
 ### Key findings
 
 1. **0 mapped events is honest data, not a bug.** The starter corpus repos are
-   SDK *sources* (google-cloud-node, azure-sdk-for-js, aws-sdk-js-v3), not
+   SDK _sources_ (google-cloud-node, azure-sdk-for-js, aws-sdk-js-v3), not
    consumers. Their root `package.json` files don't depend on `@google-cloud/*`,
    `@azure/*`, or `@aws-sdk/*` packages — those live in sub-packages or aren't
    used by the source repo itself. To produce adoption signal, the corpus must
-   include repos that *consume* these SDKs. The quality report correctly surfaces
+   include repos that _consume_ these SDKs. The quality report correctly surfaces
    this as a coverage gap, which is exactly the purpose of G1.
 
 2. **Upgrade/downgrade classification is string-based.** The `downgraded` count
@@ -155,14 +163,14 @@ is large and can be omitted).
 Corpus version `2026-08-29-pilot-v2` (10 repos: 3 SDK sources + 5 consumer
 repos + 2 controls). Same 12-month window, 3 pages per manifest.
 
-| Metric | Value |
-|---|---|
-| Repositories completed | 10/10 (0 failed) |
-| Commits examined | 1362 |
-| Events extracted | 3858 |
-| **Mapped events** | **53 (high confidence: 43 AMZN, 7 MSFT, 3 GOOGL)** |
-| Unmapped events | 3805 |
-| Truncation warnings | 3 (promptfoo, wekan, lobehub hit the 3-page cap) |
+| Metric                 | Value                                              |
+| ---------------------- | -------------------------------------------------- |
+| Repositories completed | 10/10 (0 failed)                                   |
+| Commits examined       | 1362                                               |
+| Events extracted       | 3858                                               |
+| **Mapped events**      | **53 (high confidence: 43 AMZN, 7 MSFT, 3 GOOGL)** |
+| Unmapped events        | 3805                                               |
+| Truncation warnings    | 3 (promptfoo, wekan, lobehub hit the 3-page cap)   |
 
 The consumer expansion worked as intended: mapped events now come from
 `lobehub/lobehub`, `promptfoo/promptfoo`, and `wekan/wekan` changing their
@@ -183,6 +191,35 @@ corpus with the fix: 581 added, 931 upgraded, 246 downgraded, 507 removed,
 1593 changed (previously the downgraded count was inflated by lexical
 misclassification).
 
+### Phase 0 overlay (2026-08-29)
+
+The expanded-corpus run was joined against tokenized-stock prices
+(`amazon-xstock` / `alphabet-xstock` / `microsoft-xstock` on CoinGecko — the
+repo's production price plumbing is crypto-oriented, and these track the
+underlying equities without a new API key). Workflow:
+
+```bash
+# Build weekly adoption curves from a collected run JSON:
+npx tsx scripts/build-oss-adoption-curves.ts --input /tmp/oss-adoption/oss-adoption-*.json --out curves.csv
+
+# Join curves with prices and compute lead/lag correlations:
+npx tsx scripts/analyze-oss-adoption.ts --input /tmp/oss-adoption/oss-adoption-*.json --out overlay
+```
+
+Per-ticker adoption activity over the 53-week window: **AMZN 12 active weeks
+(5 added / 3 removed / 29 upgraded), GOOGL 1 (2 upgraded), MSFT 4 (2 added /
+1 removed / 4 upgraded)**. Correlations of adoption metrics vs forward price
+returns were weak and non-significant (|r| ≲ 0.2) — expected at this stage,
+since the 12-month lookback is mostly cold: mapped adoption clusters in
+Q2–Q3 2026, so only a handful of weeks carry signal. The single interesting
+reading (MSFT `netAdd` → next-week return r ≈ +0.21, n=47) rests on just 4
+active weeks and should not be treated as evidence. This is an exploratory
+artifact, not a validated predictor.
+
+> **Note on week alignment:** curve weeks are ISO-Monday bucketed; gap-filling
+> must normalize window edges with `weekStartOf()` or the filled weeks land on
+> the wrong weekday and miss the real active buckets (fixed in the CLIs).
+
 ### Recommended next steps
 
 - ~~**Expand the corpus** to include 10–20 consumer repos that use the mapped
@@ -190,8 +227,9 @@ misclassification).
 - ~~**Run the collection against the expanded corpus** and verify that mapped
   events are now produced.~~ ✅ Done — 53 mapped events (43 AMZN, 7 MSFT, 3 GOOGL).
 - ~~**Add semver-aware diffing** so version changes are classified correctly.~~ ✅ Done.
-- **Collect weekly curves** from the expanded corpus and overlay with stock prices
-  (Phase 0 of the backtest plan in `oss-adoption-trading.md`).
+- ~~**Collect weekly curves from the expanded corpus and overlay with stock
+  prices (Phase 0).**~~ ✅ Done — `overlay.csv` + `overlay.summary.json`
+  (correlations are exploratory/weak; see above).
 
 ## Validation boundary
 
@@ -199,13 +237,13 @@ The dataset may be used for exploratory curves and pre-registered tests only
 after the quality report is reviewed. The gates are unchanged from the corpus
 document:
 
-| Gate | Description | Status |
-|---|---|---|
-| **G0 — Data quality** | Reliable identification, deduplication, auditable mappings | ✅ Validated |
-| **G1 — Historical signal** | Adoption curves vs stock-price outcomes | ⏳ Corpus needs expansion |
-| **G2 — Agent usefulness** | Agent scoring improves selectivity | Pending |
-| **G3 — Paper viability** | Conservative paper strategy | Pending |
-| **G4 — Alpaca decision** | Go/no-go for brokerage integration | Pending |
+| Gate                       | Description                                                | Status                    |
+| -------------------------- | ---------------------------------------------------------- | ------------------------- |
+| **G0 — Data quality**      | Reliable identification, deduplication, auditable mappings | ✅ Validated              |
+| **G1 — Historical signal** | Adoption curves vs stock-price outcomes                    | ⏳ Corpus needs expansion |
+| **G2 — Agent usefulness**  | Agent scoring improves selectivity                         | Pending                   |
+| **G3 — Paper viability**   | Conservative paper strategy                                | Pending                   |
+| **G4 — Alpaca decision**   | Go/no-go for brokerage integration                         | Pending                   |
 
 Until G4 is a positive decision, Alpaca remains downstream context — not a
 dependency of the collector or the research dataset.
