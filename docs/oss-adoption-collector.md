@@ -294,6 +294,88 @@ its `netAdd` is constant across the 53-week window (no consumer repos
 changed their `@google-cloud/*` dependency versions), so Pearson's
 correlation coefficient cannot be computed (no variance).
 
+### Multi-metric velocity scan (pilot-v3, 2026-08-29)
+
+The Phase 1 `netAdd`-velocity scan left GOOGL invisible (netAdd constant).
+A multi-metric scan (`--metric changed`, `--metric upgraded`, `--metric
+activeRepos`) was run on the same pilot-v3 data to test whether GOOGL's
+upgrade-dominant activity produces a signal on a different metric. The
+`analyze-oss-adoption.ts` CLI was extended with `--metric` and `--window`
+flags for this purpose.
+
+GOOGL `changed`-velocity (the slope of `added+removed+upgraded+downgraded`)
+was the only forward-reading above 0.2 across all tickers and metrics:
+
+| Metric                    | Ticker | Best reading   |
+| ------------------------- | ------ | -------------- |
+| `changed`-velocity → fwd1 | GOOGL  | r=+0.21 (n=51) |
+| `changed`-velocity → fwd2 | GOOGL  | r=+0.24 (n=51) |
+| `changed`-accel → fwd1    | GOOGL  | r=+0.23 (n=50) |
+| `changed`-accel → fwd2    | GOOGL  | r=+0.22 (n=50) |
+
+AMZN `changed`-velocity was dropped (constant — AMZN is active every week,
+so its `changed` trailing slope has no variance). MSFT `changed`-velocity
+was also dropped. `upgraded`-velocity and `activeRepos`-velocity had no
+variance for any ticker.
+
+This was the strongest forward signal yet — but GOOGL had only 14/53 active
+weeks on pilot-v3, so the correlation could be a small-sample artifact. The
+plan: **densify the GOOGL series** with more consumer repos, then re-score
+with `--metric changed` to see if the signal holds.
+
+### Fourth pilot run + overlay (pilot-v4, GOOGL density expansion, 2026-08-29)
+
+Corpus version `2026-08-29-pilot-v4` (29 repos: 3 SDK sources + 24 consumer
+repos + 2 controls). Five new GOOGL consumer repos were churn-verified
+(in-window `@google-cloud/*` package changes in root `package.json`) and
+added to densify the GOOGL adoption series:
+
+| Repo                        | Stars | Churned packages                   |
+| --------------------------- | ----- | ---------------------------------- |
+| `typeorm/typeorm`           | 36.6k | `@google-cloud/spanner`            |
+| `firebase/firebase-tools`   | 4.4k  | `@google-cloud/pubsub`             |
+| `TryGhost/ActivityPub`      | 237   | `@google-cloud/{pubsub,storage}`   |
+| `observablehq/notebook-kit` | 343   | `@google-cloud/bigquery`           |
+| `Kesin11/CIAnalyzer`        | 114   | `@google-cloud/{bigquery,storage}` |
+
+| Metric             | pilot-v3 | pilot-v4                       |
+| ------------------ | -------- | ------------------------------ |
+| Repositories       | 24       | 29 (28/29 completed, 1 failed) |
+| Events extracted   | 8755     | 9523                           |
+| **Mapped events**  | 475      | **505**                        |
+| GOOGL active weeks | 14/53    | **26/52**                      |
+| AMZN active weeks  | 48/53    | 47/52                          |
+| MSFT active weeks  | 11/53    | 11/52                          |
+
+The 1 failure was `promptfoo/promptfoo` (HTTP 403s on manifest blob fetches
+late in the run — secondary rate limit, recorded as missing observations).
+
+**Key test:** GOOGL `changed`-velocity correlations after densifying the series:
+
+| Horizon   | v3 GOOGL changed-velocity r | v4 GOOGL changed-velocity r | v4 GOOGL changed-accel r |
+| --------- | --------------------------- | --------------------------- | ------------------------ |
+| same-week | −0.06                       | −0.04                       | +0.06                    |
+| fwd1      | **+0.21**                   | **+0.13**                   | **+0.16**                |
+| fwd2      | **+0.24**                   | **+0.15**                   | **+0.13**                |
+| fwd4      | +0.05                       | +0.01                       | −0.02                    |
+
+The GOOGL `changed`-velocity signal **weakened** with denser data — the
+pilot-v3 reading was partly a small-sample artifact. The honest conclusion
+is that GOOGL `changed`-velocity has a mild forward correlation (r≈+0.13–0.15)
+that is not strong enough for a trading signal.
+
+One notable emergent finding: GOOGL `netAdd` → fwd2/fwd4 return (r≈+0.20,
+n=51) was invisible on pilot-v3 (netAdd constant) and only appeared after
+the expanded corpus introduced new repos that actually change their
+`@google-cloud/*` dependency versions. This is the strongest forward
+`netAdd` reading across all tickers, but still at |r| ≤ 0.2.
+
+**Phase 0/1 conclusion across all pilot runs:** no metric, horizon, or
+velocity/acceleration transformation across any ticker exceeds |r| 0.3.
+The G1 adoption-curves vs stock-price overlay has not produced a signal
+strong enough to investigate further without a fundamentally different
+approach to the corpus, the metric definition, or the scoring methodology.
+
 ### Recommended next steps
 
 - **Expand the corpus** to include 10–20 consumer repos that use the mapped
@@ -306,10 +388,23 @@ correlation coefficient cannot be computed (no variance).
   (correlations are exploratory/weak; see above).
 - **Score velocity/acceleration (Phase 1).** ✅ Done — velocity/acceleration
   correlations still weak (|r| ≤ 0.3); see Phase 1 results above.
-- **Evaluate next step:** expand the corpus further (more consumer repos,
-  deeper max-pages), or revisit the metric definition (e.g. `adoption_rate =
-netAdd / totalTracking` if cumulative tracking state is added), before
-  moving to G2 agent scoring.
+- **Multi-metric velocity scan + GOOGL density expansion (pilot-v4).** ✅ Done.
+  GOOGL `changed`-velocity signal was partly a small-sample artifact; with
+  denser data the correlation drops to r≈+0.13–0.15. GOOGL `netAdd` → fwd2/4
+  (r≈+0.20) is a new emergent finding but still weak.
+- **Next step options:**
+  - **Accept the weak G1 signal and move to G2 agent scoring** — the corpus
+    and scoring pipeline are production-ready; the weak overlay correlations
+    may simply mean the signal is too latent for a weekly bucketed Pearson
+    test and requires agent-level selectivity (e.g. scoring only repos whose
+    changelogs mention a specific feature release).
+  - **Further corpus expansion** — deeper max-pages (5–10) to capture older
+    in-window bumps, or a wider search for SDK consumers beyond the
+    npm/TypeScript ecosystem. The marginal return on collection time
+    is diminishing: 24→29 repos added only 30 mapped events.
+  - **Revisit the metric definition** — `adoption_rate = netAdd /
+totalTracking` (cumulative per-repo tracking state) would be a richer
+    signal than raw netAdd, but requires a pipeline change to maintain state.
 
 ## Validation boundary
 
@@ -317,13 +412,13 @@ The dataset may be used for exploratory curves and pre-registered tests only
 after the quality report is reviewed. The gates are unchanged from the corpus
 document:
 
-| Gate                       | Description                                                | Status                               |
-| -------------------------- | ---------------------------------------------------------- | ------------------------------------ | --- | ---------------------------------- |
-| **G0 — Data quality**      | Reliable identification, deduplication, auditable mappings | ✅ Validated                         |
-| **G1 — Historical signal** | Adoption curves vs stock-price outcomes                    | ⏳ Curves built; correlations weak ( | r   | ≤ 0.3) — corpus/signal work needed |
-| **G2 — Agent usefulness**  | Agent scoring improves selectivity                         | Pending                              |
-| **G3 — Paper viability**   | Conservative paper strategy                                | Pending                              |
-| **G4 — Alpaca decision**   | Go/no-go for brokerage integration                         | Pending                              |
+| Gate                       | Description                                                | Status                                                                  |
+| -------------------------- | ---------------------------------------------------------- | ----------------------------------------------------------------------- |
+| **G0 — Data quality**      | Reliable identification, deduplication, auditable mappings | ✅ Validated                                                            |
+| **G1 — Historical signal** | Adoption curves vs stock-price outcomes                    | ⏳ Weak (abs r ≤ 0.3) across all pilots — decision point: G2 or revisit |
+| **G2 — Agent usefulness**  | Agent scoring improves selectivity                         | Pending                                                                 |
+| **G3 — Paper viability**   | Conservative paper strategy                                | Pending                                                                 |
+| **G4 — Alpaca decision**   | Go/no-go for brokerage integration                         | Pending                                                                 |
 
 Until G4 is a positive decision, Alpaca remains downstream context — not a
 dependency of the collector or the research dataset.

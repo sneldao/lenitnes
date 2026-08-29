@@ -3,7 +3,7 @@
 > **Status:** Initial research specification. No trading or Alpaca execution.
 > **Related proposal:** [`oss-adoption-trading.md`](./oss-adoption-trading.md)
 > **Created:** 2026-08-28
-> **Updated:** 2026-08-29 (second-wave consumer expansion, version `2026-08-29-pilot-v3`)
+> **Updated:** 2026-08-29 (third-wave GOOGL density expansion, version `2026-08-29-pilot-v4`)
 
 ## Purpose
 
@@ -51,9 +51,9 @@ repositories:
 
 The actual repository list should be committed only after checking each entry against the rules above. A mapping reference is not evidence that a signal exists; it records the hypothesis being tested.
 
-## Current corpus (version `2026-08-29-pilot-v3`)
+## Current corpus (version `2026-08-29-pilot-v4`)
 
-24 repositories (3 SDK sources + 19 consumer repos + 2 controls):
+29 repositories (3 SDK sources + 24 consumer repos + 2 controls):
 
 | Slug                                   | Role                | Company     | Verified                                               |
 | -------------------------------------- | ------------------- | ----------- | ------------------------------------------------------ |
@@ -79,6 +79,11 @@ The actual repository list should be committed only after checking each entry ag
 | ducktors/turborepo-remote-cache        | exposure (consumer) | GOOGL       | ✅ churn: @google-cloud/storage                        |
 | openwebdocs/mdn-bcd-collector          | exposure (consumer) | GOOGL       | ✅ churn: @google-cloud/{storage,logging-winston}      |
 | firefox-devtools/profiler-server       | exposure (consumer) | GOOGL       | ✅ churn: @google-cloud/storage                        |
+| typeorm/typeorm                        | exposure (consumer) | GOOGL       | ✅ churn: @google-cloud/spanner                        |
+| firebase/firebase-tools                | exposure (consumer) | GOOGL       | ✅ churn: @google-cloud/pubsub                         |
+| TryGhost/ActivityPub                   | exposure (consumer) | GOOGL       | ✅ churn: @google-cloud/{pubsub,storage}               |
+| observablehq/notebook-kit              | exposure (consumer) | GOOGL       | ✅ churn: @google-cloud/bigquery                       |
+| Kesin11/CIAnalyzer                     | exposure (consumer) | GOOGL       | ✅ churn: @google-cloud/{bigquery,storage}             |
 | vercel/next.js                         | control             | —           | ✅                                                     |
 | pallets/flask                          | control             | —           | ✅                                                     |
 
@@ -90,6 +95,11 @@ package changed versions in the root `package.json` within the 12-month observat
 filter is what separates repos that actually produce adoption signal from static roots — e.g.
 `nocodb/nocodb` kept `@azure/identity` pinned across the window and contributed zero mapped
 events, so it stays as a documented negative-coverage observation rather than being dropped.
+
+**pilot-v4** (third wave) added five GOOGL consumer repos selected specifically to densify
+the GOOGL adoption series (a multi-metric scan found GOOGL `changed`-velocity was the only
+forward-reading > 0.2, but the series was too sparse at 14/53 active weeks to trust). All five
+were churn-verified the same way and doubled GOOGL active weeks to 26/52.
 
 ## Package-to-company registry rules
 
