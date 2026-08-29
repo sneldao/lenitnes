@@ -3,6 +3,7 @@
 > **Status:** Initial research specification. No trading or Alpaca execution.
 > **Related proposal:** [`oss-adoption-trading.md`](./oss-adoption-trading.md)
 > **Created:** 2026-08-28
+> **Updated:** 2026-08-29 (first-wave consumer expansion, version `2026-08-29-pilot-v2`)
 
 ## Purpose
 
@@ -49,6 +50,25 @@ repositories:
 ```
 
 The actual repository list should be committed only after checking each entry against the rules above. A mapping reference is not evidence that a signal exists; it records the hypothesis being tested.
+
+## Current corpus (version `2026-08-29-pilot-v2`)
+
+10 repositories (3 SDK sources + 5 consumer repos + 2 controls):
+
+| Slug | Role | Company | Verified |
+|---|---|---|---|
+| googleapis/google-cloud-node | exposure (source) | GOOGL | ✅ |
+| Azure/azure-sdk-for-js | exposure (source) | MSFT | ✅ |
+| aws/aws-sdk-js-v3 | exposure (source) | AMZN | ✅ |
+| nocodb/nocodb | exposure (consumer) | MSFT | ✅ @azure/identity in root package.json |
+| promptfoo/promptfoo | exposure (consumer) | MSFT | ✅ @azure/identity in root package.json |
+| wekan/wekan | exposure (consumer) | GOOGL, AMZN | ✅ @google-cloud/storage + @aws-sdk/client-s3 |
+| cypress-io/cypress | exposure (consumer) | AMZN | ✅ @aws-sdk/client-s3 in root package.json |
+| lobehub/lobehub | exposure (consumer) | AMZN | ✅ @aws-sdk/client-s3 in root package.json |
+| vercel/next.js | control | — | ✅ |
+| pallets/flask | control | — | ✅ |
+
+Consumer repos were verified via GitHub code search (`filename:package.json path:/ "<package>"`) and confirmed public, non-fork, non-archived, with a permissive license.
 
 ## Package-to-company registry rules
 

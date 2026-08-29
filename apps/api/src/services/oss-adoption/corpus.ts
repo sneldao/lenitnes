@@ -1,10 +1,14 @@
 import type { CorpusRepository, PackageCompanyMapping } from './types.js';
 
 /**
- * Starter entries only. Expand to 30–50 repositories after each entry has
- * been manually checked and its provenance recorded in docs/oss-adoption-corpus.md.
+ * Starter entries plus first-wave consumer expansion (2026-08-29).
+ * Exposure repos are a mix of SDK sources (which reveal ecosystem changes)
+ * and high-signal consumers (which reveal adoption of the mapped packages).
+ * The consumer repos were verified via GitHub code search: each has the
+ * mapped package in its ROOT package.json (path:/), is public, non-fork,
+ * and non-archived. See docs/oss-adoption-corpus.md for the selection rules.
  */
-export const OSS_CORPUS_VERSION = '2026-08-28-pilot-v1';
+export const OSS_CORPUS_VERSION = '2026-08-29-pilot-v2';
 
 export const OSS_CORPUS: CorpusRepository[] = [
   {
@@ -35,6 +39,59 @@ export const OSS_CORPUS: CorpusRepository[] = [
     inclusionReason: 'Canonical AWS SDK for JavaScript repository.',
     sourceUrl: 'https://github.com/aws/aws-sdk-js-v3',
     defaultBranch: 'main',
+    mappingRefs: ['aws-sdk-js-v3'],
+  },
+  // ── First-wave consumer expansion (verified @azure/identity in root package.json) ──
+  {
+    slug: 'nocodb/nocodb',
+    companyTargets: ['MSFT'],
+    role: 'exposure',
+    expectedManifests: ['package.json'],
+    inclusionReason: 'Self-hosted Airtable alternative; production consumer of @azure/identity.',
+    sourceUrl: 'https://github.com/nocodb/nocodb',
+    defaultBranch: 'develop',
+    mappingRefs: ['azure-sdk-js'],
+  },
+  {
+    slug: 'promptfoo/promptfoo',
+    companyTargets: ['MSFT'],
+    role: 'exposure',
+    expectedManifests: ['package.json'],
+    inclusionReason: 'LLM evaluation tooling; production consumer of @azure/identity.',
+    sourceUrl: 'https://github.com/promptfoo/promptfoo',
+    defaultBranch: 'main',
+    mappingRefs: ['azure-sdk-js'],
+  },
+  // ── GOOGL consumer (verified @google-cloud/storage in root package.json) ──
+  {
+    slug: 'wekan/wekan',
+    companyTargets: ['GOOGL', 'AMZN'],
+    role: 'exposure',
+    expectedManifests: ['package.json'],
+    inclusionReason: 'Open-source kanban; consumer of @google-cloud/storage and @aws-sdk/client-s3 (dual exposure).',
+    sourceUrl: 'https://github.com/wekan/wekan',
+    defaultBranch: 'main',
+    mappingRefs: ['google-cloud-node', 'aws-sdk-js-v3'],
+  },
+  // ── AMZN consumers (verified @aws-sdk/client-s3 in root package.json) ──
+  {
+    slug: 'cypress-io/cypress',
+    companyTargets: ['AMZN'],
+    role: 'exposure',
+    expectedManifests: ['package.json'],
+    inclusionReason: 'E2E testing framework; production consumer of @aws-sdk/client-s3.',
+    sourceUrl: 'https://github.com/cypress-io/cypress',
+    defaultBranch: 'develop',
+    mappingRefs: ['aws-sdk-js-v3'],
+  },
+  {
+    slug: 'lobehub/lobehub',
+    companyTargets: ['AMZN'],
+    role: 'exposure',
+    expectedManifests: ['package.json'],
+    inclusionReason: 'AI agent platform; production consumer of @aws-sdk/client-s3.',
+    sourceUrl: 'https://github.com/lobehub/lobehub',
+    defaultBranch: 'canary',
     mappingRefs: ['aws-sdk-js-v3'],
   },
   {

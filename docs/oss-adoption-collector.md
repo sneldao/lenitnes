@@ -150,13 +150,46 @@ is large and can be omitted).
 4. **The collector recovers from network issues.** Rate-limit retries and
    per-repo failure isolation worked correctly in the mock tests.
 
+### Second pilot run (expanded corpus, 2026-08-29)
+
+Corpus version `2026-08-29-pilot-v2` (10 repos: 3 SDK sources + 5 consumer
+repos + 2 controls). Same 12-month window, 3 pages per manifest.
+
+| Metric | Value |
+|---|---|
+| Repositories completed | 10/10 (0 failed) |
+| Commits examined | 1362 |
+| Events extracted | 3858 |
+| **Mapped events** | **53 (high confidence: 43 AMZN, 7 MSFT, 3 GOOGL)** |
+| Unmapped events | 3805 |
+| Truncation warnings | 3 (promptfoo, wekan, lobehub hit the 3-page cap) |
+
+The consumer expansion worked as intended: mapped events now come from
+`lobehub/lobehub`, `promptfoo/promptfoo`, and `wekan/wekan` changing their
+`@aws-sdk/*`, `@azure/*`, and `@google-cloud/*` dependencies over the window.
+The AMZN skew (43/53) reflects that two of the five consumers are heavy AWS SDK
+users. `nocodb/nocodb` contributed 0 events despite having @azure/identity in
+its root manifest — its package.json dependency block was stable across the 16
+in-window commits that touched the file (a coverage observation, not a bug).
+
+The pilot also makes the **string-based version comparison** concrete:
+`@aws-sdk/client-bedrock-runtime ^3.941.0 → ^3.1076.0` is reported as
+"downgraded" because lexical comparison sees `9 > 1`. ~~Semver-aware diffing
+is the next correctness fix.~~ ✅ **Fixed in `2026-08-29`**: `compareVersions`
+strips range prefixes and compares numerically; unparseable versions (range
+specifiers, alias specs, experimental hash pins) are reported as a neutral
+`changed` rather than a misleading upgrade/downgrade. Re-running the expanded
+corpus with the fix: 581 added, 931 upgraded, 246 downgraded, 507 removed,
+1593 changed (previously the downgraded count was inflated by lexical
+misclassification).
+
 ### Recommended next steps
 
-- **Expand the corpus** to include 10–20 consumer repos that use the mapped
-  packages (e.g., repositories with `@google-cloud/*`, `@azure/*`, or `@aws-sdk/*`
-  in their production dependencies). This is the fastest path to a non-zero
-  mapped event count and a meaningful adoption curve.
-- **Add semver-aware diffing** so version changes are classified correctly.
+- ~~**Expand the corpus** to include 10–20 consumer repos that use the mapped
+  packages.~~ ✅ Done in version `2026-08-29-pilot-v2` (5 consumer repos added).
+- ~~**Run the collection against the expanded corpus** and verify that mapped
+  events are now produced.~~ ✅ Done — 53 mapped events (43 AMZN, 7 MSFT, 3 GOOGL).
+- ~~**Add semver-aware diffing** so version changes are classified correctly.~~ ✅ Done.
 - **Collect weekly curves** from the expanded corpus and overlay with stock prices
   (Phase 0 of the backtest plan in `oss-adoption-trading.md`).
 

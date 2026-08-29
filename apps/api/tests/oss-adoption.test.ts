@@ -5,7 +5,7 @@ import { diffDependencySnapshots, parseDependencyManifest } from '../src/service
 
 describe('OSS adoption G0 corpus', () => {
   it('has a valid, deduplicated starter corpus', () => {
-    expect(OSS_CORPUS_VERSION).toBe('2026-08-28-pilot-v1');
+    expect(OSS_CORPUS_VERSION).toBe('2026-08-29-pilot-v2');
     expect(validateCorpus()).toEqual([]);
     expect(new Set(OSS_CORPUS.map((repo) => repo.slug)).size).toBe(OSS_CORPUS.length);
   });

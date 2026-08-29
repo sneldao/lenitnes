@@ -1,5 +1,6 @@
 export type ManifestEcosystem = 'npm' | 'go' | 'python' | 'cargo';
-export type DependencyChange = 'added' | 'removed' | 'upgraded' | 'downgraded';
+/** `changed` = version changed but not semantically comparable (e.g. experimental hash pins). */
+export type DependencyChange = 'added' | 'removed' | 'upgraded' | 'downgraded' | 'changed';
 export type CorpusRole = 'exposure' | 'control';
 export type MappingConfidence = 'high' | 'medium' | 'low';
 

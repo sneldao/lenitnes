@@ -102,6 +102,38 @@ export function parseDependencyManifest(path: string, content: string): Dependen
   return [];
 }
 
+/**
+ * Numeric semver-ish comparison for version strings. Strips common range
+ * prefixes (^ ~ >= < =) and leading "v", splits into numeric parts, and
+ * compares numerically. Returns 0 when either side is not parseable
+ * (e.g. "latest", "*", or next.js experimental hash pins) — the caller
+ * treats a non-zero comparison as a version "change" without a direction.
+ */
+export function compareVersions(a: string, b: string): number {
+  const parse = (value: string): number[] | null => {
+    const cleaned = value.replace(/^[<>=~^ ]+/, '').replace(/^v/i, '');
+    const [core, prerelease] = cleaned.split('-', 2);
+    const parts = core.split('.').map((part) => Number(part));
+    if (parts.some((part) => !Number.isFinite(part))) return null;
+    while (parts.length < 3) parts.push(0);
+    if (prerelease) {
+      const pr = Number(prerelease);
+      parts.push(Number.isFinite(pr) ? pr : 0);
+    }
+    return parts;
+  };
+  const pa = parse(a);
+  const pb = parse(b);
+  if (!pa || !pb) return 0;
+  for (let i = 0; i < Math.max(pa.length, pb.length); i++) {
+    const x = pa[i] ?? 0;
+    const y = pb[i] ?? 0;
+    if (x > y) return 1;
+    if (x < y) return -1;
+  }
+  return 0;
+}
+
 export function diffDependencySnapshots(
   before: DependencySnapshot[],
   after: DependencySnapshot[],
@@ -119,10 +151,15 @@ export function diffDependencySnapshots(
     } else if (previous && !current) {
       changes.push({ ecosystem: previous.ecosystem, packageName, change: 'removed', versionBefore: previous.version, versionAfter: null });
     } else if (previous && current && previous.version !== current.version) {
+      // Numeric comparison where possible; unparseable versions (e.g.
+      // experimental hash pins) are reported as a neutral 'changed' rather
+      // than a misleading upgrade/downgrade from string comparison.
+      const cmp = compareVersions(previous.version ?? '', current.version ?? '');
+      const change: DependencyChange = cmp < 0 ? 'upgraded' : cmp > 0 ? 'downgraded' : 'changed';
       changes.push({
         ecosystem: current.ecosystem,
         packageName,
-        change: current.version && previous.version && current.version < previous.version ? 'downgraded' : 'upgraded',
+        change,
         versionBefore: previous.version,
         versionAfter: current.version,
       });
