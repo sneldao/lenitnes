@@ -14,6 +14,7 @@ import { _internalDailySpendUsd } from '../services/agent.js';
 import { closePositionById } from '../services/treasury.js';
 import { evaluateTradeRisk } from '../services/treasury/risk.js';
 import { priceData } from '../services/data-providers/registry.js';
+import { getChainDiagnostics } from '../services/domain/evidence-chain.js';
 import { logger } from '../logger.js';
 
 export const adminRouter = Router();
@@ -293,5 +294,19 @@ adminRouter.post('/positions/:id/close', requireAdmin, async (req, res) => {
       error: 'close_failed',
       message: err instanceof Error ? err.message : String(err),
     });
+  }
+});
+
+// GET /admin/chain-diagnostics
+// Evidence-chain health (P0 gate): how many signals have assembled
+// paths, single-node vs chained, the edge-type histogram, and HCS
+// commitment status. Read-only diagnostics for the operator.
+adminRouter.get('/chain-diagnostics', requireAdmin, async (_req, res) => {
+  try {
+    const diagnostics = await getChainDiagnostics();
+    res.json(diagnostics);
+  } catch (err) {
+    logger.error({ err }, 'admin/chain-diagnostics failed');
+    res.status(500).json({ error: 'chain_diagnostics_failed' });
   }
 });

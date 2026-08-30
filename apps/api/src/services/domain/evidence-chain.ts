@@ -183,7 +183,9 @@ export function buildPathFromContext(ctx: PathContextInput): DerivedPath {
     const peerNode = signalNode(peer);
 
     // 1. Same-repo temporal corroboration (deterministic window).
-    if (peerRepoLower === selfRepoLower && Math.abs(peerTs - selfTs) <= lookbackMs) {
+    // One-sided: a peer must be detected AT OR BEFORE self — future
+    // evidence must never feed the current call (honesty invariant).
+    if (peerRepoLower === selfRepoLower && peerTs <= selfTs && selfTs - peerTs <= lookbackMs) {
       addNode(peerNode);
       edges.push({
         kind: 'corroborates',
@@ -224,8 +226,11 @@ export function buildPathFromContext(ctx: PathContextInput): DerivedPath {
     }
 
     // 3. Same source commit across repos (best-effort).
+    // Temporal guard: a shared-SHA peer must be detected AT OR BEFORE
+    // self — the same honesty invariant as corroborates.
     const shared = peer.commitShas.filter((sha) => selfShas.has(sha));
     for (const sha of shared) {
+      if (!(peerTs <= selfTs)) continue;
       const selfCommit = commitNode(ctx.self.repo, sha, ctx.self.detectedAt);
       const peerCommit = commitNode(peer.repo, sha, peer.detectedAt);
       addNode(selfCommit);
@@ -425,6 +430,7 @@ export async function getSignalPath(signalId: string): Promise<{
   pathHash: string;
   nodes: Array<Record<string, unknown>>;
   edges: Array<Record<string, unknown>>;
+  commitment: { anchored: boolean; hederaTxId: string | null } | null;
 } | null> {
   const { rows } = await query<{ path_hash: string; node_ids: number[]; edge_ids: number[] }>(
     `SELECT path_hash, node_ids, edge_ids FROM signal_paths WHERE signal_id = $1`,
@@ -434,13 +440,79 @@ export async function getSignalPath(signalId: string): Promise<{
   if (!row) return null;
   const nodeIds = row.node_ids ?? [];
   const edgeIds = row.edge_ids ?? [];
-  const [nodesRes, edgesRes] = await Promise.all([
+  const [nodesRes, edgesRes, commitRes] = await Promise.all([
     query(`SELECT * FROM evidence_nodes WHERE id = ANY($1) ORDER BY array_position($1, id)`, [
       nodeIds,
     ]),
     query(`SELECT * FROM evidence_links WHERE id = ANY($1) ORDER BY array_position($1, id)`, [
       edgeIds,
     ]),
+    query<{ hedera_tx_id: string | null }>(
+      `SELECT hedera_tx_id FROM path_commitments WHERE signal_id = $1`,
+      [signalId],
+    ),
   ]);
-  return { pathHash: row.path_hash, nodes: nodesRes.rows, edges: edgesRes.rows };
+  const hederaTxId = commitRes.rows[0]?.hedera_tx_id ?? null;
+  return {
+    pathHash: row.path_hash,
+    nodes: nodesRes.rows,
+    edges: edgesRes.rows,
+    commitment: { anchored: hederaTxId != null, hederaTxId },
+  };
+}
+
+// ── Diagnostics ──────────────────────────────────────────────
+
+export interface ChainDiagnostics {
+  totalPaths: number;
+  singleNodePaths: number;
+  chainedPaths: number;
+  edgeKindCounts: Record<string, number>;
+  commitments: {
+    total: number;
+    anchored: number;
+    pending: number;
+  };
+}
+
+/**
+ * Aggregate evidence-chain health: how many signals have assembled
+ * paths, how many are single-node vs chained, the edge-type histogram,
+ * and HCS commitment status. Admin-only diagnostics endpoint (P0 gate).
+ */
+export async function getChainDiagnostics(): Promise<ChainDiagnostics> {
+  const [pathsRes, edgesRes, commitsRes] = await Promise.all([
+    query<{ node_count: number }>(
+      `SELECT COALESCE(array_length(node_ids, 1), 0) AS node_count FROM signal_paths`,
+    ),
+    query<{ kind: string; count: string }>(
+      `SELECT kind, count(*)::text AS count FROM evidence_links GROUP BY kind`,
+    ),
+    query<{ anchored: string; pending: string }>(
+      `SELECT
+         count(*) FILTER (WHERE hedera_tx_id IS NOT NULL)::text AS anchored,
+         count(*) FILTER (WHERE hedera_tx_id IS NULL)::text AS pending
+       FROM path_commitments`,
+    ),
+  ]);
+  const pathRows = pathsRes.rows;
+  const edgeRows = edgesRes.rows;
+  const commitRows = commitsRes.rows;
+
+  const singleNodePaths = pathRows.filter((r) => r.node_count <= 1).length;
+  const chainedPaths = pathRows.filter((r) => r.node_count > 1).length;
+
+  const edgeKindCounts: Record<string, number> = {};
+  for (const r of edgeRows) edgeKindCounts[r.kind] = Number(r.count);
+
+  const anchored = Number(commitRows[0]?.anchored ?? 0);
+  const pending = Number(commitRows[0]?.pending ?? 0);
+
+  return {
+    totalPaths: pathRows.length,
+    singleNodePaths,
+    chainedPaths,
+    edgeKindCounts,
+    commitments: { total: anchored + pending, anchored, pending },
+  };
 }

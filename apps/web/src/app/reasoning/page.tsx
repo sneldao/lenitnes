@@ -204,6 +204,19 @@ function ReasoningRow({ item, index }: { item: ReasoningItem; index: number }) {
             >
               [{label}]
             </span>
+            {item.pathHash && (
+              <Link
+                href={`/signals/${item.signalId}`}
+                className={cn(
+                  'rounded px-1.5 py-px font-mono text-[10px] uppercase tracking-wider transition-colors',
+                  item.chained
+                    ? 'border border-violet/30 bg-violet/10 text-violet hover:bg-violet/20'
+                    : 'border border-edge/40 bg-panel-hover text-slate-500 hover:text-slate-300',
+                )}
+              >
+                {item.chained ? 'chained' : 'single event'}
+              </Link>
+            )}
             <span className={cn('badge text-[10px] uppercase', actionTone)}>{action}</span>
             {item.asset && (
               <span className="font-mono text-xs font-semibold text-slate-200">{item.asset}</span>

@@ -1,10 +1,18 @@
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, beforeEach, vi } from 'vitest';
 import {
   buildPathFromContext,
   computePathHash,
   extractCommitShas,
+  getChainDiagnostics,
   type PathContextInput,
 } from '../src/services/domain/evidence-chain.js';
+
+const { mockQuery } = vi.hoisted(() => ({ mockQuery: vi.fn() }));
+vi.mock('../src/db/pool.js', () => ({
+  query: (...args: unknown[]) => mockQuery(...args),
+  withTransaction: vi.fn(),
+  pool: { query: mockQuery, end: vi.fn() },
+}));
 
 function ctx(over: Partial<PathContextInput> = {}): PathContextInput {
   return {
@@ -77,6 +85,28 @@ describe('evidence-chain · buildPathFromContext', () => {
       }),
     );
     expect(path.edges.some((e) => e.kind === 'corroborates')).toBe(false);
+  });
+
+  it('corroborates: peer AFTER self within window is NOT linked (future-peer guard)', () => {
+    // Previously used Math.abs — a same-repo signal detected 1h AFTER
+    // self was wrongly linked. Auto edges must only point from evidence
+    // at or before the target signal.
+    const path = buildPathFromContext(
+      ctx({
+        peers: [
+          {
+            signalId: 'peer-future',
+            repo: 'ZcashFoundation/zebra',
+            domain: 'code',
+            detectorTypes: ['security_advisory'],
+            detectedAt: '2026-08-10T13:00:00.000Z', // 1h after self (within 48h window)
+            commitShas: [],
+          },
+        ],
+      }),
+    );
+    expect(path.edges.some((e) => e.kind === 'corroborates')).toBe(false);
+    expect(path.nodes).toHaveLength(1);
   });
 
   it('sector_upstream: upstream security signal before self (halo2 → zebra)', () => {
@@ -183,6 +213,34 @@ describe('evidence-chain · buildPathFromContext', () => {
     expect(path.nodes.some((n) => n.nodeType === 'commit' && n.sourceRef === 'abc1234')).toBe(true);
   });
 
+  it('same_sha: shared SHA peer AFTER self is NOT linked (future-peer guard)', () => {
+    // Previously had no temporal check at all — a shared-SHA peer
+    // detected after self got linked. Must be at-or-before self.
+    const path = buildPathFromContext(
+      ctx({
+        self: {
+          signalId: 'self-1',
+          repo: 'ZcashFoundation/zebra',
+          domain: 'code',
+          detectorTypes: ['protocol_release'],
+          detectedAt: '2026-08-10T12:00:00.000Z',
+          commitShas: ['abc1234'],
+        },
+        peers: [
+          {
+            signalId: 'peer-future-sha',
+            repo: 'zcash/halo2',
+            domain: 'code',
+            detectorTypes: ['silent_merge'],
+            detectedAt: '2026-08-10T14:00:00.000Z', // after self, same sha
+            commitShas: ['abc1234'],
+          },
+        ],
+      }),
+    );
+    expect(path.edges.some((e) => e.kind === 'same_sha')).toBe(false);
+  });
+
   it('path hash is deterministic and order-insensitive', () => {
     const a = buildPathFromContext(
       ctx({
@@ -257,5 +315,53 @@ describe('evidence-chain · computePathHash', () => {
     const h2 = computePathHash([], []);
     expect(h1).toBe(h2);
     expect(h1).toMatch(/^[0-9a-f]{64}$/);
+  });
+});
+
+describe('evidence-chain · getChainDiagnostics', () => {
+  beforeEach(() => {
+    mockQuery.mockReset();
+  });
+
+  it('aggregates single-node vs chained, edge histogram, and commitments', async () => {
+    mockQuery
+      .mockResolvedValueOnce({
+        rows: [{ node_count: 1 }, { node_count: 1 }, { node_count: 3 }, { node_count: 2 }],
+      })
+      .mockResolvedValueOnce({
+        rows: [
+          { kind: 'corroborates', count: '4' },
+          { kind: 'sector_upstream', count: '2' },
+          { kind: 'same_sha', count: '1' },
+        ],
+      })
+      .mockResolvedValueOnce({
+        rows: [{ anchored: '2', pending: '1' }],
+      });
+
+    const diag = await getChainDiagnostics();
+    expect(diag.totalPaths).toBe(4);
+    expect(diag.singleNodePaths).toBe(2);
+    expect(diag.chainedPaths).toBe(2);
+    expect(diag.edgeKindCounts).toEqual({
+      corroborates: 4,
+      sector_upstream: 2,
+      same_sha: 1,
+    });
+    expect(diag.commitments).toEqual({ total: 3, anchored: 2, pending: 1 });
+  });
+
+  it('handles an empty corpus', async () => {
+    mockQuery
+      .mockResolvedValueOnce({ rows: [] })
+      .mockResolvedValueOnce({ rows: [] })
+      .mockResolvedValueOnce({ rows: [{ anchored: '0', pending: '0' }] });
+
+    const diag = await getChainDiagnostics();
+    expect(diag.totalPaths).toBe(0);
+    expect(diag.singleNodePaths).toBe(0);
+    expect(diag.chainedPaths).toBe(0);
+    expect(diag.edgeKindCounts).toEqual({});
+    expect(diag.commitments).toEqual({ total: 0, anchored: 0, pending: 0 });
   });
 });

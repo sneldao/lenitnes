@@ -27,6 +27,7 @@ import { SignalSourceBadge } from '@/components/SignalSourceBadge';
 import { CheckItem } from '@/components/signal/CheckItem';
 import { SignalRow } from '@/components/signal/SignalRow';
 import { ProofProgress } from '@/components/signal/ProofProgress';
+import { EvidencePath } from '@/components/signal/EvidencePath';
 import { PageLoader } from '@/components/ui/page-states';
 import { Reveal } from '@/components/ui/reveal';
 import { Tooltip } from '@/components/ui/tooltip';
@@ -434,6 +435,13 @@ export default function SignalDetailPage({ params }: { params: Promise<{ id: str
             })}
           </div>
         </div>
+      )}
+
+      {/* ── Evidence path: the assembled chain behind the call ── */}
+      {signal.path && (
+        <Reveal>
+          <EvidencePath path={signal.path} />
+        </Reveal>
       )}
 
       {/* ── Proof chain: the brand, one scroll deep ── */}

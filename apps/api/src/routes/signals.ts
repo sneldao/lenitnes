@@ -7,6 +7,7 @@ import { cacheGet, cacheSet } from '../middleware/cache.js';
 import { createSignalShareToken } from '../services/share-token.js';
 import { fetchAgentScore } from '../services/agent.js';
 import { classifySignalSource, explainSignalSource } from '../services/domain/signal-source.js';
+import { getSignalPath } from '../services/domain/evidence-chain.js';
 
 export const signalsRouter = Router();
 
@@ -17,6 +18,12 @@ export interface ProofPackage {
   orders: unknown[];
   proof: { ipfsUrl: string | null; hashscanUrl: string | null };
   agent_score: AgentScore | null;
+  path: {
+    pathHash: string;
+    nodes: Array<Record<string, unknown>>;
+    edges: Array<Record<string, unknown>>;
+    commitment: { anchored: boolean; hederaTxId: string | null } | null;
+  } | null;
 }
 
 export async function getSignalWithProof(
@@ -33,10 +40,11 @@ export async function getSignalWithProof(
   const signal = rows[0] as unknown as Signal;
 
   const includeOrders = options.includeOrders ?? true;
-  const [orders, monitor, agent_score] = await Promise.all([
+  const [orders, monitor, agent_score, path] = await Promise.all([
     includeOrders ? query(`SELECT * FROM orders WHERE signal_id = $1`, [signal.id]) : { rows: [] },
     query(`SELECT id, url, condition_text FROM monitors WHERE id = $1`, [signal.monitor_id]),
     fetchAgentScore(signal.id),
+    getSignalPath(signal.id),
   ]);
 
   return {
@@ -51,6 +59,7 @@ export async function getSignalWithProof(
         : null,
     },
     agent_score,
+    path,
   };
 }
 

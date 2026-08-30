@@ -19,6 +19,8 @@ interface ReasoningRow {
   confidence_band: string | null;
   rubric_version: string;
   traded: boolean;
+  path_hash: string | null;
+  chained: boolean;
 }
 
 // GET /reasoning?limit=40 — the public reasoning archive.
@@ -55,10 +57,13 @@ reasoningRouter.get('/', async (req: Request, res: Response) => {
        a.recommended_action                                AS recommended_action,
        a.confidence_band                                   AS confidence_band,
        a.rubric_version                                    AS rubric_version,
-       EXISTS (SELECT 1 FROM orders o WHERE o.signal_id = s.id) AS traded
+       EXISTS (SELECT 1 FROM orders o WHERE o.signal_id = s.id) AS traded,
+       sp.path_hash                                        AS path_hash,
+       COALESCE(array_length(sp.node_ids, 1), 0) > 1       AS chained
      FROM agent_scores a
      JOIN signals s ON s.id = a.signal_id
      JOIN monitors m ON m.id = s.monitor_id
+     LEFT JOIN signal_paths sp ON sp.signal_id = s.id
      WHERE s.is_heartbeat = false
      ORDER BY a.created_at DESC
      LIMIT $1`,

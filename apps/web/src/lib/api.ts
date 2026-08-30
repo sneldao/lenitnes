@@ -187,6 +187,15 @@ export interface SignalDetail extends Signal {
   outcomes: OutcomeWindow[];
   agentScore: AgentScore | null;
   signalSource?: SignalSource;
+  /** Assembled evidence path (P1): null when none has been derived. */
+  path?: EvidencePath | null;
+}
+
+export interface EvidencePath {
+  pathHash: string;
+  nodes: Array<Record<string, unknown>>;
+  edges: Array<Record<string, unknown>>;
+  commitment: { anchored: boolean; hederaTxId: string | null } | null;
 }
 
 // ── Scorecard (public, the credibility surface) ───────────────
@@ -438,6 +447,9 @@ export interface ReasoningItem {
   confidenceBand: 'low' | 'mid' | 'high' | null;
   rubricVersion: string;
   traded: boolean;
+  /** P1: evidence-path membership for this signal, when assembled. */
+  pathHash: string | null;
+  chained: boolean;
 }
 
 export interface ReasoningFeedResponse {
