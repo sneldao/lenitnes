@@ -24,7 +24,11 @@ import type {
 } from './types.js';
 import { OSS_CORPUS, OSS_CORPUS_VERSION, OSS_PACKAGE_MAPPINGS } from './corpus.js';
 import { diffDependencySnapshots, parseDependencyManifest } from './manifests.js';
-import { buildQualityReport, normalizeDependencyEvents, type RawDependencyChange } from './normalize.js';
+import {
+  buildQualityReport,
+  normalizeDependencyEvents,
+  type RawDependencyChange,
+} from './normalize.js';
 
 export const GITHUB_API_BASE = 'https://api.github.com';
 const DEFAULT_MAX_PAGES = 3; // 3 × 100 commits per manifest path, mirroring github.ts
@@ -33,6 +37,8 @@ const MAX_RETRIES = 2;
 export interface CollectAdoptionOptions {
   /** Defaults to OSS_CORPUS. */
   corpus?: CorpusRepository[];
+  /** Run label written to the manifest/quality report. Defaults to OSS_CORPUS_VERSION. */
+  corpusVersion?: string;
   /** Defaults to OSS_PACKAGE_MAPPINGS. */
   mappings?: PackageCompanyMapping[];
   /** UTC start of the observation window. Default: now − 12 months. */
@@ -105,7 +111,11 @@ function captureRateLimit(tracker: RateLimitTracker, res: Response): void {
   const remaining = res.headers.get('x-ratelimit-remaining');
   const reset = res.headers.get('x-ratelimit-reset');
   if (!limit || !remaining || !reset) return;
-  tracker.snapshot = { limit: Number(limit), remaining: Number(remaining), resetAt: new Date(Number(reset) * 1000).toISOString() };
+  tracker.snapshot = {
+    limit: Number(limit),
+    remaining: Number(remaining),
+    resetAt: new Date(Number(reset) * 1000).toISOString(),
+  };
 }
 
 /**
@@ -131,11 +141,14 @@ async function fetchWithRetry(
       return null; // network-level failure; caller records the error
     }
     response = res;
-    tracker && captureRateLimit(tracker, res);
-    const retryable = res.status === 429 || (res.status === 403 && res.headers.get('x-ratelimit-remaining') === '0');
+    if (tracker) captureRateLimit(tracker, res);
+    const retryable =
+      res.status === 429 ||
+      (res.status === 403 && res.headers.get('x-ratelimit-remaining') === '0');
     if (!retryable || attempt === maxRetries) return res;
     const retryAfter = Number(res.headers.get('retry-after') ?? '');
-    const waitMs = Number.isFinite(retryAfter) && retryAfter > 0 ? retryAfter * 1000 : (attempt + 1) * 1000;
+    const waitMs =
+      Number.isFinite(retryAfter) && retryAfter > 0 ? retryAfter * 1000 : (attempt + 1) * 1000;
     await new Promise((resolve) => setTimeout(resolve, waitMs));
   }
   return response;
@@ -153,7 +166,11 @@ async function fetchRepoInfo(
   if (!res) return { defaultBranch: '', archived: false, error: 'network error' };
   if (!res.ok) return { defaultBranch: '', archived: false, error: `repo info HTTP ${res.status}` };
   const data = (await res.json()) as { default_branch?: string; archived?: boolean };
-  return { defaultBranch: data.default_branch ?? '', archived: Boolean(data.archived), error: null };
+  return {
+    defaultBranch: data.default_branch ?? '',
+    archived: Boolean(data.archived),
+    error: null,
+  };
 }
 
 /** Fetch commits that touched a manifest path, newest-first, paginated. */
@@ -166,7 +183,11 @@ async function fetchPathCommits(
   untilIso: string,
   maxPages: number,
   tracker: RateLimitTracker,
-): Promise<{ commits: Array<{ sha: string; date: string }>; truncated: boolean; error: string | null }> {
+): Promise<{
+  commits: Array<{ sha: string; date: string }>;
+  truncated: boolean;
+  error: string | null;
+}> {
   const commits: Array<{ sha: string; date: string }> = [];
   let truncated = false;
   for (let page = 1; page <= maxPages; page++) {
@@ -182,7 +203,9 @@ async function fetchPathCommits(
     const data = (await res.json()) as Array<Record<string, unknown>>;
     if (!Array.isArray(data) || data.length === 0) break;
     for (const c of data) {
-      const author = (c.commit as Record<string, unknown> | undefined)?.author as Record<string, unknown> | undefined;
+      const author = (c.commit as Record<string, unknown> | undefined)?.author as
+        | Record<string, unknown>
+        | undefined;
       commits.push({ sha: String(c.sha ?? ''), date: String(author?.date ?? '') });
     }
     if (data.length < 100) break;
@@ -284,7 +307,9 @@ async function collectRepository(
       continue;
     }
     if (truncated) {
-      warnings.push(`truncated history for ${repo.slug}:${manifestPath} (capped at ${opts.maxPages} pages)`);
+      warnings.push(
+        `truncated history for ${repo.slug}:${manifestPath} (capped at ${opts.maxPages} pages)`,
+      );
     }
     record.commitsExamined += commits.length;
     if (commits.length === 0) continue;
@@ -305,7 +330,9 @@ async function collectRepository(
       if (fetchError) {
         record.status = 'failed';
         record.error = `manifest blob (${manifestPath}@${commit.sha.slice(0, 7)}): ${fetchError}`;
-        warnings.push(`manifest blob fetch failed for ${repo.slug}:${manifestPath}@${commit.sha.slice(0, 7)}: ${fetchError}`);
+        warnings.push(
+          `manifest blob fetch failed for ${repo.slug}:${manifestPath}@${commit.sha.slice(0, 7)}: ${fetchError}`,
+        );
         continue;
       }
       record.manifestsExamined += 1;
@@ -349,13 +376,17 @@ async function collectRepository(
  * corpus over an explicit UTC window, and emit the run manifest + quality
  * report. Never throws for per-repo failures — they are recorded.
  */
-export async function collectAdoptionHistory(options: CollectAdoptionOptions = {}): Promise<OssAdoptionRunResult> {
+export async function collectAdoptionHistory(
+  options: CollectAdoptionOptions = {},
+): Promise<OssAdoptionRunResult> {
   const corpus = options.corpus ?? OSS_CORPUS;
+  const corpusVersion = options.corpusVersion ?? OSS_CORPUS_VERSION;
   const mappings = options.mappings ?? OSS_PACKAGE_MAPPINGS;
   const fetchImpl = options.fetchImpl ?? globalThis.fetch;
   const untilIso = options.untilIso ?? new Date().toISOString();
   const sinceIso =
-    options.sinceIso ?? new Date(Date.parse(untilIso) - 12 * 30 * 24 * 60 * 60 * 1000).toISOString();
+    options.sinceIso ??
+    new Date(Date.parse(untilIso) - 12 * 30 * 24 * 60 * 60 * 1000).toISOString();
   const maxPages = options.maxPages ?? DEFAULT_MAX_PAGES;
   const onProgress = options.onProgress ?? (() => {});
   const runStartedAt = new Date().toISOString();
@@ -388,7 +419,7 @@ export async function collectAdoptionHistory(options: CollectAdoptionOptions = {
   }));
 
   const qualityReport: OssQualityReport = buildQualityReport({
-    corpusVersion: OSS_CORPUS_VERSION,
+    corpusVersion,
     runStartedAt,
     runFinishedAt: new Date().toISOString(),
     repositories,
@@ -399,7 +430,7 @@ export async function collectAdoptionHistory(options: CollectAdoptionOptions = {
 
   const runManifest: OssAdoptionRunManifest = {
     runId,
-    corpusVersion: OSS_CORPUS_VERSION,
+    corpusVersion,
     observationWindow: { sinceIso, untilIso },
     runStartedAt,
     runFinishedAt: qualityReport.runFinishedAt,
