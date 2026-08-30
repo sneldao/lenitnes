@@ -439,6 +439,73 @@ heuristic. The live endpoint was rate-limited during the run; the
 `llm-score-oss-adoption.ts` script is kept in the repository as the documented
 LLM path.
 
+### Wide-corpus `added`-only experiment (2026-08-30)
+
+Motivation: every emergent signal so far (GOOGL `changed`-velocity in pilot-v3,
+GOOGL `netAdd` in pilot-v4) was a small-sample or concentration artifact. The
+`added` event is the one dependency change nobody does by accident — installing
+`@aws-sdk/client-s3` is a real adoption decision, unlike a Renovate bump. The
+hypothesis: an **`added`-only curve over a much wider corpus** would give the
+strategic-adoption signal statistical teeth that the noise-dominated `netAdd` /
+`changed` curves lack.
+
+Experiment: `collect-oss-adoption-wide.ts` builds a corpus from namespace code
+search (`@aws-sdk/`, `@azure/`, `@google-cloud/` present in a repo's root
+`package.json`), filtered to non-archived, non-fork, active repos with a
+meaningful star count. The final list was 27 repos across all three namespaces
+(supabase, remotion, kibana, nodemailer, botpress, highcharts, openai-node,
+mongodb, webdriverio, opencode, formbricks, nitrojs, cloudsploit, dbhub, comp,
+cli-microsoft365, vsce, uwu, civitai, cla-assistant, molstar, santa-tracker-web,
+bitrise-workflow-editor, aider-desk, blurts-server, RecipeSage, ShieldBattery).
+The collector threads a custom `corpus` + `corpusVersion` through the shared
+pipeline (`--max-pages 3`, 12-month window).
+
+| Metric             | pilot-v4 (29 repos) | wide-v1 (27 repos) |
+| ------------------ | ------------------- | ------------------ |
+| Events extracted   | 9523                | 5141               |
+| **Mapped events**  | **505**             | **305**            |
+| AMZN active weeks  | 47/52               | 40/52              |
+| GOOGL active weeks | 26/52               | 9/52               |
+| MSFT active weeks  | 11/52               | 20/52              |
+| **`added` events** | **~16**             | **17**             |
+
+The wide corpus produced more per-week signal surface (MSFT active weeks
+nearly doubled), but the **`added` event count stayed microscopic: 17 events
+across 25 completed repos over a full year** (2 repos failed at rate-limit
+exhaustion late in the run — julianpoy/RecipeSage, ShieldBattery — recorded as
+missing observations).
+
+`added`-only correlations (`--metric added`, n=51/52):
+
+| Ticker | Same-week added r | Fwd1 added r | Fwd2 added r | Fwd4 added r |
+| ------ | ----------------- | ------------ | ------------ | ------------ |
+| AMZN   | **+0.33**         | +0.15        | +0.20        | +0.17        |
+| GOOGL  | +0.06             | +0.23        | +0.08        | −0.08        |
+| MSFT   | −0.06             | +0.13        | +0.05        | +0.03        |
+
+AMZN `added` same-week (r=+0.33) is the strongest raw reading across all
+experiments — but it is a **concentration artifact, not a signal**: 8 of the 13
+AMZN `added` events come from a single repo (`trycompai/comp`) in a single week
+(2026-04-09, six SDK clients + presigner added in one batch), and GOOGL's fwd1
+reading rests on 2 events in one repo. Pearson over a mostly-zero series with
+one spike week is driven by that spike, exactly as pilot-v3's GOOGL reading was.
+
+**The `added`-only wide-corpus experiment is falsified.** The premise holds
+(`added` is the strategic event) but the frequency is the killer: real
+first-time SDK adoption happens ~once per repo per year, so even 25 repos
+yield ~17 events — a curve that is ~0 in 43 of 52 weeks. A wider corpus
+cannot fix this; `added` events do not scale with repo count because adoption
+is a rare, one-time decision per repo per package. The observed correlations
+are week-concentration artifacts on degenerate (mostly-zero) series, not a
+tradable lead/lag.
+
+The takeaway also reframes the pilot-v3/v4 churn filter: it was not just a
+quality nicety — the churn-verified corpus (repos that actively change mapped
+packages) is what produces a usable signal surface at all. The broad
+"has the SDK in package.json" corpus has 27 repos but 40% fewer mapped events
+than the 29-repo churn corpus, because most wide repos hold the dependency
+static for the whole year.
+
 ### Recommended next steps
 
 - **Expand the corpus** to include 10–20 consumer repos that use the mapped
@@ -456,12 +523,18 @@ LLM path.
   (GOOGL fwd1 velocity 0.131→0.122). The corpus has almost no strategic
   adoption events — 505 mapped events, mean heuristic score 0.355, only 9
   high-score events. The bottleneck is corpus composition, not scoring.
+- **Wide-corpus `added`-only experiment.** ✅ Done — `added` is confirmed as
+  the strategic event type, but it is too rare to scale: 17 events across 25
+  wide repos over 12 months, and the apparent AMZN same-week r=+0.33 is a
+  single-repo single-week concentration artifact. The `added` curve is
+  degenerate (0 in ~43/52 weeks), so wider corpora cannot fix the signal.
+  See the wide-corpus section above.
 - **Next step options:**
-  - **Stop the research track** — the empirical conclusion across G0→G2 is
-    that on this corpus (29 repos, 3 tickers, 12-month window), no metric,
-    transformation, or scoring method produces a tradable forward signal
-    (|r| ≤ 0.3). The research infrastructure is production-ready but the
-    signal is absent.
+  - **Stop the research track** — the empirical conclusion across G0→G2 and
+    the wide-corpus experiment is that on this corpus (npm/TypeScript SDK
+    consumers, 3 tickers, 12-month window), no metric, transformation, or
+    scoring method produces a tradable forward signal (|r| ≤ 0.3). The
+    research infrastructure is production-ready but the signal is absent.
   - **Fundamentally different corpus** — a wider search beyond npm/TypeScript
     (Go modules, Python packages, Cargo crates) or a corpus focused on repos
     known to make strategic adoption decisions (not just Renovate bumps).
@@ -479,10 +552,19 @@ document:
 | Gate                       | Description                                                | Status                                                                               |
 | -------------------------- | ---------------------------------------------------------- | ------------------------------------------------------------------------------------ |
 | **G0 — Data quality**      | Reliable identification, deduplication, auditable mappings | ✅ Validated                                                                         |
-| **G1 — Historical signal** | Adoption curves vs stock-price outcomes                    | ⏳ Weak (abs r ≤ 0.3) — corpus composition bottleneck                                |
+| **G1 — Historical signal** | Adoption curves vs stock-price outcomes                    | ❌ No signal — tested across pilot-v1→v4 + wide corpus; no metric exceeds abs r 0.3  |
 | **G2 — Agent usefulness**  | Agent scoring improves selectivity                         | ❌ Tested — weighting does not improve signal; corpus has almost no strategic events |
 | **G3 — Paper viability**   | Conservative paper strategy                                | Pending                                                                              |
 | **G4 — Alpaca decision**   | Go/no-go for brokerage integration                         | Pending                                                                              |
+
+**Empirical status (as of 2026-08-30):** G1 is now tested to failure. Five
+corpus constructions (pilot-v1→v4 plus a 27-repo `added`-only wide corpus)
+produce no forward signal stronger than |r| ≈ 0.2–0.3, and every reading above
+that boundary was traced to a small-sample or single-repo/single-week
+concentration artifact. The OSS-adoption hypothesis, as implemented (npm
+package-manifest churn of `@aws-sdk` / `@azure` / `@google-cloud` consumers vs
+tokenized-stock prices), does not demonstrate a tradable lead/lag. A signal,
+if one exists, requires a fundamentally different corpus or metric definition.
 
 Until G4 is a positive decision, Alpaca remains downstream context — not a
 dependency of the collector or the research dataset.

@@ -146,10 +146,19 @@ async function fetchWithRetry(
       res.status === 429 ||
       (res.status === 403 && res.headers.get('x-ratelimit-remaining') === '0');
     if (!retryable || attempt === maxRetries) return res;
+    // When the hourly bucket is exhausted, wait for the actual reset instead
+    // of the short backoff — otherwise every request fails until the window
+    // rolls over and the run grinds through thousands of doomed attempts.
+    const remaining = res.headers.get('x-ratelimit-remaining');
+    const resetUnix = Number(res.headers.get('x-ratelimit-reset') ?? '');
     const retryAfter = Number(res.headers.get('retry-after') ?? '');
     const waitMs =
-      Number.isFinite(retryAfter) && retryAfter > 0 ? retryAfter * 1000 : (attempt + 1) * 1000;
-    await new Promise((resolve) => setTimeout(resolve, waitMs));
+      remaining === '0' && resetUnix > 0 && resetUnix < Date.now() / 1000 + 7200
+        ? Math.min(3600_000, Math.max(0, resetUnix * 1000 - Date.now()) + 1000)
+        : Number.isFinite(retryAfter) && retryAfter > 0
+          ? retryAfter * 1000
+          : (attempt + 1) * 1000;
+    await new Promise((resolve) => setTimeout(resolve, Math.max(1, waitMs)));
   }
   return response;
 }
