@@ -451,20 +451,21 @@ LLM path.
   (correlations are exploratory/weak; see above).
 - **Score velocity/acceleration (Phase 1).** ✅ Done — velocity/acceleration
   correlations still weak (|r| ≤ 0.3); see Phase 1 results above.
-- **Multi-metric velocity scan + GOOGL density expansion (pilot-v4).** ✅ Done.
-  GOOGL `changed`-velocity signal was partly a small-sample artifact; with
-  denser data the correlation drops to r≈+0.13–0.15. GOOGL `netAdd` → fwd2/4
-  (r≈+0.20) is a new emergent finding but still weak.
+- **G2 agent scoring (heuristic enrichment + weighted curves).** ✅ Done.
+  Weighting by strategic importance does not improve the forward signal
+  (GOOGL fwd1 velocity 0.131→0.122). The corpus has almost no strategic
+  adoption events — 505 mapped events, mean heuristic score 0.355, only 9
+  high-score events. The bottleneck is corpus composition, not scoring.
 - **Next step options:**
-  - **Accept the weak G1 signal and move to G2 agent scoring** — the corpus
-    and scoring pipeline are production-ready; the weak overlay correlations
-    may simply mean the signal is too latent for a weekly bucketed Pearson
-    test and requires agent-level selectivity (e.g. scoring only repos whose
-    changelogs mention a specific feature release).
-  - **Further corpus expansion** — deeper max-pages (5–10) to capture older
-    in-window bumps, or a wider search for SDK consumers beyond the
-    npm/TypeScript ecosystem. The marginal return on collection time
-    is diminishing: 24→29 repos added only 30 mapped events.
+  - **Stop the research track** — the empirical conclusion across G0→G2 is
+    that on this corpus (29 repos, 3 tickers, 12-month window), no metric,
+    transformation, or scoring method produces a tradable forward signal
+    (|r| ≤ 0.3). The research infrastructure is production-ready but the
+    signal is absent.
+  - **Fundamentally different corpus** — a wider search beyond npm/TypeScript
+    (Go modules, Python packages, Cargo crates) or a corpus focused on repos
+    known to make strategic adoption decisions (not just Renovate bumps).
+    The current corpus is dominated by routine maintenance.
   - **Revisit the metric definition** — `adoption_rate = netAdd /
 totalTracking` (cumulative per-repo tracking state) would be a richer
     signal than raw netAdd, but requires a pipeline change to maintain state.
@@ -475,13 +476,13 @@ The dataset may be used for exploratory curves and pre-registered tests only
 after the quality report is reviewed. The gates are unchanged from the corpus
 document:
 
-| Gate                       | Description                                                | Status                                                                  |
-| -------------------------- | ---------------------------------------------------------- | ----------------------------------------------------------------------- |
-| **G0 — Data quality**      | Reliable identification, deduplication, auditable mappings | ✅ Validated                                                            |
-| **G1 — Historical signal** | Adoption curves vs stock-price outcomes                    | ⏳ Weak (abs r ≤ 0.3) across all pilots — decision point: G2 or revisit |
-| **G2 — Agent usefulness**  | Agent scoring improves selectivity                         | Pending                                                                 |
-| **G3 — Paper viability**   | Conservative paper strategy                                | Pending                                                                 |
-| **G4 — Alpaca decision**   | Go/no-go for brokerage integration                         | Pending                                                                 |
+| Gate                       | Description                                                | Status                                                                               |
+| -------------------------- | ---------------------------------------------------------- | ------------------------------------------------------------------------------------ |
+| **G0 — Data quality**      | Reliable identification, deduplication, auditable mappings | ✅ Validated                                                                         |
+| **G1 — Historical signal** | Adoption curves vs stock-price outcomes                    | ⏳ Weak (abs r ≤ 0.3) — corpus composition bottleneck                                |
+| **G2 — Agent usefulness**  | Agent scoring improves selectivity                         | ❌ Tested — weighting does not improve signal; corpus has almost no strategic events |
+| **G3 — Paper viability**   | Conservative paper strategy                                | Pending                                                                              |
+| **G4 — Alpaca decision**   | Go/no-go for brokerage integration                         | Pending                                                                              |
 
 Until G4 is a positive decision, Alpaca remains downstream context — not a
 dependency of the collector or the research dataset.
