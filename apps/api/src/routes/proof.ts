@@ -66,6 +66,8 @@ proofRouter.get('/public/:id', async (req: Request, res: Response) => {
 
   // Public proof exposes signal data + proof links + monitor metadata.
   // Orders are excluded since they contain potentially sensitive trade data.
+  // The evidence path is included — its nodes are already-public
+  // commits/signals, and P1 makes the assembled chain public.
   const publicPayload = {
     id: pkg.signal.id,
     detected_at: pkg.signal.detected_at,
@@ -78,6 +80,7 @@ proofRouter.get('/public/:id', async (req: Request, res: Response) => {
     ipfs_cid: pkg.signal.ipfs_cid,
     monitor: pkg.monitor,
     proof: pkg.proof,
+    path: pkg.path,
     verification_checklist: checklist,
   };
 

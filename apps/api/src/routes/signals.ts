@@ -187,6 +187,7 @@ signalsRouter.get('/:id', async (req: Request, res: Response) => {
     monitor: pkg.monitor,
     orders: pkg.orders,
     proof: pkg.proof,
+    path: pkg.path,
     evidence_hash: evidenceHash,
     verification_checklist: checklist,
     public_share_token: createSignalShareToken(pkg.signal.id),
