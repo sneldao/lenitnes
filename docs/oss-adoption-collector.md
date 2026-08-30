@@ -506,6 +506,34 @@ packages) is what produces a usable signal surface at all. The broad
 (390) than the 29-repo churn corpus (505), because most wide repos hold the
 dependency static for the whole year.
 
+### Migration base-rate probe (2026-08-30)
+
+Before investing in a changelog-anchored corpus build, a probe measured the
+base rate of _declared_ strategic adoption across two independent surfaces —
+the theory being that release notes capture intentional migrations that
+package.json diffs miss:
+
+| Surface             | Data                                               | Strategic hits              | Verdict                         |
+| ------------------- | -------------------------------------------------- | --------------------------- | ------------------------------- |
+| **Commit messages** | 505 enriched dependency-change messages (pilot-v4) | **0**                       | all routine bumps               |
+| **Release notes**   | 2,047 releases across 27 wide repos (12 mo)        | **8** (all false positives) | bug fixes/features/deprecations |
+
+Manual review of the 8 release-note matches: `Fixed Azure provider options
+being forwarded correctly after the AI SDK v6 migration` (bug fix),
+`remove fragile heredoc from AWS auditor setup script` (maintenance), `Added
+simplified SDK initialization` (own-SDK feature), a deprecation notice, a
+model-library refactor. **Not one is a vendor-adoption decision.** The
+keyword scanner is permissive (it also flagged 70 "medium" matches that are
+ordinary product features like "Introducing client-side rendering"), so the
+true base rate is near zero even on the most generous reading.
+
+**Conclusion:** strategic adoption events are rare across every surface we
+can measure — package diffs, commit messages, and release notes. A
+changelog-anchored corpus would reproduce the same wall: the events it
+targets do not exist at a usable frequency. The OSS-adoption track has no
+remaining promising framing under the current corpus philosophy, and further
+corpus investment is not justified on the evidence.
+
 ### Recommended next steps
 
 - **Expand the corpus** to include 10–20 consumer repos that use the mapped
@@ -529,12 +557,23 @@ dependency static for the whole year.
   single-repo single-week concentration artifact. The `added` curve is
   degenerate (0 in ~43/52 weeks), so wider corpora cannot fix the signal.
   See the wide-corpus section above.
+- **Migration base-rate probe.** ✅ Done — measured the _declared_ migration
+  surface (release notes) directly, on the theory that it captures strategic
+  adoption that package.json diffs miss. Result: **0 of 505 enriched
+  dependency-change commit messages** are strategic, and of **2,047 release
+  notes across the 27-repo wide corpus, 8 keyword matches — every one a false
+  positive on manual review** (bug fixes mentioning "AWS"/"Azure" in passing,
+  feature releases, deprecation notices). Strategic adoption decisions are
+  rare across every surface we can measure, so a changelog-anchored corpus
+  build is not justified. See the probe section above.
 - **Next step options:**
-  - **Stop the research track** — the empirical conclusion across G0→G2 and
-    the wide-corpus experiment is that on this corpus (npm/TypeScript SDK
-    consumers, 3 tickers, 12-month window), no metric, transformation, or
-    scoring method produces a tradable forward signal (|r| ≤ 0.3). The
-    research infrastructure is production-ready but the signal is absent.
+  - **Stop the research track** — the empirical conclusion across G0→G2, the
+    wide-corpus experiment, and the migration base-rate probe is that on this
+    corpus (npm/TypeScript SDK consumers, 3 tickers, 12-month window), no
+    metric, transformation, or scoring method produces a tradable forward
+    signal (|r| ≤ 0.3), and strategic adoption events are rare across all
+    measurable surfaces. The research infrastructure is production-ready but
+    the signal is absent.
   - **Fundamentally different corpus** — a wider search beyond npm/TypeScript
     (Go modules, Python packages, Cargo crates) or a corpus focused on repos
     known to make strategic adoption decisions (not just Renovate bumps).
@@ -549,22 +588,26 @@ The dataset may be used for exploratory curves and pre-registered tests only
 after the quality report is reviewed. The gates are unchanged from the corpus
 document:
 
-| Gate                       | Description                                                | Status                                                                               |
-| -------------------------- | ---------------------------------------------------------- | ------------------------------------------------------------------------------------ |
-| **G0 — Data quality**      | Reliable identification, deduplication, auditable mappings | ✅ Validated                                                                         |
-| **G1 — Historical signal** | Adoption curves vs stock-price outcomes                    | ❌ No signal — tested across pilot-v1→v4 + wide corpus; no metric exceeds abs r 0.3  |
-| **G2 — Agent usefulness**  | Agent scoring improves selectivity                         | ❌ Tested — weighting does not improve signal; corpus has almost no strategic events |
-| **G3 — Paper viability**   | Conservative paper strategy                                | Pending                                                                              |
-| **G4 — Alpaca decision**   | Go/no-go for brokerage integration                         | Pending                                                                              |
+| Gate                       | Description                                                | Status                                                                                                            |
+| -------------------------- | ---------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------- |
+| **G0 — Data quality**      | Reliable identification, deduplication, auditable mappings | ✅ Validated                                                                                                      |
+| **G1 — Historical signal** | Adoption curves vs stock-price outcomes                    | ❌ No signal — tested across pilot-v1→v4, wide corpus, and migration base-rate probe; no metric exceeds abs r 0.3 |
+| **G2 — Agent usefulness**  | Agent scoring improves selectivity                         | ❌ Tested — weighting does not improve signal; corpus has almost no strategic events                              |
+| **G3 — Paper viability**   | Conservative paper strategy                                | Pending                                                                                                           |
+| **G4 — Alpaca decision**   | Go/no-go for brokerage integration                         | Pending                                                                                                           |
 
 **Empirical status (as of 2026-08-30):** G1 is now tested to failure. Five
 corpus constructions (pilot-v1→v4 plus a 27-repo `added`-only wide corpus)
 produce no forward signal stronger than |r| ≈ 0.2–0.3, and every reading above
 that boundary was traced to a small-sample or single-repo/single-week
-concentration artifact. The OSS-adoption hypothesis, as implemented (npm
-package-manifest churn of `@aws-sdk` / `@azure` / `@google-cloud` consumers vs
-tokenized-stock prices), does not demonstrate a tradable lead/lag. A signal,
-if one exists, requires a fundamentally different corpus or metric definition.
+concentration artifact. The migration base-rate probe confirms the root cause:
+strategic adoption events are rare across all measurable surfaces (0/505
+commit messages, 8/2,047 release notes — all keyword false positives), so no
+corpus or metric built on real OSS activity can produce a tradable signal.
+The OSS-adoption hypothesis, as implemented (npm package-manifest churn of
+`@aws-sdk` / `@azure` / `@google-cloud` consumers vs tokenized-stock prices),
+does not demonstrate a tradable lead/lag. A signal, if one exists, requires a
+fundamentally different corpus or metric definition.
 
 Until G4 is a positive decision, Alpaca remains downstream context — not a
 dependency of the collector or the research dataset.
