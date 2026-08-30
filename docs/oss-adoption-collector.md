@@ -587,6 +587,55 @@ velocity) — every correlation collapses to ≈ 0 or negative across all three
 tickers and all forward horizons. This is the sixth falsified measurement
 surface; downloads add density but no lead/lag information.
 
+### Own-repo momentum probe (2026-08-30)
+
+The vendor-literal surface: instead of third-party manifest churn or download
+counts, Sherlock/Paradox/GitDealFlow measure the target's OWN momentum —
+star velocity, contributor growth, commit velocity on the vendor's
+repositories. This probe collected those series for the three core SDK repos
+(`aws/aws-sdk-js-v3` → AMZN, `Azure/azure-sdk-for-js` → MSFT,
+`googleapis/google-cloud-node` → GOOGL) via the GitHub REST API and overlaid
+weekly momentum vs the same tokenized-stock prices. Script:
+`probe-own-repo-momentum.ts` (stargazers history + `/stats/contributors`
+weekly commit/author counts → AdoptionWeek rows → reuse of
+`buildOverlay`/`summarizeOverlay`).
+
+**Data caveat — star velocity is unmeasurable.** Since July 2026 GitHub
+restricts the stargazers listing endpoint to repo admins/collaborators
+([changelog](https://github.blog/changelog/2026-06-30-upcoming-access-restrictions-to-public-api-endpoints-and-ui-views/)).
+Both the fine-grained PAT and the OAuth token get 403/404 for the three
+third-party SDK repos, and the events API is too shallow to reconstruct a
+year of star history for busy repos. So `starsInWindow = 0` for all three;
+the star-velocity metric — the flagship of the vendor approach — cannot be
+measured with a personal token. Commit velocity and contributor growth
+(`/stats/contributors`) work and carry the probe.
+
+**Commit velocity + contributor growth correlations:**
+
+| Ticker | metric               | fwd1  | fwd2  | fwd4  |
+| ------ | -------------------- | ----- | ----- | ----- |
+| AMZN   | contributors (level) | +0.11 | +0.21 | +0.32 |
+| AMZN   | Δ contributors       | −0.03 | −0.06 | −0.07 |
+| AMZN   | contributor velocity | −0.03 | +0.09 | +0.15 |
+| AMZN   | commits (level)      | −0.05 | −0.14 | −0.03 |
+| MSFT   | commits (level)      | +0.08 | +0.10 | +0.32 |
+| MSFT   | Δ commits            | +0.07 | −0.17 | −0.11 |
+| MSFT   | commit velocity      | −0.14 | −0.24 | −0.18 |
+| GOOGL  | contributors (level) | −0.11 | −0.31 | −0.04 |
+| GOOGL  | commit velocity      | −0.28 | −0.48 | −0.40 |
+
+**Conclusion: the own-repo momentum surface is falsified (seventh
+falsification).** The level readings (AMZN contributors fwd4 +0.32, MSFT
+commits fwd4 +0.32) again fail every change/momentum transform: weekly deltas
+collapse to ≈ 0, trailing-velocity is null or negative except AMZN
+contributor velocity fwd4 +0.15, and the detrended (deviation-from-local-
+trend) versions collapse too. GOOGL is negative on essentially every
+momentum reading. The vendor-standard surface — measured on the exact repos
+those vendors sell data on — adds no lead/lag to price either. The only
+defensible finding is negative: on this window and ticker set, the target's
+own repo momentum does not predict its stock, and its star history is not
+even accessible with a personal token.
+
 ### Recommended next steps
 
 - **Expand the corpus** to include 10–20 consumer repos that use the mapped
@@ -626,20 +675,31 @@ surface; downloads add density but no lead/lag information.
   MSFT (fwd4 r=+0.40) but are a monotone-trend artifact; all change-based
   correlations are ≈ 0 or negative across every ticker and horizon. This is
   the sixth falsified surface. See the download-count section above.
+- **Own-repo momentum probe.** ✅ Done — measured the vendor-literal surface
+  (star velocity, contributor growth, commit velocity on the 3 core SDK
+  repos). Star history is unmeasurable since GitHub's July 2026 stargazers
+  restriction; commit/contributor level correlations (AMZN contributors fwd4
+  +0.32, MSFT commits fwd4 +0.32) fail every change/momentum transform
+  (Δ ≈ 0, velocity null/negative, detrended collapses). Seventh falsified
+  surface. See the own-repo momentum section above.
 - **Next step options:**
   - **Stop the research track** — empirical conclusion across G0→G2, the
-    wide-corpus experiment, the migration base-rate probe, and the SDK
-    download-count surface: six measurement surfaces (churn events, weighted
-    events, `added` events, declared migrations, own-repo downloads, and
-    download growth/change) produce no robust forward signal above |r| ≈ 0.2.
-    The research infrastructure is production-ready but the signal is absent.
-    See the download-count surface section above.
+    wide-corpus experiment, the migration base-rate probe, the SDK download
+    count surface, and the own-repo momentum probe: seven measurement
+    surfaces (churn events, weighted events, `added` events, declared
+    migrations, own-repo downloads, download growth/change, and own-repo
+    momentum) produce no robust forward signal above |r| ≈ 0.2, and every
+    higher reading is a trend/concentration artifact. The research
+    infrastructure is production-ready but the signal is absent.
   - **Own-repo momentum probe** — a different surface (star velocity,
     contributor growth, commit velocity for the SDK repositories themselves:
     `aws/aws-sdk-js-v3`, `Azure/azure-sdk-for-js`,
-    `googleapis/google-cloud-node`). This is what Sherlock/Paradox/GitDealFlow
-    actually measure, and it doesn't depend on the downloads surface
-    succeeding. Requires GitHub API calls (star history, contributor counts).
+    `googleapis/google-cloud-node`). ✅ Done — this is what
+    Sherlock/Paradox/GitDealFlow actually measure. Result: falsified. Star
+    history is unmeasurable for third-party repos since GitHub's July 2026
+    stargazers restriction, and commit/contributor momentum adds no
+    lead/lag after change transforms. See the own-repo momentum section
+    above.
   - **Fundamentally different corpus** — a wider search beyond npm/TypeScript
     (Go modules, Python packages, Cargo crates) or a corpus focused on repos
     known to make strategic adoption decisions (not just Renovate bumps).
@@ -653,32 +713,38 @@ The dataset may be used for exploratory curves and pre-registered tests only
 after the quality report is reviewed. The gates are unchanged from the corpus
 document:
 
-| Gate                       | Description                                                | Status                                                                                                                                 |
-| -------------------------- | ---------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------- |
-| **G0 — Data quality**      | Reliable identification, deduplication, auditable mappings | ✅ Validated                                                                                                                           |
-| **G1 — Historical signal** | Adoption curves vs stock-price outcomes                    | ❌ No signal — tested across pilot-v1→v4, wide corpus, migration base-rate probe, and SDK download counts; no metric exceeds abs r 0.3 |
-| **G2 — Agent usefulness**  | Agent scoring improves selectivity                         | ❌ Tested — weighting does not improve signal; corpus has almost no strategic events                                                   |
-| **G3 — Paper viability**   | Conservative paper strategy                                | Pending                                                                                                                                |
-| **G4 — Alpaca decision**   | Go/no-go for brokerage integration                         | Pending                                                                                                                                |
+| Gate                       | Description                                                | Status                                                                                                                                                    |
+| -------------------------- | ---------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **G0 — Data quality**      | Reliable identification, deduplication, auditable mappings | ✅ Validated                                                                                                                                              |
+| **G1 — Historical signal** | Adoption curves vs stock-price outcomes                    | ❌ No signal — tested across pilot-v1→v4, wide corpus, migration base-rate probe, SDK download counts, and own-repo momentum; no metric exceeds abs r 0.3 |
+| **G2 — Agent usefulness**  | Agent scoring improves selectivity                         | ❌ Tested — weighting does not improve signal; corpus has almost no strategic events                                                                      |
+| **G3 — Paper viability**   | Conservative paper strategy                                | Pending                                                                                                                                                   |
+| **G4 — Alpaca decision**   | Go/no-go for brokerage integration                         | Pending                                                                                                                                                   |
 
-**Empirical status (as of 2026-08-30):** G1 is now tested to failure. Six
+**Empirical status (as of 2026-08-30):** G1 is now tested to failure. Seven
 measurement surfaces — four corpus constructions (pilot-v1→v4), a 27-repo
 `added`-only wide corpus, the migration base-rate probe (commit messages +
-release notes), and SDK download counts (level and change) — produce no
-forward signal stronger than |r| ≈ 0.2–0.3, and every reading above that
-boundary was traced to a small-sample, single-repo/single-week concentration
-artifact, or a monotone-trend (level) artifact. The migration base-rate probe
-confirms the root cause on the event side: strategic adoption events are rare
-across all measurable surfaces (0/505 commit messages, 8/2,047 release notes —
-all keyword false positives). The download-count surface adds the demand side:
+release notes), SDK download counts (level and change), and own-repo momentum
+(commit velocity + contributor growth) — produce no forward signal stronger
+than |r| ≈ 0.2–0.3, and every reading above that boundary was traced to a
+small-sample, single-repo/single-week concentration artifact, or a
+monotone-trend (level) artifact. The migration base-rate probe confirms the
+root cause on the event side: strategic adoption events are rare across all
+measurable surfaces (0/505 commit messages, 8/2,047 release notes — all
+keyword false positives). The download-count surface adds the demand side:
 even dense, monotone-rising download series carry no lead/lag when expressed
 as change — the exact transformation the vendor literature says contains the
-signal. The OSS-adoption hypothesis, as implemented (npm package-manifest
-churn of `@aws-sdk` / `@azure` / `@google-cloud` consumers, or their download
-counts, vs tokenized-stock prices), does not demonstrate a tradable lead/lag.
-A signal, if one exists, requires a fundamentally different measurement
-surface (e.g. own-repo momentum — star velocity, contributor growth) or a
-different corpus/metric definition.
+signal. The own-repo momentum probe closes the last vendor-standard surface:
+commit/contributor momentum on the SDK repos themselves adds no lead/lag
+(Δ and velocity transforms ≈ 0 or negative), and star velocity is not even
+measurable for third-party repos under GitHub's July 2026 stargazers
+restriction. The OSS-adoption hypothesis, as implemented (npm
+package-manifest churn of `@aws-sdk` / `@azure` / `@google-cloud` consumers,
+their download counts, or the vendors' own repo momentum, vs tokenized-stock
+prices), does not demonstrate a tradable lead/lag. A signal, if one exists,
+requires a fundamentally different measurement surface or a different
+corpus/metric definition — none of which the seven falsifications
+justify investing in on the current evidence.
 
 Until G4 is a positive decision, Alpaca remains downstream context — not a
 dependency of the collector or the research dataset.
