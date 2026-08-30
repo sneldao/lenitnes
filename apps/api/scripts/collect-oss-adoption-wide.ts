@@ -392,7 +392,14 @@ async function main(): Promise<void> {
   );
 }
 
-main().catch((err) => {
-  console.error(err);
-  process.exit(1);
-});
+// Only run when invoked directly (not when imported).
+const isMain =
+  process.argv[1] &&
+  (process.argv[1] === import.meta.filename ||
+    process.argv[1].replace(/\.(ts|js)$/, '') === import.meta.filename.replace(/\.(ts|js)$/, ''));
+if (isMain) {
+  main().catch((err) => {
+    console.error(err);
+    process.exit(1);
+  });
+}
