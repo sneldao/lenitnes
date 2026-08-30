@@ -534,6 +534,59 @@ targets do not exist at a usable frequency. The OSS-adoption track has no
 remaining promising framing under the current corpus philosophy, and further
 corpus investment is not justified on the evidence.
 
+### SDK download-count surface (2026-08-30)
+
+After the base-rate probe returned STOP, an external survey of how the
+alternative-data industry measures OSS adoption (Sherlock Analytics
+Community Development Index, Paradox Intelligence, GitDealFlow) pointed to a
+fundamentally different measurement surface: instead of third-party manifest
+churn toward SDKs (sparse, bot-dominated, ~17 strategic events/year), the
+industry measures the target's own demand — downloads, contributor growth,
+commit velocity. The vendor literature is consistent on one point: **the
+signal is in change, not level**.
+
+A probe collected daily download counts from the npm registry public API for
+the mapped SDK packages (`@aws-sdk/*`, `@azure/*`, `@google-cloud/*`) — 29
+packages, 350-day window (2025-09-14 → 2026-08-30), 51 weeks — and overlaid
+the resulting weekly curves against the same CoinGecko tokenized-stock prices
+used in every prior overlay. Scripts: `collect-sdk-downloads.ts` (npm API,
+per-package range queries — the bulk endpoint rejects scoped packages) and
+`analyze-sdk-downloads.ts` (weekly aggregation + reuse of
+`buildOverlay`/`summarizeOverlay`).
+
+Raw scale: AMZN ≈ 3.7B, MSFT ≈ 1.4B, GOOGL ≈ 0.8B SDK downloads over the
+window — a dense, monotone-rising level series (npm counts include CI and
+mirror pulls; absolute levels are inflated, but this is the same data the
+industry sells).
+
+**Level correlations (weekly download total vs forward price return):**
+
+| Ticker | fwd1  | fwd2  | fwd4  | Reading                                                         |
+| ------ | ----- | ----- | ----- | --------------------------------------------------------------- |
+| AMZN   | +0.02 | +0.06 | +0.06 | null                                                            |
+| MSFT   | +0.17 | +0.32 | +0.40 | strong-looking — but the level is a monotone uptrend (artifact) |
+| GOOGL  | −0.16 | −0.15 | −0.20 | negative                                                        |
+
+**Change correlations (the industry's "signal in change" test):**
+
+| Ticker | metric   | fwd1  | fwd2  | fwd4  |
+| ------ | -------- | ----- | ----- | ----- |
+| AMZN   | % change | −0.17 | −0.15 | −0.20 |
+| AMZN   | velocity | −0.16 | −0.20 | −0.19 |
+| MSFT   | % change | −0.15 | −0.01 | −0.17 |
+| MSFT   | velocity | +0.13 | −0.03 | −0.08 |
+| GOOGL  | % change | −0.15 | −0.14 | −0.09 |
+| GOOGL  | velocity | −0.15 | −0.13 | −0.10 |
+
+**Conclusion: the download-count surface is falsified.** The apparent MSFT
+level signal (fwd4 r=+0.40) is a monotone-trend artifact: weekly downloads
+rose 17M → 46M while the price dipped and recovered, and Pearson over two
+trending series is spurious. The moment the signal is expressed the way the
+industry insists it works — as change (% change, weekly delta, trailing
+velocity) — every correlation collapses to ≈ 0 or negative across all three
+tickers and all forward horizons. This is the sixth falsified measurement
+surface; downloads add density but no lead/lag information.
+
 ### Recommended next steps
 
 - **Expand the corpus** to include 10–20 consumer repos that use the mapped
@@ -566,18 +619,30 @@ corpus investment is not justified on the evidence.
   feature releases, deprecation notices). Strategic adoption decisions are
   rare across every surface we can measure, so a changelog-anchored corpus
   build is not justified. See the probe section above.
+- **SDK download-count surface.** ✅ Done — pulled 29 mapped SDK packages'
+  npm download counts (350 days, 51 weeks) and overlaid weekly curves vs
+  tokenized-stock prices, testing both the level (weekly total) and the
+  change (% change / delta / velocity). Level correlations look strong for
+  MSFT (fwd4 r=+0.40) but are a monotone-trend artifact; all change-based
+  correlations are ≈ 0 or negative across every ticker and horizon. This is
+  the sixth falsified surface. See the download-count section above.
 - **Next step options:**
-  - **Stop the research track** — the empirical conclusion across G0→G2, the
-    wide-corpus experiment, and the migration base-rate probe is that on this
-    corpus (npm/TypeScript SDK consumers, 3 tickers, 12-month window), no
-    metric, transformation, or scoring method produces a tradable forward
-    signal (|r| ≤ 0.3), and strategic adoption events are rare across all
-    measurable surfaces. The research infrastructure is production-ready but
-    the signal is absent.
+  - **Stop the research track** — empirical conclusion across G0→G2, the
+    wide-corpus experiment, the migration base-rate probe, and the SDK
+    download-count surface: six measurement surfaces (churn events, weighted
+    events, `added` events, declared migrations, own-repo downloads, and
+    download growth/change) produce no robust forward signal above |r| ≈ 0.2.
+    The research infrastructure is production-ready but the signal is absent.
+    See the download-count surface section above.
+  - **Own-repo momentum probe** — a different surface (star velocity,
+    contributor growth, commit velocity for the SDK repositories themselves:
+    `aws/aws-sdk-js-v3`, `Azure/azure-sdk-for-js`,
+    `googleapis/google-cloud-node`). This is what Sherlock/Paradox/GitDealFlow
+    actually measure, and it doesn't depend on the downloads surface
+    succeeding. Requires GitHub API calls (star history, contributor counts).
   - **Fundamentally different corpus** — a wider search beyond npm/TypeScript
     (Go modules, Python packages, Cargo crates) or a corpus focused on repos
     known to make strategic adoption decisions (not just Renovate bumps).
-    The current corpus is dominated by routine maintenance.
   - **Revisit the metric definition** — `adoption_rate = netAdd /
 totalTracking` (cumulative per-repo tracking state) would be a richer
     signal than raw netAdd, but requires a pipeline change to maintain state.
@@ -588,26 +653,32 @@ The dataset may be used for exploratory curves and pre-registered tests only
 after the quality report is reviewed. The gates are unchanged from the corpus
 document:
 
-| Gate                       | Description                                                | Status                                                                                                            |
-| -------------------------- | ---------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------- |
-| **G0 — Data quality**      | Reliable identification, deduplication, auditable mappings | ✅ Validated                                                                                                      |
-| **G1 — Historical signal** | Adoption curves vs stock-price outcomes                    | ❌ No signal — tested across pilot-v1→v4, wide corpus, and migration base-rate probe; no metric exceeds abs r 0.3 |
-| **G2 — Agent usefulness**  | Agent scoring improves selectivity                         | ❌ Tested — weighting does not improve signal; corpus has almost no strategic events                              |
-| **G3 — Paper viability**   | Conservative paper strategy                                | Pending                                                                                                           |
-| **G4 — Alpaca decision**   | Go/no-go for brokerage integration                         | Pending                                                                                                           |
+| Gate                       | Description                                                | Status                                                                                                                                 |
+| -------------------------- | ---------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------- |
+| **G0 — Data quality**      | Reliable identification, deduplication, auditable mappings | ✅ Validated                                                                                                                           |
+| **G1 — Historical signal** | Adoption curves vs stock-price outcomes                    | ❌ No signal — tested across pilot-v1→v4, wide corpus, migration base-rate probe, and SDK download counts; no metric exceeds abs r 0.3 |
+| **G2 — Agent usefulness**  | Agent scoring improves selectivity                         | ❌ Tested — weighting does not improve signal; corpus has almost no strategic events                                                   |
+| **G3 — Paper viability**   | Conservative paper strategy                                | Pending                                                                                                                                |
+| **G4 — Alpaca decision**   | Go/no-go for brokerage integration                         | Pending                                                                                                                                |
 
-**Empirical status (as of 2026-08-30):** G1 is now tested to failure. Five
-corpus constructions (pilot-v1→v4 plus a 27-repo `added`-only wide corpus)
-produce no forward signal stronger than |r| ≈ 0.2–0.3, and every reading above
-that boundary was traced to a small-sample or single-repo/single-week
-concentration artifact. The migration base-rate probe confirms the root cause:
-strategic adoption events are rare across all measurable surfaces (0/505
-commit messages, 8/2,047 release notes — all keyword false positives), so no
-corpus or metric built on real OSS activity can produce a tradable signal.
-The OSS-adoption hypothesis, as implemented (npm package-manifest churn of
-`@aws-sdk` / `@azure` / `@google-cloud` consumers vs tokenized-stock prices),
-does not demonstrate a tradable lead/lag. A signal, if one exists, requires a
-fundamentally different corpus or metric definition.
+**Empirical status (as of 2026-08-30):** G1 is now tested to failure. Six
+measurement surfaces — four corpus constructions (pilot-v1→v4), a 27-repo
+`added`-only wide corpus, the migration base-rate probe (commit messages +
+release notes), and SDK download counts (level and change) — produce no
+forward signal stronger than |r| ≈ 0.2–0.3, and every reading above that
+boundary was traced to a small-sample, single-repo/single-week concentration
+artifact, or a monotone-trend (level) artifact. The migration base-rate probe
+confirms the root cause on the event side: strategic adoption events are rare
+across all measurable surfaces (0/505 commit messages, 8/2,047 release notes —
+all keyword false positives). The download-count surface adds the demand side:
+even dense, monotone-rising download series carry no lead/lag when expressed
+as change — the exact transformation the vendor literature says contains the
+signal. The OSS-adoption hypothesis, as implemented (npm package-manifest
+churn of `@aws-sdk` / `@azure` / `@google-cloud` consumers, or their download
+counts, vs tokenized-stock prices), does not demonstrate a tradable lead/lag.
+A signal, if one exists, requires a fundamentally different measurement
+surface (e.g. own-repo momentum — star velocity, contributor growth) or a
+different corpus/metric definition.
 
 Until G4 is a positive decision, Alpaca remains downstream context — not a
 dependency of the collector or the research dataset.
