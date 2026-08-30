@@ -376,6 +376,69 @@ The G1 adoption-curves vs stock-price overlay has not produced a signal
 strong enough to investigate further without a fundamentally different
 approach to the corpus, the metric definition, or the scoring methodology.
 
+### G2 agent scoring (2026-08-29)
+
+G2 tests whether weighting each dependency event by _strategic importance_
+improves selectivity over the raw curve. The hypothesis: most dependency
+changes are routine maintenance (Renovate bumps, chore(deps)), which drowns
+out the few strategic adoption decisions (migrating to a new SDK, adopting a
+new vendor). An agent that reads the commit message and scores each event
+should amplify the strategic signal.
+
+Pipeline:
+
+```bash
+# 1. Enrich a collected run JSON with commit messages:
+GITHUB_TOKEN=ghp_xxx npx tsx scripts/enrich-oss-adoption.ts \
+  --input /tmp/oss-adoption-v4/oss-adoption-*.json \
+  --out /tmp/oss-adoption-v4
+
+# 2. Run the overlay with --g2 flag (heuristic scoring):
+npx tsx scripts/analyze-oss-adoption.ts \
+  --input /tmp/oss-adoption-v4/*.enriched.json \
+  --metric changed --g2 \
+  --out /tmp/oss-adoption-v4/g2
+
+# 3. Optional: LLM scoring (requires live LLM endpoint):
+TOKENROUTER_API_KEY=... npx tsx scripts/llm-score-oss-adoption.ts \
+  --input /tmp/oss-adoption-v4/*.enriched.json
+```
+
+**Heuristic scorer:** keyword-based classifier weighing commit message patterns
+(`migrat`, `adopt`, `switch to` → strategic; `bump`, `chore(`, `renovate` →
+routine), change type, and version magnitude. Weight = 2 × score, so neutral
+(0.5) keeps full weight, strategic (~0.8) counts 1.6×, routine (~0.3) counts
+0.6×.
+
+**Result on pilot-v4** (505 mapped events, all enriched with commit messages):
+
+| Score bucket           | Events | Mean weight |
+| ---------------------- | ------ | ----------- |
+| ≥ 0.8 (high/strategic) | 9      | 1.7×        |
+| 0.4–0.7 (mid)          | 167    | 1.0×        |
+| ≤ 0.3 (routine)        | 329    | 0.5×        |
+
+Mean heuristic score: **0.355** — the corpus is dominated by routine maintenance.
+
+Heuristic-weighted vs unweighted correlations (`--metric changed`):
+
+| Ticker | Raw fwd1 velocity r | Weighted fwd1 velocity r | Change |
+| ------ | ------------------- | ------------------------ | ------ |
+| AMZN   | — (dropped)         | — (dropped)              | —      |
+| GOOGL  | +0.131              | +0.122                   | −0.009 |
+| MSFT   | — (dropped)         | — (dropped)              | —      |
+
+**Weighting barely moves the overlay.** The G2 hypothesis fails on this corpus
+— not because scoring is weak, but because the corpus contains almost no
+strategic adoption events to amplify. The bottleneck is corpus composition, not
+scoring methodology.
+
+**LLM scoring** (via Qwen3.8 → TokenRouter gpt-4o-mini fallback) was attempted
+as a more nuanced scorer. The partial results (mean ~0.37) agree with the
+heuristic. The live endpoint was rate-limited during the run; the
+`llm-score-oss-adoption.ts` script is kept in the repository as the documented
+LLM path.
+
 ### Recommended next steps
 
 - **Expand the corpus** to include 10–20 consumer repos that use the mapped
