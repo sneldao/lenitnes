@@ -44,14 +44,23 @@ export function weekStartOf(dateIso: string): string {
   return date.toISOString().slice(0, 10);
 }
 
-const CHANGE_COUNTS: ReadonlyArray<DependencyChange> = ['added', 'removed', 'upgraded', 'downgraded', 'changed'];
+const CHANGE_COUNTS: ReadonlyArray<DependencyChange> = [
+  'added',
+  'removed',
+  'upgraded',
+  'downgraded',
+  'changed',
+];
 
 /**
  * Build weekly adoption curves from normalized events. Events without a
  * company ticker are ignored (they cannot form a company curve). The
  * result is sorted by company ticker then week start.
  */
-export function buildWeeklyCurves(events: DependencyEvent[], options: WeeklyCurvesOptions = {}): AdoptionWeek[] {
+export function buildWeeklyCurves(
+  events: DependencyEvent[],
+  options: WeeklyCurvesOptions = {},
+): AdoptionWeek[] {
   const tickers = options.companyTickers ? new Set(options.companyTickers) : null;
   const buckets = new Map<string, AdoptionWeek>();
   const weekRepos = new Map<string, Set<string>>();
@@ -66,7 +75,17 @@ export function buildWeeklyCurves(events: DependencyEvent[], options: WeeklyCurv
     const repoKey = `${event.companyTicker}|${weekStart}|${event.repository}`;
     let bucket = buckets.get(key);
     if (!bucket) {
-      bucket = { weekStart, companyTicker: event.companyTicker, added: 0, removed: 0, upgraded: 0, downgraded: 0, changed: 0, netAdd: 0, activeRepos: 0 };
+      bucket = {
+        weekStart,
+        companyTicker: event.companyTicker,
+        added: 0,
+        removed: 0,
+        upgraded: 0,
+        downgraded: 0,
+        changed: 0,
+        netAdd: 0,
+        activeRepos: 0,
+      };
       buckets.set(key, bucket);
     }
     const countKey = event.change;
@@ -79,19 +98,98 @@ export function buildWeeklyCurves(events: DependencyEvent[], options: WeeklyCurv
   }
 
   return [...buckets.values()].sort(
-    (a, b) => a.companyTicker.localeCompare(b.companyTicker) || a.weekStart.localeCompare(b.weekStart),
+    (a, b) =>
+      a.companyTicker.localeCompare(b.companyTicker) || a.weekStart.localeCompare(b.weekStart),
+  );
+}
+
+/**
+ * Build score-weighted weekly adoption curves (G2). Identical bucketing to
+ * `buildWeeklyCurves`, but each mapped event contributes `weight` (default 1)
+ * instead of 1 to the per-week change counts. `weightFn` returns the event's
+ * strategic weight (e.g. `2 * score` so neutral events weigh 1 and
+ * high-strategy events weigh ~1.8, low-strategy ~0.2). `activeRepos` is the
+ * number of distinct repos with at least one weight > 0 in the week.
+ *
+ * Weighted counts are fractional; the resulting AdoptionWeek rows plug
+ * directly into velocity/acceleration scoring and the price overlay.
+ */
+export function buildWeightedCurves(
+  events: DependencyEvent[],
+  weightFn: (event: DependencyEvent) => number,
+  options: WeeklyCurvesOptions = {},
+): AdoptionWeek[] {
+  const tickers = options.companyTickers ? new Set(options.companyTickers) : null;
+  const buckets = new Map<string, AdoptionWeek>();
+  const weekRepos = new Map<string, Set<string>>();
+
+  for (const event of events) {
+    if (!event.companyTicker) continue;
+    if (tickers && !tickers.has(event.companyTicker)) continue;
+    const weekStart = weekStartOf(event.committedAt);
+    if (!weekStart) continue;
+    const w = weightFn(event);
+    if (!Number.isFinite(w) || w <= 0) continue;
+
+    const key = `${event.companyTicker}|${weekStart}`;
+    const repoKey = `${event.companyTicker}|${weekStart}|${event.repository}`;
+    let bucket = buckets.get(key);
+    if (!bucket) {
+      bucket = {
+        weekStart,
+        companyTicker: event.companyTicker,
+        added: 0,
+        removed: 0,
+        upgraded: 0,
+        downgraded: 0,
+        changed: 0,
+        netAdd: 0,
+        activeRepos: 0,
+      };
+      buckets.set(key, bucket);
+    }
+    bucket[event.change] += w;
+    if (!weekRepos.has(repoKey)) {
+      weekRepos.set(repoKey, new Set());
+      bucket.activeRepos += 1;
+    }
+    bucket.netAdd = bucket.added - bucket.removed;
+  }
+
+  return [...buckets.values()].sort(
+    (a, b) =>
+      a.companyTicker.localeCompare(b.companyTicker) || a.weekStart.localeCompare(b.weekStart),
   );
 }
 
 /** Fill missing weeks with zero-count buckets so the series is continuous. */
-export function fillWeeklyGaps(curves: AdoptionWeek[], ticker: string, fromWeek: string, toWeek: string): AdoptionWeek[] {
-  const byWeek = new Map(curves.filter((c) => c.companyTicker === ticker).map((c) => [c.weekStart, c]));
+export function fillWeeklyGaps(
+  curves: AdoptionWeek[],
+  ticker: string,
+  fromWeek: string,
+  toWeek: string,
+): AdoptionWeek[] {
+  const byWeek = new Map(
+    curves.filter((c) => c.companyTicker === ticker).map((c) => [c.weekStart, c]),
+  );
   const output: AdoptionWeek[] = [];
-  let cursor = new Date(`${fromWeek}T00:00:00Z`);
+  const cursor = new Date(`${fromWeek}T00:00:00Z`);
   const end = new Date(`${toWeek}T00:00:00Z`);
   while (cursor <= end) {
     const key = cursor.toISOString().slice(0, 10);
-    output.push(byWeek.get(key) ?? { weekStart: key, companyTicker: ticker, added: 0, removed: 0, upgraded: 0, downgraded: 0, changed: 0, netAdd: 0, activeRepos: 0 });
+    output.push(
+      byWeek.get(key) ?? {
+        weekStart: key,
+        companyTicker: ticker,
+        added: 0,
+        removed: 0,
+        upgraded: 0,
+        downgraded: 0,
+        changed: 0,
+        netAdd: 0,
+        activeRepos: 0,
+      },
+    );
     cursor.setUTCDate(cursor.getUTCDate() + 7);
   }
   return output;
@@ -99,9 +197,29 @@ export function fillWeeklyGaps(curves: AdoptionWeek[], ticker: string, fromWeek:
 
 /** Serialize curves to the CSV shape used by the research artifacts. */
 export function curvesToCsv(curves: AdoptionWeek[]): string {
-  const header = ['weekStart', 'companyTicker', 'added', 'removed', 'upgraded', 'downgraded', 'changed', 'netAdd', 'activeRepos'];
+  const header = [
+    'weekStart',
+    'companyTicker',
+    'added',
+    'removed',
+    'upgraded',
+    'downgraded',
+    'changed',
+    'netAdd',
+    'activeRepos',
+  ];
   const rows = curves.map((c) =>
-    [c.weekStart, c.companyTicker, c.added, c.removed, c.upgraded, c.downgraded, c.changed, c.netAdd, c.activeRepos].join(','),
+    [
+      c.weekStart,
+      c.companyTicker,
+      c.added,
+      c.removed,
+      c.upgraded,
+      c.downgraded,
+      c.changed,
+      c.netAdd,
+      c.activeRepos,
+    ].join(','),
   );
   return [header.join(','), ...rows].join('\n') + '\n';
 }

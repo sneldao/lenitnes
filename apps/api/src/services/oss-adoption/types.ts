@@ -42,6 +42,10 @@ export interface DependencyEvent {
   mappingRef: string | null;
   mappingConfidence: MappingConfidence | null;
   sourceUrl: string;
+  /** Enriched by enrich-oss-adoption.ts (G2). */
+  commitMessage?: string | null;
+  commitDate?: string | null;
+  commitAuthor?: string | null;
 }
 
 export interface RepositoryQuality {
