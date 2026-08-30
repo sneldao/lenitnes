@@ -462,18 +462,18 @@ pipeline (`--max-pages 3`, 12-month window).
 
 | Metric             | pilot-v4 (29 repos) | wide-v1 (27 repos) |
 | ------------------ | ------------------- | ------------------ |
-| Events extracted   | 9523                | 5141               |
-| **Mapped events**  | **505**             | **305**            |
+| Events extracted   | 9523                | 5919               |
+| **Mapped events**  | **505**             | **390**            |
 | AMZN active weeks  | 47/52               | 40/52              |
-| GOOGL active weeks | 26/52               | 9/52               |
+| GOOGL active weeks | 26/52               | 11/52              |
 | MSFT active weeks  | 11/52               | 20/52              |
 | **`added` events** | **~16**             | **17**             |
 
 The wide corpus produced more per-week signal surface (MSFT active weeks
 nearly doubled), but the **`added` event count stayed microscopic: 17 events
-across 25 completed repos over a full year** (2 repos failed at rate-limit
-exhaustion late in the run — julianpoy/RecipeSage, ShieldBattery — recorded as
-missing observations).
+across all 27 repos over a full year** (the first pass failed 2 repos at
+rate-limit exhaustion — julianpoy/RecipeSage, ShieldBattery; a second pass
+completed 27/27, and neither of the missing repos added any `added` events).
 
 `added`-only correlations (`--metric added`, n=51/52):
 
@@ -492,7 +492,7 @@ one spike week is driven by that spike, exactly as pilot-v3's GOOGL reading was.
 
 **The `added`-only wide-corpus experiment is falsified.** The premise holds
 (`added` is the strategic event) but the frequency is the killer: real
-first-time SDK adoption happens ~once per repo per year, so even 25 repos
+first-time SDK adoption happens ~once per repo per year, so even 27 repos
 yield ~17 events — a curve that is ~0 in 43 of 52 weeks. A wider corpus
 cannot fix this; `added` events do not scale with repo count because adoption
 is a rare, one-time decision per repo per package. The observed correlations
@@ -502,9 +502,9 @@ tradable lead/lag.
 The takeaway also reframes the pilot-v3/v4 churn filter: it was not just a
 quality nicety — the churn-verified corpus (repos that actively change mapped
 packages) is what produces a usable signal surface at all. The broad
-"has the SDK in package.json" corpus has 27 repos but 40% fewer mapped events
-than the 29-repo churn corpus, because most wide repos hold the dependency
-static for the whole year.
+"has the SDK in package.json" corpus has 27 repos but fewer mapped events
+(390) than the 29-repo churn corpus (505), because most wide repos hold the
+dependency static for the whole year.
 
 ### Recommended next steps
 
@@ -524,7 +524,7 @@ static for the whole year.
   adoption events — 505 mapped events, mean heuristic score 0.355, only 9
   high-score events. The bottleneck is corpus composition, not scoring.
 - **Wide-corpus `added`-only experiment.** ✅ Done — `added` is confirmed as
-  the strategic event type, but it is too rare to scale: 17 events across 25
+  the strategic event type, but it is too rare to scale: 17 events across 27
   wide repos over 12 months, and the apparent AMZN same-week r=+0.33 is a
   single-repo single-week concentration artifact. The `added` curve is
   degenerate (0 in ~43/52 weeks), so wider corpora cannot fix the signal.
