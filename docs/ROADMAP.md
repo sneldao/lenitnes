@@ -234,68 +234,63 @@ shows pattern hit rates.
 
 ## OSS adoption signal — the third oracle (leading-indicator trading)
 
+> ⛔ **VERTICAL CLOSED — falsified-to-conclusion (2026-08-30).** Eight
+> independent measurement surfaces were tested (churn events, weighted
+> events, `added` events, declared migrations, SDK download levels, download
+> change, own-repo momentum, and the adoption_rate metric). None produces a
+> robust forward signal vs tokenized-stock prices above |r| ≈ 0.2; every
+> higher reading is a monotone-trend or concentration artifact. The last
+> theoretical framing (adoption_rate = netAdd / totalTracking) is
+> mathematically degenerate on a churn-verified corpus (near-constant
+> denominator ⇒ scaled copy of netAdd). No further corpus, metric, or
+> measurement-surface work is justified. Effort redirects to the `[markets]`
+> and `[research]` verticals. Full evidence:
+> [`docs/oss-adoption-collector.md`](docs/oss-adoption-collector.md)
+> (validation boundary + empirical status).
+
 > See [`docs/oss-adoption-trading.md`](docs/oss-adoption-trading.md) for the
-> full design. This is the scalability extension: if LENITNES can predict
-> stock price movements from aggregate OSS dependency changes across *all
-> public repos* (not just the crypto consensus watchlist), the platform
+> full design. This was the scalability extension: if LENITNES can predict
+> stock price movements from aggregate OSS dependency changes across _all
+> public repos_ (not just the crypto consensus watchlist), the platform
 > generalizes to every publicly traded company — not just those with public
 > code.
 
-**The thesis:** OSS dependency changes are an un-manipulable, real-time
-sentiment indicator. When N repos coordinately remove `google-gemini` and
-add `@anthropic-ai/sdk`, that is a market signal arriving weeks before
-earnings.
+**The thesis (as designed):** OSS dependency changes are an un-manipulable,
+real-time sentiment indicator. When N repos coordinately remove
+`google-gemini` and add `@anthropic-ai/sdk`, that is a market signal
+arriving weeks before earnings.
 
-**The extension:** a fourth vertical (`oss` / `adoption`) that runs the
-existing loop (detect → score → commit → track → grade) over a new corpus
-(all public repos) and a new grading oracle (public company stock prices).
+**The extension (as designed):** a fourth vertical (`oss` / `adoption`)
+that runs the existing loop (detect → score → commit → track → grade) over
+a new corpus (all public repos) and a new grading oracle (public company
+stock prices). **The design was falsified before this extension was built.**
 
-### Phases
+### What was actually tested (2026-08-29 → 2026-08-30)
 
-**Phase 0 — Backtest validation.** Before building the pipeline: run
-`/scan` replay over a curated set of repos that use GOOGL/MSFT/AMZN
-packages. Extract dependency changes. Overlay with stock prices. Answer:
-does the adoption curve predict short-term price movement? (Target: 3
-companies, 12 months of data, T+1d/T+7d windows.)
+Phase 0 (backtest validation) was executed to completion, far beyond the
+original 3-company scope, and failed. The collector, weekly curves, scoring,
+overlay, and quality gates (G0–G2) were all built and are production-ready;
+the signal they were built to find does not exist on the measured surfaces:
 
-**Phase 1 — Package registry + weekly aggregation.** New tables:
-`oss_companies`, `oss_packages`, `oss_adoption_curves`. A weekly cron
-parses dependency manifests (`package.json`, `go.mod`, `Cargo.toml`)
-across a curated corpus, maps packages to companies, and builds weekly
-adoption curves per company.
-
-**Phase 2 — Agent scoring.** Wire aggregation results into the existing
-agent pipeline. New detector type `oss_adoption_change`. New rubric
-extension (v7) adds ecosystem-breadth and materiality-weighted scoring.
-
-**Phase 3 — Paper trading.** If conviction scores predict outcomes,
-enable paper trading. Track P&L alongside `[markets]` P&L.
-
-**Phase 4 — UI surface.** New "Intelligence" section: adoption curves
-page, signal feed, earnings overlay. Scorecard gains a fourth tab.
-Timeline gains a third toggle.
-
-### Relationship to existing directions
-
-This doesn't replace `[markets]` or `[research]`. It sits alongside them:
-
-| Vertical | Input | Oracle | Action |
-| --- | --- | --- | --- |
-| `[markets]` | crypto consensus commits | market price | trade |
-| `[research]` | scientific software commits | published record | alert |
-| **OSS adoption** | all public repos (dependency changes) | public company price | trade/alert |
-| **Enterprise** | customer's private repos | internal audit | leak-scan |
-
-The enterprise direction becomes even stronger: "scan your private repos
-AND cross-reference against public OSS adoption signals moving the market."
+| #   | Surface                                | Result                                     |
+| --- | -------------------------------------- | ------------------------------------------ |
+| 1   | Churn events (pilot-v1→v4 corpora)     | no forward signal                          |
+| 2   | G2 agent-weighted events               | no improvement                             |
+| 3   | Wide-corpus `added` events             | 17/year — concentration artifact           |
+| 4   | Migration base-rate probe              | 0/505 + 8/2,047 (all false positives)      |
+| 5   | SDK download levels                    | monotone-trend artifact (MSFT +0.40 fake)  |
+| 6   | SDK download change                    | all ≈ 0 / negative                         |
+| 7   | Own-repo momentum                      | level artifacts only; star history blocked |
+| 8   | adoption_rate (netAdd / totalTracking) | mathematically degenerate                  |
 
 ### Status
 
-- [ ] Phase 0: backtest validation (3 companies, 12 months)
-- [ ] Phase 1: package registry + weekly aggregation tables
-- [ ] Phase 2: agent scoring with v7 rubric
-- [ ] Phase 3: paper trading
-- [ ] Phase 4: UI surface (Intelligence page, scorecard tab)
+- [x] Phase 0: backtest validation — **❌ falsified across eight surfaces**
+- [x] Collector, weekly curves, overlay, scoring, G0–G2 gates — **built; kept as research infrastructure**
+- [ ] ~~Phase 1: package registry + weekly aggregation tables~~ — **not justified (no signal to aggregate)**
+- [ ] ~~Phase 2: agent scoring with v7 rubric~~ — **not justified**
+- [ ] ~~Phase 3: paper trading~~ — **not justified**
+- [ ] ~~Phase 4: UI surface (Intelligence page, scorecard tab)~~ — **not justified**
 
 ## UI/UX polish backlog (post-hackathon)
 
