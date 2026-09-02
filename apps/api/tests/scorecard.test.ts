@@ -318,7 +318,7 @@ describe('scorecard.recentCalls', () => {
     await recentCalls(5);
     expect(mockQuery).toHaveBeenCalledWith(
       expect.stringMatching(
-        /COALESCE\(s\.asset, m\.asset_mapping->>'coingeckoId'\).*LEFT JOIN LATERAL[\s\S]*ORDER BY created_at DESC[\s\S]*outcome_status/s,
+        /COALESCE\(s\.asset, m\.asset_mapping->>'coingeckoId'\) AS asset[\s\S]*END AS outcome_status[\s\S]*LEFT JOIN LATERAL[\s\S]*ORDER BY s\.detected_at DESC[\s\S]*LIMIT \$1/,
       ),
       [5],
     );
