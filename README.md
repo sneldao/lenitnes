@@ -109,16 +109,16 @@ cp .env.example .env
 # 3. Migrate + seed
 createdb lenitnes
 psql -d lenitnes -f db/schema.sql
-psql -d lenitnes -f db/migrations/003_pivot.sql
-psql -d lenitnes -f db/migrations/004_signal_asset.sql
-psql -d lenitnes -f db/migrations/008_science_domain.sql
-psql -d lenitnes -f db/migrations/009_agent_scores_science.sql
+for f in db/migrations/*.sql; do psql -d lenitnes -f "$f"; done
+# positions.sql creates the positions table the scorecard/portfolio queries
+# need; the watchlist seeds set up the monitors both verticals scan.
+psql -d lenitnes -f db/seed/positions.sql
 psql -d lenitnes -f db/seed/watchlist.sql
 psql -d lenitnes -f db/seed/watchlist_science.sql
 psql -d lenitnes -f db/seed/treasury_wallets.sql
 
 # 4. Run
-npm run dev:api    # API on :4000
+npm run dev:api    # API on :8742 (API_PORT in .env)
 npm run dev:web    # Web on :3000
 ```
 
