@@ -39,9 +39,12 @@ const nextConfig = {
     ];
   },
   async rewrites() {
+    // API_INTERNAL_URL overrides the rewrite target; otherwise fall back to
+    // the documented API port (API_PORT=8742 in .env.example — the default
+    // 4000 here used to silently point the dev rewrite at a dead port).
     const apiInternalUrl =
       process.env.API_INTERNAL_URL ||
-      (process.env.NODE_ENV === 'production' ? 'http://api:8742' : 'http://localhost:4000');
+      (process.env.NODE_ENV === 'production' ? 'http://api:8742' : `http://localhost:${process.env.API_PORT || 8742}`);
 
     return [
       {
